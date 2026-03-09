@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/scenario.dart';
-import '../../state/app_state.dart';
+import '../../navigation/app_navigation.dart';
 import '../../state/analysis_state.dart';
+import '../../state/app_state.dart';
 import '../../state/property_state.dart';
 import '../../state/scenario_state.dart';
+import '../../templates/detail_template.dart';
 import '../../theme/app_theme.dart';
 import 'analysis_screen.dart';
 import 'budget_vs_actual_screen.dart';
@@ -20,10 +22,12 @@ import 'operations_overview_screen.dart';
 import 'offer_screen.dart';
 import 'overview_screen.dart';
 import 'property_audit_screen.dart';
+import 'property_documents_screen.dart';
+import 'property_tasks_screen.dart';
 import 'rent_roll_screen.dart';
 import 'reports_screen.dart';
-import 'scenarios_screen.dart';
 import 'scenario_versions_screen.dart';
+import 'scenarios_screen.dart';
 import 'tenants_screen.dart';
 import 'units_screen.dart';
 
@@ -52,150 +56,170 @@ class PropertyShell extends ConsumerWidget {
       },
       orElse: () => propertyId,
     );
+    final section = propertySectionForPage(selectedPage);
+    final destination = propertyDestinationForPage(selectedPage);
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: scenariosAsync.when(
-        data: (scenarios) {
-          if (scenarios.isNotEmpty && selectedScenarioId == null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.read(selectedScenarioIdProvider.notifier).state =
-                  scenarios.first.id;
-            });
-          }
+    return scenariosAsync.when(
+      data: (scenarios) {
+        final activeScenarioId = _resolveScenarioSelection(
+          ref: ref,
+          scenarios: scenarios,
+          selectedScenarioId: selectedScenarioId,
+        );
+        final detailContent = _buildDetailContent(
+          page: selectedPage,
+          propertyId: propertyId,
+          scenarioId: activeScenarioId,
+          scenarios: scenarios,
+        );
 
-          final detailContent =
-              selectedScenarioId == null
-                  ? const Center(child: Text('Create or select a scenario'))
-                  : _buildDetailPage(
-                    page: selectedPage,
-                    propertyId: propertyId,
-                    scenarioId: selectedScenarioId,
-                    scenarios: scenarios,
-                  );
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.component),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final compact = constraints.maxWidth < 980;
-                      final breadcrumb = Text(
-                        'Properties / $propertyName',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      );
-                      final selector = ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: _scenarioSelector(
-                          ref: ref,
-                          scenarios: scenarios,
-                          selectedScenarioId: selectedScenarioId,
-                        ),
-                      );
-                      if (compact) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            breadcrumb,
-                            const SizedBox(height: AppSpacing.component),
-                            selector,
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Expanded(child: breadcrumb),
-                          const SizedBox(width: AppSpacing.component),
-                          selector,
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.component),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 980;
-                    if (compact) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            height: 220,
-                            child: _propertySidebar(
-                              context: context,
-                              ref: ref,
-                              selectedPage: selectedPage,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.component),
-                          Expanded(child: detailContent),
-                        ],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          width: 260,
-                          child: _propertySidebar(
-                            context: context,
-                            ref: ref,
-                            selectedPage: selectedPage,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.component),
-                        Expanded(child: detailContent),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Error: $error')),
-      ),
+        return DetailTemplate(
+          title: propertyName,
+          breadcrumbs: propertyBreadcrumbs(
+            propertyName: propertyName,
+            page: selectedPage,
+          ),
+          subtitle: '${section.title} / ${destination.label}',
+          contextBar: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: _scenarioSelector(
+              ref: ref,
+              scenarios: scenarios,
+              selectedScenarioId: activeScenarioId,
+            ),
+          ),
+          navigation: _propertyNavigation(
+            context: context,
+            ref: ref,
+            selectedPage: selectedPage,
+          ),
+          content: detailContent,
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(child: Text('Error: $error')),
     );
   }
 
-  Widget _propertySidebar({
+  String? _resolveScenarioSelection({
+    required WidgetRef ref,
+    required List<ScenarioRecord> scenarios,
+    required String? selectedScenarioId,
+  }) {
+    if (scenarios.isEmpty) {
+      if (selectedScenarioId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(selectedScenarioIdProvider.notifier).state = null;
+        });
+      }
+      return null;
+    }
+    for (final scenario in scenarios) {
+      if (scenario.id == selectedScenarioId) {
+        return selectedScenarioId;
+      }
+    }
+    final nextScenarioId = scenarios.first.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(selectedScenarioIdProvider.notifier).state = nextScenarioId;
+    });
+    return nextScenarioId;
+  }
+
+  Widget _propertyNavigation({
     required BuildContext context,
     required WidgetRef ref,
     required PropertyDetailPage selectedPage,
   }) {
+    final compact = MediaQuery.sizeOf(context).width < 980;
     return Card(
-      child: Padding(
+      child: ListView(
         padding: const EdgeInsets.all(AppSpacing.component),
-        child: ListView(
-          children: PropertyDetailPage.values
-              .map(
-                (page) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: ListTile(
-                    dense: true,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    selected: page == selectedPage,
-                    selectedTileColor: const Color(0xFFEAF1F8),
-                    title: Text(_label(page)),
-                    onTap:
-                        () =>
-                            ref
-                                .read(propertyDetailPageProvider.notifier)
-                                .state = page,
-                  ),
-                ),
-              )
-              .toList(growable: false),
+        children:
+            compact
+                ? propertyNavigationSections
+                    .map(
+                      (section) => _buildCompactSection(
+                        context: context,
+                        ref: ref,
+                        section: section,
+                        selectedPage: selectedPage,
+                      ),
+                    )
+                    .toList(growable: false)
+                : propertyNavigationSections
+                    .expand(
+                      (section) => <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
+                          child: Text(
+                            section.title,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                        ),
+                        ...section.items.map(
+                          (item) => _buildNavTile(
+                            context: context,
+                            ref: ref,
+                            item: item,
+                            selectedPage: selectedPage,
+                          ),
+                        ),
+                      ],
+                    )
+                    .toList(growable: false),
+      ),
+    );
+  }
+
+  Widget _buildCompactSection({
+    required BuildContext context,
+    required WidgetRef ref,
+    required PropertyNavigationSection section,
+    required PropertyDetailPage selectedPage,
+  }) {
+    final expanded = section.items.any((item) => item.page == selectedPage);
+    return ExpansionTile(
+      initiallyExpanded: expanded,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      title: Text(
+        section.title,
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      children: section.items
+          .map(
+            (item) => _buildNavTile(
+              context: context,
+              ref: ref,
+              item: item,
+              selectedPage: selectedPage,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Widget _buildNavTile({
+    required BuildContext context,
+    required WidgetRef ref,
+    required PropertyNavigationDestination item,
+    required PropertyDetailPage selectedPage,
+  }) {
+    final selected = item.page == selectedPage;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        dense: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
         ),
+        selected: selected,
+        selectedTileColor: const Color(0xFFEAF1F8),
+        title: Text(item.label),
+        onTap:
+            () =>
+                ref.read(propertyDetailPageProvider.notifier).state = item.page,
       ),
     );
   }
@@ -206,20 +230,22 @@ class PropertyShell extends ConsumerWidget {
     required String? selectedScenarioId,
   }) {
     final selected =
-        scenarios.any((s) => s.id == selectedScenarioId)
+        scenarios.any((scenario) => scenario.id == selectedScenarioId)
             ? selectedScenarioId
             : (scenarios.isNotEmpty ? scenarios.first.id : null);
-    if (scenarios.length <= 3 && selected != null) {
+    if (selected == null) {
+      return const Text('Create or select a scenario');
+    }
+    if (scenarios.length <= 3) {
       return SegmentedButton<String>(
-        segments:
-            scenarios
-                .map(
-                  (s) => ButtonSegment<String>(
-                    value: s.id,
-                    label: Text(s.name, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
+        segments: scenarios
+            .map(
+              (scenario) => ButtonSegment<String>(
+                value: scenario.id,
+                label: Text(scenario.name, overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(growable: false),
         selected: <String>{selected},
         onSelectionChanged: (selection) {
           final next = selection.isEmpty ? null : selection.first;
@@ -239,10 +265,14 @@ class PropertyShell extends ConsumerWidget {
     }
     return DropdownButtonFormField<String>(
       value: selected,
-      items:
-          scenarios
-              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
-              .toList(),
+      items: scenarios
+          .map(
+            (scenario) => DropdownMenuItem<String>(
+              value: scenario.id,
+              child: Text(scenario.name),
+            ),
+          )
+          .toList(growable: false),
       onChanged: (value) {
         final previousScenarioId = selectedScenarioId;
         if (previousScenarioId != null) {
@@ -258,35 +288,58 @@ class PropertyShell extends ConsumerWidget {
     );
   }
 
+  Widget _buildDetailContent({
+    required PropertyDetailPage page,
+    required String propertyId,
+    required String? scenarioId,
+    required List<ScenarioRecord> scenarios,
+  }) {
+    if (propertyPageRequiresScenario(page) && scenarioId == null) {
+      return const Center(
+        child: Text('Create or select a scenario to open this section.'),
+      );
+    }
+    return _buildDetailPage(
+      page: page,
+      propertyId: propertyId,
+      scenarioId: scenarioId,
+      scenarios: scenarios,
+    );
+  }
+
   Widget _buildDetailPage({
     required PropertyDetailPage page,
     required String propertyId,
-    required String scenarioId,
+    required String? scenarioId,
     required List<ScenarioRecord> scenarios,
   }) {
     switch (page) {
       case PropertyDetailPage.overview:
-        return OverviewScreen(propertyId: propertyId, scenarioId: scenarioId);
+        return OverviewScreen(propertyId: propertyId, scenarioId: scenarioId!);
       case PropertyDetailPage.inputs:
-        return InputsScreen(scenarioId: scenarioId);
+        return InputsScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.analysis:
-        return AnalysisScreen(scenarioId: scenarioId);
+        return AnalysisScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.comps:
-        return CompsScreen(propertyId: propertyId, scenarioId: scenarioId);
+        return CompsScreen(propertyId: propertyId, scenarioId: scenarioId!);
       case PropertyDetailPage.criteria:
-        return CriteriaCheckScreen(scenarioId: scenarioId);
+        return CriteriaCheckScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.offer:
-        return OfferScreen(scenarioId: scenarioId);
+        return OfferScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.scenarios:
         return ScenariosScreen(propertyId: propertyId, scenarios: scenarios);
       case PropertyDetailPage.versions:
-        return ScenarioVersionsScreen(scenarioId: scenarioId);
+        return ScenarioVersionsScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.audit:
         return PropertyAuditScreen(propertyId: propertyId);
+      case PropertyDetailPage.documents:
+        return PropertyDocumentsScreen(propertyId: propertyId);
       case PropertyDetailPage.reports:
-        return ReportsScreen(propertyId: propertyId, scenarioId: scenarioId);
+        return ReportsScreen(propertyId: propertyId, scenarioId: scenarioId!);
       case PropertyDetailPage.operationsOverview:
         return OperationsOverviewScreen(propertyId: propertyId);
+      case PropertyDetailPage.tasks:
+        return PropertyTasksScreen(propertyId: propertyId);
       case PropertyDetailPage.units:
         return UnitsScreen(propertyId: propertyId);
       case PropertyDetailPage.tenants:
@@ -303,49 +356,6 @@ class PropertyShell extends ConsumerWidget {
         return PropertyMaintenanceScreen(propertyId: propertyId);
       case PropertyDetailPage.covenants:
         return CovenantsScreen(propertyId: propertyId);
-    }
-  }
-
-  String _label(PropertyDetailPage page) {
-    switch (page) {
-      case PropertyDetailPage.overview:
-        return 'Overview';
-      case PropertyDetailPage.inputs:
-        return 'Inputs';
-      case PropertyDetailPage.analysis:
-        return 'Analysis';
-      case PropertyDetailPage.comps:
-        return 'Comps';
-      case PropertyDetailPage.criteria:
-        return 'Criteria Check';
-      case PropertyDetailPage.offer:
-        return 'Offer Calculator';
-      case PropertyDetailPage.scenarios:
-        return 'Scenarios';
-      case PropertyDetailPage.versions:
-        return 'Versions';
-      case PropertyDetailPage.audit:
-        return 'Audit';
-      case PropertyDetailPage.reports:
-        return 'Reports';
-      case PropertyDetailPage.operationsOverview:
-        return 'Operations Overview';
-      case PropertyDetailPage.units:
-        return 'Units';
-      case PropertyDetailPage.tenants:
-        return 'Tenants';
-      case PropertyDetailPage.leases:
-        return 'Leases';
-      case PropertyDetailPage.rentRoll:
-        return 'Rent Roll';
-      case PropertyDetailPage.alerts:
-        return 'Operations Alerts';
-      case PropertyDetailPage.budgetVsActual:
-        return 'Budget vs Actual';
-      case PropertyDetailPage.maintenance:
-        return 'Maintenance';
-      case PropertyDetailPage.covenants:
-        return 'Covenants';
     }
   }
 }

@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
+import '../navigation/app_navigation.dart';
 import '../screens/search_screen.dart';
 import '../state/analysis_state.dart';
 import '../state/app_state.dart';
+import '../state/property_state.dart';
 import '../state/security_state.dart';
 import '../theme/app_theme.dart';
 
@@ -35,14 +37,22 @@ class _TopBarState extends ConsumerState<TopBar> {
   Widget build(BuildContext context) {
     final page = ref.watch(globalPageProvider);
     final selectedPropertyId = ref.watch(selectedPropertyIdProvider);
+    final propertyPage = ref.watch(propertyDetailPageProvider);
+    final propertiesAsync = ref.watch(propertiesControllerProvider);
     final security = ref.watch(securityControllerProvider).valueOrNull;
     final semantic = context.semanticColors;
     final colorScheme = Theme.of(context).colorScheme;
-    final title = _title(page);
-    final breadcrumb = <String>[
-      title,
-      if (selectedPropertyId != null) 'Property Detail',
-    ];
+    final title = _title(
+      page: page,
+      selectedPropertyId: selectedPropertyId,
+      propertyPage: propertyPage,
+    );
+    final breadcrumb = _breadcrumb(
+      page: page,
+      selectedPropertyId: selectedPropertyId,
+      propertyName: _propertyName(propertiesAsync, selectedPropertyId),
+      propertyPage: propertyPage,
+    );
 
     return Container(
       color: colorScheme.surface,
@@ -130,6 +140,8 @@ class _TopBarState extends ConsumerState<TopBar> {
                     }
                     ref.read(selectedPropertyIdProvider.notifier).state = null;
                     ref.read(selectedScenarioIdProvider.notifier).state = null;
+                    ref.read(propertyDetailPageProvider.notifier).state =
+                        PropertyDetailPage.overview;
                   },
                   icon: const Icon(Icons.arrow_back),
                   label: const Text('Back to list'),
@@ -235,6 +247,9 @@ class _TopBarState extends ConsumerState<TopBar> {
       case 'property':
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = item.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.overview;
         break;
       case 'scenario':
         final body = item.body ?? '';
@@ -269,47 +284,49 @@ class _TopBarState extends ConsumerState<TopBar> {
     setState(() => _results = const []);
   }
 
-  String _title(GlobalPage page) {
-    switch (page) {
-      case GlobalPage.dashboard:
-        return 'Dashboard';
-      case GlobalPage.properties:
-        return 'Properties';
-      case GlobalPage.ledger:
-        return 'Ledger';
-      case GlobalPage.budgets:
-        return 'Budgets';
-      case GlobalPage.maintenance:
-        return 'Maintenance';
-      case GlobalPage.tasks:
-        return 'Tasks';
-      case GlobalPage.taskTemplates:
-        return 'Task Templates';
-      case GlobalPage.portfolios:
-        return 'Portfolios';
-      case GlobalPage.imports:
-        return 'Data Imports';
-      case GlobalPage.notifications:
-        return 'Notifications';
-      case GlobalPage.esg:
-        return 'ESG Dashboard';
-      case GlobalPage.documents:
-        return 'Documents';
-      case GlobalPage.audit:
-        return 'Audit Log';
-      case GlobalPage.compare:
-        return 'Compare';
-      case GlobalPage.criteriaSets:
-        return 'Criteria Sets';
-      case GlobalPage.reportTemplates:
-        return 'Report Templates';
-      case GlobalPage.adminUsers:
-        return 'Users';
-      case GlobalPage.settings:
-        return 'Settings';
-      case GlobalPage.help:
-        return 'Help';
+  List<String> _breadcrumb({
+    required GlobalPage page,
+    required String? selectedPropertyId,
+    required String propertyName,
+    required PropertyDetailPage propertyPage,
+  }) {
+    if (page == GlobalPage.properties && selectedPropertyId != null) {
+      return propertyBreadcrumbs(
+        propertyName: propertyName,
+        page: propertyPage,
+      );
     }
+    final group = navigationGroupForPage(page);
+    final destination = navigationDestinationForPage(page);
+    return <String>[group.title, destination.label];
+  }
+
+  String _title({
+    required GlobalPage page,
+    required String? selectedPropertyId,
+    required PropertyDetailPage propertyPage,
+  }) {
+    if (page == GlobalPage.properties && selectedPropertyId != null) {
+      return propertyDestinationForPage(propertyPage).label;
+    }
+    return navigationDestinationForPage(page).title;
+  }
+
+  String _propertyName(AsyncValue propertiesAsync, String? propertyId) {
+    if (propertyId == null) {
+      return 'Property Detail';
+    }
+    return propertiesAsync.maybeWhen(
+      data: (items) {
+        for (final property in items) {
+          if (property.id == propertyId) {
+            return property.name;
+          }
+        }
+        return propertyId;
+      },
+      orElse: () => propertyId,
+    );
   }
 
   Future<void> _openWorkspaceDialog() async {

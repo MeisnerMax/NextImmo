@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/task.dart';
+import '../../components/nx_empty_state.dart';
 import '../../state/app_state.dart';
+import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
@@ -28,195 +30,185 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: Column(
+    return ListFilterTemplate(
+      title: 'Tasks',
+      breadcrumbs: const ['Operations', 'Tasks'],
+      subtitle:
+          'Track operational work, filter the queue, and inspect task details in place.',
+      primaryAction: ElevatedButton.icon(
+        onPressed: _createTaskDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('New Task'),
+      ),
+      secondaryActions: [
+        OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
+      ],
+      filters: ListFilterBar(
         children: [
-          Row(
-            children: [
-              ElevatedButton.icon(
-                onPressed: _createTaskDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('New Task'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 160,
-                child: DropdownButtonFormField<String>(
-                  value: _statusFilter,
-                  items: const [
-                    DropdownMenuItem(value: 'todo', child: Text('todo')),
-                    DropdownMenuItem(
-                      value: 'in_progress',
-                      child: Text('in_progress'),
-                    ),
-                    DropdownMenuItem(value: 'done', child: Text('done')),
-                    DropdownMenuItem(value: 'all', child: Text('all')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _statusFilter = value);
-                    _reload();
-                  },
-                  decoration: const InputDecoration(labelText: 'Status'),
+          SizedBox(
+            width: 150,
+            child: DropdownButtonFormField<String>(
+              value: _statusFilter,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 'todo', child: Text('To do')),
+                DropdownMenuItem(
+                  value: 'in_progress',
+                  child: Text('In progress'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 180,
-                child: DropdownButtonFormField<String>(
-                  value: _entityTypeFilter,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('all')),
-                    DropdownMenuItem(value: 'none', child: Text('none')),
-                    DropdownMenuItem(
-                      value: 'property',
-                      child: Text('property'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'portfolio',
-                      child: Text('portfolio'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'asset_property',
-                      child: Text('asset_property'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _entityTypeFilter = value);
-                    _reload();
-                  },
-                  decoration: const InputDecoration(labelText: 'Entity Type'),
-                ),
-              ),
-              if (_status != null) ...[
-                const SizedBox(width: 12),
-                Expanded(child: Text(_status!)),
+                DropdownMenuItem(value: 'done', child: Text('Done')),
+                DropdownMenuItem(value: 'all', child: Text('All')),
               ],
-            ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _statusFilter = value);
+                _reload();
+              },
+              decoration: const InputDecoration(labelText: 'Status'),
+            ),
           ),
-          const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child:
-                      _tasks.isEmpty
-                          ? const Card(
-                            child: Center(child: Text('No tasks found.')),
-                          )
-                          : ListView.builder(
-                            itemCount: _tasks.length,
-                            itemBuilder: (context, index) {
-                              final task = _tasks[index];
-                              final selected = _selectedTask?.id == task.id;
-                              return Card(
-                                color:
-                                    selected ? const Color(0xFFEAF1F8) : null,
-                                child: ListTile(
-                                  title: Text(task.title),
-                                  subtitle: Text(
-                                    '${task.status} | ${task.priority}${task.dueAt == null ? '' : ' | due ${DateTime.fromMillisecondsSinceEpoch(task.dueAt!).toIso8601String().substring(0, 10)}'}',
-                                  ),
-                                  onTap: () => _selectTask(task),
-                                  trailing: Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => _editTaskDialog(task),
-                                        child: const Text('Edit'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => _deleteTask(task.id),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+          SizedBox(
+            width: 180,
+            child: DropdownButtonFormField<String>(
+              value: _entityTypeFilter,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All entities')),
+                DropdownMenuItem(value: 'none', child: Text('No entity')),
+                DropdownMenuItem(value: 'property', child: Text('Property')),
+                DropdownMenuItem(value: 'portfolio', child: Text('Portfolio')),
+                DropdownMenuItem(
+                  value: 'asset_property',
+                  child: Text('Asset Property'),
                 ),
-                const SizedBox(width: AppSpacing.component),
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                      child:
-                          _selectedTask == null
-                              ? const Center(child: Text('Select a task'))
-                              : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _selectedTask!.title,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Status: ${_selectedTask!.status} | Priority: ${_selectedTask!.priority}',
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      OutlinedButton(
-                                        onPressed:
-                                            () => _addChecklistDialog(
-                                              _selectedTask!.id,
-                                            ),
-                                        child: const Text('Add Checklist Item'),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    child:
-                                        _checklist.isEmpty
-                                            ? const Center(
-                                              child: Text(
-                                                'No checklist items.',
-                                              ),
-                                            )
-                                            : ListView.builder(
-                                              itemCount: _checklist.length,
-                                              itemBuilder: (context, index) {
-                                                final item = _checklist[index];
-                                                return CheckboxListTile(
-                                                  value: item.done,
-                                                  onChanged: (value) async {
-                                                    await ref
-                                                        .read(
-                                                          tasksRepositoryProvider,
-                                                        )
-                                                        .toggleChecklistItem(
-                                                          id: item.id,
-                                                          done: value ?? false,
-                                                        );
-                                                    await _selectTask(
-                                                      _selectedTask!,
-                                                    );
-                                                  },
-                                                  title: Text(item.text),
-                                                  controlAffinity:
-                                                      ListTileControlAffinity
-                                                          .leading,
-                                                );
-                                              },
-                                            ),
-                                  ),
-                                ],
-                              ),
-                    ),
-                  ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _entityTypeFilter = value);
+                _reload();
+              },
+              decoration: const InputDecoration(labelText: 'Context'),
+            ),
+          ),
+          if (_status != null)
+            Text(_status!, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+      content:
+          _tasks.isEmpty
+              ? const NxEmptyState(
+                title: 'No tasks found',
+                description:
+                    'Create a task or widen the filters to inspect more work items.',
+                icon: Icons.checklist_outlined,
+              )
+              : LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked = constraints.maxWidth < 1040;
+                  if (stacked) {
+                    return Column(
+                      children: [
+                        Expanded(flex: 3, child: _buildTaskList()),
+                        const SizedBox(height: AppSpacing.component),
+                        Expanded(flex: 2, child: _buildTaskDetail()),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: _buildTaskList()),
+                      const SizedBox(width: AppSpacing.component),
+                      Expanded(child: _buildTaskDetail()),
+                    ],
+                  );
+                },
+              ),
+    );
+  }
+
+  Widget _buildTaskList() {
+    return ListView.builder(
+      itemCount: _tasks.length,
+      itemBuilder: (context, index) {
+        final task = _tasks[index];
+        final selected = _selectedTask?.id == task.id;
+        return Card(
+          color: selected ? const Color(0xFFEAF1F8) : null,
+          child: ListTile(
+            title: Text(task.title),
+            subtitle: Text(
+              '${task.status} | ${task.priority}${task.dueAt == null ? '' : ' | due ${DateTime.fromMillisecondsSinceEpoch(task.dueAt!).toIso8601String().substring(0, 10)}'}',
+            ),
+            onTap: () => _selectTask(task),
+            trailing: Wrap(
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: () => _editTaskDialog(task),
+                  child: const Text('Edit'),
+                ),
+                TextButton(
+                  onPressed: () => _deleteTask(task.id),
+                  child: const Text('Delete'),
                 ),
               ],
             ),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTaskDetail() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child:
+            _selectedTask == null
+                ? const Center(child: Text('Select a task'))
+                : ListView(
+                  children: [
+                    Text(
+                      _selectedTask!.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Status: ${_selectedTask!.status} | Priority: ${_selectedTask!.priority}',
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton(
+                        onPressed: () => _addChecklistDialog(_selectedTask!.id),
+                        child: const Text('Add Checklist Item'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_checklist.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text('No checklist items.'),
+                      )
+                    else
+                      ..._checklist.map(
+                        (item) => CheckboxListTile(
+                          value: item.done,
+                          onChanged: (value) async {
+                            await ref
+                                .read(tasksRepositoryProvider)
+                                .toggleChecklistItem(
+                                  id: item.id,
+                                  done: value ?? false,
+                                );
+                            await _selectTask(_selectedTask!);
+                          },
+                          title: Text(item.text),
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                      ),
+                  ],
+                ),
       ),
     );
   }

@@ -93,8 +93,10 @@ enum PropertyDetailPage {
   scenarios,
   versions,
   audit,
+  documents,
   reports,
   operationsOverview,
+  tasks,
   units,
   tenants,
   leases,
@@ -129,7 +131,9 @@ final appSettingsProvider = FutureProvider<AppSettingsRecord>((ref) async {
 final selectedPropertyIdProvider = StateProvider<String?>((ref) => null);
 final selectedScenarioIdProvider = StateProvider<String?>((ref) => null);
 final selectedOperationsUnitIdProvider = StateProvider<String?>((ref) => null);
-final selectedOperationsTenantIdProvider = StateProvider<String?>((ref) => null);
+final selectedOperationsTenantIdProvider = StateProvider<String?>(
+  (ref) => null,
+);
 final selectedOperationsLeaseIdProvider = StateProvider<String?>((ref) => null);
 final propertyDetailPageProvider = StateProvider<PropertyDetailPage>(
   (ref) => PropertyDetailPage.overview,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../navigation/app_navigation.dart';
 import '../state/app_state.dart';
 import '../state/security_state.dart';
 import '../theme/app_theme.dart';
@@ -27,124 +28,26 @@ class _SidebarState extends ConsumerState<Sidebar> {
     final semantic = context.semanticColors;
     final colorScheme = Theme.of(context).colorScheme;
 
-    final groups = <_SidebarGroup>[
-      _SidebarGroup(
-        title: 'Portfolio',
-        items: const [
-          _SidebarItem(
-            page: GlobalPage.dashboard,
-            icon: Icons.dashboard_outlined,
-            label: 'Dashboard',
+    final groups = appNavigationGroups
+        .map(
+          (group) => _SidebarGroup(
+            title: group.title,
+            items: group.items
+                .where(
+                  (item) =>
+                      role == 'admin' || item.page != GlobalPage.adminUsers,
+                )
+                .map(
+                  (item) => _SidebarItem(
+                    page: item.page,
+                    icon: item.icon,
+                    label: item.label,
+                  ),
+                )
+                .toList(growable: false),
           ),
-          _SidebarItem(
-            page: GlobalPage.properties,
-            icon: Icons.home_work_outlined,
-            label: 'Properties',
-          ),
-          _SidebarItem(
-            page: GlobalPage.portfolios,
-            icon: Icons.account_tree_outlined,
-            label: 'Portfolios',
-          ),
-          _SidebarItem(
-            page: GlobalPage.compare,
-            icon: Icons.table_chart_outlined,
-            label: 'Compare',
-          ),
-        ],
-      ),
-      _SidebarGroup(
-        title: 'Operations',
-        items: const [
-          _SidebarItem(
-            page: GlobalPage.ledger,
-            icon: Icons.receipt_long_outlined,
-            label: 'Ledger',
-          ),
-          _SidebarItem(
-            page: GlobalPage.budgets,
-            icon: Icons.grid_view_outlined,
-            label: 'Budgets',
-          ),
-          _SidebarItem(
-            page: GlobalPage.maintenance,
-            icon: Icons.build_outlined,
-            label: 'Maintenance',
-          ),
-          _SidebarItem(
-            page: GlobalPage.tasks,
-            icon: Icons.checklist_outlined,
-            label: 'Tasks',
-          ),
-          _SidebarItem(
-            page: GlobalPage.taskTemplates,
-            icon: Icons.checklist_rtl_outlined,
-            label: 'Task Templates',
-          ),
-          _SidebarItem(
-            page: GlobalPage.imports,
-            icon: Icons.upload_file_outlined,
-            label: 'Imports',
-          ),
-          _SidebarItem(
-            page: GlobalPage.notifications,
-            icon: Icons.notifications_none,
-            label: 'Notifications',
-          ),
-        ],
-      ),
-      _SidebarGroup(
-        title: 'Governance',
-        items: const [
-          _SidebarItem(
-            page: GlobalPage.esg,
-            icon: Icons.eco_outlined,
-            label: 'ESG',
-          ),
-          _SidebarItem(
-            page: GlobalPage.documents,
-            icon: Icons.folder_open_outlined,
-            label: 'Documents',
-          ),
-          _SidebarItem(
-            page: GlobalPage.audit,
-            icon: Icons.fact_check_outlined,
-            label: 'Audit',
-          ),
-          _SidebarItem(
-            page: GlobalPage.criteriaSets,
-            icon: Icons.rule_folder_outlined,
-            label: 'Criteria Sets',
-          ),
-          _SidebarItem(
-            page: GlobalPage.reportTemplates,
-            icon: Icons.description_outlined,
-            label: 'Templates',
-          ),
-        ],
-      ),
-      _SidebarGroup(
-        title: 'System',
-        items: [
-          if (role == 'admin')
-            const _SidebarItem(
-              page: GlobalPage.adminUsers,
-              icon: Icons.manage_accounts_outlined,
-              label: 'Users',
-            ),
-          const _SidebarItem(
-            page: GlobalPage.settings,
-            icon: Icons.settings_outlined,
-            label: 'Settings',
-          ),
-          const _SidebarItem(
-            page: GlobalPage.help,
-            icon: Icons.help_outline,
-            label: 'Help',
-          ),
-        ],
-      ),
-    ];
+        )
+        .toList(growable: false);
 
     return Container(
       width: 254,
@@ -255,6 +158,9 @@ class _SidebarState extends ConsumerState<Sidebar> {
         ),
         onTap: () {
           ref.read(selectedPropertyIdProvider.notifier).state = null;
+          ref.read(selectedScenarioIdProvider.notifier).state = null;
+          ref.read(propertyDetailPageProvider.notifier).state =
+              PropertyDetailPage.overview;
           ref.read(globalPageProvider.notifier).state = item.page;
         },
       ),

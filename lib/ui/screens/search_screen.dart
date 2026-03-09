@@ -132,6 +132,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       case 'property':
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = item.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.overview;
         break;
       case 'scenario':
         final body = item.body ?? '';

@@ -7,9 +7,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../core/security/rbac.dart';
 import '../../core/models/settings.dart';
 import '../../data/sqlite/migrations.dart';
+import '../components/nx_card.dart';
 import '../components/responsive_constraints.dart';
+import '../components/save_status_indicator.dart';
 import '../state/app_state.dart';
 import '../state/security_state.dart';
+import '../templates/settings_template.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -59,6 +62,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _uiThemeMode = 'system';
   String _uiDensityMode = 'comfort';
   bool _uiChartAnimationsEnabled = true;
+  String _selectedSectionId = 'general';
 
   @override
   void initState() {
@@ -118,118 +122,141 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     final canExport = rbac.can(action: RbacAction.export, role: role);
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return SettingsTemplate(
+      title: 'Settings',
+      breadcrumbs: const ['System', 'Settings'],
+      subtitle:
+          'Use consistent defaults, control system behavior, and keep saves transparent.',
+      navigationItems: _navigationItems,
+      selectedId: _selectedSectionId,
+      onSelect: (value) => setState(() => _selectedSectionId = value),
+      saveStatus: SaveStatusIndicator(
+        label: _status ?? 'Ready to save',
+        tone: _saveStatusTone(),
+        compact: true,
+      ),
+      primaryAction: ElevatedButton(
+        onPressed: canSettingsEdit ? _save : null,
+        child: const Text('Save Settings'),
+      ),
+      secondaryActions: [
+        OutlinedButton(onPressed: _load, child: const Text('Reload')),
+      ],
+      content: SingleChildScrollView(
+        child: _buildSettingsContent(
+          context: context,
+          settings: settings,
+          canSettingsEdit: canSettingsEdit,
+          canBackupRestore: canBackupRestore,
+          canExport: canExport,
+        ),
+      ),
+    );
+  }
+
+  List<SettingsNavigationItem> get _navigationItems =>
+      const <SettingsNavigationItem>[
+        SettingsNavigationItem(
+          id: 'general',
+          label: 'General',
+          icon: Icons.tune_outlined,
+          description: 'Locale, currency, and base scenario defaults.',
+        ),
+        SettingsNavigationItem(
+          id: 'analysis_defaults',
+          label: 'Analysis Defaults',
+          icon: Icons.analytics_outlined,
+          description: 'Underwriting, growth, exit, and financing defaults.',
+        ),
+        SettingsNavigationItem(
+          id: 'operations_defaults',
+          label: 'Operations Defaults',
+          icon: Icons.build_circle_outlined,
+          description: 'Task, maintenance, covenant, and automation defaults.',
+        ),
+        SettingsNavigationItem(
+          id: 'alerts',
+          label: 'Alerts',
+          icon: Icons.notifications_active_outlined,
+          description: 'Thresholds and quality warning behavior.',
+        ),
+        SettingsNavigationItem(
+          id: 'appearance',
+          label: 'Appearance',
+          icon: Icons.palette_outlined,
+          description: 'Theme, density, and interface motion.',
+        ),
+        SettingsNavigationItem(
+          id: 'security',
+          label: 'Security',
+          icon: Icons.lock_outline,
+          description: 'App lock and restricted actions.',
+        ),
+        SettingsNavigationItem(
+          id: 'backup_restore',
+          label: 'Backup & Restore',
+          icon: Icons.backup_outlined,
+          description: 'Workspace path plus backup and restore actions.',
+        ),
+        SettingsNavigationItem(
+          id: 'admin',
+          label: 'Admin',
+          icon: Icons.admin_panel_settings_outlined,
+          description: 'Demo data and administrative helper settings.',
+        ),
+      ];
+
+  SaveStatusTone _saveStatusTone() {
+    final status = _status?.toLowerCase();
+    if (status == null || status.isEmpty) {
+      return SaveStatusTone.neutral;
+    }
+    if (status.contains('fail') || status.contains('insufficient')) {
+      return SaveStatusTone.error;
+    }
+    if (status.contains('updated') || status.contains('saved')) {
+      return SaveStatusTone.success;
+    }
+    return SaveStatusTone.working;
+  }
+
+  Widget _buildSettingsContent({
+    required BuildContext context,
+    required AppSettingsRecord settings,
+    required bool canSettingsEdit,
+    required bool canBackupRestore,
+    required bool canExport,
+  }) {
+    switch (_selectedSectionId) {
+      case 'general':
+        return Column(
           children: [
-            Text(
-              'Global Defaults',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'These values are used for new scenarios and for "Apply Current Settings" in Inputs.',
+            _introCard(
+              title: 'General',
+              description:
+                  'These defaults shape new scenarios before property-specific inputs take over.',
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'General',
+              title: 'General Defaults',
               children: [
                 _field(_currencyController, 'Currency Code'),
                 _field(_localeController, 'Locale'),
                 _intField(_horizonController, 'Default Horizon Years'),
               ],
             ),
-            _section(
-              context,
-              title: 'UI and Accessibility',
-              children: [
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 260,
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _uiThemeMode,
-                    decoration: const InputDecoration(labelText: 'Theme Mode'),
-                    items: const [
-                      DropdownMenuItem(value: 'system', child: Text('System')),
-                      DropdownMenuItem(value: 'light', child: Text('Light')),
-                      DropdownMenuItem(value: 'dark', child: Text('Dark')),
-                    ],
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _uiThemeMode = value;
-                              });
-                            }
-                            : null,
-                  ),
-                ),
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 260,
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _uiDensityMode,
-                    decoration: const InputDecoration(
-                      labelText: 'Density Mode',
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'comfort',
-                        child: Text('Comfort'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'compact',
-                        child: Text('Compact'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'adaptive',
-                        child: Text('Adaptive'),
-                      ),
-                    ],
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _uiDensityMode = value;
-                              });
-                            }
-                            : null,
-                  ),
-                ),
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 320,
-                  ),
-                  child: SwitchListTile(
-                    value: _uiChartAnimationsEnabled,
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              setState(() {
-                                _uiChartAnimationsEnabled = value;
-                              });
-                            }
-                            : null,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable Chart Animations'),
-                  ),
-                ),
-              ],
+          ],
+        );
+      case 'analysis_defaults':
+        return Column(
+          children: [
+            _introCard(
+              title: 'Analysis Defaults',
+              description:
+                  'Keep underwriting assumptions consistent so new scenarios start from the same baseline.',
             ),
+            const SizedBox(height: AppSpacing.component),
             _section(
               context,
               title: 'Operating Defaults',
@@ -268,41 +295,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _decimalField(_downPaymentController, 'Down Payment % (0-1)'),
                 _decimalField(_interestController, 'Interest Rate % (0-1)'),
                 _intField(_termYearsController, 'Term Years'),
-              ],
-            ),
-            _section(
-              context,
-              title: 'Portfolio and Notifications',
-              children: [
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 320,
-                  ),
-                  child: SwitchListTile(
-                    value: _enableDemoSeed,
-                    onChanged: (value) {
-                      setState(() {
-                        _enableDemoSeed = value;
-                      });
-                    },
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable Demo Seed Button'),
-                  ),
-                ),
-                _decimalField(
-                  _vacancyAlertController,
-                  'Vacancy Alert Threshold (0-1)',
-                ),
-                _decimalField(
-                  _noiDropAlertController,
-                  'NOI Drop Alert Threshold (0-1)',
-                ),
-                _intField(_taskDueSoonDaysController, 'Task Due Soon Days'),
                 _field(
                   _defaultMarketRentModeController,
                   'Default Market Rent Mode',
                 ),
+              ],
+            ),
+          ],
+        );
+      case 'operations_defaults':
+        return Column(
+          children: [
+            _introCard(
+              title: 'Operations Defaults',
+              description:
+                  'Use one operational baseline for generated work, budgets, and recurring checks.',
+            ),
+            const SizedBox(height: AppSpacing.component),
+            _section(
+              context,
+              title: 'Workflow Defaults',
+              children: [
+                _intField(_taskDueSoonDaysController, 'Task Due Soon Days'),
                 _intField(
                   _budgetYearStartMonthController,
                   'Budget Year Start Month (1-12)',
@@ -314,18 +328,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _intField(
                   _covenantDueSoonDaysController,
                   'Covenant Due Soon Days',
-                ),
-                _intField(
-                  _qualityEpcExpiryWarningDaysController,
-                  'Quality EPC Expiry Warning Days',
-                ),
-                _intField(
-                  _qualityRentRollStaleMonthsController,
-                  'Quality Rent Roll Stale Months',
-                ),
-                _intField(
-                  _qualityLedgerStaleDaysController,
-                  'Quality Ledger Stale Days',
                 ),
                 SizedBox(
                   width: ResponsiveConstraints.itemWidth(
@@ -346,9 +348,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     title: const Text('Scenario Auto Daily Versions'),
                   ),
                 ),
-                _field(
-                  _scenarioAutoDailyVersionsUserController,
-                  'Auto Version User Id',
+              ],
+            ),
+          ],
+        );
+      case 'alerts':
+        return Column(
+          children: [
+            _introCard(
+              title: 'Alerts',
+              description:
+                  'Set thresholds that surface issues early without flooding daily work.',
+            ),
+            const SizedBox(height: AppSpacing.component),
+            _section(
+              context,
+              title: 'Alert Thresholds',
+              children: [
+                _decimalField(
+                  _vacancyAlertController,
+                  'Vacancy Alert Threshold (0-1)',
+                ),
+                _decimalField(
+                  _noiDropAlertController,
+                  'NOI Drop Alert Threshold (0-1)',
+                ),
+                _intField(
+                  _qualityEpcExpiryWarningDaysController,
+                  'Quality EPC Expiry Warning Days',
+                ),
+                _intField(
+                  _qualityRentRollStaleMonthsController,
+                  'Quality Rent Roll Stale Months',
+                ),
+                _intField(
+                  _qualityLedgerStaleDaysController,
+                  'Quality Ledger Stale Days',
                 ),
                 SizedBox(
                   width: ResponsiveConstraints.itemWidth(
@@ -368,97 +403,255 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            _section(
-              context,
-              title: 'Workspace and Backup',
-              children: [
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 540,
-                    maxWidth: 720,
-                  ),
-                  child: TextField(
-                    controller: _workspaceRootController,
-                    decoration: const InputDecoration(
-                      labelText: 'Workspace Root Path (optional)',
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 540,
-                    maxWidth: 720,
-                  ),
-                  child: Text(
-                    'Last Backup: ${settings.lastBackupAt == null ? 'never' : DateTime.fromMillisecondsSinceEpoch(settings.lastBackupAt!).toIso8601String()}'
-                    '${settings.lastBackupPath == null ? '' : ' | ${settings.lastBackupPath}'}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: canExport ? _createBackup : null,
-                      icon: const Icon(Icons.save_alt),
-                      label: const Text('Create Backup ZIP'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: canBackupRestore ? _restoreBackup : null,
-                      icon: const Icon(Icons.restore),
-                      label: const Text('Restore from ZIP'),
-                    ),
-                  ],
-                ),
-              ],
+          ],
+        );
+      case 'appearance':
+        return _buildAppearanceContent(context, canSettingsEdit);
+      case 'security':
+        return _buildSecurityContent(context, canSettingsEdit);
+      case 'backup_restore':
+        return _buildBackupContent(
+          context,
+          settings: settings,
+          canBackupRestore: canBackupRestore,
+          canExport: canExport,
+        );
+      case 'admin':
+        return Column(
+          children: [
+            _introCard(
+              title: 'Admin',
+              description:
+                  'Low-frequency administrative switches stay visible, but clearly separated from daily settings.',
             ),
+            const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'Security',
+              title: 'Administrative Controls',
               children: [
                 SizedBox(
                   width: ResponsiveConstraints.itemWidth(
                     context,
-                    idealWidth: 360,
+                    idealWidth: 320,
                   ),
                   child: SwitchListTile(
-                    value: _enableAppLock,
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              setState(() {
-                                _enableAppLock = value;
-                              });
-                            }
-                            : null,
+                    value: _enableDemoSeed,
+                    onChanged: (value) {
+                      setState(() {
+                        _enableDemoSeed = value;
+                      });
+                    },
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable App Lock'),
+                    title: const Text('Enable Demo Seed Button'),
                   ),
                 ),
-                _field(_appLockPasswordController, 'New App Lock Password'),
-                ElevatedButton(
-                  onPressed: canSettingsEdit ? _applySecurity : null,
-                  child: const Text('Apply Security'),
+                _field(
+                  _scenarioAutoDailyVersionsUserController,
+                  'Auto Version User Id',
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                ElevatedButton(
-                  onPressed: canSettingsEdit ? _save : null,
-                  child: const Text('Save Settings'),
-                ),
-                OutlinedButton(onPressed: _load, child: const Text('Reload')),
-              ],
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildAppearanceContent(BuildContext context, bool canSettingsEdit) {
+    return Column(
+      children: [
+        _introCard(
+          title: 'Appearance',
+          description:
+              'Control density and motion so the interface stays predictable across desktop setups.',
+        ),
+        const SizedBox(height: AppSpacing.component),
+        _section(
+          context,
+          title: 'UI and Accessibility',
+          children: [
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
+              child: DropdownButtonFormField<String>(
+                value: _uiThemeMode,
+                decoration: const InputDecoration(labelText: 'Theme Mode'),
+                items: const [
+                  DropdownMenuItem(value: 'system', child: Text('System')),
+                  DropdownMenuItem(value: 'light', child: Text('Light')),
+                  DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                ],
+                onChanged:
+                    canSettingsEdit
+                        ? (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _uiThemeMode = value;
+                          });
+                        }
+                        : null,
+              ),
             ),
-            if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
+              child: DropdownButtonFormField<String>(
+                value: _uiDensityMode,
+                decoration: const InputDecoration(labelText: 'Density Mode'),
+                items: const [
+                  DropdownMenuItem(value: 'comfort', child: Text('Comfort')),
+                  DropdownMenuItem(value: 'compact', child: Text('Compact')),
+                  DropdownMenuItem(value: 'adaptive', child: Text('Adaptive')),
+                ],
+                onChanged:
+                    canSettingsEdit
+                        ? (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _uiDensityMode = value;
+                          });
+                        }
+                        : null,
+              ),
+            ),
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 320),
+              child: SwitchListTile(
+                value: _uiChartAnimationsEnabled,
+                onChanged:
+                    canSettingsEdit
+                        ? (value) {
+                          setState(() {
+                            _uiChartAnimationsEnabled = value;
+                          });
+                        }
+                        : null,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Enable Chart Animations'),
+              ),
+            ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityContent(BuildContext context, bool canSettingsEdit) {
+    return Column(
+      children: [
+        _introCard(
+          title: 'Security',
+          description:
+              'Protect local access without burying the controls in a generic form.',
+        ),
+        const SizedBox(height: AppSpacing.component),
+        _section(
+          context,
+          title: 'Access Controls',
+          children: [
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
+              child: SwitchListTile(
+                value: _enableAppLock,
+                onChanged:
+                    canSettingsEdit
+                        ? (value) {
+                          setState(() {
+                            _enableAppLock = value;
+                          });
+                        }
+                        : null,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Enable App Lock'),
+              ),
+            ),
+            _field(_appLockPasswordController, 'New App Lock Password'),
+            ElevatedButton(
+              onPressed: canSettingsEdit ? _applySecurity : null,
+              child: const Text('Apply Security'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackupContent(
+    BuildContext context, {
+    required AppSettingsRecord settings,
+    required bool canBackupRestore,
+    required bool canExport,
+  }) {
+    return Column(
+      children: [
+        _introCard(
+          title: 'Backup & Restore',
+          description:
+              'Keep workspace paths visible and separate backup actions from general defaults.',
+        ),
+        const SizedBox(height: AppSpacing.component),
+        _section(
+          context,
+          title: 'Workspace and Backup',
+          children: [
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(
+                context,
+                idealWidth: 540,
+                maxWidth: 720,
+              ),
+              child: TextField(
+                controller: _workspaceRootController,
+                decoration: const InputDecoration(
+                  labelText: 'Workspace Root Path (optional)',
+                ),
+              ),
+            ),
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(
+                context,
+                idealWidth: 540,
+                maxWidth: 720,
+              ),
+              child: Text(
+                'Last Backup: ${settings.lastBackupAt == null ? 'never' : DateTime.fromMillisecondsSinceEpoch(settings.lastBackupAt!).toIso8601String()}'
+                '${settings.lastBackupPath == null ? '' : ' | ${settings.lastBackupPath}'}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: canExport ? _createBackup : null,
+                  icon: const Icon(Icons.save_alt),
+                  label: const Text('Create Backup ZIP'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: canBackupRestore ? _restoreBackup : null,
+                  icon: const Icon(Icons.restore),
+                  label: const Text('Restore from ZIP'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _introCard({required String title, required String description}) {
+    return NxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(description),
+        ],
       ),
     );
   }

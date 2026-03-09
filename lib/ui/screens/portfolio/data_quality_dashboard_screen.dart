@@ -263,18 +263,21 @@ class _DataQualityDashboardScreenState
       case 'property_rent_roll':
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = issue.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
         ref.read(propertyDetailPageProvider.notifier).state =
             PropertyDetailPage.rentRoll;
         break;
       case 'property_budget_vs_actual':
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = issue.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
         ref.read(propertyDetailPageProvider.notifier).state =
             PropertyDetailPage.budgetVsActual;
         break;
       case 'property_covenants':
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = issue.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
         ref.read(propertyDetailPageProvider.notifier).state =
             PropertyDetailPage.covenants;
         break;
@@ -288,6 +291,7 @@ class _DataQualityDashboardScreenState
       default:
         ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
         ref.read(selectedPropertyIdProvider.notifier).state = issue.entityId;
+        ref.read(selectedScenarioIdProvider.notifier).state = null;
         ref.read(propertyDetailPageProvider.notifier).state =
             PropertyDetailPage.overview;
         break;

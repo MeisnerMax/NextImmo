@@ -13,29 +13,36 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
+    'basic mode shows business labels and keeps advanced overrides hidden',
+    (tester) async {
+      const scenarioId = 'scenario-1';
+      final store = _FakeScenarioAnalysisStore(scenarioId);
+
+      await _pumpScreen(tester, scenarioId: scenarioId, store: store);
+
+      expect(find.text('Purchase Price'), findsOneWidget);
+      expect(find.text('Interest Rate'), findsOneWidget);
+      expect(find.text('Interest Rate % (0-1)'), findsNothing);
+      expect(find.text('Value Override'), findsNothing);
+      expect(find.text('Rent Override'), findsNothing);
+
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Value Override'), findsOneWidget);
+      expect(find.text('Rent Override'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'nullable override fields stay empty after clearing and reopening',
     (tester) async {
       const scenarioId = 'scenario-1';
       final store = _FakeScenarioAnalysisStore(scenarioId);
 
-      Future<void> pumpScreen() async {
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              scenarioAnalysisControllerProvider.overrideWith(
-                () => _FakeScenarioAnalysisController(store),
-              ),
-            ],
-            child: MaterialApp(
-              theme: AppTheme.light(),
-              home: const Scaffold(body: InputsScreen(scenarioId: scenarioId)),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-      }
-
-      await pumpScreen();
+      await _pumpScreen(tester, scenarioId: scenarioId, store: store);
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
 
       Finder fieldByLabel(String label) {
         return find.ancestor(
@@ -44,13 +51,11 @@ void main() {
         );
       }
 
-      final arvField = fieldByLabel('ARV Override (empty = none)');
-      final rentField = fieldByLabel('Rent Override (empty = none)');
-      expect(arvField, findsOneWidget);
-      expect(rentField, findsOneWidget);
+      final valueOverrideField = fieldByLabel('Value Override');
+      final rentOverrideField = fieldByLabel('Rent Override');
 
-      await tester.enterText(arvField, '');
-      await tester.enterText(rentField, '');
+      await tester.enterText(valueOverrideField, '');
+      await tester.enterText(rentOverrideField, '');
       await tester.pumpAndSettle();
 
       expect(store.current.inputs.arvOverride, isNull);
@@ -58,17 +63,54 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      await pumpScreen();
+      await _pumpScreen(tester, scenarioId: scenarioId, store: store);
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
 
-      expect(find.text('123456.0000'), findsNothing);
-      expect(find.text('7890.0000'), findsNothing);
-
-      final reopenedArv = tester.widget<TextFormField>(arvField);
-      final reopenedRent = tester.widget<TextFormField>(rentField);
-      expect(reopenedArv.controller?.text, '');
+      final reopenedValue = tester.widget<TextFormField>(valueOverrideField);
+      final reopenedRent = tester.widget<TextFormField>(rentOverrideField);
+      expect(reopenedValue.controller?.text, '');
       expect(reopenedRent.controller?.text, '');
     },
   );
+
+  testWidgets('percent fields show inline validation', (tester) async {
+    const scenarioId = 'scenario-1';
+    final store = _FakeScenarioAnalysisStore(scenarioId);
+
+    await _pumpScreen(tester, scenarioId: scenarioId, store: store);
+
+    final interestRateField = find.ancestor(
+      of: find.text('Interest Rate'),
+      matching: find.byType(TextFormField),
+    );
+
+    await tester.enterText(interestRateField, '150');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter a value between 0% and 100%.'), findsOneWidget);
+  });
+}
+
+Future<void> _pumpScreen(
+  WidgetTester tester, {
+  required String scenarioId,
+  required _FakeScenarioAnalysisStore store,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        scenarioAnalysisControllerProvider.overrideWith(
+          () => _FakeScenarioAnalysisController(store),
+        ),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(body: InputsScreen(scenarioId: scenarioId)),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 class _FakeScenarioAnalysisStore {
@@ -126,6 +168,9 @@ class _FakeScenarioAnalysisStore {
       analysis: analysis,
       criteria: null,
       isSaving: false,
+      hasUnsavedChanges: false,
+      lastSavedAt: DateTime.now().millisecondsSinceEpoch,
+      dirtyFields: const <String>{},
       saveError: null,
     );
   }
@@ -142,13 +187,21 @@ class _FakeScenarioAnalysisController extends ScenarioAnalysisController {
   }
 
   @override
-  void patchInputs(ScenarioInputs Function(ScenarioInputs current) updateFn) {
+  void patchInputs(
+    ScenarioInputs Function(ScenarioInputs current) updateFn, {
+    Iterable<String> dirtyFields = const <String>[],
+  }) {
     final current = state.valueOrNull ?? _store.current;
-    final nextInputs = updateFn(current.inputs).copyWith(
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
+    final nextInputs = updateFn(
+      current.inputs,
+    ).copyWith(updatedAt: DateTime.now().millisecondsSinceEpoch);
     _store.updateInputs(nextInputs);
-    state = AsyncValue.data(_store.current);
+    state = AsyncValue.data(
+      _store.current.copyWith(
+        hasUnsavedChanges: true,
+        dirtyFields: {...dirtyFields},
+      ),
+    );
   }
 
   @override

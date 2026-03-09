@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/documents.dart';
+import '../../components/nx_card.dart';
 import '../../state/app_state.dart';
-import '../../theme/app_theme.dart';
+import '../../templates/list_filter_template.dart';
 import 'compliance_dashboard_screen.dart';
 
 class DocumentsScreen extends ConsumerStatefulWidget {
@@ -37,31 +38,34 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: Column(
+    return ListFilterTemplate(
+      title: 'Documents',
+      breadcrumbs: const ['Governance', 'Documents'],
+      subtitle:
+          'Manage files, document types, required rules, and compliance in one shared workflow.',
+      secondaryActions: [
+        OutlinedButton(onPressed: _load, child: const Text('Refresh')),
+      ],
+      contextBar: NxCard(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Documents'),
+            Tab(text: 'Types'),
+            Tab(text: 'Required'),
+            Tab(text: 'Compliance'),
+          ],
+        ),
+      ),
+      content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('Documents', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(width: 8),
-              OutlinedButton(onPressed: _load, child: const Text('Refresh')),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: 'Documents'),
-              Tab(text: 'Types'),
-              Tab(text: 'Required'),
-              Tab(text: 'Compliance'),
-            ],
-          ),
-          const SizedBox(height: 8),
           if (_error != null)
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
           Expanded(
             child:
                 _loading

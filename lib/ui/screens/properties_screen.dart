@@ -111,6 +111,12 @@ class PropertiesScreen extends ConsumerWidget {
                                               onPressed: () {
                                                 ref
                                                     .read(
+                                                      selectedScenarioIdProvider
+                                                          .notifier,
+                                                    )
+                                                    .state = null;
+                                                ref
+                                                    .read(
                                                       selectedPropertyIdProvider
                                                           .notifier,
                                                     )
@@ -281,6 +287,9 @@ class PropertiesScreen extends ConsumerWidget {
                     );
 
                 if (property != null && context.mounted) {
+                  ref.read(selectedScenarioIdProvider.notifier).state = null;
+                  ref.read(propertyDetailPageProvider.notifier).state =
+                      PropertyDetailPage.overview;
                   ref.read(selectedPropertyIdProvider.notifier).state =
                       property.id;
                   Navigator.of(context).pop(true);

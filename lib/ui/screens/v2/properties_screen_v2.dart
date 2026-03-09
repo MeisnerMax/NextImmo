@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
-import '../../components/nx_page_header.dart';
 import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
 import '../../state/property_state.dart';
 import '../../state/ui_feature_flags.dart';
+import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/number_parse.dart';
 import '../property_detail/property_shell.dart';
@@ -46,168 +46,161 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     final propertiesAsync = ref.watch(propertiesControllerProvider);
     final controller = ref.read(propertiesControllerProvider.notifier);
 
-    return Padding(
-      padding: EdgeInsets.all(context.adaptivePagePadding),
-      child: Column(
+    return ListFilterTemplate(
+      title: 'Properties',
+      breadcrumbs: const ['Portfolio', 'Properties'],
+      subtitle:
+          'Manage assets, filter the portfolio, and open each property workflow.',
+      primaryAction: ElevatedButton.icon(
+        onPressed: () => _openCreateDialog(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('New Property'),
+      ),
+      secondaryActions: [
+        OutlinedButton(
+          onPressed: controller.reload,
+          child: const Text('Refresh'),
+        ),
+      ],
+      filters: ListFilterBar(
         children: [
-          NxPageHeader(
-            title: 'Properties',
-            breadcrumbs: const ['Portfolio', 'Properties'],
-            subtitle:
-                'Manage entities, open details, and move stale deals out of focus.',
-            secondaryActions: [
-              SizedBox(
-                width: context.viewport == AppViewport.mobile ? 180 : 260,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged:
-                      (value) =>
-                          setState(() => _query = value.trim().toLowerCase()),
-                  decoration: const InputDecoration(
-                    labelText: 'Filter',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                ),
+          SizedBox(
+            width: context.viewport == AppViewport.mobile ? 180 : 260,
+            child: TextField(
+              controller: _searchController,
+              onChanged:
+                  (value) =>
+                      setState(() => _query = value.trim().toLowerCase()),
+              decoration: const InputDecoration(
+                labelText: 'Search properties',
+                prefixIcon: Icon(Icons.search),
               ),
-              OutlinedButton(
-                onPressed: controller.reload,
-                child: const Text('Refresh'),
-              ),
-            ],
-            primaryAction: ElevatedButton.icon(
-              onPressed: () => _openCreateDialog(context, ref),
-              icon: const Icon(Icons.add),
-              label: const Text('New Property'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: propertiesAsync.when(
-              data: (properties) {
-                final filtered = properties
-                    .where((property) {
-                      if (_query.isEmpty) {
-                        return true;
-                      }
-                      final haystack =
-                          '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
-                              .toLowerCase();
-                      return haystack.contains(_query);
-                    })
-                    .toList(growable: false);
-                if (filtered.isEmpty) {
-                  return NxEmptyState(
-                    title:
-                        properties.isEmpty ? 'No properties yet' : 'No match',
-                    description:
-                        properties.isEmpty
-                            ? 'Create your first property to start portfolio analysis.'
-                            : 'Try another filter or clear the current search.',
-                    icon: Icons.home_work_outlined,
-                    primaryAction:
-                        properties.isEmpty
-                            ? ElevatedButton.icon(
-                              onPressed: () => _openCreateDialog(context, ref),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Property'),
-                            )
-                            : null,
-                  );
-                }
-
-                return NxCard(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minWidth: 980),
-                            child: SingleChildScrollView(
-                              child: DataTable(
-                                sortAscending: false,
-                                sortColumnIndex: 3,
-                                columns: const [
-                                  DataColumn(label: Text('Name')),
-                                  DataColumn(label: Text('Address')),
-                                  DataColumn(label: Text('Type')),
-                                  DataColumn(label: Text('Updated ↓')),
-                                  DataColumn(label: Text('Actions')),
-                                ],
-                                rows: filtered
-                                    .map(
-                                      (property) => DataRow(
-                                        cells: [
-                                          DataCell(Text(property.name)),
-                                          DataCell(
-                                            Text(
-                                              '${property.addressLine1}, ${property.city}',
-                                            ),
-                                          ),
-                                          DataCell(
-                                            NxStatusBadge(
-                                              label: property.propertyType,
-                                              kind: NxBadgeKind.info,
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text(
-                                              DateTime.fromMillisecondsSinceEpoch(
-                                                property.updatedAt,
-                                              ).toIso8601String(),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Wrap(
-                                              spacing: 8,
-                                              children: [
-                                                TextButton(
-                                                  onPressed: () {
-                                                    ref
-                                                        .read(
-                                                          selectedPropertyIdProvider
-                                                              .notifier,
-                                                        )
-                                                        .state = property.id;
-                                                    ref
-                                                        .read(
-                                                          propertyDetailPageProvider
-                                                              .notifier,
-                                                        )
-                                                        .state = PropertyDetailPage
-                                                            .overview;
-                                                  },
-                                                  child: const Text('Open'),
-                                                ),
-                                                TextButton(
-                                                  onPressed:
-                                                      () => controller.archive(
-                                                        property.id,
-                                                        true,
-                                                      ),
-                                                  child: const Text('Archive'),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text('Error: $error')),
             ),
           ),
         ],
+      ),
+      content: propertiesAsync.when(
+        data: (properties) {
+          final filtered = properties
+              .where((property) {
+                if (_query.isEmpty) {
+                  return true;
+                }
+                final haystack =
+                    '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
+                        .toLowerCase();
+                return haystack.contains(_query);
+              })
+              .toList(growable: false);
+          if (filtered.isEmpty) {
+            return NxEmptyState(
+              title: properties.isEmpty ? 'No properties yet' : 'No match',
+              description:
+                  properties.isEmpty
+                      ? 'Create your first property to start portfolio analysis.'
+                      : 'Try another filter or clear the current search.',
+              icon: Icons.home_work_outlined,
+              primaryAction:
+                  properties.isEmpty
+                      ? ElevatedButton.icon(
+                        onPressed: () => _openCreateDialog(context, ref),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Property'),
+                      )
+                      : null,
+            );
+          }
+
+          return NxCard(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 980),
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    sortAscending: false,
+                    sortColumnIndex: 3,
+                    columns: const [
+                      DataColumn(label: Text('Name')),
+                      DataColumn(label: Text('Address')),
+                      DataColumn(label: Text('Type')),
+                      DataColumn(label: Text('Updated ↓')),
+                      DataColumn(label: Text('Actions')),
+                    ],
+                    rows: filtered
+                        .map(
+                          (property) => DataRow(
+                            cells: [
+                              DataCell(Text(property.name)),
+                              DataCell(
+                                Text(
+                                  '${property.addressLine1}, ${property.city}',
+                                ),
+                              ),
+                              DataCell(
+                                NxStatusBadge(
+                                  label: property.propertyType,
+                                  kind: NxBadgeKind.info,
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  DateTime.fromMillisecondsSinceEpoch(
+                                    property.updatedAt,
+                                  ).toIso8601String(),
+                                ),
+                              ),
+                              DataCell(
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () {
+                                        ref
+                                            .read(
+                                              selectedScenarioIdProvider
+                                                  .notifier,
+                                            )
+                                            .state = null;
+                                        ref
+                                            .read(
+                                              selectedPropertyIdProvider
+                                                  .notifier,
+                                            )
+                                            .state = property.id;
+                                        ref
+                                                .read(
+                                                  propertyDetailPageProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            PropertyDetailPage.overview;
+                                      },
+                                      child: const Text('Open'),
+                                    ),
+                                    TextButton(
+                                      onPressed:
+                                          () => controller.archive(
+                                            property.id,
+                                            true,
+                                          ),
+                                      child: const Text('Archive'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('Error: $error')),
       ),
     );
   }
@@ -339,6 +332,9 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                     );
 
                 if (property != null && context.mounted) {
+                  ref.read(selectedScenarioIdProvider.notifier).state = null;
+                  ref.read(propertyDetailPageProvider.notifier).state =
+                      PropertyDetailPage.overview;
                   ref.read(selectedPropertyIdProvider.notifier).state =
                       property.id;
                   Navigator.of(context).pop(true);

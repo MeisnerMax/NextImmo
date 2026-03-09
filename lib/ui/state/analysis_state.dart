@@ -27,6 +27,9 @@ class ScenarioAnalysisState {
     required this.analysis,
     required this.criteria,
     required this.isSaving,
+    required this.hasUnsavedChanges,
+    required this.lastSavedAt,
+    required this.dirtyFields,
     required this.saveError,
   });
 
@@ -39,6 +42,9 @@ class ScenarioAnalysisState {
   final AnalysisResult analysis;
   final CriteriaEvaluationResult? criteria;
   final bool isSaving;
+  final bool hasUnsavedChanges;
+  final int? lastSavedAt;
+  final Set<String> dirtyFields;
   final String? saveError;
 
   ScenarioAnalysisState copyWith({
@@ -53,6 +59,9 @@ class ScenarioAnalysisState {
     CriteriaEvaluationResult? criteria,
     bool clearCriteria = false,
     bool? isSaving,
+    bool? hasUnsavedChanges,
+    int? lastSavedAt,
+    Set<String>? dirtyFields,
     String? saveError,
     bool clearSaveError = false,
   }) {
@@ -66,6 +75,9 @@ class ScenarioAnalysisState {
       analysis: analysis ?? this.analysis,
       criteria: clearCriteria ? null : (criteria ?? this.criteria),
       isSaving: isSaving ?? this.isSaving,
+      hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
+      lastSavedAt: lastSavedAt ?? this.lastSavedAt,
+      dirtyFields: dirtyFields ?? this.dirtyFields,
       saveError: clearSaveError ? null : (saveError ?? this.saveError),
     );
   }
@@ -86,7 +98,7 @@ class ScenarioAnalysisController
   Future<ScenarioAnalysisState> build(String scenarioId) async {
     ref.onDispose(() {
       _debounce?.cancel();
-      if (state.valueOrNull?.isSaving ?? false) {
+      if (state.valueOrNull?.hasUnsavedChanges ?? false) {
         unawaited(flushPendingSave());
       }
     });
@@ -125,11 +137,17 @@ class ScenarioAnalysisController
       analysis: analysis,
       criteria: criteria,
       isSaving: false,
+      hasUnsavedChanges: false,
+      lastSavedAt: _maxTimestamp(inputs.updatedAt, valuation.updatedAt),
+      dirtyFields: const <String>{},
       saveError: null,
     );
   }
 
-  void patchInputs(ScenarioInputs Function(ScenarioInputs current) updateFn) {
+  void patchInputs(
+    ScenarioInputs Function(ScenarioInputs current) updateFn, {
+    Iterable<String> dirtyFields = const <String>[],
+  }) {
     final current = state.valueOrNull;
     if (current == null) {
       return;
@@ -161,7 +179,9 @@ class ScenarioAnalysisController
         inputs: updatedInputs,
         analysis: analysis,
         criteria: criteria,
-        isSaving: true,
+        isSaving: false,
+        hasUnsavedChanges: true,
+        dirtyFields: {...current.dirtyFields, ...dirtyFields},
         clearSaveError: true,
       ),
     );
@@ -284,6 +304,9 @@ class ScenarioAnalysisController
         analysis: analysis,
         criteria: criteria,
         isSaving: false,
+        hasUnsavedChanges: false,
+        lastSavedAt: now,
+        dirtyFields: const <String>{},
         clearSaveError: true,
       ),
     );
@@ -304,11 +327,12 @@ class ScenarioAnalysisController
 
   Future<void> _persistCurrentState() async {
     final current = state.valueOrNull;
-    if (current == null || !current.isSaving) {
+    if (current == null || current.isSaving || !current.hasUnsavedChanges) {
       return;
     }
 
     try {
+      state = AsyncValue.data(current.copyWith(isSaving: true));
       await _inputsRepo.upsertInputs(current.inputs);
       await _valuationRepo.upsert(current.valuation);
       await _maybeCreateAutoDailyVersion(current);
@@ -317,23 +341,44 @@ class ScenarioAnalysisController
         inputs: current.inputs,
         analysis: current.analysis,
       );
+      final latest = state.valueOrNull;
+      final savedAt = DateTime.now().millisecondsSinceEpoch;
+      if (latest == null) {
+        return;
+      }
+      if (!_isSameSnapshot(current, latest)) {
+        state = AsyncValue.data(
+          latest.copyWith(isSaving: false, lastSavedAt: savedAt),
+        );
+        return;
+      }
       state = AsyncValue.data(
         current.copyWith(
           isSaving: false,
+          hasUnsavedChanges: false,
+          lastSavedAt: savedAt,
+          dirtyFields: const <String>{},
           criteria: refreshedCriteria,
           clearSaveError: true,
         ),
       );
     } catch (error) {
+      final latest = state.valueOrNull ?? current;
       state = AsyncValue.data(
-        current.copyWith(isSaving: false, saveError: 'Autosave failed: $error'),
+        latest.copyWith(
+          isSaving: false,
+          hasUnsavedChanges: true,
+          saveError: 'Autosave failed: $error',
+        ),
       );
     }
   }
 
   void patchValuation(
-    ScenarioValuationRecord Function(ScenarioValuationRecord current) updateFn,
-  ) {
+    ScenarioValuationRecord Function(ScenarioValuationRecord current)
+    updateFn, {
+    Iterable<String> dirtyFields = const <String>[],
+  }) {
     final current = state.valueOrNull;
     if (current == null) {
       return;
@@ -364,7 +409,9 @@ class ScenarioAnalysisController
         valuation: updatedValuation,
         analysis: analysis,
         criteria: criteria,
-        isSaving: true,
+        isSaving: false,
+        hasUnsavedChanges: true,
+        dirtyFields: {...current.dirtyFields, ...dirtyFields},
         clearSaveError: true,
       ),
     );
@@ -430,5 +477,17 @@ class ScenarioAnalysisController
       notes: 'Automatic daily snapshot from autosave.',
       createdBy: current.settings.scenarioAutoDailyVersionsUserId,
     );
+  }
+
+  bool _isSameSnapshot(
+    ScenarioAnalysisState left,
+    ScenarioAnalysisState right,
+  ) {
+    return left.inputs.updatedAt == right.inputs.updatedAt &&
+        left.valuation.updatedAt == right.valuation.updatedAt;
+  }
+
+  int _maxTimestamp(int left, int right) {
+    return left >= right ? left : right;
   }
 }
