@@ -1,0 +1,391 @@
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../core/audit/audit_service.dart';
+import '../../core/audit/audit_writer.dart';
+import '../../core/models/audit_log.dart';
+import '../../core/docs/doc_compliance_engine.dart';
+import '../../core/models/documents.dart';
+import 'audit_log_repo.dart';
+import 'required_documents_repo.dart';
+
+class DocumentsRepo {
+  const DocumentsRepo(
+    this._db,
+    this._requiredRepo,
+    this._complianceEngine, {
+    this.auditLogRepo,
+    this.auditWriter,
+  });
+
+  final Database _db;
+  final RequiredDocumentsRepo _requiredRepo;
+  final DocComplianceEngine _complianceEngine;
+  final AuditLogRepo? auditLogRepo;
+  final AuditWriter? auditWriter;
+  static const AuditService _auditService = AuditService();
+
+  Future<List<DocumentRecord>> listDocuments({
+    String? entityType,
+    String? entityId,
+    String? typeId,
+  }) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    if (entityType != null && entityType.trim().isNotEmpty) {
+      where.add('entity_type = ?');
+      args.add(entityType.trim());
+    }
+    if (entityId != null && entityId.trim().isNotEmpty) {
+      where.add('entity_id = ?');
+      args.add(entityId.trim());
+    }
+    if (typeId != null && typeId.trim().isNotEmpty) {
+      where.add('type_id = ?');
+      args.add(typeId.trim());
+    }
+    final rows = await _db.query(
+      'documents',
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'created_at DESC',
+    );
+    return rows.map(DocumentRecord.fromMap).toList(growable: false);
+  }
+
+  Future<DocumentRecord> createDocument({
+    required String entityType,
+    required String entityId,
+    String? typeId,
+    required String filePath,
+    required String fileName,
+    String? mimeType,
+    int? sizeBytes,
+    String? sha256,
+    String? createdBy,
+    Map<String, String> metadata = const <String, String>{},
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final record = DocumentRecord(
+      id: const Uuid().v4(),
+      entityType: entityType.trim(),
+      entityId: entityId.trim(),
+      typeId: typeId?.trim().isEmpty ?? true ? null : typeId!.trim(),
+      filePath: filePath.trim(),
+      fileName: fileName.trim(),
+      mimeType: mimeType?.trim(),
+      sizeBytes: sizeBytes,
+      sha256: sha256?.trim(),
+      createdAt: now,
+      createdBy: createdBy?.trim(),
+      updatedAt: now,
+    );
+
+    await _db.transaction((txn) async {
+      await txn.insert(
+        'documents',
+        record.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+      for (final entry in metadata.entries) {
+        final meta = DocumentMetadataRecord(
+          id: const Uuid().v4(),
+          documentId: record.id,
+          key: entry.key.trim(),
+          value: entry.value.trim(),
+        );
+        await txn.insert(
+          'document_metadata',
+          meta.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+    final parentPropertyId = await _resolvePropertyIdForEntity(
+      record.entityType,
+      record.entityId,
+    );
+    await _recordAudit(
+      entityType: 'document',
+      entityId: record.id,
+      action: 'create',
+      summary: 'Document added for ${record.entityType}:${record.entityId}',
+      newValues: record.toMap(),
+      parentEntityType: parentPropertyId == null ? null : 'property',
+      parentEntityId: parentPropertyId,
+    );
+    return record;
+  }
+
+  Future<void> updateDocument(DocumentRecord record) async {
+    final before = await _db.query(
+      'documents',
+      where: 'id = ?',
+      whereArgs: <Object?>[record.id],
+      limit: 1,
+    );
+    await _db.update(
+      'documents',
+      record.toMap(),
+      where: 'id = ?',
+      whereArgs: <Object?>[record.id],
+    );
+    final parentPropertyId = await _resolvePropertyIdForEntity(
+      record.entityType,
+      record.entityId,
+    );
+    await _recordAudit(
+      entityType: 'document',
+      entityId: record.id,
+      action: 'update',
+      summary: 'Document updated',
+      oldValues: before.isEmpty ? null : before.first,
+      newValues: record.toMap(),
+      diffItems:
+          before.isEmpty
+              ? const <AuditDiffItem>[]
+              : _auditService.buildDiff(before.first, record.toMap()),
+      parentEntityType: parentPropertyId == null ? null : 'property',
+      parentEntityId: parentPropertyId,
+    );
+  }
+
+  Future<void> deleteDocument(String id) async {
+    final before = await _db.query(
+      'documents',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+      limit: 1,
+    );
+    await _db.delete('documents', where: 'id = ?', whereArgs: <Object?>[id]);
+    final doc = before.isEmpty ? null : DocumentRecord.fromMap(before.first);
+    final parentPropertyId =
+        doc == null
+            ? null
+            : await _resolvePropertyIdForEntity(doc.entityType, doc.entityId);
+    await _recordAudit(
+      entityType: 'document',
+      entityId: id,
+      action: 'delete',
+      summary: 'Document deleted',
+      oldValues: before.isEmpty ? null : before.first,
+      parentEntityType: parentPropertyId == null ? null : 'property',
+      parentEntityId: parentPropertyId,
+    );
+  }
+
+  Future<List<DocumentMetadataRecord>> listMetadata(String documentId) async {
+    final rows = await _db.query(
+      'document_metadata',
+      where: 'document_id = ?',
+      whereArgs: <Object?>[documentId],
+      orderBy: 'key COLLATE NOCASE',
+    );
+    return rows.map(DocumentMetadataRecord.fromMap).toList(growable: false);
+  }
+
+  Future<void> upsertMetadata({
+    required String documentId,
+    required String key,
+    required String value,
+  }) async {
+    final record = DocumentMetadataRecord(
+      id: const Uuid().v4(),
+      documentId: documentId,
+      key: key.trim(),
+      value: value.trim(),
+    );
+    await _db.insert(
+      'document_metadata',
+      record.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    final parentPropertyId = await _resolvePropertyIdForDocument(documentId);
+    await _recordAudit(
+      entityType: 'document_metadata',
+      entityId: record.id,
+      action: 'update',
+      summary: 'Document metadata updated',
+      newValues: record.toMap(),
+      parentEntityType: parentPropertyId == null ? null : 'property',
+      parentEntityId: parentPropertyId,
+    );
+  }
+
+  Future<void> deleteMetadata({
+    required String documentId,
+    required String key,
+  }) async {
+    final before = await _db.query(
+      'document_metadata',
+      where: 'document_id = ? AND key = ?',
+      whereArgs: <Object?>[documentId, key],
+      limit: 1,
+    );
+    await _db.delete(
+      'document_metadata',
+      where: 'document_id = ? AND key = ?',
+      whereArgs: <Object?>[documentId, key],
+    );
+    final parentPropertyId = await _resolvePropertyIdForDocument(documentId);
+    await _recordAudit(
+      entityType: 'document_metadata',
+      entityId: '$documentId:$key',
+      action: 'delete',
+      summary: 'Document metadata deleted',
+      oldValues: before.isEmpty ? null : before.first,
+      parentEntityType: parentPropertyId == null ? null : 'property',
+      parentEntityId: parentPropertyId,
+    );
+  }
+
+  Future<List<DocumentWithMetadata>> listDocumentsWithMetadata({
+    required String entityType,
+    required String entityId,
+  }) async {
+    final docs = await listDocuments(
+      entityType: entityType,
+      entityId: entityId,
+    );
+    final result = <DocumentWithMetadata>[];
+    for (final doc in docs) {
+      final metadataRows = await listMetadata(doc.id);
+      result.add(
+        DocumentWithMetadata(
+          document: doc,
+          metadata: <String, String>{
+            for (final row in metadataRows) row.key: row.value,
+          },
+        ),
+      );
+    }
+    return result;
+  }
+
+  Future<List<DocumentComplianceIssue>> checkComplianceForEntity({
+    required String entityType,
+    required String entityId,
+    String? propertyType,
+  }) async {
+    final requirements = await _requiredRepo.list(
+      entityType: entityType,
+      propertyType: propertyType,
+    );
+    final docs = await listDocumentsWithMetadata(
+      entityType: entityType,
+      entityId: entityId,
+    );
+    return _complianceEngine.checkEntityCompliance(
+      entityType: entityType,
+      entityId: entityId,
+      requirements: requirements,
+      documents: docs,
+    );
+  }
+
+  Future<String?> _resolvePropertyIdForDocument(String documentId) async {
+    final rows = await _db.query(
+      'documents',
+      columns: const <String>['entity_type', 'entity_id'],
+      where: 'id = ?',
+      whereArgs: <Object?>[documentId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _resolvePropertyIdForEntity(
+      rows.first['entity_type']! as String,
+      rows.first['entity_id']! as String,
+    );
+  }
+
+  Future<String?> _resolvePropertyIdForEntity(
+    String entityType,
+    String entityId,
+  ) async {
+    switch (entityType) {
+      case 'property':
+        return entityId;
+      case 'unit':
+        final unitRows = await _db.query(
+          'units',
+          columns: const <String>['asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        return unitRows.isEmpty ? null : unitRows.first['asset_property_id'] as String?;
+      case 'lease':
+        final leaseRows = await _db.query(
+          'leases',
+          columns: const <String>['asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        return leaseRows.isEmpty ? null : leaseRows.first['asset_property_id'] as String?;
+      case 'tenant':
+        final tenantRows = await _db.query(
+          'leases',
+          columns: const <String>['asset_property_id'],
+          where: 'tenant_id = ?',
+          whereArgs: <Object?>[entityId],
+          orderBy: 'updated_at DESC',
+          limit: 1,
+        );
+        return tenantRows.isEmpty ? null : tenantRows.first['asset_property_id'] as String?;
+      case 'scenario':
+        final scenarioRows = await _db.query(
+          'scenarios',
+          columns: const <String>['property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        return scenarioRows.isEmpty ? null : scenarioRows.first['property_id'] as String?;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _recordAudit({
+    required String entityType,
+    required String entityId,
+    required String action,
+    String? summary,
+    String? parentEntityType,
+    String? parentEntityId,
+    Map<String, Object?>? oldValues,
+    Map<String, Object?>? newValues,
+    List<AuditDiffItem> diffItems = const <AuditDiffItem>[],
+  }) async {
+    final writer = auditWriter;
+    if (writer != null) {
+      await writer.record(
+        entityType: entityType,
+        entityId: entityId,
+        action: action,
+        summary: summary,
+        parentEntityType: parentEntityType,
+        parentEntityId: parentEntityId,
+        oldValues: oldValues,
+        newValues: newValues,
+        diffItems: diffItems,
+      );
+      return;
+    }
+    await auditLogRepo?.recordEvent(
+      entityType: entityType,
+      entityId: entityId,
+      action: action,
+      summary: summary,
+      parentEntityType: parentEntityType,
+      parentEntityId: parentEntityId,
+      oldValues: oldValues,
+      newValues: newValues,
+      diffItems: diffItems,
+      source: 'ui',
+    );
+  }
+}
