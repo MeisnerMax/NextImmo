@@ -62,6 +62,27 @@ class TasksRepo {
     return rows.map(TaskRecord.fromMap).toList();
   }
 
+  Future<List<TaskWorkflowRecord>> listWorkflowTasks({
+    String? status,
+    int? dueFrom,
+    int? dueTo,
+    String? entityType,
+    String? entityId,
+  }) async {
+    final tasks = await listTasks(
+      status: status,
+      dueFrom: dueFrom,
+      dueTo: dueTo,
+      entityType: entityType,
+      entityId: entityId,
+    );
+    final records = <TaskWorkflowRecord>[];
+    for (final task in tasks) {
+      records.add(await _buildWorkflowRecord(task));
+    }
+    return records;
+  }
+
   Future<TaskRecord> createTask({
     required String entityType,
     String? entityId,
@@ -140,6 +161,36 @@ class TasksRepo {
     );
   }
 
+  Future<void> updateTaskStatus({
+    required String id,
+    required String status,
+  }) async {
+    final rows = await _db.query(
+      'tasks',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return;
+    }
+    final task = TaskRecord.fromMap(rows.first);
+    await updateTask(
+      TaskRecord(
+        id: task.id,
+        entityType: task.entityType,
+        entityId: task.entityId,
+        title: task.title,
+        status: status,
+        priority: task.priority,
+        dueAt: task.dueAt,
+        createdAt: task.createdAt,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        createdBy: task.createdBy,
+      ),
+    );
+  }
+
   Future<void> deleteTask(String id) async {
     final before = await _db.query(
       'tasks',
@@ -150,7 +201,10 @@ class TasksRepo {
     await _db.delete('tasks', where: 'id = ?', whereArgs: <Object?>[id]);
     final searchRepo = _searchRepo;
     if (searchRepo != null) {
-      await searchRepo.deleteIndexEntryByEntity(entityType: 'task', entityId: id);
+      await searchRepo.deleteIndexEntryByEntity(
+        entityType: 'task',
+        entityId: id,
+      );
     }
     final task = before.isEmpty ? null : TaskRecord.fromMap(before.first);
     final parentPropertyId =
@@ -397,7 +451,9 @@ class TasksRepo {
     return int.tryParse(value.toString()) ?? 0;
   }
 
-  Future<String?> _resolvePropertyIdForChecklistItem(String checklistItemId) async {
+  Future<String?> _resolvePropertyIdForChecklistItem(
+    String checklistItemId,
+  ) async {
     final rows = await _db.query(
       'task_checklist_items',
       columns: const <String>['task_id'],
@@ -441,7 +497,9 @@ class TasksRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return unitRows.isEmpty ? null : unitRows.first['asset_property_id'] as String?;
+        return unitRows.isEmpty
+            ? null
+            : unitRows.first['asset_property_id'] as String?;
       case 'lease':
         final leaseRows = await _db.query(
           'leases',
@@ -450,7 +508,9 @@ class TasksRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return leaseRows.isEmpty ? null : leaseRows.first['asset_property_id'] as String?;
+        return leaseRows.isEmpty
+            ? null
+            : leaseRows.first['asset_property_id'] as String?;
       case 'tenant':
         final tenantRows = await _db.query(
           'leases',
@@ -460,7 +520,9 @@ class TasksRepo {
           orderBy: 'updated_at DESC',
           limit: 1,
         );
-        return tenantRows.isEmpty ? null : tenantRows.first['asset_property_id'] as String?;
+        return tenantRows.isEmpty
+            ? null
+            : tenantRows.first['asset_property_id'] as String?;
       case 'scenario':
         final scenarioRows = await _db.query(
           'scenarios',
@@ -469,7 +531,20 @@ class TasksRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return scenarioRows.isEmpty ? null : scenarioRows.first['property_id'] as String?;
+        return scenarioRows.isEmpty
+            ? null
+            : scenarioRows.first['property_id'] as String?;
+      case 'maintenance_ticket':
+        final ticketRows = await _db.query(
+          'maintenance_tickets',
+          columns: const <String>['asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        return ticketRows.isEmpty
+            ? null
+            : ticketRows.first['asset_property_id'] as String?;
       case 'document':
         final documentRows = await _db.query(
           'documents',
@@ -497,6 +572,172 @@ class TasksRepo {
       default:
         return null;
     }
+  }
+
+  Future<TaskWorkflowRecord> _buildWorkflowRecord(TaskRecord task) async {
+    final propertyId = await _resolvePropertyIdForTask(task);
+    final propertyName = await _loadPropertyName(propertyId);
+    final context = await _resolveTaskContext(task);
+    return TaskWorkflowRecord(
+      task: task,
+      propertyId: propertyId,
+      propertyName: propertyName,
+      contextTitle: context.$1,
+      contextSubtitle: context.$2,
+    );
+  }
+
+  Future<(String, String)> _resolveTaskContext(TaskRecord task) async {
+    final entityId = task.entityId;
+    if (entityId == null || entityId.trim().isEmpty) {
+      return ('Unassigned', 'No workflow context linked yet');
+    }
+    switch (task.entityType) {
+      case 'property':
+      case 'asset_property':
+        final rows = await _db.query(
+          'properties',
+          columns: const <String>['name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        final name = rows.isEmpty ? entityId : rows.first['name']! as String;
+        return ('Property', name);
+      case 'unit':
+        final rows = await _db.query(
+          'units',
+          columns: const <String>['unit_code', 'asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Unit', entityId);
+        }
+        final propertyName = await _loadPropertyName(
+          rows.first['asset_property_id'] as String?,
+        );
+        return (
+          'Unit',
+          '${rows.first['unit_code']! as String}${propertyName == null ? '' : ' · $propertyName'}',
+        );
+      case 'lease':
+        final rows = await _db.query(
+          'leases',
+          columns: const <String>['lease_name', 'asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Lease', entityId);
+        }
+        final propertyName = await _loadPropertyName(
+          rows.first['asset_property_id'] as String?,
+        );
+        return (
+          'Lease',
+          '${rows.first['lease_name']! as String}${propertyName == null ? '' : ' · $propertyName'}',
+        );
+      case 'tenant':
+        final rows = await _db.query(
+          'tenants',
+          columns: const <String>['display_name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        final name =
+            rows.isEmpty ? entityId : rows.first['display_name']! as String;
+        return ('Tenant', name);
+      case 'document':
+        final rows = await _db.query(
+          'documents',
+          columns: const <String>['file_name', 'entity_type', 'entity_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Document', entityId);
+        }
+        final nestedTitle = rows.first['file_name']! as String;
+        final nestedType = rows.first['entity_type']! as String;
+        final nestedId = rows.first['entity_id']! as String;
+        final nestedContext = await _resolveTaskContext(
+          TaskRecord(
+            id: task.id,
+            entityType: nestedType,
+            entityId: nestedId,
+            title: task.title,
+            status: task.status,
+            priority: task.priority,
+            dueAt: task.dueAt,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+            createdBy: task.createdBy,
+          ),
+        );
+        return ('Document', '$nestedTitle · ${nestedContext.$2}');
+      case 'maintenance_ticket':
+        final rows = await _db.query(
+          'maintenance_tickets',
+          columns: const <String>['title', 'asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Maintenance', entityId);
+        }
+        final propertyName = await _loadPropertyName(
+          rows.first['asset_property_id'] as String?,
+        );
+        return (
+          'Maintenance',
+          '${rows.first['title']! as String}${propertyName == null ? '' : ' · $propertyName'}',
+        );
+      case 'portfolio':
+        final rows = await _db.query(
+          'portfolios',
+          columns: const <String>['name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        final name = rows.isEmpty ? entityId : rows.first['name']! as String;
+        return ('Portfolio', name);
+      case 'scenario':
+        final rows = await _db.query(
+          'scenarios',
+          columns: const <String>['name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[entityId],
+          limit: 1,
+        );
+        final name = rows.isEmpty ? entityId : rows.first['name']! as String;
+        return ('Scenario', name);
+      default:
+        return (task.entityType, entityId);
+    }
+  }
+
+  Future<String?> _loadPropertyName(String? propertyId) async {
+    if (propertyId == null || propertyId.trim().isEmpty) {
+      return null;
+    }
+    final rows = await _db.query(
+      'properties',
+      columns: const <String>['name'],
+      where: 'id = ?',
+      whereArgs: <Object?>[propertyId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return rows.first['name']! as String;
   }
 
   Future<void> _recordAudit({

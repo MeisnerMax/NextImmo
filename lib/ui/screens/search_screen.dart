@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
+import '../navigation/navigation_actions.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -128,43 +129,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _openResult(SearchIndexRecord item) async {
-    switch (item.entityType) {
-      case 'property':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
-        ref.read(selectedPropertyIdProvider.notifier).state = item.entityId;
-        ref.read(selectedScenarioIdProvider.notifier).state = null;
-        ref.read(propertyDetailPageProvider.notifier).state =
-            PropertyDetailPage.overview;
-        break;
-      case 'scenario':
-        final body = item.body ?? '';
-        final propertyPrefix = 'property_id:';
-        String? propertyId;
-        if (body.startsWith(propertyPrefix)) {
-          propertyId = body.substring(propertyPrefix.length);
-        }
-        ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
-        ref.read(selectedPropertyIdProvider.notifier).state = propertyId;
-        ref.read(selectedScenarioIdProvider.notifier).state = item.entityId;
-        ref.read(propertyDetailPageProvider.notifier).state =
-            PropertyDetailPage.overview;
-        break;
-      case 'portfolio':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.portfolios;
-        break;
-      case 'notification':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.notifications;
-        break;
-      case 'ledger_entry':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.ledger;
-        break;
-      case 'task':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.tasks;
-        break;
-      default:
-        ref.read(globalPageProvider.notifier).state = GlobalPage.dashboard;
-        break;
-    }
+    openSearchResult(ref, item);
     if (mounted) {
       Navigator.of(context).pop();
     }

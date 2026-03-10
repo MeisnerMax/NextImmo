@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../components/nx_action_toolbar.dart';
 import '../components/nx_page_header.dart';
 import '../theme/app_theme.dart';
 
@@ -68,19 +69,6 @@ class ListFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.component),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        border: Border.all(color: context.semanticColors.border),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: children,
-      ),
-    );
+    return NxActionToolbar(children: children);
   }
 }

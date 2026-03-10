@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/documents.dart';
 import '../../components/nx_card.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
 import '../../templates/list_filter_template.dart';
+import '../../theme/app_theme.dart';
 import 'compliance_dashboard_screen.dart';
 
 class DocumentsScreen extends ConsumerStatefulWidget {
@@ -17,9 +20,15 @@ class DocumentsScreen extends ConsumerStatefulWidget {
 class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<DocumentRecord> _documents = const <DocumentRecord>[];
+  List<DocumentWorkflowRecord> _workflowDocuments =
+      const <DocumentWorkflowRecord>[];
   List<DocumentTypeRecord> _types = const <DocumentTypeRecord>[];
   List<RequiredDocumentRecord> _required = const <RequiredDocumentRecord>[];
+  final Set<String> _selectedDocumentIds = <String>{};
+  DocumentWorkflowRecord? _selectedDocument;
+  String _documentStatusFilter = 'all';
+  String _documentEntityFilter = 'all';
+  String _documentQuery = '';
   bool _loading = true;
   String? _error;
 
@@ -38,6 +47,16 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final requestedTab = ref.watch(documentsRequestedTabProvider);
+    if (requestedTab != null && requestedTab != _tabController.index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _tabController.animateTo(requestedTab);
+        ref.read(documentsRequestedTabProvider.notifier).state = null;
+      });
+    }
     return ListFilterTemplate(
       title: 'Documents',
       breadcrumbs: const ['Governance', 'Documents'],
@@ -94,38 +113,132 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
   }
 
   Widget _buildDocumentsTab() {
+    final documents = _filteredDocuments();
+    final availableCount =
+        _workflowDocuments.where((doc) => doc.status == 'available').length;
+    final verifiedCount =
+        _workflowDocuments.where((doc) => doc.status == 'verified').length;
+    final expiringCount =
+        _workflowDocuments.where((doc) => doc.status == 'expiring').length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ElevatedButton(
-          onPressed: () => _openDocumentDialog(),
-          child: const Text('Add Document'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ElevatedButton(
+              onPressed: () => _openDocumentDialog(),
+              child: const Text('Add Document'),
+            ),
+            OutlinedButton(
+              onPressed:
+                  _selectedDocumentIds.isEmpty ? null : _prepareBatchSelection,
+              child: Text('Batch Review (${_selectedDocumentIds.length})'),
+            ),
+            SizedBox(
+              width: 220,
+              child: TextField(
+                onChanged: (value) => setState(() => _documentQuery = value),
+                decoration: const InputDecoration(
+                  labelText: 'Search documents',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 170,
+              child: DropdownButtonFormField<String>(
+                value: _documentStatusFilter,
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                  DropdownMenuItem(
+                    value: 'available',
+                    child: Text('Available'),
+                  ),
+                  DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                  DropdownMenuItem(value: 'expiring', child: Text('Expiring')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _documentStatusFilter = value);
+                  }
+                },
+                decoration: const InputDecoration(labelText: 'Status'),
+              ),
+            ),
+            SizedBox(
+              width: 170,
+              child: DropdownButtonFormField<String>(
+                value: _documentEntityFilter,
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All entities')),
+                  DropdownMenuItem(value: 'property', child: Text('Property')),
+                  DropdownMenuItem(value: 'unit', child: Text('Unit')),
+                  DropdownMenuItem(value: 'lease', child: Text('Lease')),
+                  DropdownMenuItem(value: 'tenant', child: Text('Tenant')),
+                  DropdownMenuItem(value: 'scenario', child: Text('Scenario')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _documentEntityFilter = value);
+                  }
+                },
+                decoration: const InputDecoration(labelText: 'Entity'),
+              ),
+            ),
+            NxStatusBadge(
+              label: '$availableCount available',
+              kind: NxBadgeKind.info,
+            ),
+            NxStatusBadge(
+              label: '$verifiedCount verified',
+              kind: NxBadgeKind.success,
+            ),
+            NxStatusBadge(
+              label: '$expiringCount expiring',
+              kind:
+                  expiringCount == 0
+                      ? NxBadgeKind.neutral
+                      : NxBadgeKind.warning,
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: ListView.builder(
-            itemCount: _documents.length,
-            itemBuilder: (context, index) {
-              final doc = _documents[index];
-              return Card(
-                child: ListTile(
-                  title: Text(doc.fileName),
-                  subtitle: Text(
-                    '${doc.entityType}:${doc.entityId} · type=${doc.typeId ?? '-'}\n${doc.filePath}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      await ref
-                          .read(documentsRepositoryProvider)
-                          .deleteDocument(doc.id);
-                      await _load();
+          child:
+              documents.isEmpty
+                  ? const NxEmptyState(
+                    title: 'No documents match the current filters',
+                    description:
+                        'Adjust the current filters or add a document to continue the workflow.',
+                    icon: Icons.folder_open_outlined,
+                  )
+                  : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stacked = constraints.maxWidth < 1040;
+                      if (stacked) {
+                        return Column(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _buildDocumentList(documents),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(flex: 2, child: _buildDocumentPreview()),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: _buildDocumentList(documents)),
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildDocumentPreview()),
+                        ],
+                      );
                     },
-                    child: const Text('Delete'),
                   ),
-                ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -209,13 +322,173 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     );
   }
 
+  Widget _buildDocumentList(List<DocumentWorkflowRecord> documents) {
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: ListView.separated(
+        itemCount: documents.length,
+        separatorBuilder:
+            (_, __) => Divider(height: 1, color: context.semanticColors.border),
+        itemBuilder: (context, index) {
+          final doc = documents[index];
+          final selected = _selectedDocument?.document.id == doc.document.id;
+          return CheckboxListTile(
+            value: _selectedDocumentIds.contains(doc.document.id),
+            onChanged: (value) {
+              setState(() {
+                if (value ?? false) {
+                  _selectedDocumentIds.add(doc.document.id);
+                } else {
+                  _selectedDocumentIds.remove(doc.document.id);
+                }
+                _selectedDocument = doc;
+              });
+            },
+            secondary: NxStatusBadge(
+              label: _documentStatusLabel(doc.status),
+              kind: _documentStatusKind(doc.status),
+            ),
+            title: Text(doc.document.fileName),
+            subtitle: Text(
+              '${doc.contextTitle} · ${doc.contextSubtitle}\n${doc.typeName ?? 'Untyped'}${doc.isRequired ? ' · required' : ''}',
+            ),
+            isThreeLine: true,
+            selected: selected,
+            controlAffinity: ListTileControlAffinity.leading,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDocumentPreview() {
+    final selected = _selectedDocument;
+    return NxCard(
+      child:
+          selected == null
+              ? const Center(
+                child: Text(
+                  'Select a document to inspect assignment and metadata.',
+                ),
+              )
+              : ListView(
+                children: [
+                  Text(
+                    selected.document.fileName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      NxStatusBadge(
+                        label: _documentStatusLabel(selected.status),
+                        kind: _documentStatusKind(selected.status),
+                      ),
+                      NxStatusBadge(
+                        label: selected.typeName ?? 'Untyped',
+                        kind: NxBadgeKind.info,
+                      ),
+                      if (selected.isRequired)
+                        const NxStatusBadge(
+                          label: 'Required',
+                          kind: NxBadgeKind.warning,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${selected.contextTitle} · ${selected.contextSubtitle}',
+                  ),
+                  if (selected.propertyName != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Asset: ${selected.propertyName}'),
+                  ],
+                  const SizedBox(height: 12),
+                  Text('Path: ${selected.document.filePath}'),
+                  if (selected.document.mimeType != null) ...[
+                    const SizedBox(height: 4),
+                    Text('MIME: ${selected.document.mimeType}'),
+                  ],
+                  if (selected.document.sizeBytes != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Size: ${selected.document.sizeBytes} bytes'),
+                  ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed:
+                            selected.propertyId == null
+                                ? null
+                                : () => _openDocumentContext(selected),
+                        child: const Text('Open Context'),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await ref
+                              .read(documentsRepositoryProvider)
+                              .deleteDocument(selected.document.id);
+                          await _load();
+                        },
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Metadata / Preview Slot',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (selected.metadata.isEmpty)
+                    Text(
+                      'No metadata stored yet. This area is reserved for richer preview and verification states.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  else
+                    ...selected.metadata.entries.map(
+                      (entry) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text('${entry.key}: ${entry.value}'),
+                      ),
+                    ),
+                ],
+              ),
+    );
+  }
+
+  List<DocumentWorkflowRecord> _filteredDocuments() {
+    final query = _documentQuery.trim().toLowerCase();
+    return _workflowDocuments
+        .where((doc) {
+          final matchesStatus =
+              _documentStatusFilter == 'all' ||
+              doc.status == _documentStatusFilter;
+          final matchesEntity =
+              _documentEntityFilter == 'all' ||
+              doc.document.entityType == _documentEntityFilter;
+          final matchesQuery =
+              query.isEmpty ||
+              doc.document.fileName.toLowerCase().contains(query) ||
+              doc.contextSubtitle.toLowerCase().contains(query) ||
+              (doc.propertyName?.toLowerCase().contains(query) ?? false);
+          return matchesStatus && matchesEntity && matchesQuery;
+        })
+        .toList(growable: false);
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final docs = await ref.read(documentsRepositoryProvider).listDocuments();
+      final workflowDocs =
+          await ref.read(documentsRepositoryProvider).listWorkflowDocuments();
       final types = await ref.read(documentTypesRepositoryProvider).list();
       final required =
           await ref.read(requiredDocumentsRepositoryProvider).list();
@@ -223,9 +496,17 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
         return;
       }
       setState(() {
-        _documents = docs;
+        _workflowDocuments = workflowDocs;
         _types = types;
         _required = required;
+        if (_selectedDocument != null) {
+          for (final workflow in workflowDocs) {
+            if (workflow.document.id == _selectedDocument!.document.id) {
+              _selectedDocument = workflow;
+              break;
+            }
+          }
+        }
         _loading = false;
       });
     } catch (error) {
@@ -400,6 +681,68 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     fileNameController.dispose();
     metadataKeyController.dispose();
     metadataValueController.dispose();
+  }
+
+  void _prepareBatchSelection() {
+    setState(() {
+      _error =
+          'Batch selection prepared for ${_selectedDocumentIds.length} documents. Review and verification actions can build on this selection next.';
+    });
+  }
+
+  void _openDocumentContext(DocumentWorkflowRecord document) {
+    final propertyId = document.propertyId;
+    if (propertyId == null) {
+      return;
+    }
+    ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
+    ref.read(selectedPropertyIdProvider.notifier).state = propertyId;
+    switch (document.document.entityType) {
+      case 'unit':
+        ref.read(selectedOperationsUnitIdProvider.notifier).state =
+            document.document.entityId;
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.units;
+        break;
+      case 'tenant':
+        ref.read(selectedOperationsTenantIdProvider.notifier).state =
+            document.document.entityId;
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.tenants;
+        break;
+      case 'lease':
+        ref.read(selectedOperationsLeaseIdProvider.notifier).state =
+            document.document.entityId;
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.leases;
+        break;
+      default:
+        ref.read(propertyDetailPageProvider.notifier).state =
+            PropertyDetailPage.documents;
+        break;
+    }
+  }
+
+  String _documentStatusLabel(String value) {
+    switch (value) {
+      case 'verified':
+        return 'Verified';
+      case 'expiring':
+        return 'Expiring';
+      default:
+        return 'Available';
+    }
+  }
+
+  NxBadgeKind _documentStatusKind(String value) {
+    switch (value) {
+      case 'verified':
+        return NxBadgeKind.success;
+      case 'expiring':
+        return NxBadgeKind.warning;
+      default:
+        return NxBadgeKind.info;
+    }
   }
 
   Future<void> _openTypeDialog() async {

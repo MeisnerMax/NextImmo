@@ -37,6 +37,23 @@ class MaintenanceRepo {
     return rows.map(MaintenanceTicketRecord.fromMap).toList();
   }
 
+  Future<List<MaintenanceWorkflowRecord>> listWorkflowTickets({
+    String? assetPropertyId,
+    String? status,
+    String? priority,
+  }) async {
+    final tickets = await listTickets(
+      assetPropertyId: assetPropertyId,
+      status: status,
+      priority: priority,
+    );
+    final records = <MaintenanceWorkflowRecord>[];
+    for (final ticket in tickets) {
+      records.add(await _buildWorkflowRecord(ticket));
+    }
+    return records;
+  }
+
   Future<MaintenanceTicketRecord> createTicket({
     required String assetPropertyId,
     String? unitId,
@@ -80,8 +97,8 @@ class MaintenanceRepo {
       if (createTask) {
         await txn.insert('tasks', <String, Object?>{
           'id': const Uuid().v4(),
-          'entity_type': 'asset_property',
-          'entity_id': assetPropertyId,
+          'entity_type': 'maintenance_ticket',
+          'entity_id': ticket.id,
           'title': 'Maintenance: $title',
           'status': 'todo',
           'priority': priority == 'urgent' ? 'high' : priority,
@@ -183,5 +200,41 @@ class MaintenanceRepo {
       return value.toInt();
     }
     return int.tryParse(value.toString()) ?? 0;
+  }
+
+  Future<MaintenanceWorkflowRecord> _buildWorkflowRecord(
+    MaintenanceTicketRecord ticket,
+  ) async {
+    final propertyRows = await _db.query(
+      'properties',
+      columns: const <String>['name'],
+      where: 'id = ?',
+      whereArgs: <Object?>[ticket.assetPropertyId],
+      limit: 1,
+    );
+    final documentRows =
+        ticket.documentId == null
+            ? const <Map<String, Object?>>[]
+            : await _db.query(
+              'documents',
+              columns: const <String>['file_name'],
+              where: 'id = ?',
+              whereArgs: <Object?>[ticket.documentId],
+              limit: 1,
+            );
+    final linkedTasks = await _db.rawQuery(
+      'SELECT COUNT(*) FROM tasks WHERE entity_type = ? AND entity_id = ?',
+      <Object?>['maintenance_ticket', ticket.id],
+    );
+    return MaintenanceWorkflowRecord(
+      ticket: ticket,
+      propertyName:
+          propertyRows.isEmpty ? null : propertyRows.first['name'] as String?,
+      documentName:
+          documentRows.isEmpty
+              ? null
+              : documentRows.first['file_name'] as String?,
+      linkedTaskCount: _firstInt(linkedTasks),
+    );
   }
 }

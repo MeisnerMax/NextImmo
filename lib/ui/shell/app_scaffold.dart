@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 
+import '../components/command_palette.dart';
 import '../components/nx_content_frame.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
@@ -59,7 +61,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     final page = ref.watch(globalPageProvider);
-    final shellV2Enabled = ref.watch(uiScreenFlagProvider(UiScreenFlag.appShellV2));
+    final shellV2Enabled = ref.watch(
+      uiScreenFlagProvider(UiScreenFlag.appShellV2),
+    );
     if (!shellV2Enabled) {
       return _buildLegacyScaffold(context, page);
     }
@@ -67,68 +71,94 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Widget _buildLegacyScaffold(BuildContext context, GlobalPage page) {
-    return Scaffold(
-      body: Row(
-        children: [
-          const Sidebar(),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                const TopBar(),
-                const Divider(height: 1),
-                Expanded(
-                  child: Container(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    child: _buildPage(page),
-                  ),
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            () => showCommandPalette(context),
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            () => showCommandPalette(context),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          body: Row(
+            children: [
+              const Sidebar(),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: Column(
+                  children: [
+                    const TopBar(),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Container(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: _buildPage(page),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildV2Scaffold(BuildContext context, GlobalPage page) {
     final semantic = context.semanticColors;
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).scaffoldBackgroundColor,
-              Theme.of(context).colorScheme.surfaceContainerLowest,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                const SidebarV2(),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: NxContentFrame(
-                    child: Column(
-                      children: [
-                        const TopBarV2(),
-                        Divider(height: 1, color: semantic.border),
-                        Expanded(
-                          child: Container(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            child: _buildPage(page),
-                          ),
+    final zone = context.desktopLayoutZone;
+    final shellPadding = zone == AppDesktopLayoutZone.narrow ? 6.0 : 10.0;
+    final shellGap = zone == AppDesktopLayoutZone.narrow ? 6.0 : 10.0;
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            () => showCommandPalette(context),
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            () => showCommandPalette(context),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).scaffoldBackgroundColor,
+                  Theme.of(context).colorScheme.surfaceContainerLowest,
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(shellPadding),
+                child: Row(
+                  children: [
+                    const SidebarV2(),
+                    SizedBox(width: shellGap),
+                    Expanded(
+                      child: NxContentFrame(
+                        child: Column(
+                          children: [
+                            const TopBarV2(),
+                            Divider(height: 1, color: semantic.border),
+                            Expanded(
+                              child: Container(
+                                color:
+                                    Theme.of(context).scaffoldBackgroundColor,
+                                child: _buildPage(page),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -167,13 +197,21 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Widget _buildPage(GlobalPage page) {
-    final dashboardV2Enabled = ref.watch(uiScreenFlagProvider(UiScreenFlag.dashboardV2));
-    final propertiesV2Enabled = ref.watch(uiScreenFlagProvider(UiScreenFlag.propertiesV2));
+    final dashboardV2Enabled = ref.watch(
+      uiScreenFlagProvider(UiScreenFlag.dashboardV2),
+    );
+    final propertiesV2Enabled = ref.watch(
+      uiScreenFlagProvider(UiScreenFlag.propertiesV2),
+    );
     switch (page) {
       case GlobalPage.dashboard:
-        return dashboardV2Enabled ? const DashboardScreenV2() : const DashboardScreen();
+        return dashboardV2Enabled
+            ? const DashboardScreenV2()
+            : const DashboardScreen();
       case GlobalPage.properties:
-        return propertiesV2Enabled ? const PropertiesScreenV2() : const PropertiesScreen();
+        return propertiesV2Enabled
+            ? const PropertiesScreenV2()
+            : const PropertiesScreen();
       case GlobalPage.ledger:
         return const LedgerScreen();
       case GlobalPage.budgets:

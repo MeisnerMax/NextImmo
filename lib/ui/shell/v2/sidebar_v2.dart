@@ -20,7 +20,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     'Governance': true,
     'System': true,
   };
-  bool _collapsed = false;
+  bool _manualCollapsed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,14 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     final role = ref.watch(activeUserRoleProvider);
     final semantic = context.semanticColors;
     final colorScheme = Theme.of(context).colorScheme;
-    final width = _collapsed ? 86.0 : 276.0;
+    final zone = context.desktopLayoutZone;
+    final collapsed = zone == AppDesktopLayoutZone.narrow || _manualCollapsed;
+    final width =
+        collapsed
+            ? 86.0
+            : zone == AppDesktopLayoutZone.medium
+            ? 232.0
+            : 276.0;
 
     final groups = appNavigationGroups
         .map(
@@ -65,7 +72,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
             children: [
               Expanded(
                 child: AnimatedOpacity(
-                  opacity: _collapsed ? 0.0 : 1.0,
+                  opacity: collapsed ? 0.0 : 1.0,
                   duration: const Duration(milliseconds: 120),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -81,36 +88,53 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
               ),
               IconButton(
                 tooltip:
-                    _collapsed ? 'Expand navigation' : 'Collapse navigation',
-                onPressed: () => setState(() => _collapsed = !_collapsed),
+                    collapsed ? 'Expand navigation' : 'Collapse navigation',
+                onPressed:
+                    zone == AppDesktopLayoutZone.narrow
+                        ? null
+                        : () => setState(
+                          () => _manualCollapsed = !_manualCollapsed,
+                        ),
                 icon: Icon(
-                  _collapsed ? Icons.chevron_right : Icons.chevron_left,
+                  collapsed ? Icons.chevron_right : Icons.chevron_left,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 4),
           for (final group in groups) ...[
-            _buildGroupHeader(context, group.title, semantic),
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: Column(
-                children: [
-                  for (final item in group.items)
-                    _buildItemTile(
-                      context,
-                      item,
-                      selected == item.page,
-                      semantic,
-                    ),
-                ],
+            if (!collapsed) _buildGroupHeader(context, group.title, semantic),
+            if (!collapsed)
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  children: [
+                    for (final item in group.items)
+                      _buildItemTile(
+                        context,
+                        item,
+                        selected == item.page,
+                        semantic,
+                        collapsed: collapsed,
+                      ),
+                  ],
+                ),
+                crossFadeState:
+                    (_expanded[group.title] ?? true)
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 140),
               ),
-              crossFadeState:
-                  (!_collapsed && (_expanded[group.title] ?? true))
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 140),
-            ),
+            if (collapsed)
+              ...group.items.map(
+                (item) => _buildItemTile(
+                  context,
+                  item,
+                  selected == item.page,
+                  semantic,
+                  collapsed: collapsed,
+                ),
+              ),
             const SizedBox(height: 6),
           ],
         ],
@@ -123,9 +147,6 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     String title,
     AppSemanticColors semantic,
   ) {
-    if (_collapsed) {
-      return const SizedBox(height: 10);
-    }
     final expanded = _expanded[title] ?? true;
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -165,8 +186,9 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     BuildContext context,
     _SidebarItem item,
     bool isSelected,
-    AppSemanticColors semantic,
-  ) {
+    AppSemanticColors semantic, {
+    required bool collapsed,
+  }) {
     final primary = Theme.of(context).colorScheme.primary;
     final tile = ListTile(
       visualDensity: VisualDensity.compact,
@@ -178,7 +200,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
         color: isSelected ? primary : semantic.textSecondary,
       ),
       title:
-          _collapsed
+          collapsed
               ? null
               : Text(
                 item.label,
@@ -195,7 +217,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
         ref.read(globalPageProvider.notifier).state = item.page;
       },
     );
-    if (_collapsed) {
+    if (collapsed) {
       return Tooltip(message: item.label, child: tile);
     }
     return Padding(

@@ -1,5 +1,6 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../core/models/documents.dart';
 import '../../core/models/ledger.dart';
 import '../../core/models/note.dart';
 import '../../core/models/notification.dart';
@@ -71,7 +72,9 @@ class SearchRepo {
     if (_indexInitialized) {
       return;
     }
-    final rows = await _db.rawQuery('SELECT COUNT(*) AS count FROM search_index');
+    final rows = await _db.rawQuery(
+      'SELECT COUNT(*) AS count FROM search_index',
+    );
     final count = ((rows.first['count'] as num?) ?? 0).toInt();
     if (count == 0) {
       await rebuildIndex();
@@ -92,11 +95,15 @@ class SearchRepo {
       );
       await _insertAll(
         txn,
-        (await txn.query('scenarios')).map(ScenarioRecord.fromMap).map(buildScenarioRecord),
+        (await txn.query(
+          'scenarios',
+        )).map(ScenarioRecord.fromMap).map(buildScenarioRecord),
       );
       await _insertAll(
         txn,
-        (await txn.query('portfolios')).map(PortfolioRecord.fromMap).map(buildPortfolioRecord),
+        (await txn.query(
+          'portfolios',
+        )).map(PortfolioRecord.fromMap).map(buildPortfolioRecord),
       );
       await _insertAll(
         txn,
@@ -104,19 +111,25 @@ class SearchRepo {
       );
       await _insertAll(
         txn,
-        (await txn.query('notifications'))
-            .map(NotificationRecord.fromMap)
-            .map(buildNotificationRecord),
+        (await txn.query(
+          'notifications',
+        )).map(NotificationRecord.fromMap).map(buildNotificationRecord),
       );
       await _insertAll(
         txn,
-        (await txn.query('ledger_entries'))
-            .map(LedgerEntryRecord.fromMap)
-            .map(buildLedgerEntryRecord),
+        (await txn.query(
+          'ledger_entries',
+        )).map(LedgerEntryRecord.fromMap).map(buildLedgerEntryRecord),
       );
       await _insertAll(
         txn,
         (await txn.query('tasks')).map(TaskRecord.fromMap).map(buildTaskRecord),
+      );
+      await _insertAll(
+        txn,
+        (await txn.query(
+          'documents',
+        )).map(DocumentRecord.fromMap).map(buildDocumentRecord),
       );
     });
     _indexInitialized = true;
@@ -201,8 +214,24 @@ class SearchRepo {
       entityId: task.id,
       title: task.title,
       subtitle: task.status,
-      body: task.entityId == null ? task.entityType : '${task.entityType}:${task.entityId}',
+      body:
+          task.entityId == null
+              ? task.entityType
+              : '${task.entityType}:${task.entityId}',
       updatedAt: task.updatedAt,
+    );
+  }
+
+  SearchIndexRecord buildDocumentRecord(DocumentRecord document) {
+    return SearchIndexRecord(
+      id: _stableId(entityType: 'document', entityId: document.id),
+      entityType: 'document',
+      entityId: document.id,
+      title: document.fileName,
+      subtitle: document.typeId ?? document.entityType,
+      body:
+          'entity_type:${document.entityType}|entity_id:${document.entityId}|property_id:${document.entityType == 'property' || document.entityType == 'asset_property' ? document.entityId : ''}|file_path:${document.filePath}',
+      updatedAt: document.updatedAt,
     );
   }
 

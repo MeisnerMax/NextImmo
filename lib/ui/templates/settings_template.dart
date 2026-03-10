@@ -10,13 +10,19 @@ class SettingsNavigationItem {
     required this.label,
     required this.icon,
     required this.description,
+    this.badgeLabel,
+    this.badgeKind = SettingsNavigationBadgeKind.neutral,
   });
 
   final String id;
   final String label;
   final IconData icon;
   final String description;
+  final String? badgeLabel;
+  final SettingsNavigationBadgeKind badgeKind;
 }
+
+enum SettingsNavigationBadgeKind { neutral, warning, danger }
 
 class SettingsTemplate extends StatelessWidget {
   const SettingsTemplate({
@@ -84,6 +90,13 @@ class SettingsTemplate extends StatelessWidget {
                         ),
                         title: Text(item.label),
                         subtitle: Text(item.description),
+                        trailing:
+                            item.badgeLabel == null
+                                ? null
+                                : _NavigationBadge(
+                                  label: item.badgeLabel!,
+                                  kind: item.badgeKind,
+                                ),
                         onTap: () => onSelect(item.id),
                       );
                     },
@@ -111,6 +124,48 @@ class SettingsTemplate extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NavigationBadge extends StatelessWidget {
+  const _NavigationBadge({required this.label, required this.kind});
+
+  final String label;
+  final SettingsNavigationBadgeKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = context.semanticColors;
+    final Color background;
+    final Color foreground;
+    switch (kind) {
+      case SettingsNavigationBadgeKind.warning:
+        background = semantic.warning.withValues(alpha: 0.14);
+        foreground = semantic.warning;
+        break;
+      case SettingsNavigationBadgeKind.danger:
+        background = semantic.error.withValues(alpha: 0.14);
+        foreground = semantic.error;
+        break;
+      case SettingsNavigationBadgeKind.neutral:
+        background = semantic.surfaceAlt;
+        foreground = semantic.textSecondary;
+        break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: foreground.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: foreground),
       ),
     );
   }

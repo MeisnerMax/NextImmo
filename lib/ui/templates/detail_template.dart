@@ -44,11 +44,13 @@ class DetailTemplate extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 980;
-                if (compact) {
-                  final navigationHeight = (constraints.maxHeight * 0.34).clamp(
+                final zone = AppLayout.desktopZoneForWidth(
+                  constraints.maxWidth,
+                );
+                if (zone == AppDesktopLayoutZone.narrow) {
+                  final navigationHeight = (constraints.maxHeight * 0.26).clamp(
+                    104.0,
                     compactNavigationMinHeight,
-                    compactNavigationMaxHeight,
                   );
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,10 +61,17 @@ class DetailTemplate extends StatelessWidget {
                     ],
                   );
                 }
+                final adaptiveNavigationWidth =
+                    zone == AppDesktopLayoutZone.medium
+                        ? (navigationWidth - 40).clamp(220, navigationWidth)
+                        : navigationWidth;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: navigationWidth, child: navigation),
+                    SizedBox(
+                      width: adaptiveNavigationWidth.toDouble(),
+                      child: navigation,
+                    ),
                     const SizedBox(width: AppSpacing.component),
                     Expanded(child: content),
                   ],

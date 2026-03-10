@@ -135,6 +135,8 @@ final selectedOperationsTenantIdProvider = StateProvider<String?>(
   (ref) => null,
 );
 final selectedOperationsLeaseIdProvider = StateProvider<String?>((ref) => null);
+final tasksRequestedDueFilterProvider = StateProvider<String?>((ref) => null);
+final documentsRequestedTabProvider = StateProvider<int?>((ref) => null);
 final propertyDetailPageProvider = StateProvider<PropertyDetailPage>(
   (ref) => PropertyDetailPage.overview,
 );
@@ -377,6 +379,7 @@ final documentsRepositoryProvider = Provider<DocumentsRepo>((ref) {
     ref.watch(docComplianceEngineProvider),
     auditLogRepo: ref.watch(auditLogRepositoryProvider),
     auditWriter: ref.watch(auditWriterProvider),
+    searchRepo: ref.watch(searchRepositoryProvider),
   );
 });
 final securityRepositoryProvider = Provider<SecurityRepo>((ref) {

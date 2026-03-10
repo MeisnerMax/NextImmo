@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
+import '../components/command_palette.dart';
 import '../navigation/app_navigation.dart';
-import '../screens/search_screen.dart';
+import '../navigation/navigation_actions.dart';
 import '../state/analysis_state.dart';
 import '../state/app_state.dart';
 import '../state/property_state.dart';
@@ -63,94 +64,125 @@ class _TopBarState extends ConsumerState<TopBar> {
       alignment: Alignment.centerLeft,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 920;
-          final searchWidth = constraints.maxWidth < 1180 ? 240.0 : 340.0;
+          final zone = AppLayout.desktopZoneForWidth(constraints.maxWidth);
+          final compact = zone == AppDesktopLayoutZone.narrow;
+          final hideWorkspaceUser = zone != AppDesktopLayoutZone.large;
+          final searchWidth =
+              zone == AppDesktopLayoutZone.large ? 340.0 : 240.0;
+          final titleBlock = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                breadcrumb.join(' / '),
+                maxLines: compact ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: semantic.textSecondary),
+              ),
+            ],
+          );
+          final actions = <Widget>[
+            if (!compact)
+              OutlinedButton.icon(
+                onPressed: () => showCommandPalette(context),
+                icon: const Icon(Icons.search, size: 16),
+                label: const Text('Ctrl+K'),
+              ),
+            if (compact)
+              IconButton(
+                tooltip: 'Command Palette',
+                onPressed:
+                    () => showCommandPalette(
+                      context,
+                      initialQuery: _searchController.text,
+                    ),
+                icon: const Icon(Icons.search),
+              ),
+            if (!compact && !hideWorkspaceUser && security != null) ...[
+              OutlinedButton.icon(
+                onPressed: _openWorkspaceDialog,
+                icon: const Icon(Icons.business_outlined, size: 16),
+                label: Text(security.context.workspace.name),
+              ),
+              OutlinedButton.icon(
+                onPressed: _openUserDialog,
+                icon: const Icon(Icons.person_outline, size: 16),
+                label: Text(
+                  '${security.context.user.displayName} (${security.context.user.role})',
+                ),
+              ),
+            ],
+            if (!compact)
+              SizedBox(
+                width: searchWidth,
+                child: _buildSearchAutocomplete(searchWidth),
+              ),
+            if (security != null && security.settings.securityAppLockEnabled)
+              IconButton(
+                tooltip: 'Lock app',
+                onPressed: () {
+                  ref.read(securityControllerProvider.notifier).lock();
+                },
+                icon: const Icon(Icons.lock_outline),
+              ),
+            if (ref.watch(selectedPropertyIdProvider) != null)
+              compact
+                  ? IconButton(
+                    tooltip: 'Back to list',
+                    onPressed: _backToList,
+                    icon: const Icon(Icons.arrow_back),
+                  )
+                  : TextButton.icon(
+                    onPressed: _backToList,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Back to list'),
+                  ),
+          ];
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: AppSpacing.component),
+                Wrap(spacing: 8, runSpacing: 8, children: actions),
+              ],
+            );
+          }
           return Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    breadcrumb.join(' / '),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: semantic.textSecondary,
-                    ),
-                  ),
-                ],
+              Expanded(child: titleBlock),
+              Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: actions,
               ),
-              const Spacer(),
-              if (!compact) ...[
-                if (security != null) ...[
-                  OutlinedButton.icon(
-                    onPressed: _openWorkspaceDialog,
-                    icon: const Icon(Icons.business_outlined, size: 16),
-                    label: Text(security.context.workspace.name),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: _openUserDialog,
-                    icon: const Icon(Icons.person_outline, size: 16),
-                    label: Text(
-                      '${security.context.user.displayName} (${security.context.user.role})',
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.component),
-                ],
-                SizedBox(
-                  width: searchWidth,
-                  child: _buildSearchAutocomplete(searchWidth),
-                ),
-                const SizedBox(width: AppSpacing.component),
-              ],
-              if (compact)
-                IconButton(
-                  tooltip: 'Search',
-                  onPressed: () => _openFullSearch(_searchController.text),
-                  icon: const Icon(Icons.search),
-                ),
-              if (security != null && security.settings.securityAppLockEnabled)
-                IconButton(
-                  tooltip: 'Lock app',
-                  onPressed: () {
-                    ref.read(securityControllerProvider.notifier).lock();
-                  },
-                  icon: const Icon(Icons.lock_outline),
-                ),
-              if (ref.watch(selectedPropertyIdProvider) != null)
-                TextButton.icon(
-                  onPressed: () {
-                    final selectedScenarioId = ref.read(
-                      selectedScenarioIdProvider,
-                    );
-                    if (selectedScenarioId != null) {
-                      ref
-                          .read(
-                            scenarioAnalysisControllerProvider(
-                              selectedScenarioId,
-                            ).notifier,
-                          )
-                          .flushPendingSave();
-                    }
-                    ref.read(selectedPropertyIdProvider.notifier).state = null;
-                    ref.read(selectedScenarioIdProvider.notifier).state = null;
-                    ref.read(propertyDetailPageProvider.notifier).state =
-                        PropertyDetailPage.overview;
-                  },
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back to list'),
-                ),
             ],
           );
         },
       ),
     );
+  }
+
+  void _backToList() {
+    final selectedScenarioId = ref.read(selectedScenarioIdProvider);
+    if (selectedScenarioId != null) {
+      ref
+          .read(scenarioAnalysisControllerProvider(selectedScenarioId).notifier)
+          .flushPendingSave();
+    }
+    ref.read(selectedPropertyIdProvider.notifier).state = null;
+    ref.read(selectedScenarioIdProvider.notifier).state = null;
+    ref.read(propertyDetailPageProvider.notifier).state =
+        PropertyDetailPage.overview;
   }
 
   Widget _buildSearchAutocomplete(double width) {
@@ -176,7 +208,8 @@ class _TopBarState extends ConsumerState<TopBar> {
           controller: controller,
           focusNode: focusNode,
           onChanged: _onSearchChanged,
-          onSubmitted: (value) => _openFullSearch(value),
+          onSubmitted:
+              (value) => showCommandPalette(context, initialQuery: value),
           decoration: const InputDecoration(
             labelText: 'Search',
             prefixIcon: Icon(Icons.search),
@@ -234,52 +267,8 @@ class _TopBarState extends ConsumerState<TopBar> {
     });
   }
 
-  Future<void> _openFullSearch(String value) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SearchScreen(initialQuery: value.trim()),
-      ),
-    );
-  }
-
   void _openSearchResult(SearchIndexRecord item) {
-    switch (item.entityType) {
-      case 'property':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
-        ref.read(selectedPropertyIdProvider.notifier).state = item.entityId;
-        ref.read(selectedScenarioIdProvider.notifier).state = null;
-        ref.read(propertyDetailPageProvider.notifier).state =
-            PropertyDetailPage.overview;
-        break;
-      case 'scenario':
-        final body = item.body ?? '';
-        final propertyPrefix = 'property_id:';
-        String? propertyId;
-        if (body.startsWith(propertyPrefix)) {
-          propertyId = body.substring(propertyPrefix.length);
-        }
-        ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
-        ref.read(selectedPropertyIdProvider.notifier).state = propertyId;
-        ref.read(selectedScenarioIdProvider.notifier).state = item.entityId;
-        ref.read(propertyDetailPageProvider.notifier).state =
-            PropertyDetailPage.overview;
-        break;
-      case 'portfolio':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.portfolios;
-        break;
-      case 'notification':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.notifications;
-        break;
-      case 'ledger_entry':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.ledger;
-        break;
-      case 'task':
-        ref.read(globalPageProvider.notifier).state = GlobalPage.tasks;
-        break;
-      default:
-        ref.read(globalPageProvider.notifier).state = GlobalPage.dashboard;
-        break;
-    }
+    openSearchResult(ref, item);
     _searchController.clear();
     setState(() => _results = const []);
   }

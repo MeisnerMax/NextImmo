@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'nx_action_toolbar.dart';
+import 'nx_section_header.dart';
 import '../theme/app_theme.dart';
 
 class NxPageHeader extends StatelessWidget {
@@ -31,43 +33,35 @@ class NxPageHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: semantic.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        spacing: AppSpacing.component,
+        runSpacing: AppSpacing.component,
+        crossAxisAlignment: WrapCrossAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (crumbs.isNotEmpty) ...[
-                  Text(
-                    crumbs.join(' / '),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 6),
-                ],
-                Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
-                ],
-              ],
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 220, maxWidth: 760),
+            child: NxSectionHeader(
+              title: title,
+              description: subtitle,
+              compact: false,
+              leading:
+                  crumbs.isEmpty
+                      ? null
+                      : Text(
+                        crumbs.join(' / '),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 12),
-            trailing!,
-          ],
-          if (secondaryActions.isNotEmpty || primaryAction != null) ...[
-            const SizedBox(width: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          if (trailing != null) trailing!,
+          if (secondaryActions.isNotEmpty || primaryAction != null)
+            NxActionToolbar(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               children: [
                 ...secondaryActions,
                 if (primaryAction != null) primaryAction!,
               ],
             ),
-          ],
         ],
       ),
     );

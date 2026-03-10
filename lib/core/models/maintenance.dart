@@ -77,3 +77,17 @@ class MaintenanceTicketRecord {
     );
   }
 }
+
+class MaintenanceWorkflowRecord {
+  const MaintenanceWorkflowRecord({
+    required this.ticket,
+    required this.propertyName,
+    required this.documentName,
+    required this.linkedTaskCount,
+  });
+
+  final MaintenanceTicketRecord ticket;
+  final String? propertyName;
+  final String? documentName;
+  final int linkedTaskCount;
+}

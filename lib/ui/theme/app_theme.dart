@@ -90,6 +90,8 @@ class AppBreakpoints {
 
 enum AppViewport { mobile, tablet, desktop }
 
+enum AppDesktopLayoutZone { large, medium, narrow }
+
 class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
   const AppSemanticColors({
     required this.success,
@@ -207,6 +209,8 @@ class AppSpacing {
 class AppLayout {
   static const double desktopMaxContentWidth = 1440;
   static const double tabletMaxContentWidth = 1100;
+  static const double desktopLargeMinWidth = 1440;
+  static const double desktopMediumMinWidth = 1100;
 
   const AppLayout._();
 
@@ -251,6 +255,16 @@ class AppLayout {
       case AppViewport.desktop:
         return 12;
     }
+  }
+
+  static AppDesktopLayoutZone desktopZoneForWidth(double width) {
+    if (width >= desktopLargeMinWidth) {
+      return AppDesktopLayoutZone.large;
+    }
+    if (width >= desktopMediumMinWidth) {
+      return AppDesktopLayoutZone.medium;
+    }
+    return AppDesktopLayoutZone.narrow;
   }
 }
 
@@ -423,7 +437,8 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: tokens.surface,
-        elevation: brightness == Brightness.dark ? 0 : AppElevationTokens.level2,
+        elevation:
+            brightness == Brightness.dark ? 0 : AppElevationTokens.level2,
         shadowColor: Colors.black.withValues(alpha: 0.12),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -561,6 +576,16 @@ extension AppThemeContext on BuildContext {
   AppViewport get viewport {
     return AppLayout.viewportForWidth(MediaQuery.sizeOf(this).width);
   }
+
+  AppDesktopLayoutZone get desktopLayoutZone {
+    return AppLayout.desktopZoneForWidth(MediaQuery.sizeOf(this).width);
+  }
+
+  bool get isLargeDesktop => desktopLayoutZone == AppDesktopLayoutZone.large;
+
+  bool get isMediumDesktop => desktopLayoutZone == AppDesktopLayoutZone.medium;
+
+  bool get isNarrowDesktop => desktopLayoutZone == AppDesktopLayoutZone.narrow;
 
   bool get compactLayout {
     final mode = densityMode;

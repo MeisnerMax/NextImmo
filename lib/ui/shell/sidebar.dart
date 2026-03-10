@@ -27,6 +27,14 @@ class _SidebarState extends ConsumerState<Sidebar> {
     final role = ref.watch(activeUserRoleProvider);
     final semantic = context.semanticColors;
     final colorScheme = Theme.of(context).colorScheme;
+    final zone = context.desktopLayoutZone;
+    final collapsed = zone == AppDesktopLayoutZone.narrow;
+    final width =
+        zone == AppDesktopLayoutZone.large
+            ? 254.0
+            : zone == AppDesktopLayoutZone.medium
+            ? 214.0
+            : 86.0;
 
     final groups = appNavigationGroups
         .map(
@@ -50,40 +58,76 @@ class _SidebarState extends ConsumerState<Sidebar> {
         .toList(growable: false);
 
     return Container(
-      width: 254,
+      width: width,
       color: colorScheme.surface,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Text(
-              'NexImmo',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: AnimatedOpacity(
+                  opacity: collapsed ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 140),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'NexImmo',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                ),
+              ),
+              if (!collapsed && zone == AppDesktopLayoutZone.medium)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.view_sidebar_outlined,
+                    size: 18,
+                    color: semantic.textSecondary,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           for (final group in groups) ...[
-            _buildGroupHeader(context, group.title, semantic),
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: Column(
-                children: [
-                  for (final item in group.items)
-                    _buildItemTile(
-                      context,
-                      item,
-                      selected == item.page,
-                      semantic,
-                    ),
-                ],
+            if (!collapsed) _buildGroupHeader(context, group.title, semantic),
+            if (collapsed)
+              const SizedBox(height: 10)
+            else
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  children: [
+                    for (final item in group.items)
+                      _buildItemTile(
+                        context,
+                        item,
+                        selected == item.page,
+                        semantic,
+                        collapsed: collapsed,
+                      ),
+                  ],
+                ),
+                crossFadeState:
+                    (_expanded[group.title] ?? true)
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 150),
               ),
-              crossFadeState:
-                  (_expanded[group.title] ?? true)
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 150),
-            ),
+            if (collapsed)
+              ...group.items.map(
+                (item) => _buildItemTile(
+                  context,
+                  item,
+                  selected == item.page,
+                  semantic,
+                  collapsed: collapsed,
+                ),
+              ),
             const SizedBox(height: 6),
           ],
         ],
@@ -135,10 +179,11 @@ class _SidebarState extends ConsumerState<Sidebar> {
     BuildContext context,
     _SidebarItem item,
     bool isSelected,
-    AppSemanticColors semantic,
-  ) {
+    AppSemanticColors semantic, {
+    required bool collapsed,
+  }) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Padding(
+    final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: ListTile(
         visualDensity: VisualDensity.compact,
@@ -149,13 +194,16 @@ class _SidebarState extends ConsumerState<Sidebar> {
           item.icon,
           color: isSelected ? primary : semantic.textSecondary,
         ),
-        title: Text(
-          item.label,
-          style: TextStyle(
-            color: isSelected ? primary : null,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
+        title:
+            collapsed
+                ? null
+                : Text(
+                  item.label,
+                  style: TextStyle(
+                    color: isSelected ? primary : null,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
         onTap: () {
           ref.read(selectedPropertyIdProvider.notifier).state = null;
           ref.read(selectedScenarioIdProvider.notifier).state = null;
@@ -165,6 +213,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
         },
       ),
     );
+    return collapsed ? Tooltip(message: item.label, child: tile) : tile;
   }
 }
 

@@ -1,0 +1,405 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/models/search.dart';
+import '../navigation/app_navigation.dart';
+import '../navigation/navigation_actions.dart';
+import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import 'nx_status_badge.dart';
+
+Future<void> showCommandPalette(
+  BuildContext context, {
+  String initialQuery = '',
+}) async {
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => CommandPaletteDialog(initialQuery: initialQuery),
+  );
+}
+
+class CommandPaletteDialog extends ConsumerStatefulWidget {
+  const CommandPaletteDialog({super.key, this.initialQuery = ''});
+
+  final String initialQuery;
+
+  @override
+  ConsumerState<CommandPaletteDialog> createState() =>
+      _CommandPaletteDialogState();
+}
+
+class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
+  late final TextEditingController _queryController;
+  final FocusNode _focusNode = FocusNode();
+  Timer? _debounce;
+  bool _loading = false;
+  List<_PaletteEntry> _entries = const [];
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _queryController = TextEditingController(text: widget.initialQuery);
+    _refreshEntries();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _focusNode.dispose();
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        const SingleActivator(LogicalKeyboardKey.arrowDown): const _MoveIntent(
+          1,
+        ),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): const _MoveIntent(
+          -1,
+        ),
+        const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
+        const SingleActivator(LogicalKeyboardKey.escape): const DismissIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _MoveIntent: CallbackAction<_MoveIntent>(
+            onInvoke: (intent) => _moveSelection(intent.delta),
+          ),
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) => _activateSelected(),
+          ),
+          DismissIntent: CallbackAction<DismissIntent>(
+            onInvoke: (_) => Navigator.of(context).maybePop(),
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 32,
+            ),
+            child: SizedBox(
+              width: 760,
+              height: 620,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _queryController,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      onChanged: _scheduleRefresh,
+                      decoration: const InputDecoration(
+                        labelText: 'Command Palette',
+                        hintText:
+                            'Search pages, assets, documents, tasks or run an action',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: const [
+                        NxStatusBadge(label: 'Ctrl+K', kind: NxBadgeKind.info),
+                        NxStatusBadge(
+                          label: 'Arrow keys',
+                          kind: NxBadgeKind.neutral,
+                        ),
+                        NxStatusBadge(
+                          label: 'Enter to run',
+                          kind: NxBadgeKind.neutral,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading) const LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child:
+                          _entries.isEmpty
+                              ? const Center(
+                                child: Text(
+                                  'No matching commands. Try a page, property, document or task.',
+                                ),
+                              )
+                              : ListView.separated(
+                                itemCount: _entries.length,
+                                separatorBuilder:
+                                    (_, __) => Divider(
+                                      height: 1,
+                                      color: context.semanticColors.border,
+                                    ),
+                                itemBuilder: (context, index) {
+                                  final entry = _entries[index];
+                                  final selected = index == _selectedIndex;
+                                  return ListTile(
+                                    selected: selected,
+                                    selectedTileColor:
+                                        context.semanticColors.surfaceAlt,
+                                    leading: Icon(entry.icon),
+                                    title: Text(entry.title),
+                                    subtitle: Text(entry.subtitle),
+                                    trailing: NxStatusBadge(
+                                      label: entry.kindLabel,
+                                      kind: entry.badgeKind,
+                                    ),
+                                    onTap: () => _activateEntry(entry),
+                                  );
+                                },
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _scheduleRefresh(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 180), _refreshEntries);
+  }
+
+  Future<void> _refreshEntries() async {
+    final query = _queryController.text.trim();
+    setState(() => _loading = true);
+
+    final repo = ref.read(searchRepositoryProvider);
+    await repo.ensureIndexInitialized();
+    final searchResults =
+        query.isEmpty
+            ? const <SearchIndexRecord>[]
+            : await repo.search(query: query, limit: 20);
+
+    final staticEntries = <_PaletteEntry>[
+      ..._actionEntries(query),
+      ..._pageEntries(query),
+    ];
+    final resultEntries = searchResults
+        .map(_PaletteEntry.fromSearchResult)
+        .toList(growable: false);
+    final entries = <_PaletteEntry>[...staticEntries, ...resultEntries];
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _entries = entries;
+      _loading = false;
+      _selectedIndex =
+          entries.isEmpty ? 0 : _selectedIndex.clamp(0, entries.length - 1);
+    });
+  }
+
+  List<_PaletteEntry> _actionEntries(String query) {
+    final actions = <_PaletteEntry>[
+      const _PaletteEntry.action(
+        actionId: 'new_property',
+        title: 'New Property',
+        subtitle: 'Jump to the property workspace and start a new asset flow',
+        icon: Icons.add_home_outlined,
+      ),
+      const _PaletteEntry.action(
+        actionId: 'open_overdue_tasks',
+        title: 'Open Overdue Tasks',
+        subtitle: 'Go straight to the task queue filtered for overdue work',
+        icon: Icons.assignment_late_outlined,
+      ),
+      const _PaletteEntry.action(
+        actionId: 'jump_missing_documents',
+        title: 'Jump to Missing Documents',
+        subtitle: 'Open document compliance and review missing requirements',
+        icon: Icons.folder_off_outlined,
+      ),
+      const _PaletteEntry.action(
+        actionId: 'create_report_pack',
+        title: 'Create Report Pack',
+        subtitle: 'Open portfolio workflows to generate reporting packs',
+        icon: Icons.inventory_2_outlined,
+      ),
+    ];
+    return _filterStaticEntries(actions, query);
+  }
+
+  List<_PaletteEntry> _pageEntries(String query) {
+    final entries = <_PaletteEntry>[
+      for (final group in appNavigationGroups)
+        for (final item in group.items)
+          _PaletteEntry.page(
+            page: item.page,
+            title: item.label,
+            subtitle: group.title,
+            icon: item.icon,
+          ),
+    ];
+    return _filterStaticEntries(entries, query);
+  }
+
+  List<_PaletteEntry> _filterStaticEntries(
+    List<_PaletteEntry> entries,
+    String query,
+  ) {
+    final q = query.toLowerCase();
+    if (q.isEmpty) {
+      return entries;
+    }
+    return entries
+        .where(
+          (entry) =>
+              entry.title.toLowerCase().contains(q) ||
+              entry.subtitle.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
+  void _moveSelection(int delta) {
+    if (_entries.isEmpty) {
+      return;
+    }
+    setState(() {
+      final next = _selectedIndex + delta;
+      if (next < 0) {
+        _selectedIndex = 0;
+      } else if (next >= _entries.length) {
+        _selectedIndex = _entries.length - 1;
+      } else {
+        _selectedIndex = next;
+      }
+    });
+  }
+
+  void _activateSelected() {
+    if (_entries.isEmpty) {
+      return;
+    }
+    _activateEntry(_entries[_selectedIndex]);
+  }
+
+  void _activateEntry(_PaletteEntry entry) {
+    switch (entry.kind) {
+      case _PaletteEntryKind.action:
+        executeCommandPaletteAction(ref, entry.actionId!);
+        break;
+      case _PaletteEntryKind.page:
+        openGlobalPage(ref, entry.page!);
+        break;
+      case _PaletteEntryKind.searchResult:
+        openSearchResult(ref, entry.searchResult!);
+        break;
+    }
+    Navigator.of(context).pop();
+  }
+}
+
+class _MoveIntent extends Intent {
+  const _MoveIntent(this.delta);
+
+  final int delta;
+}
+
+enum _PaletteEntryKind { action, page, searchResult }
+
+class _PaletteEntry {
+  const _PaletteEntry._({
+    required this.kind,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.kindLabel,
+    required this.badgeKind,
+    this.actionId,
+    this.page,
+    this.searchResult,
+  });
+
+  const _PaletteEntry.action({
+    required String actionId,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) : this._(
+         kind: _PaletteEntryKind.action,
+         actionId: actionId,
+         title: title,
+         subtitle: subtitle,
+         icon: icon,
+         kindLabel: 'Action',
+         badgeKind: NxBadgeKind.info,
+       );
+
+  const _PaletteEntry.page({
+    required GlobalPage page,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) : this._(
+         kind: _PaletteEntryKind.page,
+         page: page,
+         title: title,
+         subtitle: subtitle,
+         icon: icon,
+         kindLabel: 'Page',
+         badgeKind: NxBadgeKind.neutral,
+       );
+
+  factory _PaletteEntry.fromSearchResult(SearchIndexRecord item) {
+    return _PaletteEntry._(
+      kind: _PaletteEntryKind.searchResult,
+      title: item.title,
+      subtitle:
+          item.subtitle == null || item.subtitle!.trim().isEmpty
+              ? item.entityType
+              : '${item.entityType} · ${item.subtitle}',
+      icon: _iconForEntity(item.entityType),
+      kindLabel: 'Result',
+      badgeKind: NxBadgeKind.success,
+      searchResult: item,
+    );
+  }
+
+  final _PaletteEntryKind kind;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String kindLabel;
+  final NxBadgeKind badgeKind;
+  final String? actionId;
+  final GlobalPage? page;
+  final SearchIndexRecord? searchResult;
+
+  static IconData _iconForEntity(String entityType) {
+    switch (entityType) {
+      case 'property':
+        return Icons.home_work_outlined;
+      case 'scenario':
+        return Icons.tune_outlined;
+      case 'portfolio':
+        return Icons.account_tree_outlined;
+      case 'document':
+        return Icons.folder_open_outlined;
+      case 'task':
+        return Icons.checklist_outlined;
+      case 'notification':
+        return Icons.notifications_none;
+      case 'ledger_entry':
+        return Icons.receipt_long_outlined;
+      default:
+        return Icons.arrow_outward;
+    }
+  }
+}

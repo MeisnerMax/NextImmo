@@ -424,6 +424,75 @@ Der Nutzer verliert nicht den Überblick.
 
 Tabellen fühlen sich in allen Modulen gleich an.
 
+5.2 Phase-5 Planung auf Basis des aktuellen Repos
+
+Aktueller Codebefund
+
+Es gibt bereits eine gute V2 Basis mit `ListFilterTemplate`, `NxCard`, `NxEmptyState`, `NxPageHeader` und adaptiven Spacing-Regeln.
+
+Die eigentliche Tabellenlogik ist aber noch stark verteilt. Viele Screens rendern Tabellen weiterhin direkt als `DataTable` plus `SingleChildScrollView` mit individueller Sonderlogik.
+
+Aktiv priorisierte Screens für Phase 5 sind aus dem aktuellen Stand:
+
+Properties
+`lib/ui/screens/v2/properties_screen_v2.dart`
+
+Compare
+`lib/ui/screens/compare_screen.dart`
+
+Operations
+`lib/ui/screens/ledger/ledger_screen.dart`
+`lib/ui/screens/budgets/budgets_screen.dart`
+`lib/ui/screens/imports_screen.dart`
+
+Property Operations / Commercial
+`lib/ui/screens/property_detail/rent_roll_screen.dart`
+`lib/ui/screens/property_detail/budget_vs_actual_screen.dart`
+`lib/ui/screens/property_detail/covenants_screen.dart`
+`lib/ui/screens/property_detail/leases_screen.dart`
+
+Hauptlücken
+
+Es fehlt eine wiederverwendbare Table Shell für Loading, Empty, Error, adaptive Breiten und den Wechsel auf kompaktere Darstellungen.
+
+Zeilenaktionen, Suchfelder, Filterleisten und Statusdarstellung sind noch nicht konsequent vereinheitlicht.
+
+Horizontales Scrollen ist aktuell häufig die Standardlösung statt ein Fallback für enge Breiten.
+
+Phase-5 Umsetzungsreihenfolge
+
+1. Gemeinsame Tabellenhülle einführen
+`NxDataTableShell` oder gleichwertige V2 Komponente für:
+- Loading State
+- Empty State
+- Error State
+- Table Container
+- mobile oder narrow fallback
+
+2. Erste Migration der aktiven Kernlisten
+Zuerst `PropertiesScreenV2` und `CompareScreen`, weil diese Screens bereits auf V2 Layouts aufsetzen und den Standard für weitere Listen definieren sollen.
+
+3. Operations-Listen angleichen
+Danach `Ledger`, `Budgets` und `Imports`, damit die globalen Arbeitslisten dieselbe Filter- und Tabellenlogik bekommen.
+
+4. Property-nahe Tabellen migrieren
+Danach `Rent Roll`, `Budget vs Actual`, `Covenants` und `Leases`, damit der Detailbereich nicht wieder in alte Muster zurückfällt.
+
+5. QA für adaptive Zustände
+Für jede migrierte Tabelle auf Large Desktop, Medium Desktop und Narrow Window prüfen:
+- Header und Filter bleiben vollständig nutzbar
+- Zeilenaktionen bleiben sichtbar
+- keine abgeschnittenen Pflichtinformationen
+- horizontales Scrollen nur noch für Restspalten
+
+Definition of Done für Phase 5
+
+Jeder migrierte Listenscreen nutzt denselben visuellen Rahmen für Header, Filter, Empty, Loading und Tabellenfläche.
+
+Jeder migrierte Screen hat auf schmaleren Breiten eine lesbare kompakte Darstellung statt nur abgeschnittener Tabellen.
+
+Business Logik, Repositories und Datenmodell bleiben unverändert; Phase 5 ist eine UI- und Workflow-Migration.
+
 Phase 6: Documents, Tasks und Operations workflowfähig machen
 Ziel
 
@@ -476,6 +545,36 @@ Der Nutzer kann von Problem zu Maßnahme navigieren.
 
 Operations Daten stehen nicht isoliert nebeneinander.
 
+6.4 Aktueller Phase-6 Stand im Repo
+
+Bereits umgesetzt
+
+Tasks
+- globaler Tasks Screen zeigt jetzt Workflow-Kontext statt nur nackter Titel
+- Kontext zu Property, Unit, Lease, Tenant, Document und Maintenance ist sichtbar
+- Quick Actions in der Liste: Start, Mark Done, Open Context, Edit, Delete
+- kritische und überfällige Aufgaben werden als eigener Block hervorgehoben
+- Deep Links öffnen direkt den passenden Property-Kontext
+
+Documents
+- Documents Tab ist von einer reinen Listenansicht auf Workflow-Ansicht umgestellt
+- Statuslogik für Available, Verified und Expiring ist vorbereitet
+- Zuordnung zu Asset und Entity ist sichtbar
+- rechter Preview Slot für Pfad, Metadaten und Folgeaktionen ist vorhanden
+- Batch Selection ist als nächste Workflow-Stufe vorbereitet
+
+Maintenance
+- globale Maintenance Ansicht zeigt jetzt Asset-Kontext, Dokumentbezug und verlinkte Task-Anzahl
+- neue verknüpfte Maintenance Tasks werden fachlich als `maintenance_ticket` referenziert statt nur lose über Asset-Kontext
+- Ticket Detail zeigt Deadline, Budget Impact, Dokumentbezug und Follow-up-Status
+- Open Context springt direkt zurück in den Property Operations Bereich
+
+Nächster sinnvoller Ausbau innerhalb Phase 6
+
+1. Property-spezifische Task- und Maintenance Screens auf dieselben Workflow-Helfer umstellen
+2. Documents um echte Verify- und Expiry-Workflows erweitern
+3. Maintenance um explizite Capex/Opex Klassifikation und Budget-Zuordnung ergänzen
+
 Phase 7: Suche zu einer echten Command Palette aufwerten
 Ziel
 
@@ -513,6 +612,32 @@ Expertennutzer werden deutlich schneller.
 
 Die App wirkt sofort professioneller.
 
+7.1 Aktueller Phase-7 Stand im Repo
+
+Bereits umgesetzt
+
+- globale Command Palette ist als wiederverwendbare V2 Komponente angelegt
+- `Ctrl + K` öffnet die Palette appweit in Legacy- und V2-Shell
+- die Palette kombiniert:
+  - Seiten
+  - Kernaktionen
+  - Suchergebnisse aus dem Search Index
+- Suchergebnisse decken jetzt auch Documents ab
+- Actions für `Open Overdue Tasks` und `Jump to Missing Documents` springen in den passenden Arbeitskontext statt nur auf eine generische Suche
+
+Aktuelle Kernaktionen
+
+- New Property
+- Open Overdue Tasks
+- Jump to Missing Documents
+- Create Report Pack
+
+Nächster sinnvoller Ausbau innerhalb Phase 7
+
+1. zusätzliche Actions für häufige Property-Workflows ergänzen
+2. echte Recents oder Last Opened Liste in der Palette ergänzen
+3. zentrale Action-Ausführung weiter von Screen-spezifischen Dialogen entkoppeln
+
 Phase 8: Settings und Systembereiche entlasten
 Ziel
 
@@ -548,6 +673,34 @@ Akzeptanzkriterien
 Nutzer müssen nicht mehr alles durchsuchen, um eine Einstellung zu finden.
 
 Admin Bereiche wirken kontrolliert statt überladen.
+
+8.1 Aktueller Phase-8 Stand im Repo
+
+Bereits umgesetzt
+
+- der Settings Screen nutzt jetzt eine zentrale Draft- und Save-Übersicht statt nur eines langen Formularblocks
+- die linke Settings-Navigation zeigt offene Änderungen pro Bereich und markiert riskante Zonen wie Security, Backup & Restore und Admin sichtbar
+- der Header Save Status unterscheidet jetzt klar zwischen:
+  - All changes saved
+  - unsaved changes
+  - running save / apply actions
+  - errors
+- Reload ist zu einem Discard-Draft-Flow geworden, damit lokale Änderungen nicht mehr still überschrieben werden
+- die Bereiche General, Analysis Defaults, Operations Defaults, Alerts, Appearance, Security, Backup & Restore und Admin haben jetzt klarere Intro-Texte
+- Security, Backup & Restore und Admin sind zusätzlich als High-Impact Bereiche markiert
+- Feldlabels im Analysebereich wurden stärker auf Business-Sprache umgestellt, zum Beispiel Rate statt Prozent-Labels mit `(0-1)`
+- Save blockiert jetzt offensichtliche Fehleingaben oder unvollständige Automationskonfigurationen, statt still auf alte Werte zurückzufallen
+
+Wichtige Repo-Dateien
+
+- `lib/ui/screens/settings_screen.dart`
+- `lib/ui/templates/settings_template.dart`
+
+Nächster sinnvoller Ausbau innerhalb Phase 8
+
+1. echte Inline-Feldfehler pro Setting ergänzen statt nur Bereichs- und Header-Feedback
+2. Security und Backup Aktionen weiter in gemeinsame V2 Status-/Danger-Komponenten auslagern
+3. System-nahe Screens wie Help, Backup oder Security bei Bedarf weiter aus dem monolithischen Settings Screen lösen
 
 Phase 9: Responsive Desktop Verhalten wirklich sauber machen
 Ziel
@@ -587,6 +740,40 @@ Navigation bleibt immer klar erreichbar.
 
 Informationsdichte sinkt intelligent, nicht chaotisch.
 
+9.1 Aktueller Phase-9 Stand im Repo
+
+Bereits umgesetzt
+
+- zentrale Desktop-Zonen `large`, `medium` und `narrow` sind jetzt in der UI-Theme-Infrastruktur definiert und können appweit genutzt werden
+- Legacy- und V2-Sidebar reagieren jetzt automatisch auf die Zonen:
+  - Large: volle Navigation
+  - Medium: kompaktere Breite
+  - Narrow: eingeklappte Icon-Navigation mit Tooltips
+- Legacy- und V2-Topbar brechen auf schmaleren Breiten nicht mehr nur horizontal zusammen, sondern wechseln auf ein kompakteres Aktionslayout mit reduzierter Informationsdichte
+- das Detail-Template nutzt jetzt adaptive Navigationsbreiten statt eines einzigen Desktop-Splits
+- die Property-Detail-Navigation hat jetzt ein echtes Narrow-Pattern:
+  - Large und Medium: gruppierte Seitennavigation
+  - Narrow: Dropdown-basierte Sekundärnavigation statt langer Desktop-Liste
+- der Scenario-Selector im Property-Bereich vermeidet auf schmalen Breiten jetzt überlaufende Segmented Controls und fällt auf Dropdown zurück
+- die V2-Shell reduziert Padding und Zwischenräume in Narrow-Layouts zusätzlich, damit der Content-Bereich nicht unnötig gequetscht wird
+
+Wichtige Repo-Dateien
+
+- `lib/ui/theme/app_theme.dart`
+- `lib/ui/shell/sidebar.dart`
+- `lib/ui/shell/v2/sidebar_v2.dart`
+- `lib/ui/shell/topbar.dart`
+- `lib/ui/shell/v2/topbar_v2.dart`
+- `lib/ui/shell/app_scaffold.dart`
+- `lib/ui/templates/detail_template.dart`
+- `lib/ui/screens/property_detail/property_shell.dart`
+
+Nächster sinnvoller Ausbau innerhalb Phase 9
+
+1. globale Listen- und Dashboard-Screens auf dieselben Large/Medium/Narrow-Zonen feinabstimmen
+2. Property-Unterseiten mit komplexen KPI- oder Split-Layouts gezielt auf Medium Desktop optimieren
+3. optionale AppBar- oder Drawer-Strategie für extrem schmale Desktop-Fenster ergänzen, falls die Icon-Rail allein nicht ausreicht
+
 Phase 10: Design Konsistenz und UI Infrastruktur
 Ziel
 
@@ -621,6 +808,39 @@ Neue Screens können mit denselben Patterns gebaut werden.
 Visuelle und funktionale Qualität bleibt stabil.
 
 UX regressions werden geringer.
+
+10.1 Aktueller Phase-10 Stand im Repo
+
+Bereits umgesetzt
+
+- neue zentrale V2 Komponenten für wiederkehrende UI-Strukturen:
+  - `NxSectionHeader`
+  - `NxActionToolbar`
+  - `NxFormSectionCard`
+- `NxPageHeader` baut jetzt auf derselben Infrastruktur auf, statt Header- und Action-Layout erneut lokal zu definieren
+- `ListFilterBar` nutzt jetzt die gemeinsame Action-Toolbar statt eigener Container-Logik
+- der Settings Screen verwendet für Formularbereiche jetzt eine gemeinsame Form-Section-Card statt lokaler Card-Sonderlogik
+- Property Inputs nutzt für Section-Titel jetzt dieselbe Section-Header-Struktur wie andere neue Bereiche
+- Operations-Detailkarten in Lease-, Tenant- und Unit-Detailkontexten hängen jetzt an derselben Form-Section-Card-Infrastruktur
+- der ältere `StatusBadge` Wrapper nutzt jetzt intern die standardisierte `NxStatusBadge` Darstellung, wodurch alte und neue Screens konsistenter aussehen
+
+Wichtige Repo-Dateien
+
+- `lib/ui/components/nx_section_header.dart`
+- `lib/ui/components/nx_action_toolbar.dart`
+- `lib/ui/components/nx_form_section_card.dart`
+- `lib/ui/components/nx_page_header.dart`
+- `lib/ui/templates/list_filter_template.dart`
+- `lib/ui/screens/settings_screen.dart`
+- `lib/ui/screens/property_detail/inputs_screen.dart`
+- `lib/ui/screens/property_detail/operations_detail_support.dart`
+- `lib/ui/widgets/status_badge.dart`
+
+Nächster sinnvoller Ausbau innerhalb Phase 10
+
+1. zusätzliche Legacy-Screens schrittweise auf `NxStatusBadge`, `NxActionToolbar` und `NxFormSectionCard` migrieren
+2. Save-/Alert-/Info-Banner als weitere gemeinsame V2 Komponenten extrahieren
+3. UI-Regressionen künftig über gezielte Screenshot- oder Golden-Tests absichern
 
 Technische Arbeitsweise für Codex
 

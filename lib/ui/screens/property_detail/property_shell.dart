@@ -83,6 +83,7 @@ class PropertyShell extends ConsumerWidget {
           contextBar: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
             child: _scenarioSelector(
+              context: context,
               ref: ref,
               scenarios: scenarios,
               selectedScenarioId: activeScenarioId,
@@ -131,7 +132,15 @@ class PropertyShell extends ConsumerWidget {
     required WidgetRef ref,
     required PropertyDetailPage selectedPage,
   }) {
-    final compact = MediaQuery.sizeOf(context).width < 980;
+    final zone = context.desktopLayoutZone;
+    if (zone == AppDesktopLayoutZone.narrow) {
+      return _buildNarrowNavigation(
+        context: context,
+        ref: ref,
+        selectedPage: selectedPage,
+      );
+    }
+    final compact = zone == AppDesktopLayoutZone.medium;
     return Card(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.component),
@@ -168,6 +177,56 @@ class PropertyShell extends ConsumerWidget {
                       ],
                     )
                     .toList(growable: false),
+      ),
+    );
+  }
+
+  Widget _buildNarrowNavigation({
+    required BuildContext context,
+    required WidgetRef ref,
+    required PropertyDetailPage selectedPage,
+  }) {
+    final selectedSection = propertySectionForPage(selectedPage);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.component),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Property Navigation',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '${selectedSection.title} / ${propertyDestinationForPage(selectedPage).label}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.semanticColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.component),
+            DropdownButtonFormField<PropertyDetailPage>(
+              value: selectedPage,
+              isExpanded: true,
+              items: propertyNavigationSections
+                  .expand(
+                    (section) => section.items.map(
+                      (item) => DropdownMenuItem<PropertyDetailPage>(
+                        value: item.page,
+                        child: Text('${section.title} / ${item.label}'),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(propertyDetailPageProvider.notifier).state = value;
+                }
+              },
+              decoration: const InputDecoration(labelText: 'Section'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -225,10 +284,12 @@ class PropertyShell extends ConsumerWidget {
   }
 
   Widget _scenarioSelector({
+    required BuildContext context,
     required WidgetRef ref,
     required List<ScenarioRecord> scenarios,
     required String? selectedScenarioId,
   }) {
+    final zone = context.desktopLayoutZone;
     final selected =
         scenarios.any((scenario) => scenario.id == selectedScenarioId)
             ? selectedScenarioId
@@ -236,7 +297,7 @@ class PropertyShell extends ConsumerWidget {
     if (selected == null) {
       return const Text('Create or select a scenario');
     }
-    if (scenarios.length <= 3) {
+    if (scenarios.length <= 3 && zone != AppDesktopLayoutZone.narrow) {
       return SegmentedButton<String>(
         segments: scenarios
             .map(

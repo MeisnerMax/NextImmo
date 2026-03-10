@@ -205,3 +205,27 @@ class DocumentComplianceIssue {
   final String code;
   final String message;
 }
+
+class DocumentWorkflowRecord {
+  const DocumentWorkflowRecord({
+    required this.document,
+    required this.metadata,
+    required this.typeName,
+    required this.status,
+    required this.propertyId,
+    required this.propertyName,
+    required this.contextTitle,
+    required this.contextSubtitle,
+    required this.isRequired,
+  });
+
+  final DocumentRecord document;
+  final Map<String, String> metadata;
+  final String? typeName;
+  final String status;
+  final String? propertyId;
+  final String? propertyName;
+  final String contextTitle;
+  final String contextSubtitle;
+  final bool isRequired;
+}

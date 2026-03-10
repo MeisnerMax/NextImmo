@@ -12,10 +12,15 @@ import '../../core/models/inputs.dart';
 import '../../core/models/portfolio.dart';
 import '../../core/models/property.dart';
 import '../../core/models/scenario.dart';
-import '../../core/models/settings.dart';
 import '../../core/models/scenario_valuation.dart';
+import '../../core/models/settings.dart';
+import '../components/nx_card.dart';
+import '../components/nx_data_table_shell.dart';
+import '../components/nx_empty_state.dart';
+import '../components/nx_status_badge.dart';
 import '../components/responsive_constraints.dart';
 import '../state/app_state.dart';
+import '../templates/list_filter_template.dart';
 import '../theme/app_theme.dart';
 import '../widgets/info_tooltip.dart';
 
@@ -85,14 +90,6 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(child: Text(_error!));
-    }
-
     final selectedRows =
         _rows.where((row) => _selected[row.scenario.id] ?? false).toList();
     final activeColumns =
@@ -104,186 +101,344 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
         column.id: _maxValue(selectedRows.map((row) => column.extractor(row))),
     };
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stacked = constraints.maxWidth < 1080;
-          final controlPane = Column(
+    return ListFilterTemplate(
+      title: 'Scenario Compare',
+      breadcrumbs: const ['Portfolio', 'Scenario Compare'],
+      subtitle:
+          'Select scenarios, tailor visible metrics, and compare results in a consistent table workflow.',
+      secondaryActions: [
+        OutlinedButton(
+          onPressed: _loading ? null : _loadCompareRows,
+          child: const Text('Refresh'),
+        ),
+        OutlinedButton(
+          onPressed:
+              _loading || selectedRows.isEmpty
+                  ? null
+                  : () => _exportCsv(selectedRows),
+          child: const Text('Export CSV'),
+        ),
+      ],
+      contextBar: ListFilterBar(
+        children: [
+          Text(
+            'Visible metrics',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          ..._availableColumns.map((column) {
+            final enabled = _visibleColumnIds.contains(column.id);
+            return FilterChip(
+              label: Text(column.label),
+              selected: enabled,
+              onSelected: (selected) => _toggleColumn(column.id, selected),
+            );
+          }),
+        ],
+      ),
+      filters: ListFilterBar(
+        children: [
+          SizedBox(
+            width: ResponsiveConstraints.itemWidth(
+              context,
+              idealWidth: 260,
+              minWidth: 180,
+              maxWidth: 320,
+            ),
+            child: DropdownButtonFormField<String>(
+              value: _portfolioFilterId,
+              items: [
+                const DropdownMenuItem(
+                  value: 'all',
+                  child: Text('All Portfolios'),
+                ),
+                ..._portfolios.map(
+                  (portfolio) => DropdownMenuItem(
+                    value: portfolio.id,
+                    child: Text(portfolio.name),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _portfolioFilterId = value;
+                });
+                _loadCompareRows();
+              },
+              decoration: const InputDecoration(labelText: 'Portfolio filter'),
+            ),
+          ),
+          NxStatusBadge(
+            label: '${selectedRows.length} selected',
+            kind: NxBadgeKind.info,
+          ),
+        ],
+      ),
+      content: _buildCompareContent(
+        context,
+        selectedRows: selectedRows,
+        activeColumns: activeColumns,
+        maxByColumn: maxByColumn,
+      ),
+      footer:
+          _lastExportPath == null
+              ? null
+              : Text(
+                'Last export: $_lastExportPath',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+    );
+  }
+
+  Widget _buildCompareContent(
+    BuildContext context, {
+    required List<_ScenarioCompareRow> selectedRows,
+    required List<_CompareColumnDef> activeColumns,
+    required Map<String, double?> maxByColumn,
+  }) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return NxEmptyState(
+        title: 'Compare data unavailable',
+        description: _error!,
+        icon: Icons.error_outline,
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 1080;
+
+        if (stacked) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton(
-                    onPressed: _loadCompareRows,
-                    child: const Text('Refresh'),
-                  ),
-                  OutlinedButton(
-                    onPressed:
-                        selectedRows.isEmpty
-                            ? null
-                            : () => _exportCsv(selectedRows),
-                    child: const Text('Export Compare CSV'),
-                  ),
-                ],
-              ),
-              if (_lastExportPath != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text('Last export: $_lastExportPath'),
-                ),
-              const SizedBox(height: AppSpacing.component),
-              Text('Columns', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children:
-                    _availableColumns.map((column) {
-                      final enabled = _visibleColumnIds.contains(column.id);
-                      return FilterChip(
-                        label: Text(column.label),
-                        selected: enabled,
-                        onSelected:
-                            (selected) => _toggleColumn(column.id, selected),
-                      );
-                    }).toList(),
-              ),
-              const SizedBox(height: AppSpacing.component),
-              DropdownButtonFormField<String>(
-                value: _portfolioFilterId,
-                items: [
-                  const DropdownMenuItem(
-                    value: 'all',
-                    child: Text('All Portfolios'),
-                  ),
-                  ..._portfolios.map(
-                    (portfolio) => DropdownMenuItem(
-                      value: portfolio.id,
-                      child: Text(portfolio.name),
-                    ),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _portfolioFilterId = value;
-                  });
-                  _loadCompareRows();
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Portfolio filter',
-                ),
+              SizedBox(
+                height: math.min(320, constraints.maxHeight * 0.38),
+                child: _buildSelectionPane(context, selectedRows.length),
               ),
               const SizedBox(height: AppSpacing.component),
               Expanded(
-                child: ListView.builder(
-                  itemCount: _rows.length,
-                  itemBuilder: (context, index) {
-                    final row = _rows[index];
-                    return CheckboxListTile(
-                      value: _selected[row.scenario.id] ?? false,
-                      onChanged: (value) {
-                        setState(() {
-                          _selected[row.scenario.id] = value ?? false;
-                        });
-                      },
-                      title: Text(row.property.name),
-                      subtitle: Text(
-                        '${row.scenario.name} (${row.scenario.strategyType})',
-                      ),
-                      dense: true,
-                    );
-                  },
+                child: _buildComparisonPane(
+                  context,
+                  selectedRows: selectedRows,
+                  activeColumns: activeColumns,
+                  maxByColumn: maxByColumn,
                 ),
               ),
             ],
           );
+        }
 
-          final comparisonPane =
-              selectedRows.isEmpty
-                  ? const Center(child: Text('Select scenarios to compare.'))
-                  : Scrollbar(
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columns: <DataColumn>[
-                          const DataColumn(label: Text('Property')),
-                          const DataColumn(label: Text('Scenario Id')),
-                          const DataColumn(label: Text('Scenario')),
-                          ...activeColumns.map(
-                            (column) => DataColumn(
-                              label: Row(
-                                children: [
-                                  Text(column.label),
-                                  const SizedBox(width: 6),
-                                  InfoTooltip(metricKey: column.id, size: 14),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                        rows:
-                            selectedRows
-                                .map(
-                                  (row) => DataRow(
-                                    cells: <DataCell>[
-                                      DataCell(Text(row.property.name)),
-                                      DataCell(Text(row.scenario.id)),
-                                      DataCell(Text(row.scenario.name)),
-                                      ...activeColumns.map(
-                                        (column) => DataCell(
-                                          _metricText(
-                                            value: column.extractor(row),
-                                            maxValue: maxByColumn[column.id],
-                                            percent: column.percent,
-                                            nullable: column.nullable,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                  );
+        return Row(
+          children: [
+            SizedBox(
+              width: ResponsiveConstraints.itemWidth(
+                context,
+                idealWidth: 380,
+                minWidth: 260,
+                maxWidth: 460,
+              ),
+              child: _buildSelectionPane(context, selectedRows.length),
+            ),
+            const SizedBox(width: AppSpacing.component),
+            Expanded(
+              child: _buildComparisonPane(
+                context,
+                selectedRows: selectedRows,
+                activeColumns: activeColumns,
+                maxByColumn: maxByColumn,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-          if (stacked) {
-            return Column(
+  Widget _buildSelectionPane(BuildContext context, int selectedCount) {
+    if (_rows.isEmpty) {
+      return const NxEmptyState(
+        title: 'No scenarios available',
+        description:
+            'Create scenarios or widen the portfolio filter to build a comparison set.',
+        icon: Icons.table_chart_outlined,
+      );
+    }
+
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Scenario selection',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                NxStatusBadge(
+                  label: '$selectedCount selected',
+                  kind: NxBadgeKind.info,
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: context.semanticColors.border),
+          Expanded(
+            child: ListView.separated(
+              itemCount: _rows.length,
+              separatorBuilder:
+                  (_, __) =>
+                      Divider(height: 1, color: context.semanticColors.border),
+              itemBuilder: (context, index) {
+                final row = _rows[index];
+                return CheckboxListTile(
+                  value: _selected[row.scenario.id] ?? false,
+                  onChanged: (value) {
+                    setState(() {
+                      _selected[row.scenario.id] = value ?? false;
+                    });
+                  },
+                  title: Text(row.property.name),
+                  subtitle: Text(
+                    '${row.scenario.name} (${row.scenario.strategyType})',
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComparisonPane(
+    BuildContext context, {
+    required List<_ScenarioCompareRow> selectedRows,
+    required List<_CompareColumnDef> activeColumns,
+    required Map<String, double?> maxByColumn,
+  }) {
+    final minWidth =
+        math.max(860, 340 + (activeColumns.length * 140)).toDouble();
+
+    return NxDataTableShell(
+      minTableWidth: minWidth,
+      mobileBreakpoint: 1120,
+      isEmpty: selectedRows.isEmpty,
+      emptyTitle: 'No scenarios selected',
+      emptyDescription:
+          'Select one or more scenarios from the left panel to compare performance metrics.',
+      emptyIcon: Icons.analytics_outlined,
+      mobileChild: ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.component),
+        itemCount: selectedRows.length,
+        separatorBuilder:
+            (_, __) => const SizedBox(height: AppSpacing.component),
+        itemBuilder: (context, index) {
+          final row = selectedRows[index];
+          return NxCard(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  height: math.min(420, constraints.maxHeight * 0.42),
-                  child: controlPane,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            row.property.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            row.scenario.name,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    NxStatusBadge(
+                      label: row.scenario.strategyType,
+                      kind: NxBadgeKind.info,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.component),
-                Expanded(child: comparisonPane),
+                const SizedBox(height: 12),
+                ...activeColumns.map(
+                  (column) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(column.label)),
+                        _metricText(
+                          value: column.extractor(row),
+                          maxValue: maxByColumn[column.id],
+                          percent: column.percent,
+                          nullable: column.nullable,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
-            );
-          }
-
-          return Row(
-            children: [
-              SizedBox(
-                width: ResponsiveConstraints.itemWidth(
-                  context,
-                  idealWidth: 380,
-                  minWidth: 260,
-                  maxWidth: 460,
-                ),
-                child: controlPane,
-              ),
-              const VerticalDivider(width: 24),
-              Expanded(child: comparisonPane),
-            ],
+            ),
           );
         },
+      ),
+      child: DataTable(
+        columns: <DataColumn>[
+          const DataColumn(label: Text('Property')),
+          const DataColumn(label: Text('Scenario Id')),
+          const DataColumn(label: Text('Scenario')),
+          ...activeColumns.map(
+            (column) => DataColumn(
+              label: Row(
+                children: [
+                  Text(column.label),
+                  const SizedBox(width: 6),
+                  InfoTooltip(metricKey: column.id, size: 14),
+                ],
+              ),
+            ),
+          ),
+        ],
+        rows:
+            selectedRows
+                .map(
+                  (row) => DataRow(
+                    cells: <DataCell>[
+                      DataCell(Text(row.property.name)),
+                      DataCell(Text(row.scenario.id)),
+                      DataCell(Text(row.scenario.name)),
+                      ...activeColumns.map(
+                        (column) => DataCell(
+                          _metricText(
+                            value: column.extractor(row),
+                            maxValue: maxByColumn[column.id],
+                            percent: column.percent,
+                            nullable: column.nullable,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                .toList(),
       ),
     );
   }
@@ -295,7 +450,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     required bool nullable,
   }) {
     if (value == null && nullable) {
-      return const Text('N/A');
+      return Text('N/A', style: TextStyle(color: Colors.grey.shade600));
     }
 
     final resolved = value ?? 0;
@@ -377,18 +532,17 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       final (settings, bundles) = await compareRepo.loadScenarioBundles(
         allowedPropertyIds: allowedPropertyIds,
       );
-      final rows =
-          bundles
-              .map(
-                (bundle) => _ScenarioCompareRow(
-                  property: bundle.property,
-                  scenario: bundle.scenario,
-                  inputs: bundle.inputs,
-                  valuation: bundle.valuation,
-                  analysis: bundle.analysis,
-                ),
-              )
-              .toList(growable: false);
+      final rows = bundles
+          .map(
+            (bundle) => _ScenarioCompareRow(
+              property: bundle.property,
+              scenario: bundle.scenario,
+              inputs: bundle.inputs,
+              valuation: bundle.valuation,
+              analysis: bundle.analysis,
+            ),
+          )
+          .toList(growable: false);
 
       if (!mounted) {
         return;

@@ -3,14 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/documents.dart';
 import '../../../core/models/task.dart';
+import '../../components/nx_form_section_card.dart';
 import '../../state/app_state.dart';
-import '../../theme/app_theme.dart';
 
 String formatDateMillis(int? value) {
   if (value == null) {
     return '-';
   }
-  return DateTime.fromMillisecondsSinceEpoch(value).toIso8601String().substring(0, 10);
+  return DateTime.fromMillisecondsSinceEpoch(
+    value,
+  ).toIso8601String().substring(0, 10);
 }
 
 class OperationsSectionCard extends StatelessWidget {
@@ -27,29 +29,7 @@ class OperationsSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                if (action != null) action!,
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
+    return NxFormSectionCard(title: title, trailing: action, children: [child]);
   }
 }
 
@@ -129,91 +109,113 @@ Future<void> showCreateTaskDialog({
   DateTime? dueDate;
   await showDialog<void>(
     context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) => AlertDialog(
-        title: const Text('Create Task'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(labelText: 'Title'),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: priority,
-                items: const [
-                  DropdownMenuItem(value: 'low', child: Text('low')),
-                  DropdownMenuItem(value: 'normal', child: Text('normal')),
-                  DropdownMenuItem(value: 'high', child: Text('high')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => priority = value);
-                  }
-                },
-                decoration: const InputDecoration(labelText: 'Priority'),
-              ),
-              const SizedBox(height: 8),
-              InputDecorator(
-                decoration: const InputDecoration(labelText: 'Due Date'),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(formatDateMillis(dueDate?.millisecondsSinceEpoch))),
-                    TextButton(
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: dueDate ?? DateTime.now(),
-                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                          lastDate: DateTime.now().add(const Duration(days: 3650)),
-                        );
-                        if (picked != null && context.mounted) {
-                          setDialogState(() => dueDate = picked);
-                        }
-                      },
-                      child: const Text('Select'),
-                    ),
-                    if (dueDate != null)
-                      TextButton(
-                        onPressed: () => setDialogState(() => dueDate = null),
-                        child: const Text('Clear'),
+    builder:
+        (context) => StatefulBuilder(
+          builder:
+              (context, setDialogState) => AlertDialog(
+                title: const Text('Create Task'),
+                content: SizedBox(
+                  width: 420,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: titleCtrl,
+                        decoration: const InputDecoration(labelText: 'Title'),
                       ),
-                  ],
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: priority,
+                        items: const [
+                          DropdownMenuItem(value: 'low', child: Text('low')),
+                          DropdownMenuItem(
+                            value: 'normal',
+                            child: Text('normal'),
+                          ),
+                          DropdownMenuItem(value: 'high', child: Text('high')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setDialogState(() => priority = value);
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Priority',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Due Date',
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                formatDateMillis(
+                                  dueDate?.millisecondsSinceEpoch,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: dueDate ?? DateTime.now(),
+                                  firstDate: DateTime.now().subtract(
+                                    const Duration(days: 365),
+                                  ),
+                                  lastDate: DateTime.now().add(
+                                    const Duration(days: 3650),
+                                  ),
+                                );
+                                if (picked != null && context.mounted) {
+                                  setDialogState(() => dueDate = picked);
+                                }
+                              },
+                              child: const Text('Select'),
+                            ),
+                            if (dueDate != null)
+                              TextButton(
+                                onPressed:
+                                    () => setDialogState(() => dueDate = null),
+                                child: const Text('Clear'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final title = titleCtrl.text.trim();
+                      if (title.isEmpty) {
+                        return;
+                      }
+                      await ref
+                          .read(tasksRepositoryProvider)
+                          .createTask(
+                            entityType: entityType,
+                            entityId: entityId,
+                            title: title,
+                            priority: priority,
+                            dueAt: dueDate?.millisecondsSinceEpoch,
+                          );
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: const Text('Create'),
+                  ),
+                ],
               ),
-            ],
-          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final title = titleCtrl.text.trim();
-              if (title.isEmpty) {
-                return;
-              }
-              await ref.read(tasksRepositoryProvider).createTask(
-                entityType: entityType,
-                entityId: entityId,
-                title: title,
-                priority: priority,
-                dueAt: dueDate?.millisecondsSinceEpoch,
-              );
-              if (context.mounted) {
-                Navigator.of(context).pop();
-              }
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    ),
   );
   titleCtrl.dispose();
 }
@@ -229,57 +231,65 @@ Future<void> showCreateDocumentHookDialog({
   final typeCtrl = TextEditingController();
   await showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Add Document Hook'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: fileNameCtrl,
-              decoration: const InputDecoration(labelText: 'File Name'),
+    builder:
+        (context) => AlertDialog(
+          title: const Text('Add Document Hook'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: fileNameCtrl,
+                  decoration: const InputDecoration(labelText: 'File Name'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: filePathCtrl,
+                  decoration: const InputDecoration(labelText: 'File Path'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: typeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Type Id (optional)',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: filePathCtrl,
-              decoration: const InputDecoration(labelText: 'File Path'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: typeCtrl,
-              decoration: const InputDecoration(labelText: 'Type Id (optional)'),
+            ElevatedButton(
+              onPressed: () async {
+                final fileName = fileNameCtrl.text.trim();
+                final filePath = filePathCtrl.text.trim();
+                if (fileName.isEmpty || filePath.isEmpty) {
+                  return;
+                }
+                await ref
+                    .read(documentsRepositoryProvider)
+                    .createDocument(
+                      entityType: entityType,
+                      entityId: entityId,
+                      typeId:
+                          typeCtrl.text.trim().isEmpty
+                              ? null
+                              : typeCtrl.text.trim(),
+                      filePath: filePath,
+                      fileName: fileName,
+                    );
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Create'),
             ),
           ],
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final fileName = fileNameCtrl.text.trim();
-            final filePath = filePathCtrl.text.trim();
-            if (fileName.isEmpty || filePath.isEmpty) {
-              return;
-            }
-            await ref.read(documentsRepositoryProvider).createDocument(
-              entityType: entityType,
-              entityId: entityId,
-              typeId: typeCtrl.text.trim().isEmpty ? null : typeCtrl.text.trim(),
-              filePath: filePath,
-              fileName: fileName,
-            );
-            if (context.mounted) {
-              Navigator.of(context).pop();
-            }
-          },
-          child: const Text('Create'),
-        ),
-      ],
-    ),
   );
   fileNameCtrl.dispose();
   filePathCtrl.dispose();

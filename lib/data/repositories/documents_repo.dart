@@ -8,6 +8,7 @@ import '../../core/docs/doc_compliance_engine.dart';
 import '../../core/models/documents.dart';
 import 'audit_log_repo.dart';
 import 'required_documents_repo.dart';
+import 'search_repo.dart';
 
 class DocumentsRepo {
   const DocumentsRepo(
@@ -16,13 +17,15 @@ class DocumentsRepo {
     this._complianceEngine, {
     this.auditLogRepo,
     this.auditWriter,
-  });
+    SearchRepo? searchRepo,
+  }) : _searchRepo = searchRepo;
 
   final Database _db;
   final RequiredDocumentsRepo _requiredRepo;
   final DocComplianceEngine _complianceEngine;
   final AuditLogRepo? auditLogRepo;
   final AuditWriter? auditWriter;
+  final SearchRepo? _searchRepo;
   static const AuditService _auditService = AuditService();
 
   Future<List<DocumentRecord>> listDocuments({
@@ -51,6 +54,60 @@ class DocumentsRepo {
       orderBy: 'created_at DESC',
     );
     return rows.map(DocumentRecord.fromMap).toList(growable: false);
+  }
+
+  Future<List<DocumentWorkflowRecord>> listWorkflowDocuments({
+    String? entityType,
+    String? entityId,
+    String? typeId,
+  }) async {
+    final docs = await listDocuments(
+      entityType: entityType,
+      entityId: entityId,
+      typeId: typeId,
+    );
+    final types = await _db.query('document_types');
+    final typeNames = <String, String>{
+      for (final row in types) row['id']! as String: row['name']! as String,
+    };
+    final requirements = await _requiredRepo.list();
+    final records = <DocumentWorkflowRecord>[];
+    for (final doc in docs) {
+      final metadataRows = await listMetadata(doc.id);
+      final metadata = <String, String>{
+        for (final item in metadataRows) item.key: item.value,
+      };
+      final propertyId = await _resolvePropertyIdForEntity(
+        doc.entityType,
+        doc.entityId,
+      );
+      final propertyName = await _loadPropertyName(propertyId);
+      final context = await _resolveDocumentContext(doc);
+      RequiredDocumentRecord? requirement;
+      for (final item in requirements) {
+        if (item.entityType == doc.entityType && item.typeId == doc.typeId) {
+          requirement = item;
+          break;
+        }
+      }
+      records.add(
+        DocumentWorkflowRecord(
+          document: doc,
+          metadata: metadata,
+          typeName: doc.typeId == null ? null : typeNames[doc.typeId!],
+          status: _resolveDocumentStatus(
+            metadata: metadata,
+            requirement: requirement,
+          ),
+          propertyId: propertyId,
+          propertyName: propertyName,
+          contextTitle: context.$1,
+          contextSubtitle: context.$2,
+          isRequired: requirement?.required ?? false,
+        ),
+      );
+    }
+    return records;
   }
 
   Future<DocumentRecord> createDocument({
@@ -105,6 +162,10 @@ class DocumentsRepo {
       record.entityType,
       record.entityId,
     );
+    final searchRepo = _searchRepo;
+    if (searchRepo != null) {
+      await searchRepo.upsertIndexEntry(searchRepo.buildDocumentRecord(record));
+    }
     await _recordAudit(
       entityType: 'document',
       entityId: record.id,
@@ -130,6 +191,10 @@ class DocumentsRepo {
       where: 'id = ?',
       whereArgs: <Object?>[record.id],
     );
+    final searchRepo = _searchRepo;
+    if (searchRepo != null) {
+      await searchRepo.upsertIndexEntry(searchRepo.buildDocumentRecord(record));
+    }
     final parentPropertyId = await _resolvePropertyIdForEntity(
       record.entityType,
       record.entityId,
@@ -158,6 +223,13 @@ class DocumentsRepo {
       limit: 1,
     );
     await _db.delete('documents', where: 'id = ?', whereArgs: <Object?>[id]);
+    final searchRepo = _searchRepo;
+    if (searchRepo != null) {
+      await searchRepo.deleteIndexEntryByEntity(
+        entityType: 'document',
+        entityId: id,
+      );
+    }
     final doc = before.isEmpty ? null : DocumentRecord.fromMap(before.first);
     final parentPropertyId =
         doc == null
@@ -315,7 +387,9 @@ class DocumentsRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return unitRows.isEmpty ? null : unitRows.first['asset_property_id'] as String?;
+        return unitRows.isEmpty
+            ? null
+            : unitRows.first['asset_property_id'] as String?;
       case 'lease':
         final leaseRows = await _db.query(
           'leases',
@@ -324,7 +398,9 @@ class DocumentsRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return leaseRows.isEmpty ? null : leaseRows.first['asset_property_id'] as String?;
+        return leaseRows.isEmpty
+            ? null
+            : leaseRows.first['asset_property_id'] as String?;
       case 'tenant':
         final tenantRows = await _db.query(
           'leases',
@@ -334,7 +410,9 @@ class DocumentsRepo {
           orderBy: 'updated_at DESC',
           limit: 1,
         );
-        return tenantRows.isEmpty ? null : tenantRows.first['asset_property_id'] as String?;
+        return tenantRows.isEmpty
+            ? null
+            : tenantRows.first['asset_property_id'] as String?;
       case 'scenario':
         final scenarioRows = await _db.query(
           'scenarios',
@@ -343,7 +421,9 @@ class DocumentsRepo {
           whereArgs: <Object?>[entityId],
           limit: 1,
         );
-        return scenarioRows.isEmpty ? null : scenarioRows.first['property_id'] as String?;
+        return scenarioRows.isEmpty
+            ? null
+            : scenarioRows.first['property_id'] as String?;
       default:
         return null;
     }
@@ -387,5 +467,131 @@ class DocumentsRepo {
       diffItems: diffItems,
       source: 'ui',
     );
+  }
+
+  String _resolveDocumentStatus({
+    required Map<String, String> metadata,
+    required RequiredDocumentRecord? requirement,
+  }) {
+    final verifiedRaw =
+        metadata['verified'] ??
+        metadata['verified_at'] ??
+        metadata['checked_at'];
+    if (verifiedRaw != null && verifiedRaw.trim().isNotEmpty) {
+      return 'verified';
+    }
+    final expiryKey = requirement?.expiresFieldKey;
+    if (expiryKey != null && expiryKey.trim().isNotEmpty) {
+      final rawValue = metadata[expiryKey.trim()];
+      final parsed = _tryParseDate(rawValue);
+      if (parsed != null) {
+        final threshold = DateTime.now().add(const Duration(days: 45));
+        if (!parsed.isAfter(threshold)) {
+          return 'expiring';
+        }
+      }
+    }
+    if (requirement?.required == true) {
+      return 'available';
+    }
+    return 'available';
+  }
+
+  DateTime? _tryParseDate(String? rawValue) {
+    if (rawValue == null || rawValue.trim().isEmpty) {
+      return null;
+    }
+    final epoch = int.tryParse(rawValue.trim());
+    if (epoch != null) {
+      return DateTime.fromMillisecondsSinceEpoch(epoch);
+    }
+    return DateTime.tryParse(rawValue.trim());
+  }
+
+  Future<(String, String)> _resolveDocumentContext(DocumentRecord doc) async {
+    switch (doc.entityType) {
+      case 'property':
+      case 'asset_property':
+        final propertyName =
+            await _loadPropertyName(doc.entityId) ?? doc.entityId;
+        return ('Property', propertyName);
+      case 'unit':
+        final rows = await _db.query(
+          'units',
+          columns: const <String>['unit_code', 'asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[doc.entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Unit', doc.entityId);
+        }
+        final propertyName = await _loadPropertyName(
+          rows.first['asset_property_id'] as String?,
+        );
+        return (
+          'Unit',
+          '${rows.first['unit_code']! as String}${propertyName == null ? '' : ' · $propertyName'}',
+        );
+      case 'lease':
+        final rows = await _db.query(
+          'leases',
+          columns: const <String>['lease_name', 'asset_property_id'],
+          where: 'id = ?',
+          whereArgs: <Object?>[doc.entityId],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          return ('Lease', doc.entityId);
+        }
+        final propertyName = await _loadPropertyName(
+          rows.first['asset_property_id'] as String?,
+        );
+        return (
+          'Lease',
+          '${rows.first['lease_name']! as String}${propertyName == null ? '' : ' · $propertyName'}',
+        );
+      case 'tenant':
+        final rows = await _db.query(
+          'tenants',
+          columns: const <String>['display_name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[doc.entityId],
+          limit: 1,
+        );
+        final name =
+            rows.isEmpty ? doc.entityId : rows.first['display_name']! as String;
+        return ('Tenant', name);
+      case 'scenario':
+        final rows = await _db.query(
+          'scenarios',
+          columns: const <String>['name'],
+          where: 'id = ?',
+          whereArgs: <Object?>[doc.entityId],
+          limit: 1,
+        );
+        final name =
+            rows.isEmpty ? doc.entityId : rows.first['name']! as String;
+        return ('Scenario', name);
+      default:
+        return (doc.entityType, doc.entityId);
+    }
+  }
+
+  Future<String?> _loadPropertyName(String? propertyId) async {
+    if (propertyId == null || propertyId.trim().isEmpty) {
+      return null;
+    }
+    final rows = await _db.query(
+      'properties',
+      columns: const <String>['name'],
+      where: 'id = ?',
+      whereArgs: <Object?>[propertyId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return rows.first['name']! as String;
   }
 }

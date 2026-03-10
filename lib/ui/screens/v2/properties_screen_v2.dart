@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/property.dart';
 import '../../components/nx_card.dart';
+import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
@@ -111,91 +113,120 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
             );
           }
 
-          return NxCard(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 980),
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    sortAscending: false,
-                    sortColumnIndex: 3,
-                    columns: const [
-                      DataColumn(label: Text('Name')),
-                      DataColumn(label: Text('Address')),
-                      DataColumn(label: Text('Type')),
-                      DataColumn(label: Text('Updated ↓')),
-                      DataColumn(label: Text('Actions')),
-                    ],
-                    rows: filtered
-                        .map(
-                          (property) => DataRow(
-                            cells: [
-                              DataCell(Text(property.name)),
-                              DataCell(
+          return NxDataTableShell(
+            minTableWidth: 980,
+            mobileBreakpoint: 980,
+            mobileChild: ListView.separated(
+              padding: const EdgeInsets.all(AppSpacing.component),
+              itemCount: filtered.length,
+              separatorBuilder:
+                  (_, __) => const SizedBox(height: AppSpacing.component),
+              itemBuilder: (context, index) {
+                final property = filtered[index];
+                return NxCard(
+                  variant: NxCardVariant.interactive,
+                  onTap: () => _openProperty(property, ref),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  property.name,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 4),
                                 Text(
                                   '${property.addressLine1}, ${property.city}',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          NxStatusBadge(
+                            label: property.propertyType,
+                            kind: NxBadgeKind.info,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Updated ${_formatDate(property.updatedAt)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => _openProperty(property, ref),
+                            child: const Text('Open'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                () => controller.archive(property.id, true),
+                            child: const Text('Archive'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            child: DataTable(
+              sortAscending: false,
+              sortColumnIndex: 3,
+              columns: const [
+                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Address')),
+                DataColumn(label: Text('Type')),
+                DataColumn(label: Text('Updated ↓')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: filtered
+                  .map(
+                    (property) => DataRow(
+                      cells: [
+                        DataCell(Text(property.name)),
+                        DataCell(
+                          Text('${property.addressLine1}, ${property.city}'),
+                        ),
+                        DataCell(
+                          NxStatusBadge(
+                            label: property.propertyType,
+                            kind: NxBadgeKind.info,
+                          ),
+                        ),
+                        DataCell(Text(_formatDate(property.updatedAt))),
+                        DataCell(
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              TextButton(
+                                onPressed: () => _openProperty(property, ref),
+                                child: const Text('Open'),
                               ),
-                              DataCell(
-                                NxStatusBadge(
-                                  label: property.propertyType,
-                                  kind: NxBadgeKind.info,
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  DateTime.fromMillisecondsSinceEpoch(
-                                    property.updatedAt,
-                                  ).toIso8601String(),
-                                ),
-                              ),
-                              DataCell(
-                                Wrap(
-                                  spacing: 8,
-                                  children: [
-                                    TextButton(
-                                      onPressed: () {
-                                        ref
-                                            .read(
-                                              selectedScenarioIdProvider
-                                                  .notifier,
-                                            )
-                                            .state = null;
-                                        ref
-                                            .read(
-                                              selectedPropertyIdProvider
-                                                  .notifier,
-                                            )
-                                            .state = property.id;
-                                        ref
-                                                .read(
-                                                  propertyDetailPageProvider
-                                                      .notifier,
-                                                )
-                                                .state =
-                                            PropertyDetailPage.overview;
-                                      },
-                                      child: const Text('Open'),
-                                    ),
-                                    TextButton(
-                                      onPressed:
-                                          () => controller.archive(
-                                            property.id,
-                                            true,
-                                          ),
-                                      child: const Text('Archive'),
-                                    ),
-                                  ],
-                                ),
+                              TextButton(
+                                onPressed:
+                                    () => controller.archive(property.id, true),
+                                child: const Text('Archive'),
                               ),
                             ],
                           ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ),
-              ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(growable: false),
             ),
           );
         },
@@ -363,6 +394,19 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     rent.dispose();
     rehab.dispose();
     financing.dispose();
+  }
+
+  void _openProperty(PropertyRecord property, WidgetRef ref) {
+    ref.read(selectedScenarioIdProvider.notifier).state = null;
+    ref.read(selectedPropertyIdProvider.notifier).state = property.id;
+    ref.read(propertyDetailPageProvider.notifier).state =
+        PropertyDetailPage.overview;
+  }
+
+  String _formatDate(int millis) {
+    return DateTime.fromMillisecondsSinceEpoch(
+      millis,
+    ).toIso8601String().substring(0, 10);
   }
 
   String? _required(String? value) {

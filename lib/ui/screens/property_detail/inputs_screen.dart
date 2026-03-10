@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/inputs.dart';
 import '../../../core/models/scenario_valuation.dart';
 import '../../components/responsive_constraints.dart';
+import '../../components/nx_section_header.dart';
 import '../../components/save_status_indicator.dart';
 import '../../state/analysis_state.dart';
 import '../../theme/app_theme.dart';
@@ -952,32 +953,21 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         tilePadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.component,
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            if (status != null) ...[
-              const SizedBox(width: 8),
-              SaveStatusIndicator(
-                label: status.label,
-                tone: status.tone,
-                compact: true,
-              ),
-            ],
-            const SizedBox(width: 8),
-            InfoTooltip(metricKey: metricKey, size: 14),
-          ],
+        title: NxSectionHeader(
+          title: title,
+          description: description,
+          compact: true,
+          trailing: InfoTooltip(metricKey: metricKey, size: 14),
+          actions:
+              status == null
+                  ? const <Widget>[]
+                  : <Widget>[
+                    SaveStatusIndicator(
+                      label: status.label,
+                      tone: status.tone,
+                      compact: true,
+                    ),
+                  ],
         ),
         children: [
           Padding(

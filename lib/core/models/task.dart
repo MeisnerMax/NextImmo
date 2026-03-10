@@ -221,3 +221,19 @@ class TaskGeneratedInstanceRecord {
     );
   }
 }
+
+class TaskWorkflowRecord {
+  const TaskWorkflowRecord({
+    required this.task,
+    required this.propertyId,
+    required this.propertyName,
+    required this.contextTitle,
+    required this.contextSubtitle,
+  });
+
+  final TaskRecord task;
+  final String? propertyId;
+  final String? propertyName;
+  final String contextTitle;
+  final String contextSubtitle;
+}
