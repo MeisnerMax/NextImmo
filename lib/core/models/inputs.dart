@@ -233,7 +233,7 @@ class ScenarioInputs {
       rehabBudget: 0,
       closingCostBuyPercent: settings.defaultClosingCostBuyPercent,
       closingCostBuyFixed: 0,
-      holdMonths: 12,
+      holdMonths: settings.defaultHorizonYears * 12,
       rentMonthlyTotal: 0,
       otherIncomeMonthly: 0,
       vacancyPercent: settings.defaultVacancyPercent,
@@ -354,6 +354,7 @@ class ScenarioInputs {
 class NormalizedInputs {
   const NormalizedInputs({
     required this.currencyCode,
+    required this.horizonMonths,
     required this.horizonYears,
     required this.inputs,
     required this.incomeLines,
@@ -361,6 +362,7 @@ class NormalizedInputs {
   });
 
   final String currencyCode;
+  final int horizonMonths;
   final int horizonYears;
   final ScenarioInputs inputs;
   final List<IncomeLine> incomeLines;

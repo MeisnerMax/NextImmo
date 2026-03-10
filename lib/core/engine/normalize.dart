@@ -7,6 +7,15 @@ NormalizedInputs normalizeInputs({
   required List<IncomeLine> incomeLines,
   required List<ExpenseLine> expenseLines,
 }) {
+  final effectiveHoldMonths =
+      inputs.holdMonths > 0
+          ? inputs.holdMonths
+          : ((inputs.sellAfterYears <= 0
+                  ? settings.defaultHorizonYears
+                  : inputs.sellAfterYears) *
+              12);
+  final effectiveHorizonYears = (effectiveHoldMonths / 12).ceil();
+
   final normalized = inputs.copyWith(
     closingCostBuyPercent: _sanitizePercent(
       inputs.closingCostBuyPercent,
@@ -50,19 +59,15 @@ NormalizedInputs normalizeInputs({
       inputs.closingCostSellPercent,
       settings.defaultClosingCostSellPercent,
     ),
-    sellAfterYears:
-        inputs.sellAfterYears <= 0
-            ? settings.defaultHorizonYears
-            : inputs.sellAfterYears,
+    holdMonths: effectiveHoldMonths,
+    sellAfterYears: effectiveHorizonYears,
     termYears: inputs.termYears <= 0 ? 30 : inputs.termYears,
   );
 
   return NormalizedInputs(
     currencyCode: settings.currencyCode,
-    horizonYears:
-        normalized.sellAfterYears <= 0
-            ? settings.defaultHorizonYears
-            : normalized.sellAfterYears,
+    horizonMonths: effectiveHoldMonths,
+    horizonYears: effectiveHorizonYears,
     inputs: normalized,
     incomeLines: incomeLines,
     expenseLines: expenseLines,

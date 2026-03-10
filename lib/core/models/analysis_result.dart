@@ -39,6 +39,50 @@ class DerivedProformaYear {
   }
 }
 
+class DerivedProformaMonth {
+  const DerivedProformaMonth({
+    required this.monthIndex,
+    required this.yearIndex,
+    required this.gsi,
+    required this.vacancyLoss,
+    required this.egi,
+    required this.opex,
+    required this.noi,
+    required this.debtService,
+    required this.cashflowBeforeTax,
+    required this.loanBalanceEnd,
+    required this.equityEnd,
+  });
+
+  final int monthIndex;
+  final int yearIndex;
+  final double gsi;
+  final double vacancyLoss;
+  final double egi;
+  final double opex;
+  final double noi;
+  final double debtService;
+  final double cashflowBeforeTax;
+  final double loanBalanceEnd;
+  final double equityEnd;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'month_index': monthIndex,
+      'year_index': yearIndex,
+      'gsi': gsi,
+      'vacancy_loss': vacancyLoss,
+      'egi': egi,
+      'opex': opex,
+      'noi': noi,
+      'debt_service': debtService,
+      'cashflow_before_tax': cashflowBeforeTax,
+      'loan_balance_end': loanBalanceEnd,
+      'equity_end': equityEnd,
+    };
+  }
+}
+
 class AmortizationEntry {
   const AmortizationEntry({
     required this.monthIndex,
@@ -130,12 +174,14 @@ class AnalysisMetrics {
 class AnalysisResult {
   const AnalysisResult({
     required this.metrics,
+    required this.proformaMonths,
     required this.proformaYears,
     required this.amortizationSchedule,
     required this.warnings,
   });
 
   final AnalysisMetrics metrics;
+  final List<DerivedProformaMonth> proformaMonths;
   final List<DerivedProformaYear> proformaYears;
   final List<AmortizationEntry> amortizationSchedule;
   final List<String> warnings;
@@ -143,6 +189,8 @@ class AnalysisResult {
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'metrics': metrics.toJson(),
+      'proforma_months':
+          proformaMonths.map((month) => month.toJson()).toList(),
       'proforma_years': proformaYears.map((year) => year.toJson()).toList(),
       'amortization_schedule':
           amortizationSchedule.map((entry) => entry.toJson()).toList(),

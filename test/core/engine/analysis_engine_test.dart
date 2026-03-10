@@ -72,6 +72,97 @@ void main() {
       expect(result.metrics.dscr, isNull);
     });
 
+    test('manual loan amount drives equity basis for roi and cash on cash', () {
+      const engine = AnalysisEngine();
+      final settings = AppSettingsRecord(
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      final inputs = ScenarioInputs.defaults(
+        scenarioId: 's2b',
+        settings: settings,
+      ).copyWith(
+        purchasePrice: 200000,
+        rehabBudget: 20000,
+        closingCostBuyPercent: 0.05,
+        closingCostBuyFixed: 5000,
+        rentMonthlyTotal: 2200,
+        vacancyPercent: 0.05,
+        propertyTaxMonthly: 250,
+        insuranceMonthly: 120,
+        utilitiesMonthly: 100,
+        managementPercent: 0.08,
+        maintenancePercent: 0.05,
+        capexPercent: 0.05,
+        otherExpensesMonthly: 100,
+        financingMode: 'loan',
+        downPaymentPercent: 0.2,
+        loanAmount: 150000,
+        interestRatePercent: 0.06,
+        termYears: 30,
+        sellAfterYears: 10,
+      );
+
+      final result = engine.run(
+        inputs: inputs,
+        settings: settings,
+        incomeLines: const [],
+        expenseLines: const [],
+      );
+
+      const expectedCashInvested = 85000.0;
+      final annualCashflowTotal = result.proformaYears.fold<double>(
+            0,
+            (sum, year) => sum + year.cashflowBeforeTax,
+          ) +
+          result.metrics.exitCashflow;
+      final expectedRoi =
+          (annualCashflowTotal - expectedCashInvested) / expectedCashInvested;
+
+      expect(result.metrics.totalCashInvested, closeTo(expectedCashInvested, 0.0001));
+      expect(
+        result.metrics.cashOnCash,
+        closeTo(
+          result.metrics.annualCashflowYear1 / expectedCashInvested,
+          0.0001,
+        ),
+      );
+      expect(result.metrics.roi, closeTo(expectedRoi, 0.0001));
+    });
+
+    test('zero-equity loan scenarios report irr as unavailable', () {
+      const engine = AnalysisEngine();
+      final settings = AppSettingsRecord(
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      final inputs = ScenarioInputs.defaults(
+        scenarioId: 's2c',
+        settings: settings,
+      ).copyWith(
+        purchasePrice: 200000,
+        rehabBudget: 20000,
+        closingCostBuyPercent: 0.05,
+        closingCostBuyFixed: 5000,
+        rentMonthlyTotal: 2200,
+        financingMode: 'loan',
+        loanAmount: 400000,
+        sellAfterYears: 10,
+      );
+
+      final result = engine.run(
+        inputs: inputs,
+        settings: settings,
+        incomeLines: const [],
+        expenseLines: const [],
+      );
+
+      expect(result.metrics.totalCashInvested, 0);
+      expect(result.metrics.irr, isNull);
+      expect(
+        result.warnings,
+        contains('IRR unavailable because total cash invested is zero.'),
+      );
+    });
+
     test('exit cap mode uses stabilized noi and cap rate for sale price', () {
       const engine = AnalysisEngine();
       final settings = AppSettingsRecord(

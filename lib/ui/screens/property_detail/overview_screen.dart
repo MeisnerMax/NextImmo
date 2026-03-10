@@ -4,6 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/engine/financing.dart';
+import '../../../core/engine/normalize.dart';
 import '../../../core/models/property.dart';
 import '../../i18n/app_strings.dart';
 import '../../state/app_state.dart';
@@ -370,22 +372,24 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   }
 
   Widget _buildCashflowChartCard(ScenarioAnalysisState state) {
-    final years = state.analysis.proformaYears;
-    if (years.isEmpty) {
+    final useMonthly = _cashflowMode == _CashflowMode.monthlyAverage;
+    final annualPeriods = state.analysis.proformaYears;
+    final monthlyPeriods = state.analysis.proformaMonths;
+    if (annualPeriods.isEmpty || monthlyPeriods.isEmpty) {
       return const Card(
         child: Center(
           child: Text('Cashflow chart unavailable: no proforma data.'),
         ),
       );
     }
-    final values = years
-        .map(
-          (entry) =>
-              _cashflowMode == _CashflowMode.annual
-                  ? entry.cashflowBeforeTax
-                  : entry.cashflowBeforeTax / 12,
-        )
-        .toList(growable: false);
+    final values =
+        useMonthly
+            ? monthlyPeriods
+                .map((entry) => entry.cashflowBeforeTax)
+                .toList(growable: false)
+            : annualPeriods
+                .map((entry) => entry.cashflowBeforeTax)
+                .toList(growable: false);
     final spots = <FlSpot>[
       for (var i = 0; i < values.length; i++)
         FlSpot((i + 1).toDouble(), values[i]),
@@ -427,7 +431,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('Monthly Avg'),
+                      child: Text('Monthly'),
                     ),
                   ],
                 ),
@@ -438,7 +442,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
               child: LineChart(
                 LineChartData(
                   minX: 1,
-                  maxX: years.length.toDouble(),
+                  maxX: values.length.toDouble(),
                   minY: minY,
                   maxY: maxY,
                   gridData: const FlGridData(
@@ -465,13 +469,15 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, _) {
-                          final year = value.toInt();
-                          if (year <= 0 || year > years.length) {
+                          final period = value.toInt();
+                          if (period <= 0 || period > values.length) {
                             return const SizedBox.shrink();
                           }
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
-                            child: Text('Y$year'),
+                            child: Text(
+                              useMonthly ? 'M$period' : 'Y$period',
+                            ),
                           );
                         },
                       ),
@@ -505,18 +511,24 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     ScenarioAnalysisState state,
     double monthlyRentStart,
   ) {
-    final yearsCount = state.analysis.proformaYears.length;
-    if (yearsCount <= 0) {
+    final normalized = normalizeInputs(
+      inputs: state.inputs,
+      settings: state.settings,
+      incomeLines: state.incomeLines,
+      expenseLines: state.expenseLines,
+    );
+    final monthsCount = state.analysis.proformaMonths.length;
+    if (monthsCount <= 0) {
       return const Card(
         child: Center(
-          child: Text('Rent chart unavailable: no projection years.'),
+          child: Text('Rent chart unavailable: no projection months.'),
         ),
       );
     }
-    final growth = state.inputs.rentGrowthPercent;
+    final growth = normalized.inputs.rentGrowthPercent;
     final values = <double>[
-      for (var year = 1; year <= yearsCount; year++)
-        monthlyRentStart * _pow(1 + growth, year - 1),
+      for (var month = 1; month <= monthsCount; month++)
+        monthlyRentStart * math.pow(1 + growth, (month - 1) / 12).toDouble(),
     ];
     final spots = <FlSpot>[
       for (var i = 0; i < values.length; i++)
@@ -539,7 +551,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
               child: LineChart(
                 LineChartData(
                   minX: 1,
-                  maxX: yearsCount.toDouble(),
+                  maxX: monthsCount.toDouble(),
                   minY: 0,
                   maxY: maxY,
                   gridData: const FlGridData(
@@ -566,13 +578,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, _) {
-                          final year = value.toInt();
-                          if (year <= 0 || year > yearsCount) {
+                          final month = value.toInt();
+                          if (month <= 0 || month > monthsCount) {
                             return const SizedBox.shrink();
                           }
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
-                            child: Text('Y$year'),
+                            child: Text('M$month'),
                           );
                         },
                       ),
@@ -663,14 +675,6 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     return value.toStringAsFixed(2);
   }
 
-  static double _pow(double base, int exponent) {
-    var value = 1.0;
-    for (var i = 0; i < exponent; i++) {
-      value *= base;
-    }
-    return value;
-  }
-
   static double _maxAxisValue(List<double> values) {
     final maxValue = values.fold<double>(
       double.negativeInfinity,
@@ -750,21 +754,18 @@ class _DealSummaryViewModel {
     required ScenarioAnalysisState state,
     required PropertyRecord? property,
   }) {
-    final inputs = state.inputs;
-    final closingCostsBuy =
-        (inputs.purchasePrice * inputs.closingCostBuyPercent) +
-        inputs.closingCostBuyFixed;
-    final totalAcquisitionCost =
-        inputs.purchasePrice + inputs.rehabBudget + closingCostsBuy;
-    final downPayment = totalAcquisitionCost * inputs.downPaymentPercent;
-    final autoLoan = math.max(0, totalAcquisitionCost - downPayment).toDouble();
-    final loanAmount =
-        inputs.financingMode == 'loan'
-            ? (inputs.loanAmount > 0 ? inputs.loanAmount : autoLoan)
-            : 0.0;
-    final equity = totalAcquisitionCost - loanAmount;
+    final normalized = normalizeInputs(
+      inputs: state.inputs,
+      settings: state.settings,
+      incomeLines: state.incomeLines,
+      expenseLines: state.expenseLines,
+    );
+    final inputs = normalized.inputs;
+    final financing = resolveFinancing(inputs);
     final ltv =
-        totalAcquisitionCost <= 0 ? null : loanAmount / totalAcquisitionCost;
+        financing.totalAcquisitionCost <= 0
+            ? null
+            : financing.loanPrincipal / financing.totalAcquisitionCost;
 
     final sizeM2 = property?.sqft == null ? null : property!.sqft! * 0.092903;
     final monthlyRent = inputs.rentOverride ?? inputs.rentMonthlyTotal;
@@ -780,12 +781,12 @@ class _DealSummaryViewModel {
       monthlyRent: monthlyRent,
       rentPerM2: rentPerM2,
       rehabBudget: inputs.rehabBudget,
-      closingCostsBuy: closingCostsBuy,
-      totalAcquisitionCost: totalAcquisitionCost,
-      totalEquityInvested: equity,
-      loanAmount: loanAmount,
+      closingCostsBuy: financing.buyClosingCosts,
+      totalAcquisitionCost: financing.totalAcquisitionCost,
+      totalEquityInvested: financing.totalCashInvested,
+      loanAmount: financing.loanPrincipal,
       ltv: ltv,
-      holdPeriodLabel: '${inputs.sellAfterYears} years (${inputs.holdMonths}m)',
+      holdPeriodLabel: '${normalized.horizonMonths}m',
       exitAssumptionMode:
           state.valuation.valuationMode == 'exit_cap'
               ? 'Exit Cap'

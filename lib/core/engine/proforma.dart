@@ -1,12 +1,17 @@
+import 'dart:math' as math;
+
 import '../models/analysis_result.dart';
 import '../models/inputs.dart';
 import '../models/scenario_valuation.dart';
 import 'amortization.dart';
+import 'financing.dart';
 
 class ProformaComputation {
   const ProformaComputation({
+    required this.proformaMonths,
     required this.proformaYears,
     required this.amortizationSchedule,
+    required this.monthlyCashflows,
     required this.annualCashflows,
     required this.totalCashInvested,
     required this.debtServiceYear1,
@@ -22,8 +27,10 @@ class ProformaComputation {
     required this.valuationMode,
   });
 
+  final List<DerivedProformaMonth> proformaMonths;
   final List<DerivedProformaYear> proformaYears;
   final List<AmortizationEntry> amortizationSchedule;
+  final List<double> monthlyCashflows;
   final List<double> annualCashflows;
   final double totalCashInvested;
   final double debtServiceYear1;
@@ -47,19 +54,17 @@ ProformaComputation buildProforma(
   final warnings = <String>[];
 
   final gsiBase =
-      (normalized.effectiveRentMonthly +
-          normalized.enabledIncomeLinesMonthly +
-          inputs.otherIncomeMonthly) *
-      12;
+      normalized.effectiveRentMonthly +
+      normalized.enabledIncomeLinesMonthly +
+      inputs.otherIncomeMonthly;
 
-  final fixedExpensesAnnualBase =
-      (inputs.propertyTaxMonthly +
-          inputs.insuranceMonthly +
-          inputs.utilitiesMonthly +
-          inputs.hoaMonthly +
-          inputs.otherExpensesMonthly +
-          normalized.enabledExpenseLinesFixedMonthly) *
-      12;
+  final fixedExpensesBase =
+      inputs.propertyTaxMonthly +
+      inputs.insuranceMonthly +
+      inputs.utilitiesMonthly +
+      inputs.hoaMonthly +
+      inputs.otherExpensesMonthly +
+      normalized.enabledExpenseLinesFixedMonthly;
 
   final percentExpenseRate =
       inputs.managementPercent +
@@ -67,23 +72,15 @@ ProformaComputation buildProforma(
       inputs.capexPercent +
       normalized.enabledExpenseLinesPercent;
 
-  final buyClosingCosts =
-      (inputs.purchasePrice * inputs.closingCostBuyPercent) +
-      inputs.closingCostBuyFixed;
-
-  final totalAcquisitionCost =
-      inputs.purchasePrice + inputs.rehabBudget + buyClosingCosts;
-  final downPayment = totalAcquisitionCost * inputs.downPaymentPercent;
-  final computedLoan =
-      (totalAcquisitionCost - downPayment).clamp(0, double.infinity).toDouble();
-
-  final loanPrincipal =
-      inputs.financingMode == 'loan'
-          ? (inputs.loanAmount > 0 ? inputs.loanAmount : computedLoan)
-          : 0.0;
-
-  final totalCashInvested =
-      inputs.financingMode == 'loan' ? downPayment : totalAcquisitionCost;
+  final financing = resolveFinancing(inputs);
+  final buyClosingCosts = financing.buyClosingCosts;
+  final loanPrincipal = financing.loanPrincipal;
+  final totalCashInvested = financing.totalCashInvested;
+  if (financing.wasLoanPrincipalCapped) {
+    warnings.add(
+      'Loan amount exceeded total acquisition cost and was capped.',
+    );
+  }
 
   final amortization = buildAmortizationSchedule(
     principal: loanPrincipal,
@@ -91,44 +88,49 @@ ProformaComputation buildProforma(
     termYears: inputs.termYears,
   );
 
-  final debtServiceYear1 =
-      inputs.financingMode == 'loan' ? amortization.monthlyPayment * 12 : 0.0;
-
+  final months = <DerivedProformaMonth>[];
+  final monthlyCashflows = <double>[];
   final years = <DerivedProformaYear>[];
   final annualCashflows = <double>[];
 
-  for (var year = 1; year <= normalized.horizonYears; year++) {
-    final rentGrowthFactor = _pow(1 + inputs.rentGrowthPercent, year - 1);
-    final expenseGrowthFactor = _pow(1 + inputs.expenseGrowthPercent, year - 1);
+  for (var month = 1; month <= normalized.horizonMonths; month++) {
+    final yearIndex = ((month - 1) / 12).floor() + 1;
+    final rentGrowthFactor = _powAnnual(inputs.rentGrowthPercent, month - 1);
+    final expenseGrowthFactor = _powAnnual(
+      inputs.expenseGrowthPercent,
+      month - 1,
+    );
 
     final gsi = gsiBase * rentGrowthFactor;
     final vacancyLoss = gsi * inputs.vacancyPercent;
     final egi = gsi - vacancyLoss;
 
-    final fixedAnnual = fixedExpensesAnnualBase * expenseGrowthFactor;
-    final percentAnnual = gsi * percentExpenseRate;
-    final opex = fixedAnnual + percentAnnual;
+    final fixedMonthly = fixedExpensesBase * expenseGrowthFactor;
+    final percentMonthly = gsi * percentExpenseRate;
+    final opex = fixedMonthly + percentMonthly;
     final noi = egi - opex;
 
-    final debtService = inputs.financingMode == 'loan' ? debtServiceYear1 : 0.0;
+    final debtService =
+        inputs.financingMode == 'loan' && month <= amortization.schedule.length
+            ? amortization.schedule[month - 1].payment
+            : 0.0;
     final cashflow = noi - debtService;
 
-    final monthIndex =
-        amortization.schedule.isEmpty
-            ? 0
-            : (year * 12).clamp(1, amortization.schedule.length);
     final loanBalanceEnd =
-        monthIndex == 0 ? 0.0 : amortization.schedule[monthIndex - 1].balance;
+        month <= amortization.schedule.length
+            ? amortization.schedule[month - 1].balance
+            : 0.0;
 
     final marketValue =
         (inputs.arvOverride ?? inputs.purchasePrice) *
-        _pow(1 + inputs.appreciationPercent, year);
+        _powAnnual(inputs.appreciationPercent, month);
 
     final equity = marketValue - loanBalanceEnd;
 
-    years.add(
-      DerivedProformaYear(
-        yearIndex: year,
+    months.add(
+      DerivedProformaMonth(
+        monthIndex: month,
+        yearIndex: yearIndex,
         gsi: gsi,
         vacancyLoss: vacancyLoss,
         egi: egi,
@@ -140,14 +142,63 @@ ProformaComputation buildProforma(
         equityEnd: equity,
       ),
     );
-    annualCashflows.add(cashflow);
+    monthlyCashflows.add(cashflow);
   }
 
-  if (years.isEmpty) {
+  for (var year = 1; year <= normalized.horizonYears; year++) {
+    final start = (year - 1) * 12;
+    if (start >= months.length) {
+      break;
+    }
+    final end = math.min(start + 12, months.length);
+    final slice = months.sublist(start, end);
+    final lastMonth = slice.last;
+
+    final yearGsi = slice.fold<double>(0, (sum, month) => sum + month.gsi);
+    final yearVacancy = slice.fold<double>(
+      0,
+      (sum, month) => sum + month.vacancyLoss,
+    );
+    final yearEgi = slice.fold<double>(0, (sum, month) => sum + month.egi);
+    final yearOpex = slice.fold<double>(0, (sum, month) => sum + month.opex);
+    final yearNoi = slice.fold<double>(0, (sum, month) => sum + month.noi);
+    final yearDebt = slice.fold<double>(
+      0,
+      (sum, month) => sum + month.debtService,
+    );
+    final yearCashflow = slice.fold<double>(
+      0,
+      (sum, month) => sum + month.cashflowBeforeTax,
+    );
+
+    years.add(
+      DerivedProformaYear(
+        yearIndex: year,
+        gsi: yearGsi,
+        vacancyLoss: yearVacancy,
+        egi: yearEgi,
+        opex: yearOpex,
+        noi: yearNoi,
+        debtService: yearDebt,
+        cashflowBeforeTax: yearCashflow,
+        loanBalanceEnd: lastMonth.loanBalanceEnd,
+        equityEnd: lastMonth.equityEnd,
+      ),
+    );
+    annualCashflows.add(yearCashflow);
+  }
+
+  final debtServiceYear1 = months
+      .take(math.min(12, months.length))
+      .fold<double>(0, (sum, month) => sum + month.debtService);
+
+  if (months.isEmpty || years.isEmpty) {
     warnings.add('No projection years were generated.');
     return ProformaComputation(
+      proformaMonths: const <DerivedProformaMonth>[],
       proformaYears: const <DerivedProformaYear>[],
       amortizationSchedule: amortization.schedule,
+      monthlyCashflows: const <double>[],
       annualCashflows: const <double>[],
       totalCashInvested: totalCashInvested,
       debtServiceYear1: debtServiceYear1,
@@ -175,10 +226,11 @@ ProformaComputation buildProforma(
       );
       salePrice =
           (inputs.arvOverride ?? inputs.purchasePrice) *
-          _pow(1 + inputs.appreciationPercent, normalized.horizonYears);
+          _powAnnual(inputs.appreciationPercent, normalized.horizonMonths);
       valuationModeUsed = 'appreciation';
     } else {
       stabilizedNoiUsed = _resolveStabilizedNoi(
+        months: months,
         years: years,
         valuation: valuation,
         warnings: warnings,
@@ -188,8 +240,7 @@ ProformaComputation buildProforma(
   } else {
     final saleBase = inputs.arvOverride ?? inputs.purchasePrice;
     salePrice =
-        saleBase *
-        _pow(1 + inputs.appreciationPercent, normalized.horizonYears);
+        saleBase * _powAnnual(inputs.appreciationPercent, normalized.horizonMonths);
   }
 
   final sellCosts =
@@ -199,13 +250,18 @@ ProformaComputation buildProforma(
   final netSale = salePrice - sellCosts - loanBalanceRemaining;
   final exitCashflow = netSale;
 
+  if (monthlyCashflows.isNotEmpty) {
+    monthlyCashflows[monthlyCashflows.length - 1] += exitCashflow;
+  }
   if (annualCashflows.isNotEmpty) {
     annualCashflows[annualCashflows.length - 1] += exitCashflow;
   }
 
   return ProformaComputation(
+    proformaMonths: months,
     proformaYears: years,
     amortizationSchedule: amortization.schedule,
+    monthlyCashflows: monthlyCashflows,
     annualCashflows: annualCashflows,
     totalCashInvested: totalCashInvested,
     debtServiceYear1: debtServiceYear1,
@@ -222,19 +278,11 @@ ProformaComputation buildProforma(
   );
 }
 
-double _pow(double base, int exponent) {
-  if (exponent == 0) {
-    return 1;
-  }
-
-  var value = 1.0;
-  for (var i = 0; i < exponent; i++) {
-    value *= base;
-  }
-  return value;
-}
+double _powAnnual(double annualRate, int monthsElapsed) =>
+    math.pow(1 + annualRate, monthsElapsed / 12).toDouble();
 
 double _resolveStabilizedNoi({
+  required List<DerivedProformaMonth> months,
   required List<DerivedProformaYear> years,
   required ScenarioValuationRecord valuation,
   required List<String> warnings,
@@ -261,5 +309,13 @@ double _resolveStabilizedNoi({
     }
     return sum / n;
   }
-  return years.first.noi;
+
+  final monthsUsed = math.min(12, months.length);
+  if (monthsUsed <= 0) {
+    return 0;
+  }
+  final firstWindowNoi = months
+      .take(monthsUsed)
+      .fold<double>(0, (sum, month) => sum + month.noi);
+  return monthsUsed == 12 ? firstWindowNoi : (firstWindowNoi / monthsUsed) * 12;
 }

@@ -499,7 +499,10 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             onChanged:
                 (value) => patchInput(
                   _FieldKeys.sellAfterYears,
-                  (current) => current.copyWith(sellAfterYears: value),
+                  (current) => current.copyWith(
+                    sellAfterYears: value,
+                    holdMonths: value * 12,
+                  ),
                 ),
           ),
         ],
@@ -562,7 +565,10 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             onChanged:
                 (value) => patchInput(
                   _FieldKeys.holdMonths,
-                  (current) => current.copyWith(holdMonths: value),
+                  (current) => current.copyWith(
+                    holdMonths: value,
+                    sellAfterYears: (value / 12).ceil(),
+                  ),
                 ),
           ),
           _percentField(

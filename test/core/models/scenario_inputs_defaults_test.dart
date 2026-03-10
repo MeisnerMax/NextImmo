@@ -40,6 +40,7 @@ void main() {
       inputs.closingCostSellPercent,
       settings.defaultClosingCostSellPercent,
     );
+    expect(inputs.holdMonths, settings.defaultHorizonYears * 12);
     expect(inputs.sellAfterYears, settings.defaultHorizonYears);
     expect(inputs.downPaymentPercent, settings.defaultDownPaymentPercent);
     expect(inputs.interestRatePercent, settings.defaultInterestRatePercent);

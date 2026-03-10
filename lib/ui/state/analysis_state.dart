@@ -278,6 +278,7 @@ class ScenarioAnalysisController
       expenseGrowthPercent: settings.defaultExpenseGrowthPercent,
       saleCostPercent: settings.defaultSaleCostPercent,
       closingCostSellPercent: settings.defaultClosingCostSellPercent,
+      holdMonths: settings.defaultHorizonYears * 12,
       sellAfterYears: settings.defaultHorizonYears,
       updatedAt: now,
     );

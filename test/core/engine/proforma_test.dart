@@ -71,7 +71,76 @@ void main() {
       );
 
       expect(result.loanPrincipal, closeTo(150000, 0.0001));
-      expect(result.totalCashInvested, closeTo(47000, 0.0001));
+      expect(result.totalCashInvested, closeTo(85000, 0.0001));
+    });
+
+    test('loan amount is capped at total acquisition cost', () {
+      final settings = AppSettingsRecord(
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      final inputs = ScenarioInputs.defaults(
+        scenarioId: 's3',
+        settings: settings,
+      ).copyWith(
+        purchasePrice: 200000,
+        rehabBudget: 20000,
+        closingCostBuyPercent: 0.05,
+        closingCostBuyFixed: 5000,
+        financingMode: 'loan',
+        loanAmount: 400000,
+      );
+      final normalized = normalizeInputs(
+        inputs: inputs,
+        settings: settings,
+        incomeLines: const [],
+        expenseLines: const [],
+      );
+
+      final result = buildProforma(
+        normalized,
+        valuation: ScenarioValuationRecord.defaults(scenarioId: 's3'),
+      );
+
+      expect(result.loanPrincipal, closeTo(235000, 0.0001));
+      expect(result.totalCashInvested, 0);
+      expect(
+        result.warnings,
+        contains('Loan amount exceeded total acquisition cost and was capped.'),
+      );
+    });
+
+    test('debt service stops after the loan term ends', () {
+      final settings = AppSettingsRecord(
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      final inputs = ScenarioInputs.defaults(
+        scenarioId: 's4',
+        settings: settings,
+      ).copyWith(
+        purchasePrice: 100000,
+        rentMonthlyTotal: 1200,
+        financingMode: 'loan',
+        loanAmount: 60000,
+        interestRatePercent: 0.06,
+        termYears: 1,
+        holdMonths: 24,
+        sellAfterYears: 2,
+      );
+      final normalized = normalizeInputs(
+        inputs: inputs,
+        settings: settings,
+        incomeLines: const [],
+        expenseLines: const [],
+      );
+
+      final result = buildProforma(
+        normalized,
+        valuation: ScenarioValuationRecord.defaults(scenarioId: 's4'),
+      );
+
+      expect(result.proformaYears, hasLength(2));
+      expect(result.proformaYears.first.debtService, greaterThan(0));
+      expect(result.proformaYears.last.debtService, closeTo(0, 0.0001));
     });
   });
 }

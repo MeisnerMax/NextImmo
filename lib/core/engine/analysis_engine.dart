@@ -44,6 +44,7 @@ class AnalysisEngine {
 
     return AnalysisResult(
       metrics: metrics,
+      proformaMonths: proforma.proformaMonths,
       proformaYears: proforma.proformaYears,
       amortizationSchedule: proforma.amortizationSchedule,
       warnings: warnings,
