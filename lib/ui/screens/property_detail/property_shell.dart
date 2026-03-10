@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/scenario.dart';
+import '../../i18n/app_strings.dart';
 import '../../navigation/app_navigation.dart';
 import '../../state/analysis_state.dart';
 import '../../state/app_state.dart';
@@ -36,6 +37,7 @@ class PropertyShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = context.strings;
     final propertyId = ref.watch(selectedPropertyIdProvider);
     if (propertyId == null) {
       return const SizedBox.shrink();
@@ -67,6 +69,7 @@ class PropertyShell extends ConsumerWidget {
           selectedScenarioId: selectedScenarioId,
         );
         final detailContent = _buildDetailContent(
+          context: context,
           page: selectedPage,
           propertyId: propertyId,
           scenarioId: activeScenarioId,
@@ -78,8 +81,8 @@ class PropertyShell extends ConsumerWidget {
           breadcrumbs: propertyBreadcrumbs(
             propertyName: propertyName,
             page: selectedPage,
-          ),
-          subtitle: '${section.title} / ${destination.label}',
+          ).map(s.text).toList(growable: false),
+          subtitle: '${s.text(section.title)} / ${s.text(destination.label)}',
           contextBar: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
             child: _scenarioSelector(
@@ -98,7 +101,9 @@ class PropertyShell extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('Error: $error')),
+      error:
+          (error, _) =>
+              Center(child: Text(s.errorWithPrefix(s.text('Error'), error))),
     );
   }
 
@@ -194,12 +199,12 @@ class PropertyShell extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Property Navigation',
+              context.strings.text('Property Navigation'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              '${selectedSection.title} / ${propertyDestinationForPage(selectedPage).label}',
+              '${context.strings.text(selectedSection.title)} / ${context.strings.text(propertyDestinationForPage(selectedPage).label)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: context.semanticColors.textSecondary,
               ),
@@ -213,7 +218,9 @@ class PropertyShell extends ConsumerWidget {
                     (section) => section.items.map(
                       (item) => DropdownMenuItem<PropertyDetailPage>(
                         value: item.page,
-                        child: Text('${section.title} / ${item.label}'),
+                        child: Text(
+                          '${context.strings.text(section.title)} / ${context.strings.text(item.label)}',
+                        ),
                       ),
                     ),
                   )
@@ -223,7 +230,9 @@ class PropertyShell extends ConsumerWidget {
                   ref.read(propertyDetailPageProvider.notifier).state = value;
                 }
               },
-              decoration: const InputDecoration(labelText: 'Section'),
+              decoration: InputDecoration(
+                labelText: context.strings.text('Section'),
+              ),
             ),
           ],
         ),
@@ -243,7 +252,7 @@ class PropertyShell extends ConsumerWidget {
       tilePadding: const EdgeInsets.symmetric(horizontal: 8),
       childrenPadding: const EdgeInsets.only(bottom: 8),
       title: Text(
-        section.title,
+        context.strings.text(section.title),
         style: Theme.of(context).textTheme.titleMedium,
       ),
       children: section.items
@@ -275,7 +284,7 @@ class PropertyShell extends ConsumerWidget {
         ),
         selected: selected,
         selectedTileColor: const Color(0xFFEAF1F8),
-        title: Text(item.label),
+        title: Text(context.strings.text(item.label)),
         onTap:
             () =>
                 ref.read(propertyDetailPageProvider.notifier).state = item.page,
@@ -295,7 +304,7 @@ class PropertyShell extends ConsumerWidget {
             ? selectedScenarioId
             : (scenarios.isNotEmpty ? scenarios.first.id : null);
     if (selected == null) {
-      return const Text('Create or select a scenario');
+      return Text(context.strings.text('Create or select a scenario'));
     }
     if (scenarios.length <= 3 && zone != AppDesktopLayoutZone.narrow) {
       return SegmentedButton<String>(
@@ -345,19 +354,24 @@ class PropertyShell extends ConsumerWidget {
         }
         ref.read(selectedScenarioIdProvider.notifier).state = value;
       },
-      decoration: const InputDecoration(labelText: 'Scenario'),
+      decoration: InputDecoration(labelText: context.strings.text('Scenario')),
     );
   }
 
   Widget _buildDetailContent({
+    required BuildContext context,
     required PropertyDetailPage page,
     required String propertyId,
     required String? scenarioId,
     required List<ScenarioRecord> scenarios,
   }) {
     if (propertyPageRequiresScenario(page) && scenarioId == null) {
-      return const Center(
-        child: Text('Create or select a scenario to open this section.'),
+      return Center(
+        child: Text(
+          context.strings.text(
+            'Create or select a scenario to open this section.',
+          ),
+        ),
       );
     }
     return _buildDetailPage(

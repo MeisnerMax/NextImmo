@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n/app_strings.dart';
 import 'nx_card.dart';
 import 'nx_empty_state.dart';
 
@@ -42,7 +43,7 @@ class NxDataTableShell extends StatelessWidget {
 
     if (errorMessage != null) {
       return NxEmptyState(
-        title: 'Unable to load this table',
+        title: context.strings.text('Unable to load this table'),
         description: errorMessage!,
         icon: Icons.error_outline,
       );

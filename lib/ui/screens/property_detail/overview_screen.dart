@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/property.dart';
+import '../../i18n/app_strings.dart';
+import '../../state/app_state.dart';
 import '../../state/analysis_state.dart';
 import '../../state/property_state.dart';
 import '../../theme/app_theme.dart';
@@ -50,6 +52,10 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_shouldShowOnboarding(summary, property)) ...[
+                  _buildOnboardingCard(context),
+                  const SizedBox(height: AppSpacing.component),
+                ],
                 Wrap(
                   spacing: AppSpacing.component,
                   runSpacing: AppSpacing.component,
@@ -101,6 +107,116 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(child: Text('Error: $error')),
+    );
+  }
+
+  Widget _buildOnboardingCard(BuildContext context) {
+    final s = context.strings;
+    final actions = <
+      ({IconData icon, String title, String description, VoidCallback onTap})
+    >[
+      (
+        icon: Icons.tune_outlined,
+        title: s.text('Add financial assumptions'),
+        description: s.text('Purchase price, financing and capex assumptions'),
+        onTap:
+            () =>
+                ref.read(propertyDetailPageProvider.notifier).state =
+                    PropertyDetailPage.inputs,
+      ),
+      (
+        icon: Icons.flag_outlined,
+        title: s.text('Set strategy'),
+        description: s.text('Choose the base scenario and investment approach'),
+        onTap:
+            () =>
+                ref.read(propertyDetailPageProvider.notifier).state =
+                    PropertyDetailPage.scenarios,
+      ),
+      (
+        icon: Icons.bar_chart_outlined,
+        title: s.text('Add rent data'),
+        description: s.text('Enter rent, vacancy and operating income data'),
+        onTap:
+            () =>
+                ref.read(propertyDetailPageProvider.notifier).state =
+                    PropertyDetailPage.inputs,
+      ),
+      (
+        icon: Icons.folder_open_outlined,
+        title: s.text('Add documents'),
+        description: s.text(
+          'Upload leases, diligence files and supporting material',
+        ),
+        onTap:
+            () =>
+                ref.read(propertyDetailPageProvider.notifier).state =
+                    PropertyDetailPage.documents,
+      ),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.text('Next Steps'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              s.text(
+                'This property was created with the basics only. Add the next inputs to unlock a reliable analysis.',
+              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: context.semanticColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.component),
+            Wrap(
+              spacing: AppSpacing.component,
+              runSpacing: AppSpacing.component,
+              children: [
+                for (final action in actions)
+                  SizedBox(
+                    width: 260,
+                    child: OutlinedButton(
+                      onPressed: action.onTap,
+                      style: OutlinedButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppRadiusTokens.md,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(action.icon),
+                          const SizedBox(height: 12),
+                          Text(
+                            action.title,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            action.description,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -578,6 +694,22 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       return 0;
     }
     return minValue * 1.1;
+  }
+
+  static bool _shouldShowOnboarding(
+    _DealSummaryViewModel summary,
+    PropertyRecord? property,
+  ) {
+    final propertyHasOnlyBasics =
+        property != null &&
+        (property.sqft == null || property.sqft == 0) &&
+        property.yearBuilt == null &&
+        (property.notes == null || property.notes!.trim().isEmpty);
+    final assumptionsMissing =
+        summary.purchasePrice <= 0 &&
+        summary.monthlyRent <= 0 &&
+        summary.rehabBudget <= 0;
+    return propertyHasOnlyBasics && assumptionsMissing;
   }
 }
 

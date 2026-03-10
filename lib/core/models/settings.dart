@@ -5,6 +5,7 @@ class AppSettingsRecord {
     this.id = 1,
     this.currencyCode = 'EUR',
     this.locale = 'de_DE',
+    this.uiLanguageCode = 'en',
     this.defaultHorizonYears = 10,
     this.defaultVacancyPercent = 0.05,
     this.defaultManagementPercent = 0.08,
@@ -60,6 +61,7 @@ class AppSettingsRecord {
   final int id;
   final String currencyCode;
   final String locale;
+  final String uiLanguageCode;
   final int defaultHorizonYears;
   final double defaultVacancyPercent;
   final double defaultManagementPercent;
@@ -110,6 +112,7 @@ class AppSettingsRecord {
       'id': id,
       'currency_code': currencyCode,
       'locale': locale,
+      'ui_language_code': uiLanguageCode,
       'default_horizon_years': defaultHorizonYears,
       'default_vacancy_percent': defaultVacancyPercent,
       'default_management_percent': defaultManagementPercent,
@@ -163,6 +166,7 @@ class AppSettingsRecord {
       id: ((map['id'] as num?) ?? 1).toInt(),
       currencyCode: (map['currency_code'] as String?) ?? 'EUR',
       locale: (map['locale'] as String?) ?? 'de_DE',
+      uiLanguageCode: (map['ui_language_code'] as String?) ?? 'en',
       defaultHorizonYears:
           ((map['default_horizon_years'] as num?) ?? 10).toInt(),
       defaultVacancyPercent:
@@ -265,6 +269,7 @@ class AppSettingsRecord {
     int? id,
     String? currencyCode,
     String? locale,
+    String? uiLanguageCode,
     int? defaultHorizonYears,
     double? defaultVacancyPercent,
     double? defaultManagementPercent,
@@ -314,6 +319,7 @@ class AppSettingsRecord {
       id: id ?? this.id,
       currencyCode: currencyCode ?? this.currencyCode,
       locale: locale ?? this.locale,
+      uiLanguageCode: uiLanguageCode ?? this.uiLanguageCode,
       defaultHorizonYears: defaultHorizonYears ?? this.defaultHorizonYears,
       defaultVacancyPercent:
           defaultVacancyPercent ?? this.defaultVacancyPercent,

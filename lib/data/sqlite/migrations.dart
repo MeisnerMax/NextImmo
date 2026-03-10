@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 21;
+  static const int currentVersion = 22;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -25,6 +25,7 @@ class DbMigrations {
     await _createV19(db);
     await _createV20(db);
     await _createV21(db);
+    await _createV22(db);
   }
 
   static Future<void> onUpgrade(
@@ -95,6 +96,9 @@ class DbMigrations {
     if (oldVersion < 21) {
       await _createV21(db);
     }
+    if (oldVersion < 22) {
+      await _createV22(db);
+    }
   }
 
   static Future<void> _createV1(Database db) async {
@@ -111,6 +115,7 @@ class DbMigrations {
         id INTEGER PRIMARY KEY,
         currency_code TEXT NOT NULL,
         locale TEXT NOT NULL,
+        ui_language_code TEXT NOT NULL DEFAULT 'en',
         default_horizon_years INTEGER NOT NULL,
         default_vacancy_percent REAL NOT NULL,
         default_management_percent REAL NOT NULL,
@@ -347,6 +352,7 @@ class DbMigrations {
       'id': 1,
       'currency_code': 'EUR',
       'locale': 'de_DE',
+      'ui_language_code': 'en',
       'default_horizon_years': 10,
       'default_vacancy_percent': 0.05,
       'default_management_percent': 0.08,
@@ -1737,6 +1743,16 @@ class DbMigrations {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_scenarios_property_status ON scenarios(property_id, workflow_status, updated_at)',
+    );
+  }
+
+  static Future<void> _createV22(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'app_settings',
+      column: 'ui_language_code',
+      alterSql:
+          "ALTER TABLE app_settings ADD COLUMN ui_language_code TEXT NOT NULL DEFAULT 'en'",
     );
   }
 

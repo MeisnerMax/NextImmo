@@ -7,6 +7,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../core/security/rbac.dart';
 import '../../core/models/settings.dart';
 import '../../data/sqlite/migrations.dart';
+import '../i18n/app_strings.dart';
 import '../components/nx_card.dart';
 import '../components/nx_form_section_card.dart';
 import '../components/responsive_constraints.dart';
@@ -65,6 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _enableTaskNotifications = true;
   bool _enableAppLock = false;
   bool _scenarioAutoDailyVersionsEnabled = false;
+  String _uiLanguageCode = 'en';
   String _uiThemeMode = 'system';
   String _uiDensityMode = 'comfort';
   bool _uiChartAnimationsEnabled = true;
@@ -80,6 +82,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     'backup_restore': 'Backup & Restore',
     'admin': 'Admin',
   };
+
+  AppStrings get _strings => context.strings;
+
+  String _sectionTitle(String id) => _strings.text(_sectionTitles[id] ?? id);
 
   List<TextEditingController> get _allControllers => <TextEditingController>[
     _currencyController,
@@ -161,6 +167,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final s = _strings;
     final settings = _settings;
     if (settings == null) {
       return const Center(child: CircularProgressIndicator());
@@ -187,10 +194,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
 
     return SettingsTemplate(
-      title: 'Settings',
-      breadcrumbs: const ['System', 'Settings'],
-      subtitle:
-          'Use clear defaults, isolate risky actions, and keep every change visible.',
+      title: s.text('Settings'),
+      breadcrumbs: <String>[s.text('System'), s.text('Settings')],
+      subtitle: s.text(
+        'Use clear defaults, isolate risky actions, and keep every change visible.',
+      ),
       navigationItems: _navigationItems(
         saveChanges: saveChanges,
         securityChanges: securityChanges,
@@ -208,12 +216,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             canSettingsEdit && !_isSaving && saveChanges.isNotEmpty
                 ? _save
                 : null,
-        child: Text(_isSaving ? 'Saving...' : 'Save Settings'),
+        child: Text(s.text(_isSaving ? 'Saving...' : 'Save Settings')),
       ),
       secondaryActions: [
         OutlinedButton(
           onPressed: () => _reloadOrDiscard(hasDraftChanges),
-          child: Text(hasDraftChanges ? 'Discard Draft' : 'Reload'),
+          child: Text(s.text(hasDraftChanges ? 'Discard Draft' : 'Reload')),
         ),
       ],
       content: SingleChildScrollView(
@@ -234,6 +242,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<_SettingChange> saveChanges,
     required List<_SettingChange> securityChanges,
   }) {
+    final s = _strings;
     final counts = _countChangesBySection(<_SettingChange>[
       ...saveChanges,
       ...securityChanges,
@@ -255,7 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             changeCount > 0
                 ? '$changeCount'
                 : dangerous
-                ? 'Risk'
+                ? s.text('Risk')
                 : null,
         badgeKind:
             changeCount > 0
@@ -269,53 +278,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return <SettingsNavigationItem>[
       item(
         id: 'general',
-        label: 'General',
+        label: s.text('General'),
         icon: Icons.tune_outlined,
-        description: 'Locale, currency, and core scenario defaults.',
+        description: s.text('Locale, currency, and core scenario defaults.'),
       ),
       item(
         id: 'analysis_defaults',
-        label: 'Analysis Defaults',
+        label: s.text('Analysis Defaults'),
         icon: Icons.analytics_outlined,
-        description: 'Underwriting, growth, exit, and financing defaults.',
+        description: s.text(
+          'Underwriting, growth, exit, and financing defaults.',
+        ),
       ),
       item(
         id: 'operations_defaults',
-        label: 'Operations Defaults',
+        label: s.text('Operations Defaults'),
         icon: Icons.build_circle_outlined,
-        description: 'Task, maintenance, covenant, and automation defaults.',
+        description: s.text(
+          'Task, maintenance, covenant, and automation defaults.',
+        ),
       ),
       item(
         id: 'alerts',
-        label: 'Alerts',
+        label: s.text('Alerts'),
         icon: Icons.notifications_active_outlined,
-        description: 'Thresholds and quality warning behavior.',
+        description: s.text('Thresholds and quality warning behavior.'),
       ),
       item(
         id: 'appearance',
-        label: 'Appearance',
+        label: s.text('Appearance'),
         icon: Icons.palette_outlined,
-        description: 'Theme, density, and interface motion.',
+        description: s.text('Theme, density, and interface motion.'),
       ),
       item(
         id: 'security',
-        label: 'Security',
+        label: s.text('Security'),
         icon: Icons.lock_outline,
-        description: 'App lock and restricted actions.',
+        description: s.text('App lock and restricted actions.'),
         dangerous: true,
       ),
       item(
         id: 'backup_restore',
-        label: 'Backup & Restore',
+        label: s.text('Backup & Restore'),
         icon: Icons.backup_outlined,
-        description: 'Workspace path plus backup and restore actions.',
+        description: s.text('Workspace path plus backup and restore actions.'),
         dangerous: true,
       ),
       item(
         id: 'admin',
-        label: 'Admin',
+        label: s.text('Admin'),
         icon: Icons.admin_panel_settings_outlined,
-        description: 'Demo data and administrative helper settings.',
+        description: s.text('Demo data and administrative helper settings.'),
         dangerous: true,
       ),
     ];
@@ -326,11 +339,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<_SettingChange> securityChanges,
     required bool canSettingsEdit,
   }) {
+    final s = _strings;
     if (_isSaving) {
       return _HeaderStatus(
-        label: 'Saving settings...',
-        detail:
-            'Applying ${saveChanges.length} pending change${saveChanges.length == 1 ? '' : 's'}.',
+        label: s.text('Saving settings...'),
+        detail: s.applyingPendingChangesDetail(saveChanges.length),
         tone: SaveStatusTone.working,
       );
     }
@@ -344,22 +357,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (saveChanges.isNotEmpty) {
       final sections = _countChangesBySection(
         saveChanges,
-      ).keys.map((id) => _sectionTitles[id] ?? id).join(', ');
+      ).keys.map(_sectionTitle).join(', ');
       return _HeaderStatus(
-        label:
-            '${saveChanges.length} unsaved change${saveChanges.length == 1 ? '' : 's'}',
-        detail:
-            sections.isEmpty
-                ? 'Use Save Settings to commit the current draft.'
-                : 'Changed sections: $sections',
+        label: s.unsavedChangesLabel(saveChanges.length),
+        detail: s.changedSectionsDetail(sections),
         tone: canSettingsEdit ? SaveStatusTone.warning : SaveStatusTone.neutral,
       );
     }
     if (_selectedSectionId == 'security' && securityChanges.isNotEmpty) {
       return _HeaderStatus(
-        label:
-            '${securityChanges.length} security change${securityChanges.length == 1 ? '' : 's'} ready',
-        detail: 'Use Apply Security in this section to commit them.',
+        label: s.pendingSecurityChangesLabel(securityChanges.length),
+        detail: s.text('Use Apply Security in this section to commit them.'),
         tone: SaveStatusTone.warning,
       );
     }
@@ -371,11 +379,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
     }
     return _HeaderStatus(
-      label: 'All changes saved',
+      label: s.text('All changes saved'),
       detail:
           _lastSavedAt == null
-              ? 'No local draft is pending.'
-              : 'Last saved ${_formatTimestamp(_lastSavedAt)}',
+              ? s.text('No local draft is pending.')
+              : s.lastSavedLabel(_formatTimestamp(_lastSavedAt)),
       tone: SaveStatusTone.success,
     );
   }
@@ -386,6 +394,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<_SettingChange> securityChanges,
     required bool canSettingsEdit,
   }) {
+    final s = _strings;
     final allChanges = <_SettingChange>[...saveChanges, ...securityChanges];
     final currentSectionChanges =
         allChanges
@@ -407,7 +416,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                'Save Overview',
+                s.text('Save Overview'),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               SaveStatusIndicator(
@@ -420,28 +429,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: AppSpacing.component),
           Text(
             canSettingsEdit
-                ? 'General settings save through the header action. Security changes are applied separately inside the Security section.'
-                : 'This role can review settings, but cannot save configuration changes.',
+                ? s.text(
+                  'General settings save through the header action. Security changes are applied separately inside the Security section.',
+                )
+                : s.text(
+                  'This role can review settings, but cannot save configuration changes.',
+                ),
           ),
           const SizedBox(height: AppSpacing.component),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _overviewChip(context, 'Pending fields', '${allChanges.length}'),
-              _overviewChip(context, 'Changed sections', '${counts.length}'),
               _overviewChip(
                 context,
-                'Selected section',
-                _sectionTitles[_selectedSectionId] ?? _selectedSectionId,
+                s.text('Pending fields'),
+                '${allChanges.length}',
+              ),
+              _overviewChip(
+                context,
+                s.text('Changed sections'),
+                '${counts.length}',
+              ),
+              _overviewChip(
+                context,
+                s.text('Selected section'),
+                _sectionTitle(_selectedSectionId),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.component),
           Text(
             currentSectionChanges.isEmpty
-                ? 'No pending draft changes in this section.'
-                : 'Pending changes in this section',
+                ? s.text('No pending draft changes in this section.')
+                : s.text('Pending changes in this section'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (currentSectionChanges.isNotEmpty) ...[
@@ -500,24 +521,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   List<_SettingChange> _collectSecurityChanges(AppSettingsRecord settings) {
+    final s = _strings;
     final changes = <_SettingChange>[];
     if (_enableAppLock != settings.securityAppLockEnabled) {
       changes.add(
         _SettingChange(
           sectionId: 'security',
-          label: 'Enable App Lock',
-          previousValue: settings.securityAppLockEnabled ? 'On' : 'Off',
-          nextValue: _enableAppLock ? 'On' : 'Off',
+          label: s.text('Enable App Lock'),
+          previousValue: s.onOff(settings.securityAppLockEnabled),
+          nextValue: s.onOff(_enableAppLock),
         ),
       );
     }
     if (_appLockPasswordController.text.trim().isNotEmpty) {
       changes.add(
-        const _SettingChange(
+        _SettingChange(
           sectionId: 'security',
-          label: 'App Lock Password',
-          previousValue: 'Keep current password',
-          nextValue: 'Replace password',
+          label: s.text('App Lock Password'),
+          previousValue: s.text('Keep current password'),
+          nextValue: s.text('Replace password'),
         ),
       );
     }
@@ -525,6 +547,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   List<_SettingChange> _collectSaveChanges(AppSettingsRecord settings) {
+    final s = _strings;
     final changes = <_SettingChange>[];
 
     void addText({
@@ -542,8 +565,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _SettingChange(
           sectionId: sectionId,
           label: label,
-          previousValue: saved.isEmpty ? 'Not set' : saved,
-          nextValue: current.isEmpty ? 'Not set' : current,
+          previousValue: saved.isEmpty ? s.notSet : saved,
+          nextValue: current.isEmpty ? s.notSet : current,
         ),
       );
     }
@@ -561,8 +584,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _SettingChange(
           sectionId: sectionId,
           label: label,
-          previousValue: savedValue ? 'On' : 'Off',
-          nextValue: currentValue ? 'On' : 'Off',
+          previousValue: s.onOff(savedValue),
+          nextValue: s.onOff(currentValue),
         ),
       );
     }
@@ -586,7 +609,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               isPercent ? _formatPercentString(savedValue) : savedValue,
           nextValue:
               current.isEmpty
-                  ? 'Not set'
+                  ? s.notSet
                   : isPercent
                   ? _formatPercentString(current)
                   : current,
@@ -596,219 +619,225 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     addText(
       sectionId: 'general',
-      label: 'Currency Code',
+      label: s.text('Currency Code'),
       currentValue: _currencyController.text,
       savedValue: settings.currencyCode,
     );
     addText(
       sectionId: 'general',
-      label: 'Locale',
+      label: s.text('Language'),
+      currentValue: s.languageName(_uiLanguageCode),
+      savedValue: s.languageName(settings.uiLanguageCode),
+    );
+    addText(
+      sectionId: 'general',
+      label: s.text('Locale'),
       currentValue: _localeController.text,
       savedValue: settings.locale,
     );
     addNumber(
       sectionId: 'general',
-      label: 'Default Horizon Years',
+      label: s.text('Default Horizon Years'),
       currentValue: _horizonController.text,
       savedValue: settings.defaultHorizonYears.toString(),
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Vacancy Rate',
+      label: s.text('Vacancy Rate'),
       currentValue: _vacancyController.text,
       savedValue: settings.defaultVacancyPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Management Fee Rate',
+      label: s.text('Management Fee Rate'),
       currentValue: _managementController.text,
       savedValue: settings.defaultManagementPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Maintenance Reserve Rate',
+      label: s.text('Maintenance Reserve Rate'),
       currentValue: _maintenanceController.text,
       savedValue: settings.defaultMaintenancePercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'CapEx Reserve Rate',
+      label: s.text('CapEx Reserve Rate'),
       currentValue: _capexController.text,
       savedValue: settings.defaultCapexPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Appreciation Rate',
+      label: s.text('Appreciation Rate'),
       currentValue: _appreciationController.text,
       savedValue: settings.defaultAppreciationPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Rent Growth Rate',
+      label: s.text('Rent Growth Rate'),
       currentValue: _rentGrowthController.text,
       savedValue: settings.defaultRentGrowthPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Expense Growth Rate',
+      label: s.text('Expense Growth Rate'),
       currentValue: _expenseGrowthController.text,
       savedValue: settings.defaultExpenseGrowthPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Sale Cost Rate',
+      label: s.text('Sale Cost Rate'),
       currentValue: _saleCostController.text,
       savedValue: settings.defaultSaleCostPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Acquisition Cost Rate',
+      label: s.text('Acquisition Cost Rate'),
       currentValue: _closingBuyController.text,
       savedValue: settings.defaultClosingCostBuyPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Disposition Closing Cost Rate',
+      label: s.text('Disposition Closing Cost Rate'),
       currentValue: _closingSellController.text,
       savedValue: settings.defaultClosingCostSellPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Down Payment Rate',
+      label: s.text('Down Payment Rate'),
       currentValue: _downPaymentController.text,
       savedValue: settings.defaultDownPaymentPercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Interest Rate',
+      label: s.text('Interest Rate'),
       currentValue: _interestController.text,
       savedValue: settings.defaultInterestRatePercent.toString(),
       isPercent: true,
     );
     addNumber(
       sectionId: 'analysis_defaults',
-      label: 'Loan Term Years',
+      label: s.text('Loan Term Years'),
       currentValue: _termYearsController.text,
       savedValue: settings.defaultTermYears.toString(),
     );
     addText(
       sectionId: 'analysis_defaults',
-      label: 'Market Rent Mode',
+      label: s.text('Market Rent Mode'),
       currentValue: _defaultMarketRentModeController.text,
       savedValue: settings.defaultMarketRentMode ?? '',
     );
     addNumber(
       sectionId: 'operations_defaults',
-      label: 'Task Due Soon Days',
+      label: s.text('Task Due Soon Days'),
       currentValue: _taskDueSoonDaysController.text,
       savedValue: settings.taskDueSoonDays.toString(),
     );
     addNumber(
       sectionId: 'operations_defaults',
-      label: 'Budget Year Start Month',
+      label: s.text('Budget Year Start Month'),
       currentValue: _budgetYearStartMonthController.text,
       savedValue: settings.budgetDefaultYearStartMonth?.toString() ?? '',
     );
     addNumber(
       sectionId: 'operations_defaults',
-      label: 'Maintenance Due Soon Days',
+      label: s.text('Maintenance Due Soon Days'),
       currentValue: _maintenanceDueSoonDaysController.text,
       savedValue: settings.maintenanceDueSoonDays.toString(),
     );
     addNumber(
       sectionId: 'operations_defaults',
-      label: 'Covenant Due Soon Days',
+      label: s.text('Covenant Due Soon Days'),
       currentValue: _covenantDueSoonDaysController.text,
       savedValue: settings.covenantDueSoonDays.toString(),
     );
     addBool(
       sectionId: 'operations_defaults',
-      label: 'Scenario Auto Daily Versions',
+      label: s.text('Scenario Auto Daily Versions'),
       currentValue: _scenarioAutoDailyVersionsEnabled,
       savedValue: settings.scenarioAutoDailyVersionsEnabled,
     );
     addText(
       sectionId: 'admin',
-      label: 'Auto Version User Id',
+      label: s.text('Auto Version User Id'),
       currentValue: _scenarioAutoDailyVersionsUserController.text,
       savedValue: settings.scenarioAutoDailyVersionsUserId ?? '',
     );
     addNumber(
       sectionId: 'alerts',
-      label: 'Vacancy Alert Threshold',
+      label: s.text('Vacancy Alert Threshold'),
       currentValue: _vacancyAlertController.text,
       savedValue: settings.notificationVacancyThreshold?.toString() ?? '',
       isPercent: true,
     );
     addNumber(
       sectionId: 'alerts',
-      label: 'NOI Drop Alert Threshold',
+      label: s.text('NOI Drop Alert Threshold'),
       currentValue: _noiDropAlertController.text,
       savedValue: settings.notificationNoiDropThreshold?.toString() ?? '',
       isPercent: true,
     );
     addNumber(
       sectionId: 'alerts',
-      label: 'EPC Expiry Warning Days',
+      label: s.text('EPC Expiry Warning Days'),
       currentValue: _qualityEpcExpiryWarningDaysController.text,
       savedValue: settings.qualityEpcExpiryWarningDays.toString(),
     );
     addNumber(
       sectionId: 'alerts',
-      label: 'Rent Roll Stale Months',
+      label: s.text('Rent Roll Stale Months'),
       currentValue: _qualityRentRollStaleMonthsController.text,
       savedValue: settings.qualityRentRollStaleMonths.toString(),
     );
     addNumber(
       sectionId: 'alerts',
-      label: 'Ledger Stale Days',
+      label: s.text('Ledger Stale Days'),
       currentValue: _qualityLedgerStaleDaysController.text,
       savedValue: settings.qualityLedgerStaleDays.toString(),
     );
     addBool(
       sectionId: 'alerts',
-      label: 'Task Notifications',
+      label: s.text('Task Notifications'),
       currentValue: _enableTaskNotifications,
       savedValue: settings.enableTaskNotifications,
     );
     addText(
       sectionId: 'backup_restore',
-      label: 'Workspace Root Path',
+      label: s.text('Workspace Root Path'),
       currentValue: _workspaceRootController.text,
       savedValue: settings.workspaceRootPath ?? '',
     );
     addText(
       sectionId: 'appearance',
-      label: 'Theme Mode',
+      label: s.text('Theme Mode'),
       currentValue: _uiThemeMode,
       savedValue: settings.uiThemeMode,
     );
     addText(
       sectionId: 'appearance',
-      label: 'Density Mode',
+      label: s.text('Density Mode'),
       currentValue: _uiDensityMode,
       savedValue: settings.uiDensityMode,
     );
     addBool(
       sectionId: 'appearance',
-      label: 'Chart Animations',
+      label: s.text('Chart Animations'),
       currentValue: _uiChartAnimationsEnabled,
       savedValue: settings.uiChartAnimationsEnabled,
     );
     addBool(
       sectionId: 'admin',
-      label: 'Enable Demo Seed Button',
+      label: s.text('Enable Demo Seed Button'),
       currentValue: _enableDemoSeed,
       savedValue: settings.enableDemoSeed,
     );
@@ -825,38 +854,76 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<_SettingChange> saveChanges,
     required List<_SettingChange> securityChanges,
   }) {
+    final s = _strings;
     late final Widget content;
     switch (_selectedSectionId) {
       case 'general':
         content = Column(
           children: [
             _introCard(
-              title: 'General',
-              description:
-                  'These defaults shape new scenarios before property-specific inputs take over.',
+              title: s.text('General'),
+              description: s.text(
+                'These defaults shape new scenarios before property-specific inputs take over.',
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'General Defaults',
+              title: s.text('General Defaults'),
               children: [
+                SizedBox(
+                  width: ResponsiveConstraints.itemWidth(
+                    context,
+                    idealWidth: 260,
+                  ),
+                  child: DropdownButtonFormField<String>(
+                    value: _uiLanguageCode,
+                    decoration: InputDecoration(
+                      labelText: s.text('Language'),
+                      helperText: s.text(
+                        'Choose the language for all texts, tooltips and labels.',
+                      ),
+                    ),
+                    items: <String>['de', 'en']
+                        .map(
+                          (code) => DropdownMenuItem<String>(
+                            value: code,
+                            child: Text(s.languageName(code)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged:
+                        canSettingsEdit
+                            ? (value) {
+                              if (value == null) {
+                                return;
+                              }
+                              setState(() {
+                                _uiLanguageCode = value;
+                              });
+                            }
+                            : null,
+                  ),
+                ),
                 _field(
                   _currencyController,
-                  'Currency Code',
+                  s.text('Currency Code'),
                   enabled: canSettingsEdit,
-                  helperText: 'Used in new scenarios and reports.',
+                  helperText: s.text('Used in new scenarios and reports.'),
                 ),
                 _field(
                   _localeController,
-                  'Locale',
+                  s.text('Locale'),
                   enabled: canSettingsEdit,
-                  helperText: 'Formatting profile such as de_DE or en_US.',
+                  helperText: s.text(
+                    'Formatting profile such as de_DE or en_US.',
+                  ),
                 ),
                 _intField(
                   _horizonController,
-                  'Default Hold Period',
+                  s.text('Default Hold Period'),
                   enabled: canSettingsEdit,
-                  helperText: 'Years used for new scenarios.',
+                  helperText: s.text('Years used for new scenarios.'),
                 ),
               ],
             ),
@@ -867,110 +934,111 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content = Column(
           children: [
             _introCard(
-              title: 'Analysis Defaults',
-              description:
-                  'Keep underwriting assumptions consistent so new scenarios start from the same baseline.',
+              title: s.text('Analysis Defaults'),
+              description: s.text(
+                'Keep underwriting assumptions consistent so new scenarios start from the same baseline.',
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'Operating Defaults',
+              title: s.text('Operating Defaults'),
               children: [
                 _decimalField(
                   _vacancyController,
-                  'Vacancy Rate',
+                  s.text('Vacancy Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.05 = 5.0%',
+                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
                 ),
                 _decimalField(
                   _managementController,
-                  'Management Fee Rate',
+                  s.text('Management Fee Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.05 = 5.0%',
+                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
                 ),
                 _decimalField(
                   _maintenanceController,
-                  'Maintenance Reserve Rate',
+                  s.text('Maintenance Reserve Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.05 = 5.0%',
+                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
                 ),
                 _decimalField(
                   _capexController,
-                  'CapEx Reserve Rate',
+                  s.text('CapEx Reserve Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.05 = 5.0%',
+                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
                 ),
               ],
             ),
             _section(
               context,
-              title: 'Growth and Exit',
+              title: s.text('Growth and Exit'),
               children: [
                 _decimalField(
                   _appreciationController,
-                  'Appreciation Rate',
+                  s.text('Appreciation Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.02 = 2.0%',
+                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
                 ),
                 _decimalField(
                   _rentGrowthController,
-                  'Rent Growth Rate',
+                  s.text('Rent Growth Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.02 = 2.0%',
+                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
                 ),
                 _decimalField(
                   _expenseGrowthController,
-                  'Expense Growth Rate',
+                  s.text('Expense Growth Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.02 = 2.0%',
+                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
                 ),
                 _decimalField(
                   _saleCostController,
-                  'Sale Cost Rate',
+                  s.text('Sale Cost Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.06 = 6.0%',
+                  helperText: s.text('Decimal value, for example 0.06 = 6.0%'),
                 ),
                 _decimalField(
                   _closingBuyController,
-                  'Acquisition Cost Rate',
+                  s.text('Acquisition Cost Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.03 = 3.0%',
+                  helperText: s.text('Decimal value, for example 0.03 = 3.0%'),
                 ),
                 _decimalField(
                   _closingSellController,
-                  'Disposition Closing Cost Rate',
+                  s.text('Disposition Closing Cost Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.02 = 2.0%',
+                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
                 ),
               ],
             ),
             _section(
               context,
-              title: 'Financing',
+              title: s.text('Financing'),
               children: [
                 _decimalField(
                   _downPaymentController,
-                  'Down Payment Rate',
+                  s.text('Down Payment Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.25 = 25.0%',
+                  helperText: s.text('Decimal value, for example 0.25 = 25.0%'),
                 ),
                 _decimalField(
                   _interestController,
-                  'Interest Rate',
+                  s.text('Interest Rate'),
                   enabled: canSettingsEdit,
-                  helperText: 'Decimal value, for example 0.06 = 6.0%',
+                  helperText: s.text('Decimal value, for example 0.06 = 6.0%'),
                 ),
                 _intField(
                   _termYearsController,
-                  'Loan Term Years',
+                  s.text('Loan Term Years'),
                   enabled: canSettingsEdit,
-                  helperText: 'Used for new financing assumptions.',
+                  helperText: s.text('Used for new financing assumptions.'),
                 ),
                 _field(
                   _defaultMarketRentModeController,
-                  'Default Market Rent Mode',
+                  s.text('Default Market Rent Mode'),
                   enabled: canSettingsEdit,
-                  helperText: 'Optional market rent default.',
+                  helperText: s.text('Optional market rent default.'),
                 ),
               ],
             ),
@@ -981,33 +1049,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content = Column(
           children: [
             _introCard(
-              title: 'Operations Defaults',
-              description:
-                  'Use one operational baseline for generated work, budgets, and recurring checks.',
+              title: s.text('Operations Defaults'),
+              description: s.text(
+                'Use one operational baseline for generated work, budgets, and recurring checks.',
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'Workflow Defaults',
+              title: s.text('Workflow Defaults'),
               children: [
                 _intField(
                   _taskDueSoonDaysController,
-                  'Task Due Soon Days',
+                  s.text('Task Due Soon Days'),
                   enabled: canSettingsEdit,
                 ),
                 _intField(
                   _budgetYearStartMonthController,
-                  'Budget Year Start Month (1-12)',
+                  s.text('Budget Year Start Month (1-12)'),
                   enabled: canSettingsEdit,
                 ),
                 _intField(
                   _maintenanceDueSoonDaysController,
-                  'Maintenance Due Soon Days',
+                  s.text('Maintenance Due Soon Days'),
                   enabled: canSettingsEdit,
                 ),
                 _intField(
                   _covenantDueSoonDaysController,
-                  'Covenant Due Soon Days',
+                  s.text('Covenant Due Soon Days'),
                   enabled: canSettingsEdit,
                 ),
                 SizedBox(
@@ -1026,7 +1095,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             }
                             : null,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Scenario Auto Daily Versions'),
+                    title: Text(s.text('Scenario Auto Daily Versions')),
                   ),
                 ),
               ],
@@ -1038,34 +1107,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content = Column(
           children: [
             _introCard(
-              title: 'Alerts',
-              description:
-                  'Set thresholds that surface issues early without flooding daily work.',
+              title: s.text('Alerts'),
+              description: s.text(
+                'Set thresholds that surface issues early without flooding daily work.',
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'Alert Thresholds',
+              title: s.text('Alert Thresholds'),
               children: [
                 _decimalField(
                   _vacancyAlertController,
-                  'Vacancy Alert Threshold (0-1)',
+                  s.text('Vacancy Alert Threshold (0-1)'),
                 ),
                 _decimalField(
                   _noiDropAlertController,
-                  'NOI Drop Alert Threshold (0-1)',
+                  s.text('NOI Drop Alert Threshold (0-1)'),
                 ),
                 _intField(
                   _qualityEpcExpiryWarningDaysController,
-                  'Quality EPC Expiry Warning Days',
+                  s.text('Quality EPC Expiry Warning Days'),
                 ),
                 _intField(
                   _qualityRentRollStaleMonthsController,
-                  'Quality Rent Roll Stale Months',
+                  s.text('Quality Rent Roll Stale Months'),
                 ),
                 _intField(
                   _qualityLedgerStaleDaysController,
-                  'Quality Ledger Stale Days',
+                  s.text('Quality Ledger Stale Days'),
                 ),
                 SizedBox(
                   width: ResponsiveConstraints.itemWidth(
@@ -1083,7 +1153,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             }
                             : null,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable Task Notifications'),
+                    title: Text(s.text('Enable Task Notifications')),
                   ),
                 ),
               ],
@@ -1109,16 +1179,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content = Column(
           children: [
             _introCard(
-              title: 'Admin',
-              description:
-                  'Low-frequency administrative switches stay visible, but clearly separated from daily settings.',
-              warning:
-                  'Administrative helper settings should stay restricted to setup and test workflows.',
+              title: s.text('Admin'),
+              description: s.text(
+                'Low-frequency administrative switches stay visible, but clearly separated from daily settings.',
+              ),
+              warning: s.text(
+                'Administrative helper settings should stay restricted to setup and test workflows.',
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             _section(
               context,
-              title: 'Administrative Controls',
+              title: s.text('Administrative Controls'),
               children: [
                 SizedBox(
                   width: ResponsiveConstraints.itemWidth(
@@ -1136,14 +1208,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             }
                             : null,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable Demo Seed Button'),
+                    title: Text(s.text('Enable Demo Seed Button')),
                   ),
                 ),
                 _field(
                   _scenarioAutoDailyVersionsUserController,
-                  'Auto Version User Id',
+                  s.text('Auto Version User Id'),
                   enabled: canSettingsEdit,
-                  helperText: 'User id used for automated scenario versions.',
+                  helperText: s.text(
+                    'User id used for automated scenario versions.',
+                  ),
                 ),
               ],
             ),
@@ -1169,27 +1243,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildAppearanceContent(BuildContext context, bool canSettingsEdit) {
+    final s = _strings;
     return Column(
       children: [
         _introCard(
-          title: 'Appearance',
-          description:
-              'Control density and motion so the interface stays predictable across desktop setups.',
+          title: s.text('Appearance'),
+          description: s.text(
+            'Control density and motion so the interface stays predictable across desktop setups.',
+          ),
         ),
         const SizedBox(height: AppSpacing.component),
         _section(
           context,
-          title: 'UI and Accessibility',
+          title: s.text('UI and Accessibility'),
           children: [
             SizedBox(
               width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
               child: DropdownButtonFormField<String>(
                 value: _uiThemeMode,
-                decoration: const InputDecoration(labelText: 'Theme Mode'),
-                items: const [
-                  DropdownMenuItem(value: 'system', child: Text('System')),
-                  DropdownMenuItem(value: 'light', child: Text('Light')),
-                  DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                decoration: InputDecoration(labelText: s.text('Theme Mode')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'system',
+                    child: Text(s.text('System')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'light',
+                    child: Text(s.text('Light')),
+                  ),
+                  DropdownMenuItem(value: 'dark', child: Text(s.text('Dark'))),
                 ],
                 onChanged:
                     canSettingsEdit
@@ -1208,11 +1290,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
               child: DropdownButtonFormField<String>(
                 value: _uiDensityMode,
-                decoration: const InputDecoration(labelText: 'Density Mode'),
-                items: const [
-                  DropdownMenuItem(value: 'comfort', child: Text('Comfort')),
-                  DropdownMenuItem(value: 'compact', child: Text('Compact')),
-                  DropdownMenuItem(value: 'adaptive', child: Text('Adaptive')),
+                decoration: InputDecoration(labelText: s.text('Density Mode')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'comfort',
+                    child: Text(s.text('Comfort')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'compact',
+                    child: Text(s.text('Compact')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'adaptive',
+                    child: Text(s.text('Adaptive')),
+                  ),
                 ],
                 onChanged:
                     canSettingsEdit
@@ -1240,7 +1331,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         }
                         : null,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Enable Chart Animations'),
+                title: Text(s.text('Enable Chart Animations')),
               ),
             ),
           ],
@@ -1250,19 +1341,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildSecurityContent(BuildContext context, bool canSettingsEdit) {
+    final s = _strings;
     return Column(
       children: [
         _introCard(
-          title: 'Security',
-          description:
-              'Protect local access without burying the controls in a generic form.',
-          warning:
-              'App lock changes affect local access immediately after applying them.',
+          title: s.text('Security'),
+          description: s.text(
+            'Protect local access without burying the controls in a generic form.',
+          ),
+          warning: s.text(
+            'App lock changes affect local access immediately after applying them.',
+          ),
         ),
         const SizedBox(height: AppSpacing.component),
         _section(
           context,
-          title: 'Access Controls',
+          title: s.text('Access Controls'),
           children: [
             SizedBox(
               width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
@@ -1277,19 +1371,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         }
                         : null,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Enable App Lock'),
+                title: Text(s.text('Enable App Lock')),
               ),
             ),
             _field(
               _appLockPasswordController,
-              'New App Lock Password',
+              s.text('New App Lock Password'),
               enabled: canSettingsEdit,
-              helperText: 'Leave empty to keep the current password.',
+              helperText: s.text('Leave empty to keep the current password.'),
               obscureText: true,
             ),
             ElevatedButton(
               onPressed: canSettingsEdit ? _applySecurity : null,
-              child: const Text('Apply Security'),
+              child: Text(s.text('Apply Security')),
             ),
           ],
         ),
@@ -1303,19 +1397,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required bool canBackupRestore,
     required bool canExport,
   }) {
+    final s = _strings;
     return Column(
       children: [
         _introCard(
-          title: 'Backup & Restore',
-          description:
-              'Keep workspace paths visible and separate backup actions from general defaults.',
-          warning:
-              'Restore replaces the current database and docs after creating a pre-restore backup.',
+          title: s.text('Backup & Restore'),
+          description: s.text(
+            'Keep workspace paths visible and separate backup actions from general defaults.',
+          ),
+          warning: s.text(
+            'Restore replaces the current database and docs after creating a pre-restore backup.',
+          ),
         ),
         const SizedBox(height: AppSpacing.component),
         _section(
           context,
-          title: 'Workspace and Backup',
+          title: s.text('Workspace and Backup'),
           children: [
             SizedBox(
               width: ResponsiveConstraints.itemWidth(
@@ -1326,9 +1423,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: TextField(
                 controller: _workspaceRootController,
                 enabled: canExport || canBackupRestore,
-                decoration: const InputDecoration(
-                  labelText: 'Workspace Root Path (optional)',
-                  helperText: 'Optional root folder for the workspace.',
+                decoration: InputDecoration(
+                  labelText: s.text('Workspace Root Path (optional)'),
+                  helperText: s.text('Optional root folder for the workspace.'),
                 ),
               ),
             ),
@@ -1339,8 +1436,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 maxWidth: 720,
               ),
               child: Text(
-                'Last Backup: ${settings.lastBackupAt == null ? 'never' : DateTime.fromMillisecondsSinceEpoch(settings.lastBackupAt!).toIso8601String()}'
-                '${settings.lastBackupPath == null ? '' : ' | ${settings.lastBackupPath}'}',
+                s.lastBackupLabel(
+                  settings.lastBackupAt == null
+                      ? s.never
+                      : DateTime.fromMillisecondsSinceEpoch(
+                        settings.lastBackupAt!,
+                      ).toIso8601String(),
+                  settings.lastBackupPath == null
+                      ? ''
+                      : ' | ${settings.lastBackupPath}',
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -1350,12 +1455,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ElevatedButton.icon(
                   onPressed: canExport ? _createBackup : null,
                   icon: const Icon(Icons.save_alt),
-                  label: const Text('Create Backup ZIP'),
+                  label: Text(s.text('Create Backup ZIP')),
                 ),
                 OutlinedButton.icon(
                   onPressed: canBackupRestore ? _restoreBackup : null,
                   icon: const Icon(Icons.restore),
-                  label: const Text('Restore from ZIP'),
+                  label: Text(s.text('Restore from ZIP')),
                 ),
               ],
             ),
@@ -1377,6 +1482,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _reloadOrDiscard(bool hasDraftChanges) async {
+    final s = _strings;
     if (!hasDraftChanges) {
       await _load();
       return;
@@ -1385,18 +1491,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Discard Draft Changes'),
-            content: const Text(
-              'This reloads the saved settings and removes your unsaved local draft changes.',
+            title: Text(s.text('Discard Draft Changes')),
+            content: Text(
+              s.text(
+                'This reloads the saved settings and removes your unsaved local draft changes.',
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: Text(s.text('Cancel')),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Discard Draft'),
+                child: Text(s.text('Discard Draft')),
               ),
             ],
           ),
@@ -1408,7 +1516,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   String _formatTimestamp(DateTime? value) {
     if (value == null) {
-      return 'never';
+      return _strings.never;
     }
     final year = value.year.toString().padLeft(4, '0');
     final month = value.month.toString().padLeft(2, '0');
@@ -1421,7 +1529,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _formatPercentString(String raw) {
     final value = double.tryParse(raw.trim());
     if (value == null) {
-      return raw.trim().isEmpty ? 'Not set' : raw.trim();
+      return raw.trim().isEmpty ? _strings.notSet : raw.trim();
     }
     return '${(value * 100).toStringAsFixed(1)}%';
   }
@@ -1643,6 +1751,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         settings.scenarioAutoDailyVersionsUserId ?? '';
     _enableAppLock = settings.securityAppLockEnabled;
     _appLockPasswordController.clear();
+    _uiLanguageCode = settings.uiLanguageCode;
     _uiThemeMode = settings.uiThemeMode;
     _uiDensityMode = settings.uiDensityMode;
     _uiChartAnimationsEnabled = settings.uiChartAnimationsEnabled;
@@ -1673,9 +1782,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!canEdit) {
       if (mounted) {
         setState(() {
-          _status = 'Insufficient permission to edit settings.';
-          _statusDetail =
-              'This role can review settings, but cannot save them.';
+          _status = _strings.text('Insufficient permission to edit settings.');
+          _statusDetail = _strings.text(
+            'This role can review settings, but cannot save them.',
+          );
           _statusTone = SaveStatusTone.error;
         });
       }
@@ -1686,9 +1796,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         setState(() {
           _selectedSectionId = invalidSection;
-          _status = 'Review invalid values before saving.';
-          _statusDetail =
-              'Check ${_sectionTitles[invalidSection] ?? invalidSection} for empty or out-of-range fields.';
+          _status = _strings.text('Review invalid values before saving.');
+          _statusDetail = _strings.invalidSectionDetail(
+            _sectionTitle(invalidSection),
+          );
           _statusTone = SaveStatusTone.error;
         });
       }
@@ -1698,7 +1809,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) {
       setState(() {
         _isSaving = true;
-        _status = 'Saving settings...';
+        _status = _strings.text('Saving settings...');
         _statusDetail = null;
         _statusTone = SaveStatusTone.working;
       });
@@ -1713,6 +1824,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _localeController.text.trim().isEmpty
               ? current.locale
               : _localeController.text.trim(),
+      uiLanguageCode: _uiLanguageCode,
       defaultHorizonYears:
           int.tryParse(_horizonController.text) ?? current.defaultHorizonYears,
       defaultVacancyPercent:
@@ -1812,8 +1924,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       setState(() {
         _settings = updated;
         _lastSavedAt = DateTime.fromMillisecondsSinceEpoch(updated.updatedAt);
-        _status = 'Settings saved.';
-        _statusDetail = 'Saved ${_formatTimestamp(_lastSavedAt)}';
+        _status = _strings.text('Settings saved.');
+        _statusDetail = _strings.lastSavedLabel(_formatTimestamp(_lastSavedAt));
         _statusTone = SaveStatusTone.success;
       });
     } catch (error) {
@@ -1821,7 +1933,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Settings save failed.';
+        _status = _strings.text('Settings save failed.');
         _statusDetail = '$error';
         _statusTone = SaveStatusTone.error;
       });
@@ -1841,16 +1953,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _appLockPasswordController.text.trim().isEmpty) {
         setState(() {
           _selectedSectionId = 'security';
-          _status = 'Security update blocked.';
-          _statusDetail =
-              'Provide a password before enabling app lock for the first time.';
+          _status = _strings.text('Security update blocked.');
+          _statusDetail = _strings.text(
+            'Provide a password before enabling app lock for the first time.',
+          );
           _statusTone = SaveStatusTone.error;
         });
         return;
       }
       if (mounted) {
         setState(() {
-          _status = 'Applying security changes...';
+          _status = _strings.text('Applying security changes...');
           _statusDetail = null;
           _statusTone = SaveStatusTone.working;
         });
@@ -1866,8 +1979,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Security settings updated.';
-        _statusDetail = 'Local access controls were updated successfully.';
+        _status = _strings.text('Security settings updated.');
+        _statusDetail = _strings.text(
+          'Local access controls were updated successfully.',
+        );
         _statusTone = SaveStatusTone.success;
       });
       await _load();
@@ -1876,7 +1991,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Security update failed.';
+        _status = _strings.text('Security update failed.');
         _statusDetail = '$error';
         _statusTone = SaveStatusTone.error;
       });
@@ -1895,7 +2010,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!canExport) {
       if (mounted) {
         setState(() {
-          _status = 'Insufficient permission to export backups.';
+          _status = _strings.text('Insufficient permission to export backups.');
           _statusDetail = null;
           _statusTone = SaveStatusTone.error;
         });
@@ -1916,7 +2031,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       if (mounted) {
         setState(() {
-          _status = 'Creating backup...';
+          _status = _strings.text('Creating backup...');
           _statusDetail = saveLocation.path;
           _statusTone = SaveStatusTone.working;
         });
@@ -1953,7 +2068,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _settings = updated;
         _lastSavedAt = DateTime.fromMillisecondsSinceEpoch(updated.updatedAt);
         _workspaceRootController.text = updated.workspaceRootPath ?? '';
-        _status = 'Backup created.';
+        _status = _strings.text('Backup created.');
         _statusDetail = saveLocation.path;
         _statusTone = SaveStatusTone.success;
       });
@@ -1962,7 +2077,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Backup failed.';
+        _status = _strings.text('Backup failed.');
         _statusDetail = '$error';
         _statusTone = SaveStatusTone.error;
       });
@@ -1981,7 +2096,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!canRestore) {
       if (mounted) {
         setState(() {
-          _status = 'Insufficient permission to restore backups.';
+          _status = _strings.text(
+            'Insufficient permission to restore backups.',
+          );
           _statusDetail = null;
           _statusTone = SaveStatusTone.error;
         });
@@ -2004,19 +2121,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Restore Backup'),
-            content: const Text(
-              'Before restore, an automatic pre-restore backup will be created.\n'
-              'The current DB data and docs folder will be replaced.',
+            title: Text(_strings.text('Restore Backup')),
+            content: Text(
+              _strings.text(
+                'Before restore, an automatic pre-restore backup will be created.\nThe current DB data and docs folder will be replaced.',
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: Text(_strings.text('Cancel')),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Restore'),
+                child: Text(_strings.text('Restore')),
               ),
             ],
           ),
@@ -2028,7 +2146,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       if (mounted) {
         setState(() {
-          _status = 'Restoring backup...';
+          _status = _strings.text('Restoring backup...');
           _statusDetail = file.path;
           _statusTone = SaveStatusTone.working;
         });
@@ -2046,7 +2164,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final manifest = await backupService.readManifest(file.path);
       if (manifest.dbSchemaVersion > DbMigrations.currentVersion) {
         throw StateError(
-          'Backup schema (${manifest.dbSchemaVersion}) is newer than current app schema (${DbMigrations.currentVersion}).',
+          _strings.text(
+            'Backup schema ({schema}) is newer than current app schema ({current}).',
+            <String, Object?>{
+              'schema': manifest.dbSchemaVersion,
+              'current': DbMigrations.currentVersion,
+            },
+          ),
         );
       }
 
@@ -2089,7 +2213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Restore completed.';
+        _status = _strings.text('Restore completed.');
         _statusDetail = file.path;
         _statusTone = SaveStatusTone.success;
       });
@@ -2099,7 +2223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return;
       }
       setState(() {
-        _status = 'Restore failed.';
+        _status = _strings.text('Restore failed.');
         _statusDetail = '$error';
         _statusTone = SaveStatusTone.error;
       });

@@ -188,6 +188,7 @@ void main() {
       expect(names.contains('ui_theme_mode'), isTrue);
       expect(names.contains('ui_density_mode'), isTrue);
       expect(names.contains('ui_chart_animations_enabled'), isTrue);
+      expect(names.contains('ui_language_code'), isTrue);
     },
   );
 

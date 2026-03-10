@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../i18n/app_strings.dart';
 import '../navigation/app_navigation.dart';
 import '../state/app_state.dart';
 import '../state/security_state.dart';
@@ -156,7 +157,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  context.strings.text(title),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: semantic.textSecondary,
                     letterSpacing: 0.4,
@@ -198,7 +199,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
             collapsed
                 ? null
                 : Text(
-                  item.label,
+                  context.strings.text(item.label),
                   style: TextStyle(
                     color: isSelected ? primary : null,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -213,7 +214,9 @@ class _SidebarState extends ConsumerState<Sidebar> {
         },
       ),
     );
-    return collapsed ? Tooltip(message: item.label, child: tile) : tile;
+    return collapsed
+        ? Tooltip(message: context.strings.text(item.label), child: tile)
+        : tile;
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
 import '../components/command_palette.dart';
+import '../i18n/app_strings.dart';
 import '../navigation/app_navigation.dart';
 import '../navigation/navigation_actions.dart';
 import '../state/analysis_state.dart';
@@ -36,6 +37,7 @@ class _TopBarState extends ConsumerState<TopBar> {
 
   @override
   Widget build(BuildContext context) {
+    final s = context.strings;
     final page = ref.watch(globalPageProvider);
     final selectedPropertyId = ref.watch(selectedPropertyIdProvider);
     final propertyPage = ref.watch(propertyDetailPageProvider);
@@ -98,7 +100,7 @@ class _TopBarState extends ConsumerState<TopBar> {
               ),
             if (compact)
               IconButton(
-                tooltip: 'Command Palette',
+                tooltip: s.text('Command Palette'),
                 onPressed:
                     () => showCommandPalette(
                       context,
@@ -116,7 +118,7 @@ class _TopBarState extends ConsumerState<TopBar> {
                 onPressed: _openUserDialog,
                 icon: const Icon(Icons.person_outline, size: 16),
                 label: Text(
-                  '${security.context.user.displayName} (${security.context.user.role})',
+                  '${security.context.user.displayName} (${s.userRoleLabel(security.context.user.role)})',
                 ),
               ),
             ],
@@ -127,7 +129,7 @@ class _TopBarState extends ConsumerState<TopBar> {
               ),
             if (security != null && security.settings.securityAppLockEnabled)
               IconButton(
-                tooltip: 'Lock app',
+                tooltip: s.text('Lock app'),
                 onPressed: () {
                   ref.read(securityControllerProvider.notifier).lock();
                 },
@@ -136,14 +138,14 @@ class _TopBarState extends ConsumerState<TopBar> {
             if (ref.watch(selectedPropertyIdProvider) != null)
               compact
                   ? IconButton(
-                    tooltip: 'Back to list',
+                    tooltip: s.text('Back to list'),
                     onPressed: _backToList,
                     icon: const Icon(Icons.arrow_back),
                   )
                   : TextButton.icon(
                     onPressed: _backToList,
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Back to list'),
+                    label: Text(s.text('Back to list')),
                   ),
           ];
           if (compact) {
@@ -210,9 +212,9 @@ class _TopBarState extends ConsumerState<TopBar> {
           onChanged: _onSearchChanged,
           onSubmitted:
               (value) => showCommandPalette(context, initialQuery: value),
-          decoration: const InputDecoration(
-            labelText: 'Search',
-            prefixIcon: Icon(Icons.search),
+          decoration: InputDecoration(
+            labelText: context.strings.text('Search'),
+            prefixIcon: const Icon(Icons.search),
           ),
         );
       },
@@ -233,7 +235,9 @@ class _TopBarState extends ConsumerState<TopBar> {
                   return ListTile(
                     dense: true,
                     title: Text(item.title),
-                    subtitle: Text(item.entityType),
+                    subtitle: Text(
+                      context.strings.entityTypeLabel(item.entityType),
+                    ),
                     onTap: () => onSelected(item),
                   );
                 },
@@ -283,11 +287,14 @@ class _TopBarState extends ConsumerState<TopBar> {
       return propertyBreadcrumbs(
         propertyName: propertyName,
         page: propertyPage,
-      );
+      ).map(context.strings.text).toList(growable: false);
     }
     final group = navigationGroupForPage(page);
     final destination = navigationDestinationForPage(page);
-    return <String>[group.title, destination.label];
+    return <String>[
+      context.strings.text(group.title),
+      context.strings.text(destination.label),
+    ];
   }
 
   String _title({
@@ -296,14 +303,16 @@ class _TopBarState extends ConsumerState<TopBar> {
     required PropertyDetailPage propertyPage,
   }) {
     if (page == GlobalPage.properties && selectedPropertyId != null) {
-      return propertyDestinationForPage(propertyPage).label;
+      return context.strings.text(
+        propertyDestinationForPage(propertyPage).label,
+      );
     }
-    return navigationDestinationForPage(page).title;
+    return context.strings.text(navigationDestinationForPage(page).title);
   }
 
   String _propertyName(AsyncValue propertiesAsync, String? propertyId) {
     if (propertyId == null) {
-      return 'Property Detail';
+      return context.strings.text('Property Detail');
     }
     return propertiesAsync.maybeWhen(
       data: (items) {
@@ -335,7 +344,7 @@ class _TopBarState extends ConsumerState<TopBar> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Switch Workspace'),
+              title: Text(context.strings.text('Switch Workspace')),
               content: DropdownButtonFormField<String>(
                 value: selectedId,
                 items: workspaces
@@ -352,12 +361,14 @@ class _TopBarState extends ConsumerState<TopBar> {
                   }
                   setDialogState(() => selectedId = value);
                 },
-                decoration: const InputDecoration(labelText: 'Workspace'),
+                decoration: InputDecoration(
+                  labelText: context.strings.text('Workspace'),
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.strings.text('Cancel')),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -370,7 +381,7 @@ class _TopBarState extends ConsumerState<TopBar> {
                     }
                     Navigator.of(context).pop();
                   },
-                  child: const Text('Switch'),
+                  child: Text(context.strings.text('Switch')),
                 ),
               ],
             );
@@ -397,14 +408,16 @@ class _TopBarState extends ConsumerState<TopBar> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Switch User'),
+              title: Text(context.strings.text('Switch User')),
               content: DropdownButtonFormField<String>(
                 value: selectedId,
                 items: users
                     .map(
                       (user) => DropdownMenuItem<String>(
                         value: user.id,
-                        child: Text('${user.displayName} (${user.role})'),
+                        child: Text(
+                          '${user.displayName} (${context.strings.userRoleLabel(user.role)})',
+                        ),
                       ),
                     )
                     .toList(growable: false),
@@ -414,12 +427,14 @@ class _TopBarState extends ConsumerState<TopBar> {
                   }
                   setDialogState(() => selectedId = value);
                 },
-                decoration: const InputDecoration(labelText: 'User'),
+                decoration: InputDecoration(
+                  labelText: context.strings.text('User'),
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.strings.text('Cancel')),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -432,7 +447,7 @@ class _TopBarState extends ConsumerState<TopBar> {
                     }
                     Navigator.of(context).pop();
                   },
-                  child: const Text('Switch'),
+                  child: Text(context.strings.text('Switch')),
                 ),
               ],
             );

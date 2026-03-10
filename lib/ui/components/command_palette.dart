@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
+import '../i18n/app_strings.dart';
 import '../navigation/app_navigation.dart';
 import '../navigation/navigation_actions.dart';
 import '../state/app_state.dart';
@@ -57,6 +58,7 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final s = context.strings;
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         const SingleActivator(LogicalKeyboardKey.arrowDown): const _MoveIntent(
@@ -100,25 +102,29 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
                       focusNode: _focusNode,
                       autofocus: true,
                       onChanged: _scheduleRefresh,
-                      decoration: const InputDecoration(
-                        labelText: 'Command Palette',
-                        hintText:
-                            'Search pages, assets, documents, tasks or run an action',
-                        prefixIcon: Icon(Icons.search),
+                      decoration: InputDecoration(
+                        labelText: s.text('Command Palette'),
+                        hintText: s.text(
+                          'Search pages, assets, documents, tasks or run an action',
+                        ),
+                        prefixIcon: const Icon(Icons.search),
                       ),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: const [
-                        NxStatusBadge(label: 'Ctrl+K', kind: NxBadgeKind.info),
+                      children: [
+                        const NxStatusBadge(
+                          label: 'Ctrl+K',
+                          kind: NxBadgeKind.info,
+                        ),
                         NxStatusBadge(
-                          label: 'Arrow keys',
+                          label: s.text('Arrow keys'),
                           kind: NxBadgeKind.neutral,
                         ),
                         NxStatusBadge(
-                          label: 'Enter to run',
+                          label: s.text('Enter to run'),
                           kind: NxBadgeKind.neutral,
                         ),
                       ],
@@ -129,9 +135,11 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
                     Expanded(
                       child:
                           _entries.isEmpty
-                              ? const Center(
+                              ? Center(
                                 child: Text(
-                                  'No matching commands. Try a page, property, document or task.',
+                                  s.text(
+                                    'No matching commands. Try a page, property, document or task.',
+                                  ),
                                 ),
                               )
                               : ListView.separated(
@@ -191,7 +199,7 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
       ..._pageEntries(query),
     ];
     final resultEntries = searchResults
-        .map(_PaletteEntry.fromSearchResult)
+        .map((item) => _PaletteEntry.fromSearchResult(context, item))
         .toList(growable: false);
     final entries = <_PaletteEntry>[...staticEntries, ...resultEntries];
 
@@ -208,29 +216,41 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
 
   List<_PaletteEntry> _actionEntries(String query) {
     final actions = <_PaletteEntry>[
-      const _PaletteEntry.action(
+      _PaletteEntry.action(
         actionId: 'new_property',
-        title: 'New Property',
-        subtitle: 'Jump to the property workspace and start a new asset flow',
+        title: context.strings.text('New Property'),
+        subtitle: context.strings.text(
+          'Jump to the property workspace and start a new asset flow',
+        ),
         icon: Icons.add_home_outlined,
+        kindLabel: context.strings.text('Action'),
       ),
-      const _PaletteEntry.action(
+      _PaletteEntry.action(
         actionId: 'open_overdue_tasks',
-        title: 'Open Overdue Tasks',
-        subtitle: 'Go straight to the task queue filtered for overdue work',
+        title: context.strings.text('Open Overdue Tasks'),
+        subtitle: context.strings.text(
+          'Go straight to the task queue filtered for overdue work',
+        ),
         icon: Icons.assignment_late_outlined,
+        kindLabel: context.strings.text('Action'),
       ),
-      const _PaletteEntry.action(
+      _PaletteEntry.action(
         actionId: 'jump_missing_documents',
-        title: 'Jump to Missing Documents',
-        subtitle: 'Open document compliance and review missing requirements',
+        title: context.strings.text('Jump to Missing Documents'),
+        subtitle: context.strings.text(
+          'Open document compliance and review missing requirements',
+        ),
         icon: Icons.folder_off_outlined,
+        kindLabel: context.strings.text('Action'),
       ),
-      const _PaletteEntry.action(
+      _PaletteEntry.action(
         actionId: 'create_report_pack',
-        title: 'Create Report Pack',
-        subtitle: 'Open portfolio workflows to generate reporting packs',
+        title: context.strings.text('Create Report Pack'),
+        subtitle: context.strings.text(
+          'Open portfolio workflows to generate reporting packs',
+        ),
         icon: Icons.inventory_2_outlined,
+        kindLabel: context.strings.text('Action'),
       ),
     ];
     return _filterStaticEntries(actions, query);
@@ -242,9 +262,10 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         for (final item in group.items)
           _PaletteEntry.page(
             page: item.page,
-            title: item.label,
-            subtitle: group.title,
+            title: context.strings.text(item.label),
+            subtitle: context.strings.text(group.title),
             icon: item.icon,
+            kindLabel: context.strings.text('Page'),
           ),
     ];
     return _filterStaticEntries(entries, query);
@@ -327,46 +348,52 @@ class _PaletteEntry {
     this.searchResult,
   });
 
-  const _PaletteEntry.action({
+  _PaletteEntry.action({
     required String actionId,
     required String title,
     required String subtitle,
     required IconData icon,
+    String kindLabel = 'Action',
   }) : this._(
          kind: _PaletteEntryKind.action,
          actionId: actionId,
          title: title,
          subtitle: subtitle,
          icon: icon,
-         kindLabel: 'Action',
+         kindLabel: kindLabel,
          badgeKind: NxBadgeKind.info,
        );
 
-  const _PaletteEntry.page({
+  _PaletteEntry.page({
     required GlobalPage page,
     required String title,
     required String subtitle,
     required IconData icon,
+    String kindLabel = 'Page',
   }) : this._(
          kind: _PaletteEntryKind.page,
          page: page,
          title: title,
          subtitle: subtitle,
          icon: icon,
-         kindLabel: 'Page',
+         kindLabel: kindLabel,
          badgeKind: NxBadgeKind.neutral,
        );
 
-  factory _PaletteEntry.fromSearchResult(SearchIndexRecord item) {
+  factory _PaletteEntry.fromSearchResult(
+    BuildContext context,
+    SearchIndexRecord item,
+  ) {
+    final entityTypeLabel = context.strings.entityTypeLabel(item.entityType);
     return _PaletteEntry._(
       kind: _PaletteEntryKind.searchResult,
       title: item.title,
       subtitle:
           item.subtitle == null || item.subtitle!.trim().isEmpty
-              ? item.entityType
-              : '${item.entityType} · ${item.subtitle}',
+              ? entityTypeLabel
+              : '$entityTypeLabel · ${item.subtitle}',
       icon: _iconForEntity(item.entityType),
-      kindLabel: 'Result',
+      kindLabel: context.strings.text('Result'),
       badgeKind: NxBadgeKind.success,
       searchResult: item,
     );

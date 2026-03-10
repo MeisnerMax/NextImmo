@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n/app_strings.dart';
+
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key, required this.onUnlock});
 
@@ -22,6 +24,7 @@ class _LockScreenState extends State<LockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final s = context.strings;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
@@ -33,17 +36,17 @@ class _LockScreenState extends State<LockScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'App is locked',
+                  s.text('App is locked'),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                const Text('Enter password to unlock this workspace.'),
+                Text(s.text('Enter password to unlock this workspace.')),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
                   enabled: !_isBusy,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  decoration: InputDecoration(labelText: s.text('Password')),
                   onSubmitted: (_) => _unlock(),
                 ),
                 if (_error != null) ...[
@@ -60,7 +63,7 @@ class _LockScreenState extends State<LockScreen> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                          : const Text('Unlock'),
+                          : Text(s.text('Unlock')),
                 ),
               ],
             ),
@@ -81,7 +84,7 @@ class _LockScreenState extends State<LockScreen> {
     }
     setState(() {
       _isBusy = false;
-      _error = ok ? null : 'Invalid password.';
+      _error = ok ? null : context.strings.text('Invalid password.');
       if (ok) {
         _passwordController.clear();
       }

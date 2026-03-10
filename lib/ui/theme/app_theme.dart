@@ -565,7 +565,21 @@ class AppTheme {
 
 extension AppThemeContext on BuildContext {
   AppSemanticColors get semanticColors {
-    return Theme.of(this).extension<AppSemanticColors>()!;
+    final theme = Theme.of(this);
+    final colors = theme.extension<AppSemanticColors>();
+    if (colors != null) {
+      return colors;
+    }
+    final scheme = theme.colorScheme;
+    return AppSemanticColors(
+      success: Colors.green,
+      warning: Colors.orange,
+      error: scheme.error,
+      info: scheme.primary,
+      border: scheme.outlineVariant,
+      surfaceAlt: scheme.surfaceContainerHighest,
+      textSecondary: scheme.onSurfaceVariant,
+    );
   }
 
   AppDensityModeSetting get densityMode {

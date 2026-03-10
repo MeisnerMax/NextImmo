@@ -28,6 +28,7 @@ void main() {
       id: 1,
       currencyCode: 'USD',
       locale: 'en_US',
+      uiLanguageCode: 'de',
       defaultHorizonYears: 12,
       defaultVacancyPercent: 0.07,
       defaultManagementPercent: 0.09,
@@ -52,6 +53,7 @@ void main() {
 
     expect(loaded.currencyCode, settings.currencyCode);
     expect(loaded.locale, settings.locale);
+    expect(loaded.uiLanguageCode, settings.uiLanguageCode);
     expect(loaded.defaultHorizonYears, settings.defaultHorizonYears);
     expect(
       loaded.defaultDownPaymentPercent,

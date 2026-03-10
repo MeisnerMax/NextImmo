@@ -1,3 +1,7 @@
+import 'package:flutter/widgets.dart';
+
+import '../i18n/app_strings.dart';
+
 class MetricDefinition {
   const MetricDefinition({
     required this.key,
@@ -148,18 +152,37 @@ class MetricDefinitions {
     ),
   };
 
-  static MetricDefinition? byKey(String key) {
-    return _definitions[_normalize(key)];
+  static MetricDefinition? byKey(BuildContext context, String key) {
+    final definition = _definitions[_normalize(key)];
+    if (definition == null) {
+      return null;
+    }
+    return _localize(context, definition);
   }
 
   static String normalizeKey(String labelOrKey) => _normalize(labelOrKey);
 
-  static MetricDefinition fallback(String labelOrKey) {
+  static MetricDefinition fallback(BuildContext context, String labelOrKey) {
     return MetricDefinition(
       key: _normalize(labelOrKey),
-      title: labelOrKey.trim().isEmpty ? 'Metric' : labelOrKey.trim(),
-      description:
-          'Calculated output based on scenario inputs, settings, and selected assumptions.',
+      title:
+          labelOrKey.trim().isEmpty
+              ? context.strings.text('Metric')
+              : labelOrKey.trim(),
+      description: context.strings.text(
+        'Calculated output based on scenario inputs, settings, and selected assumptions.',
+      ),
+    );
+  }
+
+  static MetricDefinition _localize(
+    BuildContext context,
+    MetricDefinition definition,
+  ) {
+    return MetricDefinition(
+      key: definition.key,
+      title: context.strings.text(definition.title),
+      description: context.strings.text(definition.description),
     );
   }
 

@@ -18,8 +18,11 @@ class KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final key = MetricDefinitions.normalizeKey(label);
+    final definition =
+        MetricDefinitions.byKey(context, key) ??
+        MetricDefinitions.fallback(context, label);
     return KpiTile(
-      title: label,
+      title: definition.title,
       value: value,
       subtitle: subtitle,
       metricKey: key,

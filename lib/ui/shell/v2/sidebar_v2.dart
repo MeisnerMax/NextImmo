@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../i18n/app_strings.dart';
 import '../../navigation/app_navigation.dart';
 import '../../state/app_state.dart';
 import '../../state/security_state.dart';
@@ -88,7 +89,9 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
               ),
               IconButton(
                 tooltip:
-                    collapsed ? 'Expand navigation' : 'Collapse navigation',
+                    collapsed
+                        ? context.strings.text('Expand navigation')
+                        : context.strings.text('Collapse navigation'),
                 onPressed:
                     zone == AppDesktopLayoutZone.narrow
                         ? null
@@ -163,7 +166,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  context.strings.text(title),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: semantic.textSecondary,
                     letterSpacing: 0.4,
@@ -203,7 +206,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
           collapsed
               ? null
               : Text(
-                item.label,
+                context.strings.text(item.label),
                 style: TextStyle(
                   color: isSelected ? primary : null,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -218,7 +221,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
       },
     );
     if (collapsed) {
-      return Tooltip(message: item.label, child: tile);
+      return Tooltip(message: context.strings.text(item.label), child: tile);
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

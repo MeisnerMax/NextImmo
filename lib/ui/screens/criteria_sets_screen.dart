@@ -652,8 +652,8 @@ class _CriteriaSetEditorScreenState
 
   String _metricHelpText(String metricKey) {
     final definition =
-        MetricDefinitions.byKey(metricKey) ??
-        MetricDefinitions.fallback(metricKey);
+        MetricDefinitions.byKey(context, metricKey) ??
+        MetricDefinitions.fallback(context, metricKey);
     return definition.description;
   }
 }

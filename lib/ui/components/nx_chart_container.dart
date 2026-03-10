@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n/app_strings.dart';
 import 'nx_card.dart';
 
 enum NxChartState { loading, empty, ready, error }
@@ -45,9 +46,9 @@ class NxChartContainer extends StatelessWidget {
       case NxChartState.loading:
         return const Center(child: CircularProgressIndicator());
       case NxChartState.empty:
-        return Center(child: Text(emptyText));
+        return Center(child: Text(context.strings.text(emptyText)));
       case NxChartState.error:
-        return Center(child: Text(errorText));
+        return Center(child: Text(context.strings.text(errorText)));
       case NxChartState.ready:
         return child;
     }

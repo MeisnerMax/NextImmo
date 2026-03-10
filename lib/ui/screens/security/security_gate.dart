@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../i18n/app_strings.dart';
 import '../../shell/app_scaffold.dart';
 import '../../state/security_state.dart';
 import 'lock_screen.dart';
@@ -29,7 +30,14 @@ class SecurityGate extends ConsumerWidget {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
       error:
           (error, _) => Scaffold(
-            body: Center(child: Text('Security initialization failed: $error')),
+            body: Center(
+              child: Text(
+                context.strings.errorWithPrefix(
+                  context.strings.text('Security initialization failed'),
+                  error,
+                ),
+              ),
+            ),
           ),
     );
   }

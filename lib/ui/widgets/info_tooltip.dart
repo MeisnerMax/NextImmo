@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../docs/metric_definitions.dart';
+import '../i18n/app_strings.dart';
 import '../theme/app_theme.dart';
 
 class InfoTooltip extends StatelessWidget {
@@ -18,8 +19,8 @@ class InfoTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final definition =
-        MetricDefinitions.byKey(metricKey) ??
-        MetricDefinitions.fallback(metricKey);
+        MetricDefinitions.byKey(context, metricKey) ??
+        MetricDefinitions.fallback(context, metricKey);
     final semantic = context.semanticColors;
 
     final icon = Container(
@@ -64,7 +65,7 @@ class InfoTooltip extends StatelessWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Close'),
+                    child: Text(context.strings.text('Close')),
                   ),
                 ],
               ),
