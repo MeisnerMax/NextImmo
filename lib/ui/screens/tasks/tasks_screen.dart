@@ -309,6 +309,18 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                             '${workflow.contextTitle} · ${workflow.contextSubtitle}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
+                          if (task.category != null ||
+                              task.assignedTo != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              [
+                                if (task.category != null) task.category!,
+                                if (task.assignedTo != null)
+                                  'Assigned to ${task.assignedTo}',
+                              ].join(' · '),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -396,6 +408,11 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                               const SizedBox(height: 4),
                               Text('Asset: ${selected.propertyName}'),
                             ],
+                            if (selected.task.description != null &&
+                                selected.task.description!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(selected.task.description!),
+                            ],
                           ],
                         ),
                       ),
@@ -422,6 +439,22 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                 ? NxBadgeKind.warning
                                 : NxBadgeKind.neutral,
                       ),
+                      if (selected.task.category != null)
+                        NxStatusBadge(
+                          label: selected.task.category!,
+                          kind: NxBadgeKind.neutral,
+                        ),
+                      if (selected.task.assignedTo != null)
+                        NxStatusBadge(
+                          label: 'Assigned: ${selected.task.assignedTo}',
+                          kind: NxBadgeKind.info,
+                        ),
+                      if (selected.task.estimatedCost != null)
+                        NxStatusBadge(
+                          label:
+                              'Est. cost ${selected.task.estimatedCost!.toStringAsFixed(2)}',
+                          kind: NxBadgeKind.neutral,
+                        ),
                       NxStatusBadge(
                         label:
                             selected.task.dueAt == null
@@ -615,11 +648,26 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   Future<void> _taskDialog({TaskRecord? existing}) async {
     final isEdit = existing != null;
     final titleController = TextEditingController(text: existing?.title ?? '');
-    final dueAtController = TextEditingController(
-      text: existing?.dueAt?.toString() ?? '',
+    final descriptionController = TextEditingController(
+      text: existing?.description ?? '',
+    );
+    final assignedToController = TextEditingController(
+      text: existing?.assignedTo ?? '',
+    );
+    final estimatedCostController = TextEditingController(
+      text: existing?.estimatedCost?.toString() ?? '',
+    );
+    final existingDueAt = existing?.dueAt;
+    final dueDateController = TextEditingController(
+      text: existingDueAt == null ? '' : _formatDate(existingDueAt),
     );
     var status = existing?.status ?? 'todo';
     var priority = existing?.priority ?? 'normal';
+    var category = existing?.category ?? 'general';
+    var dueDate =
+        existingDueAt == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(existingDueAt);
     var entityType = existing?.entityType ?? 'none';
     final entityIdController = TextEditingController(
       text: existing?.entityId ?? '',
@@ -641,6 +689,67 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(labelText: 'Title'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: descriptionController,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: category,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'general',
+                            child: Text('General'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'leasing',
+                            child: Text('Leasing'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'maintenance',
+                            child: Text('Maintenance'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'finance',
+                            child: Text('Finance'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'documents',
+                            child: Text('Documents'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'compliance',
+                            child: Text('Compliance'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => category = value);
+                        },
+                        decoration: const InputDecoration(labelText: 'Category'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: assignedToController,
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned to',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: estimatedCostController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Estimated cost',
+                        ),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
@@ -728,9 +837,30 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: dueAtController,
-                        decoration: const InputDecoration(
-                          labelText: 'Due at (epoch ms, optional)',
+                        readOnly: true,
+                        controller: dueDateController,
+                        decoration: InputDecoration(
+                          labelText: 'Due date',
+                          suffixIcon: IconButton(
+                            tooltip: 'Select date',
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: dueDate ?? DateTime.now(),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (picked != null) {
+                                setDialogState(() {
+                                  dueDate = picked;
+                                  dueDateController.text = _formatDate(
+                                    picked.millisecondsSinceEpoch,
+                                  );
+                                });
+                              }
+                            },
+                          ),
                         ),
                       ),
                     ],
@@ -746,10 +876,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   onPressed: () async {
                     final title = titleController.text.trim();
                     if (title.isEmpty) return;
-                    final dueAt =
-                        dueAtController.text.trim().isEmpty
+                    final dueAt = dueDate?.millisecondsSinceEpoch;
+                    final estimatedCost =
+                        estimatedCostController.text.trim().isEmpty
                             ? null
-                            : int.tryParse(dueAtController.text.trim());
+                            : double.tryParse(
+                              estimatedCostController.text.trim(),
+                            );
 
                     final repo = ref.read(tasksRepositoryProvider);
                     if (isEdit) {
@@ -762,6 +895,16 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                   ? null
                                   : entityIdController.text.trim(),
                           title: title,
+                          description:
+                              descriptionController.text.trim().isEmpty
+                                  ? null
+                                  : descriptionController.text.trim(),
+                          category: category,
+                          assignedTo:
+                              assignedToController.text.trim().isEmpty
+                                  ? null
+                                  : assignedToController.text.trim(),
+                          estimatedCost: estimatedCost,
                           status: status,
                           priority: priority,
                           dueAt: dueAt,
@@ -778,6 +921,16 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                 ? null
                                 : entityIdController.text.trim(),
                         title: title,
+                        description:
+                            descriptionController.text.trim().isEmpty
+                                ? null
+                                : descriptionController.text.trim(),
+                        category: category,
+                        assignedTo:
+                            assignedToController.text.trim().isEmpty
+                                ? null
+                                : assignedToController.text.trim(),
+                        estimatedCost: estimatedCost,
                         status: status,
                         priority: priority,
                         dueAt: dueAt,
@@ -796,7 +949,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     );
 
     titleController.dispose();
-    dueAtController.dispose();
+    descriptionController.dispose();
+    assignedToController.dispose();
+    estimatedCostController.dispose();
+    dueDateController.dispose();
     entityIdController.dispose();
   }
 

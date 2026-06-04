@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/budget.dart';
 import '../../../core/models/ledger.dart';
+import '../../../core/models/portfolio.dart';
+import '../../../core/models/property.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -22,6 +24,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
   List<BudgetLineRecord> _lines = const [];
   List<BudgetVarianceRecord> _variance = const [];
   List<LedgerAccountRecord> _accounts = const [];
+  List<PropertyRecord> _properties = const [];
+  List<PortfolioRecord> _portfolios = const [];
   String _fromPeriod = '';
   String _toPeriod = '';
   String? _status;
@@ -53,22 +57,24 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   items: const [
                     DropdownMenuItem(
                       value: 'asset_property',
-                      child: Text('asset_property'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'property',
-                      child: Text('property'),
+                      child: Text('Property budget'),
                     ),
                     DropdownMenuItem(
                       value: 'portfolio',
-                      child: Text('portfolio'),
+                      child: Text('Portfolio budget'),
                     ),
                   ],
                   onChanged: (value) {
                     if (value == null) {
                       return;
                     }
-                    setState(() => _entityType = value);
+                    setState(() {
+                      _entityType = value;
+                      _entityId = '';
+                      _selected = null;
+                      _lines = const [];
+                      _variance = const [];
+                    });
                     _reload();
                   },
                   decoration: const InputDecoration(labelText: 'Entity Type'),
@@ -77,13 +83,28 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
               SizedBox(
                 width: ResponsiveConstraints.itemWidth(
                   context,
-                  idealWidth: 220,
+                  idealWidth: 280,
                 ),
-                child: TextFormField(
-                  initialValue: _entityId,
-                  decoration: const InputDecoration(labelText: 'Entity ID'),
-                  onChanged: (value) => _entityId = value.trim(),
-                  onFieldSubmitted: (_) => _reload(),
+                child: DropdownButtonFormField<String>(
+                  value: _entityId.isEmpty ? null : _entityId,
+                  isExpanded: true,
+                  items: _entityItems(),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _entityId = value;
+                      _selected = null;
+                      _lines = const [];
+                      _variance = const [];
+                    });
+                    _reload();
+                  },
+                  decoration: InputDecoration(
+                    labelText:
+                        _entityType == 'portfolio' ? 'Portfolio' : 'Property',
+                  ),
                 ),
               ),
               ElevatedButton.icon(
@@ -116,7 +137,9 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                                 title: Text(
                                   '${budget.fiscalYear} - ${budget.versionName}',
                                 ),
-                                subtitle: Text('Status: ${budget.status}'),
+                                subtitle: Text(
+                                  '${_selectedEntityLabel()} · Status: ${budget.status}',
+                                ),
                                 onTap: () => _loadBudget(budget),
                                 trailing: Wrap(
                                   spacing: 8,
@@ -330,12 +353,22 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     }
     final budgetRepo = ref.read(budgetRepositoryProvider);
     final ledgerRepo = ref.read(ledgerRepositoryProvider);
+    final properties = await ref.read(propertyRepositoryProvider).list();
+    final portfolios = await ref.read(portfolioRepositoryProvider).listPortfolios();
+    var entityId = _entityId;
+    if (entityId.isEmpty) {
+      if (_entityType == 'portfolio' && portfolios.isNotEmpty) {
+        entityId = portfolios.first.id;
+      } else if (_entityType != 'portfolio' && properties.isNotEmpty) {
+        entityId = properties.first.id;
+      }
+    }
     final budgets =
-        _entityId.isEmpty
+        entityId.isEmpty
             ? const <BudgetRecord>[]
             : await budgetRepo.listBudgets(
               entityType: _entityType,
-              entityId: _entityId,
+              entityId: entityId,
             );
     if (!mounted) {
       return;
@@ -346,6 +379,9 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
       return;
     }
     setState(() {
+      _properties = properties;
+      _portfolios = portfolios;
+      _entityId = entityId;
       _budgets = budgets;
       _accounts = accounts;
       if (_selected != null) {
@@ -409,7 +445,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_entityId.isEmpty) {
-                    setState(() => _status = 'Entity ID required.');
+                    setState(() => _status = 'Select a property or portfolio.');
                     return;
                   }
                   final fiscalYear =
@@ -683,5 +719,43 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     setState(() {
       _variance = variance;
     });
+  }
+
+  List<DropdownMenuItem<String>> _entityItems() {
+    if (_entityType == 'portfolio') {
+      return _portfolios
+          .map(
+            (portfolio) => DropdownMenuItem<String>(
+              value: portfolio.id,
+              child: Text(portfolio.name),
+            ),
+          )
+          .toList(growable: false);
+    }
+    return _properties
+        .map(
+          (property) => DropdownMenuItem<String>(
+            value: property.id,
+            child: Text('${property.name} · ${property.city}'),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  String _selectedEntityLabel() {
+    if (_entityType == 'portfolio') {
+      for (final portfolio in _portfolios) {
+        if (portfolio.id == _entityId) {
+          return portfolio.name;
+        }
+      }
+      return _entityId.isEmpty ? 'No portfolio selected' : _entityId;
+    }
+    for (final property in _properties) {
+      if (property.id == _entityId) {
+        return property.name;
+      }
+    }
+    return _entityId.isEmpty ? 'No property selected' : _entityId;
   }
 }

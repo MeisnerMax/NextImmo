@@ -301,7 +301,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             LinearProgressIndicator(value: _progress <= 0 ? null : _progress),
           if (_isComputing) const SizedBox(height: 8),
           if (_computeError != null)
-            Text(_computeError!, style: const TextStyle(color: Colors.red)),
+            Text(
+              _computeError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           const SizedBox(height: AppSpacing.component),
           Expanded(
             child:
@@ -309,18 +312,21 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     ? const Center(
                       child: Text('Sensitivity grid is being prepared...'),
                     )
-                    : _gridTable(grid),
+                    : _gridTable(context, grid),
           ),
         ],
       ),
     );
   }
 
-  Widget _gridTable(SensitivityGridResult grid) {
+  Widget _gridTable(BuildContext context, SensitivityGridResult grid) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final semantic = context.semanticColors;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.border),
+        color: colors.surface,
+        border: Border.all(color: semantic.border),
         borderRadius: BorderRadius.circular(10),
       ),
       child: SingleChildScrollView(
@@ -351,15 +357,27 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   DataCell(
                     Text(
                       _formatDelta(purchaseDelta),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   ...row.map((value) {
-                    final resolved = value ?? 0;
-                    final color =
-                        resolved >= 0
-                            ? const Color(0xFFEAF7EE)
-                            : const Color(0xFFFCECED);
+                    final resolved = value;
+                    final positive = (resolved ?? 0) >= 0;
+                    final fill =
+                        resolved == null
+                            ? colors.surfaceContainerHighest
+                            : positive
+                            ? semantic.success.withValues(alpha: 0.16)
+                            : semantic.error.withValues(alpha: 0.14);
+                    final foreground =
+                        resolved == null
+                            ? colors.onSurfaceVariant
+                            : positive
+                            ? semantic.success
+                            : semantic.error;
                     return DataCell(
                       Container(
                         alignment: Alignment.centerRight,
@@ -368,10 +386,16 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: color,
+                          color: fill,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(_formatMetric(value)),
+                        child: Text(
+                          _formatMetric(value),
+                          style: TextStyle(
+                            color: foreground,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     );
                   }),

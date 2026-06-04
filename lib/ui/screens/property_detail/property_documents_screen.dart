@@ -1,5 +1,10 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/models/documents.dart';
 import '../../state/app_state.dart';
@@ -114,18 +119,30 @@ class _PropertyDocumentsScreenState
                   final document = _documents[index];
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.description_outlined),
                     title: Text(document.fileName),
                     subtitle: Text(
                       '${_typeName(document.typeId)} · ${document.filePath}',
                     ),
-                    trailing: TextButton(
-                      onPressed: () async {
-                        await ref
-                            .read(documentsRepositoryProvider)
-                            .deleteDocument(document.id);
-                        await _load();
-                      },
-                      child: const Text('Delete'),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _showDocumentDetails(document),
+                          icon: const Icon(Icons.info_outline),
+                          label: const Text('Details'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            await ref
+                                .read(documentsRepositoryProvider)
+                                .deleteDocument(document.id);
+                            await _load();
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete'),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -220,7 +237,12 @@ class _PropertyDocumentsScreenState
   Future<void> _openDocumentDialog() async {
     final filePathController = TextEditingController();
     final fileNameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final expiryController = TextEditingController();
     String? typeId;
+    String status = 'received';
+    DateTime? expiryDate;
+    XFile? selectedFile;
     String? errorText;
 
     final propertyTypes = _types
@@ -261,7 +283,88 @@ class _PropertyDocumentsScreenState
                     const SizedBox(height: 8),
                     TextField(
                       controller: filePathController,
+                      readOnly: true,
                       decoration: const InputDecoration(labelText: 'File Path'),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final file = await openFile();
+                          if (file == null) {
+                            return;
+                          }
+                          setDialogState(() {
+                            selectedFile = file;
+                            filePathController.text = file.path;
+                            fileNameController.text =
+                                path.basename(file.path);
+                          });
+                        },
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Choose File'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: status,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'received',
+                          child: Text('Received'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'in_review',
+                          child: Text('In review'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'approved',
+                          child: Text('Approved'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'expired',
+                          child: Text('Expired'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => status = value);
+                        }
+                      },
+                      decoration: const InputDecoration(labelText: 'Status'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: expiryController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Expiry date',
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: expiryDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked == null) {
+                          return;
+                        }
+                        setDialogState(() {
+                          expiryDate = picked;
+                          expiryController.text = _formatDate(picked);
+                        });
+                      },
                     ),
                     if (errorText != null) ...[
                       const SizedBox(height: 8),
@@ -283,21 +386,36 @@ class _PropertyDocumentsScreenState
                 ElevatedButton(
                   onPressed: () async {
                     final fileName = fileNameController.text.trim();
-                    final filePath = filePathController.text.trim();
-                    if (fileName.isEmpty || filePath.isEmpty) {
+                    final sourcePath = filePathController.text.trim();
+                    if (fileName.isEmpty || sourcePath.isEmpty) {
                       setDialogState(() {
                         errorText = 'Please fill all required fields.';
                       });
                       return;
                     }
+                    final storedPath = await _storeSelectedFile(
+                      selectedFile: selectedFile,
+                      fallbackPath: sourcePath,
+                      fileName: fileName,
+                    );
                     await ref
                         .read(documentsRepositoryProvider)
                         .createDocument(
                           entityType: 'property',
                           entityId: widget.propertyId,
                           typeId: typeId,
-                          filePath: filePath,
+                          filePath: storedPath,
                           fileName: fileName,
+                          sizeBytes: await File(storedPath).length(),
+                          metadata: <String, String>{
+                            'status': status,
+                            if (descriptionController.text.trim().isNotEmpty)
+                              'description':
+                                  descriptionController.text.trim(),
+                            if (expiryDate != null)
+                              'expiry_date':
+                                  expiryDate!.millisecondsSinceEpoch.toString(),
+                          },
                         );
                     if (context.mounted) {
                       Navigator.of(context).pop();
@@ -315,6 +433,68 @@ class _PropertyDocumentsScreenState
 
     filePathController.dispose();
     fileNameController.dispose();
+    descriptionController.dispose();
+    expiryController.dispose();
+  }
+
+  Future<String> _storeSelectedFile({
+    required XFile? selectedFile,
+    required String fallbackPath,
+    required String fileName,
+  }) async {
+    final source = File(selectedFile?.path ?? fallbackPath);
+    final appDir = await getApplicationDocumentsDirectory();
+    final targetDir = Directory(
+      path.join(appDir.path, 'NexImmo', 'property_documents', widget.propertyId),
+    );
+    await targetDir.create(recursive: true);
+    final safeName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final targetPath = path.join(
+      targetDir.path,
+      '${DateTime.now().millisecondsSinceEpoch}_$safeName',
+    );
+    await source.copy(targetPath);
+    return targetPath;
+  }
+
+  Future<void> _showDocumentDetails(DocumentRecord document) async {
+    final metadata =
+        await ref.read(documentsRepositoryProvider).listMetadata(document.id);
+    if (!mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(document.fileName),
+        content: SizedBox(
+          width: 480,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text('Type: ${_typeName(document.typeId)}'),
+              const SizedBox(height: 8),
+              Text('Path: ${document.filePath}'),
+              const SizedBox(height: 8),
+              Text('Size: ${document.sizeBytes ?? 0} bytes'),
+              const SizedBox(height: 12),
+              Text('Metadata', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              if (metadata.isEmpty)
+                const Text('No metadata saved.')
+              else
+                ...metadata.map((item) => Text('${item.key}: ${item.value}')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _typeName(String? typeId) {
@@ -327,5 +507,11 @@ class _PropertyDocumentsScreenState
       }
     }
     return typeId;
+  }
+
+  String _formatDate(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
   }
 }

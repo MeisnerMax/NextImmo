@@ -89,6 +89,10 @@ class ScenarioInputs {
     required this.closingCostBuyFixed,
     required this.holdMonths,
     required this.rentMonthlyTotal,
+    required this.grossAreaSqm,
+    required this.lettableAreaSqm,
+    required this.residentialAreaSqm,
+    required this.commercialAreaSqm,
     required this.otherIncomeMonthly,
     required this.vacancyPercent,
     required this.propertyTaxMonthly,
@@ -123,6 +127,10 @@ class ScenarioInputs {
   final double closingCostBuyFixed;
   final int holdMonths;
   final double rentMonthlyTotal;
+  final double grossAreaSqm;
+  final double lettableAreaSqm;
+  final double residentialAreaSqm;
+  final double commercialAreaSqm;
   final double otherIncomeMonthly;
   final double vacancyPercent;
   final double propertyTaxMonthly;
@@ -156,6 +164,10 @@ class ScenarioInputs {
     double? closingCostBuyFixed,
     int? holdMonths,
     double? rentMonthlyTotal,
+    double? grossAreaSqm,
+    double? lettableAreaSqm,
+    double? residentialAreaSqm,
+    double? commercialAreaSqm,
     double? otherIncomeMonthly,
     double? vacancyPercent,
     double? propertyTaxMonthly,
@@ -193,6 +205,10 @@ class ScenarioInputs {
       closingCostBuyFixed: closingCostBuyFixed ?? this.closingCostBuyFixed,
       holdMonths: holdMonths ?? this.holdMonths,
       rentMonthlyTotal: rentMonthlyTotal ?? this.rentMonthlyTotal,
+      grossAreaSqm: grossAreaSqm ?? this.grossAreaSqm,
+      lettableAreaSqm: lettableAreaSqm ?? this.lettableAreaSqm,
+      residentialAreaSqm: residentialAreaSqm ?? this.residentialAreaSqm,
+      commercialAreaSqm: commercialAreaSqm ?? this.commercialAreaSqm,
       otherIncomeMonthly: otherIncomeMonthly ?? this.otherIncomeMonthly,
       vacancyPercent: vacancyPercent ?? this.vacancyPercent,
       propertyTaxMonthly: propertyTaxMonthly ?? this.propertyTaxMonthly,
@@ -235,6 +251,10 @@ class ScenarioInputs {
       closingCostBuyFixed: 0,
       holdMonths: settings.defaultHorizonYears * 12,
       rentMonthlyTotal: 0,
+      grossAreaSqm: 0,
+      lettableAreaSqm: 0,
+      residentialAreaSqm: 0,
+      commercialAreaSqm: 0,
       otherIncomeMonthly: 0,
       vacancyPercent: settings.defaultVacancyPercent,
       propertyTaxMonthly: 0,
@@ -272,6 +292,10 @@ class ScenarioInputs {
       'closing_cost_buy_fixed': closingCostBuyFixed,
       'hold_months': holdMonths,
       'rent_monthly_total': rentMonthlyTotal,
+      'gross_area_sqm': grossAreaSqm,
+      'lettable_area_sqm': lettableAreaSqm,
+      'residential_area_sqm': residentialAreaSqm,
+      'commercial_area_sqm': commercialAreaSqm,
       'other_income_monthly': otherIncomeMonthly,
       'vacancy_percent': vacancyPercent,
       'property_tax_monthly': propertyTaxMonthly,
@@ -311,6 +335,12 @@ class ScenarioInputs {
           ((map['closing_cost_buy_fixed'] as num?) ?? 0).toDouble(),
       holdMonths: ((map['hold_months'] as num?) ?? 12).toInt(),
       rentMonthlyTotal: ((map['rent_monthly_total'] as num?) ?? 0).toDouble(),
+      grossAreaSqm: ((map['gross_area_sqm'] as num?) ?? 0).toDouble(),
+      lettableAreaSqm: ((map['lettable_area_sqm'] as num?) ?? 0).toDouble(),
+      residentialAreaSqm:
+          ((map['residential_area_sqm'] as num?) ?? 0).toDouble(),
+      commercialAreaSqm:
+          ((map['commercial_area_sqm'] as num?) ?? 0).toDouble(),
       otherIncomeMonthly:
           ((map['other_income_monthly'] as num?) ?? 0).toDouble(),
       vacancyPercent: ((map['vacancy_percent'] as num?) ?? 0).toDouble(),

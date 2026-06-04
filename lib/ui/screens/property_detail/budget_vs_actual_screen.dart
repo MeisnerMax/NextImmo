@@ -87,6 +87,10 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
+          if (_selected != null) ...[
+            _VarianceSummary(rows: _variance),
+            const SizedBox(height: AppSpacing.component),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -105,7 +109,10 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                   '${budget.fiscalYear} - ${budget.versionName}',
                                 ),
                                 subtitle: Text(budget.status),
-                                onTap: () => setState(() => _selected = budget),
+                                onTap: () {
+                                  setState(() => _selected = budget);
+                                  _compute();
+                                },
                               );
                             },
                           ),
@@ -114,6 +121,17 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                   child:
                       _selected == null
                           ? const Center(child: Text('Select a budget'))
+                          : _variance.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(
+                                  AppSpacing.cardPadding,
+                                ),
+                                child: Text(
+                                  'No budget or actual lines found for the selected period.',
+                                ),
+                              ),
+                            )
                           : SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: DataTable(
@@ -123,6 +141,8 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                 DataColumn(label: Text('Budget')),
                                 DataColumn(label: Text('Actual')),
                                 DataColumn(label: Text('Variance')),
+                                DataColumn(label: Text('Variance %')),
+                                DataColumn(label: Text('Status')),
                               ],
                               rows:
                                   _variance
@@ -150,6 +170,16 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                                 row.varianceAmount
                                                     .toStringAsFixed(2),
                                               ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                row.variancePercent == null
+                                                    ? '-'
+                                                    : '${(row.variancePercent! * 100).toStringAsFixed(1)}%',
+                                              ),
+                                            ),
+                                            DataCell(
+                                              _VarianceStatusChip(row: row),
                                             ),
                                           ],
                                         ),
@@ -219,7 +249,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
           }
         }
       }
+      _selected ??= budgets.isEmpty ? null : budgets.first;
     });
+    await _compute();
   }
 
   Future<void> _createBudgetDialog() async {
@@ -418,5 +450,99 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
     setState(() {
       _variance = values;
     });
+  }
+}
+
+class _VarianceSummary extends StatelessWidget {
+  const _VarianceSummary({required this.rows});
+
+  final List<BudgetVarianceRecord> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final budget = rows.fold<double>(0, (sum, row) => sum + row.budgetAmount);
+    final actual = rows.fold<double>(0, (sum, row) => sum + row.actualAmount);
+    final variance =
+        rows.fold<double>(0, (sum, row) => sum + row.varianceAmount);
+    final percent = budget == 0 ? null : variance / budget;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        _SummaryTile(label: 'Budget', value: budget.toStringAsFixed(0)),
+        _SummaryTile(label: 'Actual', value: actual.toStringAsFixed(0)),
+        _SummaryTile(label: 'Variance', value: variance.toStringAsFixed(0)),
+        _SummaryTile(
+          label: 'Variance %',
+          value: percent == null
+              ? '-'
+              : '${(percent * 100).toStringAsFixed(1)}%',
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VarianceStatusChip extends StatelessWidget {
+  const _VarianceStatusChip({required this.row});
+
+  final BudgetVarianceRecord row;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = row.variancePercent?.abs();
+    final isMaterial = percent != null && percent >= 0.1;
+    final label =
+        isMaterial
+            ? (row.varianceAmount > 0 ? 'Over' : 'Under')
+            : 'On track';
+    final color =
+        isMaterial
+            ? (row.varianceAmount > 0 ? Colors.orange : Colors.green)
+            : Colors.blueGrey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
   }
 }

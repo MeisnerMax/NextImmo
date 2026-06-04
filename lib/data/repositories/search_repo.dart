@@ -214,10 +214,12 @@ class SearchRepo {
       entityId: task.id,
       title: task.title,
       subtitle: task.status,
-      body:
-          task.entityId == null
-              ? task.entityType
-              : '${task.entityType}:${task.entityId}',
+      body: [
+        if (task.description != null) task.description!,
+        if (task.category != null) task.category!,
+        if (task.assignedTo != null) task.assignedTo!,
+        task.entityId == null ? task.entityType : '${task.entityType}:${task.entityId}',
+      ].join(' · '),
       updatedAt: task.updatedAt,
     );
   }

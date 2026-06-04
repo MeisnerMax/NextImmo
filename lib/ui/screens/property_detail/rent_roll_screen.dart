@@ -150,13 +150,12 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
           ),
           const SizedBox(height: AppSpacing.component),
           Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Card(
-                    child: _snapshots.isEmpty
-                        ? const Center(child: Text('No snapshots yet.'))
-                        : ListView.builder(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final snapshotPane = Card(
+                  child: _snapshots.isEmpty
+                      ? const Center(child: Text('No snapshots yet.'))
+                      : ListView.builder(
                             itemCount: _snapshots.length,
                             itemBuilder: (context, index) {
                               final snapshot = _snapshots[index];
@@ -174,13 +173,9 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
                               );
                             },
                           ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.component),
-                Expanded(
-                  flex: 3,
-                  child: Card(
-                    child: Padding(
+                );
+                final tablePane = Card(
+                  child: Padding(
                       padding: const EdgeInsets.all(AppSpacing.cardPadding),
                       child: _selected == null
                           ? const Center(child: Text('Select a snapshot'))
@@ -243,10 +238,25 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
                                         .toList(growable: false),
                                   ),
                                 ),
-                    ),
                   ),
-                ),
-              ],
+                );
+                if (constraints.maxWidth < 1040) {
+                  return Column(
+                    children: [
+                      SizedBox(height: 180, child: snapshotPane),
+                      const SizedBox(height: AppSpacing.component),
+                      Expanded(child: tablePane),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: snapshotPane),
+                    const SizedBox(width: AppSpacing.component),
+                    Expanded(flex: 3, child: tablePane),
+                  ],
+                );
+              },
             ),
           ),
         ],

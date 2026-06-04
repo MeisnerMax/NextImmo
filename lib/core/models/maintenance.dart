@@ -5,6 +5,7 @@ class MaintenanceTicketRecord {
     required this.unitId,
     required this.title,
     required this.description,
+    required this.category,
     required this.status,
     required this.priority,
     required this.reportedAt,
@@ -23,6 +24,7 @@ class MaintenanceTicketRecord {
   final String? unitId;
   final String title;
   final String? description;
+  final String category;
   final String status;
   final String priority;
   final int reportedAt;
@@ -42,6 +44,7 @@ class MaintenanceTicketRecord {
       'unit_id': unitId,
       'title': title,
       'description': description,
+      'category': category,
       'status': status,
       'priority': priority,
       'reported_at': reportedAt,
@@ -63,6 +66,7 @@ class MaintenanceTicketRecord {
       unitId: map['unit_id'] as String?,
       title: map['title']! as String,
       description: map['description'] as String?,
+      category: (map['category'] as String?) ?? 'general',
       status: map['status']! as String,
       priority: map['priority']! as String,
       reportedAt: (map['reported_at']! as num).toInt(),

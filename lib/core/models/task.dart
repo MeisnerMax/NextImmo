@@ -4,6 +4,10 @@ class TaskRecord {
     required this.entityType,
     required this.entityId,
     required this.title,
+    this.description,
+    this.category,
+    this.assignedTo,
+    this.estimatedCost,
     required this.status,
     required this.priority,
     required this.dueAt,
@@ -16,6 +20,10 @@ class TaskRecord {
   final String entityType;
   final String? entityId;
   final String title;
+  final String? description;
+  final String? category;
+  final String? assignedTo;
+  final double? estimatedCost;
   final String status;
   final String priority;
   final int? dueAt;
@@ -29,6 +37,10 @@ class TaskRecord {
       'entity_type': entityType,
       'entity_id': entityId,
       'title': title,
+      'description': description,
+      'category': category,
+      'assigned_to': assignedTo,
+      'estimated_cost': estimatedCost,
       'status': status,
       'priority': priority,
       'due_at': dueAt,
@@ -44,6 +56,10 @@ class TaskRecord {
       entityType: map['entity_type']! as String,
       entityId: map['entity_id'] as String?,
       title: map['title']! as String,
+      description: map['description'] as String?,
+      category: map['category'] as String?,
+      assignedTo: map['assigned_to'] as String?,
+      estimatedCost: (map['estimated_cost'] as num?)?.toDouble(),
       status: map['status']! as String,
       priority: map['priority']! as String,
       dueAt: (map['due_at'] as num?)?.toInt(),

@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 22;
+  static const int currentVersion = 24;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -26,6 +26,8 @@ class DbMigrations {
     await _createV20(db);
     await _createV21(db);
     await _createV22(db);
+    await _createV23(db);
+    await _createV24(db);
   }
 
   static Future<void> onUpgrade(
@@ -98,6 +100,12 @@ class DbMigrations {
     }
     if (oldVersion < 22) {
       await _createV22(db);
+    }
+    if (oldVersion < 23) {
+      await _createV23(db);
+    }
+    if (oldVersion < 24) {
+      await _createV24(db);
     }
   }
 
@@ -181,6 +189,10 @@ class DbMigrations {
         closing_cost_buy_fixed REAL NOT NULL,
         hold_months INTEGER NOT NULL,
         rent_monthly_total REAL NOT NULL,
+        gross_area_sqm REAL NOT NULL DEFAULT 0,
+        lettable_area_sqm REAL NOT NULL DEFAULT 0,
+        residential_area_sqm REAL NOT NULL DEFAULT 0,
+        commercial_area_sqm REAL NOT NULL DEFAULT 0,
         other_income_monthly REAL NOT NULL,
         vacancy_percent REAL NOT NULL,
         property_tax_monthly REAL NOT NULL,
@@ -745,6 +757,10 @@ class DbMigrations {
         entity_type TEXT NOT NULL,
         entity_id TEXT,
         title TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        assigned_to TEXT,
+        estimated_cost REAL,
         status TEXT NOT NULL,
         priority TEXT NOT NULL,
         due_at INTEGER,
@@ -1019,6 +1035,7 @@ class DbMigrations {
         unit_id TEXT,
         title TEXT NOT NULL,
         description TEXT,
+        category TEXT NOT NULL DEFAULT 'general',
         status TEXT NOT NULL,
         priority TEXT NOT NULL,
         reported_at INTEGER NOT NULL,
@@ -1753,6 +1770,71 @@ class DbMigrations {
       column: 'ui_language_code',
       alterSql:
           "ALTER TABLE app_settings ADD COLUMN ui_language_code TEXT NOT NULL DEFAULT 'en'",
+    );
+  }
+
+  static Future<void> _createV23(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'tasks',
+      column: 'description',
+      alterSql: 'ALTER TABLE tasks ADD COLUMN description TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'tasks',
+      column: 'category',
+      alterSql: 'ALTER TABLE tasks ADD COLUMN category TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'tasks',
+      column: 'assigned_to',
+      alterSql: 'ALTER TABLE tasks ADD COLUMN assigned_to TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'tasks',
+      column: 'estimated_cost',
+      alterSql: 'ALTER TABLE tasks ADD COLUMN estimated_cost REAL',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'scenario_inputs',
+      column: 'gross_area_sqm',
+      alterSql:
+          'ALTER TABLE scenario_inputs ADD COLUMN gross_area_sqm REAL NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'scenario_inputs',
+      column: 'lettable_area_sqm',
+      alterSql:
+          'ALTER TABLE scenario_inputs ADD COLUMN lettable_area_sqm REAL NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'scenario_inputs',
+      column: 'residential_area_sqm',
+      alterSql:
+          'ALTER TABLE scenario_inputs ADD COLUMN residential_area_sqm REAL NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'scenario_inputs',
+      column: 'commercial_area_sqm',
+      alterSql:
+          'ALTER TABLE scenario_inputs ADD COLUMN commercial_area_sqm REAL NOT NULL DEFAULT 0',
+    );
+  }
+
+  static Future<void> _createV24(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'category',
+      alterSql:
+          "ALTER TABLE maintenance_tickets ADD COLUMN category TEXT NOT NULL DEFAULT 'general'",
     );
   }
 

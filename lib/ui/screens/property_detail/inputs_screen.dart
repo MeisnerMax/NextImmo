@@ -200,13 +200,14 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             label: 'Loan Amount',
             initial: inputs.loanAmount,
             helper:
-                'Leave empty to derive debt from purchase cost and equity share.',
+                'Optional override. Leave empty to use the calculated debt amount shown below.',
             onChanged:
                 (value) => patchInput(
                   _FieldKeys.loanAmount,
                   (current) => current.copyWith(loanAmount: value),
                 ),
           ),
+          _loanAmountHint(context, inputs),
           _percentField(
             context: context,
             label: 'Interest Rate',
@@ -227,6 +228,65 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                 (value) => patchInput(
                   _FieldKeys.termYears,
                   (current) => current.copyWith(termYears: value),
+                ),
+          ),
+        ],
+      ),
+      _section(
+        context,
+        title: 'Area Metrics',
+        description:
+            'Add usable square-meter assumptions for rent, valuation and operating KPIs.',
+        metricKey: 'gsi',
+        status: _sectionStatus(
+          fieldKeys: const <String>[
+            _FieldKeys.grossAreaSqm,
+            _FieldKeys.lettableAreaSqm,
+            _FieldKeys.residentialAreaSqm,
+            _FieldKeys.commercialAreaSqm,
+          ],
+          state: state,
+        ),
+        children: [
+          _areaField(
+            context: context,
+            label: 'Gross Area',
+            initial: inputs.grossAreaSqm,
+            onChanged:
+                (value) => patchInput(
+                  _FieldKeys.grossAreaSqm,
+                  (current) => current.copyWith(grossAreaSqm: value),
+                ),
+          ),
+          _areaField(
+            context: context,
+            label: 'Lettable Area',
+            initial: inputs.lettableAreaSqm,
+            helper: 'Use the rent-relevant lettable area where available.',
+            onChanged:
+                (value) => patchInput(
+                  _FieldKeys.lettableAreaSqm,
+                  (current) => current.copyWith(lettableAreaSqm: value),
+                ),
+          ),
+          _areaField(
+            context: context,
+            label: 'Residential Area',
+            initial: inputs.residentialAreaSqm,
+            onChanged:
+                (value) => patchInput(
+                  _FieldKeys.residentialAreaSqm,
+                  (current) => current.copyWith(residentialAreaSqm: value),
+                ),
+          ),
+          _areaField(
+            context: context,
+            label: 'Commercial Area',
+            initial: inputs.commercialAreaSqm,
+            onChanged:
+                (value) => patchInput(
+                  _FieldKeys.commercialAreaSqm,
+                  (current) => current.copyWith(commercialAreaSqm: value),
                 ),
           ),
         ],
@@ -1085,6 +1145,64 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     );
   }
 
+  Widget _areaField({
+    required BuildContext context,
+    required String label,
+    required double initial,
+    required ValueChanged<double> onChanged,
+    String? helper,
+  }) {
+    return _fieldContainer(
+      context,
+      child: _ControlledDecimalField(
+        label: label,
+        textValue: initial <= 0 ? '' : initial.toStringAsFixed(2),
+        helper: helper,
+        suffixText: 'sqm',
+        allowEmpty: true,
+        minValue: 0,
+        minErrorText: 'Area cannot be negative.',
+        onChanged: (value) => onChanged(value ?? 0),
+      ),
+    );
+  }
+
+  Widget _loanAmountHint(BuildContext context, ScenarioInputs inputs) {
+    final acquisitionCost =
+        inputs.purchasePrice +
+        inputs.rehabBudget +
+        inputs.closingCostBuyFixed +
+        (inputs.purchasePrice * inputs.closingCostBuyPercent);
+    final calculatedLoan =
+        inputs.financingMode == 'loan'
+            ? acquisitionCost * (1 - inputs.downPaymentPercent)
+            : 0.0;
+    final effectiveLoan =
+        inputs.loanAmount > 0 ? inputs.loanAmount : calculatedLoan;
+    final overrideText =
+        inputs.loanAmount > 0
+            ? 'Manual override is active.'
+            : 'Calculated from purchase cost x debt share.';
+    return _fieldContainer(
+      context,
+      idealWidth: 360,
+      child: InputDecorator(
+        decoration: const InputDecoration(labelText: 'Calculated Loan Amount'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatCurrency(effectiveLoan),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(overrideText, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _percentField({
     required BuildContext context,
     required String label,
@@ -1878,6 +1996,10 @@ class _FieldKeys {
   static const closingCostBuyFixed = 'closingCostBuyFixed';
   static const holdMonths = 'holdMonths';
   static const rentMonthlyTotal = 'rentMonthlyTotal';
+  static const grossAreaSqm = 'grossAreaSqm';
+  static const lettableAreaSqm = 'lettableAreaSqm';
+  static const residentialAreaSqm = 'residentialAreaSqm';
+  static const commercialAreaSqm = 'commercialAreaSqm';
   static const otherIncomeMonthly = 'otherIncomeMonthly';
   static const vacancyPercent = 'vacancyPercent';
   static const propertyTaxMonthly = 'propertyTaxMonthly';

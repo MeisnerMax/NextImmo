@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/maintenance.dart';
+import '../../../core/models/property.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
@@ -20,6 +21,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   String _assetPropertyId = '';
   String _statusFilter = 'all';
   String _priorityFilter = 'all';
+  List<PropertyRecord> _properties = const [];
   List<MaintenanceWorkflowRecord> _tickets = const [];
   MaintenanceWorkflowRecord? _selectedTicket;
   String? _status;
@@ -79,11 +81,27 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
         children: [
           SizedBox(
             width: 220,
-            child: TextFormField(
-              initialValue: _assetPropertyId,
-              decoration: const InputDecoration(labelText: 'Asset Property ID'),
-              onChanged: (value) => _assetPropertyId = value.trim(),
-              onFieldSubmitted: (_) => _reload(),
+            child: DropdownButtonFormField<String>(
+              value: _assetPropertyId.isEmpty ? 'all' : _assetPropertyId,
+              items: [
+                const DropdownMenuItem(value: 'all', child: Text('All properties')),
+                ..._properties.map(
+                  (property) => DropdownMenuItem(
+                    value: property.id,
+                    child: Text(property.name),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _assetPropertyId = value == 'all' ? '' : value;
+                });
+                _reload();
+              },
+              decoration: const InputDecoration(labelText: 'Property'),
             ),
           ),
           SizedBox(
@@ -240,7 +258,9 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Asset: ${workflow.propertyName ?? ticket.assetPropertyId}'),
+              Text('Asset: ${workflow.propertyName ?? ticket.assetPropertyId}'),
+          const SizedBox(height: 4),
+          Text('Category: ${ticket.category.replaceAll('_', ' ')}'),
           if (ticket.description != null &&
               ticket.description!.trim().isNotEmpty)
             Padding(
@@ -292,6 +312,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   }
 
   Future<void> _reload() async {
+    final properties = await ref.read(propertyRepositoryProvider).list();
     final tickets = await ref
         .read(maintenanceRepositoryProvider)
         .listWorkflowTickets(
@@ -312,6 +333,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       }
     }
     setState(() {
+      _properties = properties;
       _tickets = tickets;
       _selectedTicket =
           selectedTicket ?? (tickets.isEmpty ? null : tickets.first);
@@ -319,12 +341,19 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   }
 
   Future<void> _createTicketDialog() async {
-    final assetCtrl = TextEditingController(text: _assetPropertyId);
     final titleCtrl = TextEditingController();
     final dueCtrl = TextEditingController();
     final descCtrl = TextEditingController();
+    final costEstimateCtrl = TextEditingController();
+    final vendorCtrl = TextEditingController();
+    String assetPropertyId =
+        _assetPropertyId.isNotEmpty
+            ? _assetPropertyId
+            : (_properties.isEmpty ? '' : _properties.first.id);
+    String category = 'general';
     String priority = 'normal';
     bool createTask = true;
+    DateTime? dueDate;
 
     await showDialog<void>(
       context: context,
@@ -338,11 +367,22 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextField(
-                          controller: assetCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Asset Property ID',
-                          ),
+                        DropdownButtonFormField<String>(
+                          value: assetPropertyId.isEmpty ? null : assetPropertyId,
+                          items: _properties
+                              .map(
+                                (property) => DropdownMenuItem(
+                                  value: property.id,
+                                  child: Text(property.name),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => assetPropertyId = value);
+                            }
+                          },
+                          decoration: const InputDecoration(labelText: 'Property'),
                         ),
                         const SizedBox(height: 8),
                         TextField(
@@ -352,9 +392,43 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: descCtrl,
+                          maxLines: 3,
                           decoration: const InputDecoration(
                             labelText: 'Description',
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: category,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'general',
+                              child: Text('General'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'plumbing',
+                              child: Text('Plumbing'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'electrical',
+                              child: Text('Electrical'),
+                            ),
+                            DropdownMenuItem(value: 'hvac', child: Text('HVAC')),
+                            DropdownMenuItem(
+                              value: 'safety',
+                              child: Text('Safety'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'exterior',
+                              child: Text('Exterior'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => category = value);
+                            }
+                          },
+                          decoration: const InputDecoration(labelText: 'Category'),
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
@@ -387,9 +461,43 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: dueCtrl,
+                          readOnly: true,
                           decoration: const InputDecoration(
-                            labelText: 'Due At (epoch ms, optional)',
+                            labelText: 'Due date',
+                            suffixIcon: Icon(Icons.calendar_today),
                           ),
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: dueDate ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked == null) {
+                              return;
+                            }
+                            setDialogState(() {
+                              dueDate = picked;
+                              dueCtrl.text = _formatDate(
+                                picked.millisecondsSinceEpoch,
+                              );
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: costEstimateCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Estimated cost',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: vendorCtrl,
+                          decoration: const InputDecoration(labelText: 'Vendor'),
                         ),
                         const SizedBox(height: 8),
                         SwitchListTile(
@@ -410,7 +518,6 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     ),
                     ElevatedButton(
                       onPressed: () async {
-                        final assetPropertyId = assetCtrl.text.trim();
                         final title = titleCtrl.text.trim();
                         if (assetPropertyId.isEmpty || title.isEmpty) {
                           return;
@@ -424,11 +531,19 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                                   descCtrl.text.trim().isEmpty
                                       ? null
                                       : descCtrl.text.trim(),
+                              category: category,
                               priority: priority,
-                              dueAt:
-                                  dueCtrl.text.trim().isEmpty
+                              dueAt: dueDate?.millisecondsSinceEpoch,
+                              costEstimate:
+                                  costEstimateCtrl.text.trim().isEmpty
                                       ? null
-                                      : int.tryParse(dueCtrl.text.trim()),
+                                      : double.tryParse(
+                                        costEstimateCtrl.text.trim(),
+                                      ),
+                              vendorName:
+                                  vendorCtrl.text.trim().isEmpty
+                                      ? null
+                                      : vendorCtrl.text.trim(),
                               createTask: createTask,
                             );
                         if (context.mounted) {
@@ -443,10 +558,11 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           ),
     );
 
-    assetCtrl.dispose();
     titleCtrl.dispose();
     dueCtrl.dispose();
     descCtrl.dispose();
+    costEstimateCtrl.dispose();
+    vendorCtrl.dispose();
   }
 
   Future<void> _changeStatusDialog(MaintenanceTicketRecord ticket) async {
@@ -496,6 +612,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                           unitId: ticket.unitId,
                           title: ticket.title,
                           description: ticket.description,
+                          category: ticket.category,
                           status: status,
                           priority: ticket.priority,
                           reportedAt: ticket.reportedAt,

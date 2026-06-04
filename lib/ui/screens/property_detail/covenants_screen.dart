@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/engine/financing.dart';
 import '../../../core/models/covenant.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
@@ -53,6 +54,11 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
               OutlinedButton(
                 onPressed: _createCovenantDialog,
                 child: const Text('Add Covenant'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _generateFromInputs,
+                icon: const Icon(Icons.auto_fix_high),
+                label: const Text('Generate from Inputs'),
               ),
               OutlinedButton(
                 onPressed: _runChecks,
@@ -258,6 +264,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
           }
         }
       }
+      _selectedLoan ??= loans.isEmpty ? null : loans.first;
     });
     if (_selectedLoan != null) {
       await _selectLoan(_selectedLoan!);
@@ -595,5 +602,88 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
       _status = 'Computed ${checks.length} covenant checks.';
     });
     await _reload();
+  }
+
+  Future<void> _generateFromInputs() async {
+    final scenarioId = ref.read(selectedScenarioIdProvider);
+    if (scenarioId == null || scenarioId.trim().isEmpty) {
+      setState(() {
+        _status = 'Select a scenario before generating covenant checks.';
+      });
+      return;
+    }
+
+    final settings = await ref.read(inputsRepositoryProvider).getSettings();
+    final inputs = await ref.read(inputsRepositoryProvider).getInputs(
+          scenarioId: scenarioId,
+          settings: settings,
+        );
+    final financing = resolveFinancing(inputs);
+    if (financing.loanPrincipal <= 0) {
+      setState(() {
+        _status = 'Inputs do not contain a financed loan amount.';
+      });
+      return;
+    }
+
+    final repo = ref.read(covenantRepositoryProvider);
+    var loan = _selectedLoan;
+    loan ??= await repo.createLoan(
+      assetPropertyId: widget.propertyId,
+      lenderName: 'Generated from Inputs',
+      principal: financing.loanPrincipal,
+      interestRatePercent: inputs.interestRatePercent,
+      termYears: inputs.termYears,
+      startDate: DateTime.now().millisecondsSinceEpoch,
+      amortizationType: inputs.amortizationType,
+    );
+
+    final covenants = await repo.listCovenantsByLoan(loan.id);
+    var created = 0;
+    if (!covenants.any((covenant) => covenant.kind == 'dscr')) {
+      await repo.createCovenant(
+        loanId: loan.id,
+        kind: 'dscr',
+        threshold: 1.2,
+        operator: 'gte',
+        severity: 'hard',
+      );
+      created++;
+    }
+    if (!covenants.any((covenant) => covenant.kind == 'ltv')) {
+      await repo.createCovenant(
+        loanId: loan.id,
+        kind: 'ltv',
+        threshold: 0.75,
+        operator: 'lte',
+        severity: 'soft',
+      );
+      created++;
+    }
+
+    final periodKey = _fromPeriod.trim().isEmpty
+        ? _periodKey(DateTime.now())
+        : _fromPeriod.trim();
+    await repo.upsertLoanPeriod(
+      loanId: loan.id,
+      periodKey: periodKey,
+      balanceEnd: financing.loanPrincipal,
+      debtService: financing.loanPrincipal * inputs.interestRatePercent / 12,
+    );
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedLoan = loan;
+      _status =
+          'Generated $created covenant template(s) and updated loan period $periodKey.';
+    });
+    await _selectLoan(loan);
+  }
+
+  String _periodKey(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    return '${value.year}-$month';
   }
 }
