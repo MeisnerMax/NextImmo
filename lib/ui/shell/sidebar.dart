@@ -16,10 +16,12 @@ class Sidebar extends ConsumerStatefulWidget {
 
 class _SidebarState extends ConsumerState<Sidebar> {
   final Map<String, bool> _expanded = <String, bool>{
-    'Portfolio': true,
-    'Operations': true,
-    'Governance': true,
-    'System': true,
+    'Start': true,
+    'Assets & Portfolio': true,
+    'Daily Business': true,
+    'Valuation & Scenarios': true,
+    'Documents & Reporting': true,
+    'Setup & Administration': true,
   };
 
   @override

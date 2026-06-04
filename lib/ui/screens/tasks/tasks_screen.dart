@@ -67,7 +67,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
     return ListFilterTemplate(
       title: 'Tasks',
-      breadcrumbs: const ['Operations', 'Tasks'],
+      breadcrumbs: const ['Daily Business', 'Tasks'],
       subtitle:
           'Run the work queue with visible context, urgency and direct navigation into the related workflow.',
       primaryAction: ElevatedButton.icon(

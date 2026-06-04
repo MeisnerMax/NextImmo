@@ -6,13 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/engine/financing.dart';
 import '../../../core/engine/normalize.dart';
+import '../../../core/models/analysis_result.dart';
 import '../../../core/models/property.dart';
 import '../../i18n/app_strings.dart';
 import '../../state/app_state.dart';
 import '../../state/analysis_state.dart';
 import '../../state/property_state.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/kpi_card.dart';
 import '../../widgets/warnings_panel.dart';
 
 class OverviewScreen extends ConsumerStatefulWidget {
@@ -20,16 +20,26 @@ class OverviewScreen extends ConsumerStatefulWidget {
     super.key,
     required this.propertyId,
     required this.scenarioId,
+    this.scrollable = true,
   });
 
   final String propertyId;
   final String scenarioId;
+  final bool scrollable;
 
   @override
   ConsumerState<OverviewScreen> createState() => _OverviewScreenState();
 }
 
 class _OverviewScreenState extends ConsumerState<OverviewScreen> {
+  static const Color _panel = Color(0xFF1E293B);
+  static const Color _panelHigh = Color(0xFF263244);
+  static const Color _border = Color(0x33475569);
+  static const Color _text = Color(0xFFE0E3E5);
+  static const Color _muted = Color(0xFFC6C6CD);
+  static const Color _teal = Color(0xFF2DD4BF);
+  static const Color _rose = Color(0xFFFB7185);
+
   _CashflowMode _cashflowMode = _CashflowMode.annual;
 
   @override
@@ -48,67 +58,319 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           property: property,
         );
 
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_shouldShowOnboarding(summary, property)) ...[
+              _buildOnboardingCard(context),
+              const SizedBox(height: AppSpacing.component),
+            ],
+            _buildWorkflowHub(context),
+            const SizedBox(height: AppSpacing.component),
+            _buildMetricGrid(context, metrics),
+            const SizedBox(height: AppSpacing.component),
+            _buildSnapshotSections(context, summary, property),
+            const SizedBox(height: AppSpacing.component),
+            _buildCharts(context, state, summary),
+            const SizedBox(height: AppSpacing.component),
+            WarningsPanel(warnings: state.analysis.warnings),
+          ],
+        );
+        if (!widget.scrollable) {
+          return content;
+        }
         return Padding(
           padding: const EdgeInsets.all(AppSpacing.page),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_shouldShowOnboarding(summary, property)) ...[
-                  _buildOnboardingCard(context),
-                  const SizedBox(height: AppSpacing.component),
-                ],
-                Wrap(
-                  spacing: AppSpacing.component,
-                  runSpacing: AppSpacing.component,
-                  children: [
-                    KpiCard(
-                      label: 'Monthly Cashflow',
-                      value: metrics.monthlyCashflowYear1.toStringAsFixed(2),
-                    ),
-                    KpiCard(
-                      label: 'NOI Y1',
-                      value: metrics.noiYear1.toStringAsFixed(2),
-                    ),
-                    KpiCard(
-                      label: 'Cap Rate',
-                      value: '${(metrics.capRate * 100).toStringAsFixed(2)}%',
-                    ),
-                    KpiCard(
-                      label: 'Cash on Cash',
-                      value:
-                          '${(metrics.cashOnCash * 100).toStringAsFixed(2)}%',
-                    ),
-                    KpiCard(
-                      label: 'IRR',
-                      value:
-                          metrics.irr == null
-                              ? 'N/A'
-                              : '${(metrics.irr! * 100).toStringAsFixed(2)}%',
-                    ),
-                    KpiCard(
-                      label: 'ROI',
-                      value: '${(metrics.roi * 100).toStringAsFixed(2)}%',
-                    ),
-                    KpiCard(
-                      label: 'DSCR',
-                      value: metrics.dscr?.toStringAsFixed(2) ?? 'N/A',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.component),
-                _buildSummaryCard(context, summary),
-                const SizedBox(height: AppSpacing.component),
-                _buildCharts(context, state, summary),
-                const SizedBox(height: AppSpacing.component),
-                WarningsPanel(warnings: state.analysis.warnings),
-              ],
-            ),
-          ),
+          child: SingleChildScrollView(child: content),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(child: Text('Error: $error')),
+    );
+  }
+
+  Widget _buildWorkflowHub(BuildContext context) {
+    final actions = <({IconData icon, String label, PropertyDetailPage page})>[
+      (
+        icon: Icons.edit_outlined,
+        label: 'Edit Master Data',
+        page: PropertyDetailPage.overview,
+      ),
+      (
+        icon: Icons.tune_outlined,
+        label: 'Edit Valuation',
+        page: PropertyDetailPage.inputs,
+      ),
+      (
+        icon: Icons.apartment_outlined,
+        label: 'Rent Management',
+        page: PropertyDetailPage.rentRoll,
+      ),
+      (
+        icon: Icons.checklist_outlined,
+        label: 'Daily Business',
+        page: PropertyDetailPage.operationsOverview,
+      ),
+      (
+        icon: Icons.folder_open_outlined,
+        label: 'Documents & Reporting',
+        page: PropertyDetailPage.documents,
+      ),
+      (
+        icon: Icons.summarize_outlined,
+        label: 'Report',
+        page: PropertyDetailPage.reports,
+      ),
+    ];
+    return _assetPanel(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.strings.text('Property Workflow'),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: _text,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns =
+                  constraints.maxWidth >= 1080
+                      ? 6
+                      : constraints.maxWidth >= 720
+                      ? 3
+                      : 2;
+              final tileWidth =
+                  (constraints.maxWidth -
+                      (AppSpacing.component * (columns - 1))) /
+                  columns;
+              return Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: AppSpacing.component,
+                children: [
+                  for (final action in actions)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _workflowTile(
+                        context,
+                        icon: action.icon,
+                        label: action.label,
+                        onTap:
+                            () =>
+                                ref
+                                    .read(propertyDetailPageProvider.notifier)
+                                    .state = action.page,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricGrid(BuildContext context, AnalysisMetrics metrics) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        final twoColumn =
+            constraints.maxWidth >= 520 && constraints.maxWidth < 980;
+        final metricWidth =
+            compact
+                ? constraints.maxWidth
+                : twoColumn
+                ? (constraints.maxWidth - AppSpacing.component) / 2
+                : 220.0;
+        final wideWidth =
+            compact || twoColumn
+                ? metricWidth
+                : (metricWidth * 2) + AppSpacing.component;
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.payments_outlined,
+              label: 'Monthly Cashflow',
+              value: metrics.monthlyCashflowYear1.toStringAsFixed(2),
+              tone: _toneFor(metrics.monthlyCashflowYear1),
+            ),
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.bar_chart_outlined,
+              label: 'NOI Y1',
+              value: metrics.noiYear1.toStringAsFixed(2),
+              tone: _toneFor(metrics.noiYear1),
+            ),
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.percent_outlined,
+              label: 'Cap Rate',
+              value: '${(metrics.capRate * 100).toStringAsFixed(2)}%',
+              tone: _text,
+            ),
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.currency_exchange_outlined,
+              label: 'Cash on Cash',
+              value: '${(metrics.cashOnCash * 100).toStringAsFixed(2)}%',
+              tone: _toneFor(metrics.cashOnCash),
+            ),
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.show_chart_outlined,
+              label: 'IRR',
+              value:
+                  metrics.irr == null
+                      ? 'N/A'
+                      : '${(metrics.irr! * 100).toStringAsFixed(2)}%',
+              tone: metrics.irr == null ? _text : _toneFor(metrics.irr!),
+            ),
+            _metricCard(
+              context,
+              width: metricWidth,
+              icon: Icons.trending_up_outlined,
+              label: 'ROI',
+              value: '${(metrics.roi * 100).toStringAsFixed(2)}%',
+              tone: _toneFor(metrics.roi),
+            ),
+            _metricCard(
+              context,
+              width: wideWidth,
+              icon: Icons.balance_outlined,
+              label: 'DSCR',
+              value: metrics.dscr?.toStringAsFixed(2) ?? 'N/A',
+              subtitle: metrics.dscr == null ? null : 'Ratio',
+              tone: _text,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _workflowTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+      child: Container(
+        height: 108,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: _panel,
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: _muted, size: 28),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              context.strings.text(label),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: _text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metricCard(
+    BuildContext context, {
+    required double width,
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+    String? subtitle,
+  }) {
+    return SizedBox(
+      width: width,
+      height: 132,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: _panel,
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -4,
+              top: -4,
+              child: Icon(icon, size: 52, color: _muted.withValues(alpha: 0.14)),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  context.strings.text(label).toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: _muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineMedium?.copyWith(
+                          color: tone,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(width: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: _muted),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -222,104 +484,218 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _buildSummaryCard(
+  Widget _buildSnapshotSections(
     BuildContext context,
     _DealSummaryViewModel summary,
+    PropertyRecord? property,
   ) {
-    return Card(
+    return _assetPanel(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.strings.text('Property Snapshot'),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: _text,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 1080 ? 2 : 1;
+              final width =
+                  columns == 2
+                      ? (constraints.maxWidth - AppSpacing.component) / 2
+                      : constraints.maxWidth;
+              return Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: AppSpacing.component,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Object Profile',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Address',
+                          value: _propertyAddress(property),
+                        ),
+                        _SnapshotRow(
+                          label: 'Property Type',
+                          value: property?.propertyType ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Units',
+                          value: property?.units.toString() ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Size m2',
+                          value: _formatOptional(summary.sizeM2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Valuation Snapshot',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Purchase Price',
+                          value: _formatNumber(summary.purchasePrice),
+                        ),
+                        _SnapshotRow(
+                          label: 'Price per m2',
+                          value: _formatOptional(summary.pricePerM2),
+                        ),
+                        _SnapshotRow(
+                          label: 'Hold Period',
+                          value: summary.holdPeriodLabel,
+                        ),
+                        _SnapshotRow(
+                          label: 'Exit Assumption',
+                          value: summary.exitAssumptionMode,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Rent Snapshot',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Monthly Rent',
+                          value: _formatNumber(summary.monthlyRent),
+                        ),
+                        _SnapshotRow(
+                          label: 'Rent per m2',
+                          value: _formatOptional(summary.rentPerM2),
+                        ),
+                        _SnapshotRow(
+                          label: 'Units',
+                          value: property?.units.toString() ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Year Built',
+                          value: property?.yearBuilt?.toString() ?? 'N/A',
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Financing Snapshot',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Rehab Budget',
+                          value: _formatNumber(summary.rehabBudget),
+                        ),
+                        _SnapshotRow(
+                          label: 'Total Acquisition Cost',
+                          value: _formatNumber(summary.totalAcquisitionCost),
+                        ),
+                        _SnapshotRow(
+                          label: 'Total Equity Invested',
+                          value: _formatNumber(summary.totalEquityInvested),
+                        ),
+                        _SnapshotRow(
+                          label: 'LTV',
+                          value:
+                              summary.ltv == null
+                                  ? 'N/A'
+                                  : '${(summary.ltv! * 100).toStringAsFixed(2)}%',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _assetPanel(BuildContext context, {required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: _panel.withValues(alpha: 0.82),
+        border: Border.all(color: _border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _snapshotGroup(
+    BuildContext context, {
+    required String title,
+    required List<_SnapshotRow> rows,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _panelHigh.withValues(alpha: 0.46),
+        border: Border.all(color: _border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        padding: const EdgeInsets.all(AppSpacing.component),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Deal Summary',
-              style: Theme.of(context).textTheme.titleMedium,
+              context.strings.text(title),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: _text,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: AppSpacing.component),
-            Wrap(
-              spacing: AppSpacing.component,
-              runSpacing: AppSpacing.component,
-              children: [
-                _summaryTile(
-                  context,
-                  label: 'Purchase Price',
-                  value: _formatNumber(summary.purchasePrice),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Size m2',
-                  value: _formatOptional(summary.sizeM2),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Price per m2',
-                  value: _formatOptional(summary.pricePerM2),
-                  tooltip: 'Purchase price divided by size in m2.',
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Monthly Rent',
-                  value: _formatNumber(summary.monthlyRent),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Rent per m2',
-                  value: _formatOptional(summary.rentPerM2),
-                  tooltip: 'Monthly rent divided by size in m2.',
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Rehab Budget',
-                  value: _formatNumber(summary.rehabBudget),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Closing Costs Buy',
-                  value: _formatNumber(summary.closingCostsBuy),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Total Acquisition Cost',
-                  value: _formatNumber(summary.totalAcquisitionCost),
-                  tooltip:
-                      'Purchase + rehab + buy closing costs (fixed + percent).',
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Total Equity Invested',
-                  value: _formatNumber(summary.totalEquityInvested),
-                  tooltip:
-                      'Total acquisition cost minus effective loan amount.',
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Loan Amount',
-                  value: _formatNumber(summary.loanAmount),
-                ),
-                _summaryTile(
-                  context,
-                  label: 'LTV',
-                  value:
-                      summary.ltv == null
-                          ? 'N/A'
-                          : '${(summary.ltv! * 100).toStringAsFixed(2)}%',
-                  tooltip: 'Loan amount divided by total acquisition cost.',
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Hold Period',
-                  value: summary.holdPeriodLabel,
-                ),
-                _summaryTile(
-                  context,
-                  label: 'Exit Assumption',
-                  value: summary.exitAssumptionMode,
-                ),
-              ],
-            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final row in rows) _snapshotRow(context, row),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _snapshotRow(BuildContext context, _SnapshotRow row) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              context.strings.text(row.label),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _muted,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          Expanded(
+            child: Text(
+              row.value,
+              textAlign: TextAlign.right,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(
+                color: _text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -614,43 +990,6 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _summaryTile(
-    BuildContext context, {
-    required String label,
-    required String value,
-    String? tooltip,
-  }) {
-    return SizedBox(
-      width: 220,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              if (tooltip != null)
-                Tooltip(
-                  message: tooltip,
-                  child: Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
-    );
-  }
-
   static PropertyRecord? _findProperty(
     List<PropertyRecord>? properties,
     String propertyId,
@@ -666,7 +1005,32 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     return null;
   }
 
+  static String _propertyAddress(PropertyRecord? property) {
+    if (property == null) {
+      return 'N/A';
+    }
+    final parts = <String>[
+      property.addressLine1,
+      if (property.addressLine2 != null &&
+          property.addressLine2!.trim().isNotEmpty)
+        property.addressLine2!,
+      property.city,
+      property.country,
+    ].where((part) => part.trim().isNotEmpty).toList(growable: false);
+    return parts.isEmpty ? 'N/A' : parts.join(', ');
+  }
+
   static String _formatNumber(double value) => value.toStringAsFixed(2);
+
+  static Color _toneFor(double value) {
+    if (value < 0) {
+      return _rose;
+    }
+    if (value > 0) {
+      return _teal;
+    }
+    return _text;
+  }
 
   static String _formatOptional(double? value) {
     if (value == null) {
@@ -718,6 +1082,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
 }
 
 enum _CashflowMode { annual, monthlyAverage }
+
+class _SnapshotRow {
+  const _SnapshotRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
 
 class _DealSummaryViewModel {
   const _DealSummaryViewModel({

@@ -103,7 +103,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
     return ListFilterTemplate(
       title: 'Scenario Compare',
-      breadcrumbs: const ['Portfolio', 'Scenario Compare'],
+      breadcrumbs: const ['Valuation & Scenarios', 'Scenario Compare'],
       subtitle:
           'Select scenarios, tailor visible metrics, and compare results in a consistent table workflow.',
       secondaryActions: [

@@ -51,7 +51,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
 
     return ListFilterTemplate(
       title: 'Properties',
-      breadcrumbs: const ['Portfolio', 'Properties'],
+      breadcrumbs: const ['Assets & Portfolio', 'Properties'],
       subtitle:
           'Manage assets, filter the portfolio, and open each property workflow.',
       primaryAction: ElevatedButton.icon(

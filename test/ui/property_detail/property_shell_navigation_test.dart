@@ -46,10 +46,12 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Summary'), findsOneWidget);
-    expect(find.text('Operations'), findsOneWidget);
+    expect(find.text('View'), findsOneWidget);
+    expect(find.text('Daily Business'), findsOneWidget);
     expect(
-      find.text('Portfolio / Properties / Asset Alpha / Operations / Tasks'),
+      find.text(
+        'Assets & Portfolio / Properties / Asset Alpha / Daily Business / Tasks',
+      ),
       findsOneWidget,
     );
     expect(find.text('New Task'), findsOneWidget);

@@ -25,10 +25,12 @@ class SidebarV2 extends ConsumerStatefulWidget {
 
 class _SidebarV2State extends ConsumerState<SidebarV2> {
   final Map<String, bool> _expanded = <String, bool>{
-    'Portfolio': true,
-    'Operations': true,
-    'Governance': true,
-    'System': true,
+    'Start': true,
+    'Assets & Portfolio': true,
+    'Daily Business': true,
+    'Valuation & Scenarios': true,
+    'Documents & Reporting': true,
+    'Setup & Administration': true,
   };
   bool _manualCollapsed = false;
 
@@ -86,69 +88,77 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 36),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(
-                      alpha: 0.45,
-                    ),
-                    borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-                    border: Border.all(color: semantic.border),
-                  ),
-                  child: Icon(
-                    Icons.account_balance,
-                    color: colorScheme.primary,
-                    size: 22,
-                  ),
-                ),
-                if (!collapsed) ...[
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            padding:
+                collapsed
+                    ? const EdgeInsets.fromLTRB(12, 48, 12, 24)
+                    : const EdgeInsets.fromLTRB(24, 48, 24, 36),
+            child:
+                collapsed
+                    ? Center(
+                      child: IconButton(
+                        tooltip: context.strings.text('Expand navigation'),
+                        onPressed:
+                            () => setState(() => _manualCollapsed = false),
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    )
+                    : Row(
                       children: [
-                        Text(
-                          'Capital Management',
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.4,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(
+                              AppRadiusTokens.sm,
+                            ),
+                            border: Border.all(color: semantic.border),
+                          ),
+                          child: Icon(
+                            Icons.account_balance,
+                            color: colorScheme.primary,
+                            size: 22,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Venture Fund III',
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: semantic.textSecondary,
-                            letterSpacing: 1.6,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Capital Management',
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Venture Fund III',
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: semantic.textSecondary,
+                                  letterSpacing: 1.6,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        if (!widget.drawerMode &&
+                            zone != AppDesktopLayoutZone.narrow)
+                          IconButton(
+                            tooltip: context.strings.text(
+                              'Collapse navigation',
+                            ),
+                            onPressed:
+                                () => setState(() => _manualCollapsed = true),
+                            icon: const Icon(Icons.chevron_left),
+                          ),
                       ],
                     ),
-                  ),
-                ],
-                if (!widget.drawerMode && zone != AppDesktopLayoutZone.narrow)
-                  IconButton(
-                    tooltip:
-                        collapsed
-                            ? context.strings.text('Expand navigation')
-                            : context.strings.text('Collapse navigation'),
-                    onPressed:
-                        () => setState(
-                          () => _manualCollapsed = !_manualCollapsed,
-                        ),
-                    icon: Icon(
-                      collapsed ? Icons.chevron_right : Icons.chevron_left,
-                    ),
-                  ),
-              ],
-            ),
           ),
           Expanded(
             child: ListView(
@@ -194,7 +204,10 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(30, 16, 30, 28),
+            padding:
+                collapsed
+                    ? const EdgeInsets.fromLTRB(12, 16, 12, 28)
+                    : const EdgeInsets.fromLTRB(30, 16, 30, 28),
             child:
                 collapsed
                     ? IconButton.filled(

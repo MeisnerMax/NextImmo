@@ -215,7 +215,53 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
   }
 
   List<_PaletteEntry> _actionEntries(String query) {
+    final selectedPropertyId = ref.read(selectedPropertyIdProvider);
     final actions = <_PaletteEntry>[
+      _PaletteEntry.action(
+        actionId: 'open_assets_portfolio',
+        title: context.strings.text('Assets & Portfolio'),
+        subtitle: context.strings.text(
+          'Open property, portfolio and ESG views',
+        ),
+        icon: Icons.home_work_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
+      _PaletteEntry.action(
+        actionId: 'open_daily_business',
+        title: context.strings.text('Daily Business'),
+        subtitle: context.strings.text(
+          'Open active tasks, maintenance, budgets and ledger work',
+        ),
+        icon: Icons.checklist_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
+      _PaletteEntry.action(
+        actionId: 'open_valuation_scenarios',
+        title: context.strings.text('Valuation & Scenarios'),
+        subtitle: context.strings.text(
+          'Open scenario analysis, criteria or comparison work',
+        ),
+        icon: Icons.table_chart_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
+      _PaletteEntry.action(
+        actionId: 'open_documents_reporting',
+        title: context.strings.text('Documents & Reporting'),
+        subtitle: context.strings.text(
+          'Open documents, compliance and report templates',
+        ),
+        icon: Icons.folder_open_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
+      _PaletteEntry.action(
+        actionId: 'open_setup_administration',
+        title: context.strings.text('Setup & Administration'),
+        subtitle: context.strings.text(
+          'Open app defaults, users, security and admin tools',
+        ),
+        icon: Icons.settings_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
       _PaletteEntry.action(
         actionId: 'new_property',
         title: context.strings.text('New Property'),
@@ -252,6 +298,63 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         icon: Icons.inventory_2_outlined,
         kindLabel: context.strings.text('Action'),
       ),
+      if (selectedPropertyId != null) ...[
+        _PaletteEntry.action(
+          actionId: 'edit_property_master_data',
+          title: context.strings.text('Edit Master Data'),
+          subtitle: context.strings.text('Open the active property hub'),
+          icon: Icons.edit_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'edit_property_valuation',
+          title: context.strings.text('Edit Valuation'),
+          subtitle: context.strings.text(
+            'Open valuation inputs for the active property',
+          ),
+          icon: Icons.tune_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'open_property_rent_management',
+          title: context.strings.text('Rent Management'),
+          subtitle: context.strings.text(
+            'Open rent roll, units, tenants and leases',
+          ),
+          icon: Icons.apartment_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'create_property_task',
+          title: context.strings.text('Create Property Task'),
+          subtitle: context.strings.text('Open tasks filtered to this object'),
+          icon: Icons.add_task_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'add_property_document',
+          title: context.strings.text('Add Property Document'),
+          subtitle: context.strings.text(
+            'Open documents filtered to this object',
+          ),
+          icon: Icons.note_add_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'check_property_budget',
+          title: context.strings.text('Check Property Budget'),
+          subtitle: context.strings.text('Open budget vs actual for this object'),
+          icon: Icons.request_quote_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+        _PaletteEntry.action(
+          actionId: 'create_property_report',
+          title: context.strings.text('Create Property Report'),
+          subtitle: context.strings.text('Open reporting for this object'),
+          icon: Icons.summarize_outlined,
+          kindLabel: context.strings.text('Property Action'),
+        ),
+      ],
     ];
     return _filterStaticEntries(actions, query);
   }

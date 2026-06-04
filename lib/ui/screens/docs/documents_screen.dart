@@ -59,7 +59,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     }
     return ListFilterTemplate(
       title: 'Documents',
-      breadcrumbs: const ['Governance', 'Documents'],
+      breadcrumbs: const ['Documents & Reporting', 'Documents'],
       subtitle:
           'Manage files, document types, required rules, and compliance in one shared workflow.',
       secondaryActions: [

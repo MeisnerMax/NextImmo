@@ -35,6 +35,26 @@ import 'units_screen.dart';
 class PropertyShell extends ConsumerWidget {
   const PropertyShell({super.key});
 
+  static const Color _assetCanvas = Color(0xFF0F172A);
+  static const Color _assetSidebar = Color(0xFF101415);
+  static const Color _assetPanel = Color(0xFF1E293B);
+  static const Color _assetPanelHigh = Color(0xFF263244);
+  static const Color _assetBorder = Color(0x33475569);
+  static const Color _assetText = Color(0xFFE0E3E5);
+  static const Color _assetMuted = Color(0xFFC6C6CD);
+  static const Color _assetAccent = Color(0xFF2DD4BF);
+
+  static const Set<PropertyDetailPage> _workflowMenuPages =
+      <PropertyDetailPage>{
+        PropertyDetailPage.overview,
+        PropertyDetailPage.operationsOverview,
+        PropertyDetailPage.rentRoll,
+        PropertyDetailPage.inputs,
+        PropertyDetailPage.analysis,
+        PropertyDetailPage.documents,
+        PropertyDetailPage.reports,
+      };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = context.strings;
@@ -76,34 +96,208 @@ class PropertyShell extends ConsumerWidget {
           scenarios: scenarios,
         );
 
-        return DetailTemplate(
-          title: propertyName,
-          breadcrumbs: propertyBreadcrumbs(
-            propertyName: propertyName,
-            page: selectedPage,
-          ).map(s.text).toList(growable: false),
-          subtitle: '${s.text(section.title)} / ${s.text(destination.label)}',
-          contextBar: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: _scenarioSelector(
-              context: context,
-              ref: ref,
-              scenarios: scenarios,
-              selectedScenarioId: activeScenarioId,
+        return Theme(
+          data: _propertyWorkspaceTheme(context),
+          child: Container(
+            color: _assetCanvas,
+            child: DetailTemplate(
+              title: propertyName,
+              breadcrumbs: propertyBreadcrumbs(
+                propertyName: propertyName,
+                page: selectedPage,
+              ).map(s.text).toList(growable: false),
+              subtitle: '${s.text(section.title)} / ${s.text(destination.label)}',
+              contextBar: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: _scenarioSelector(
+                  context: context,
+                  ref: ref,
+                  scenarios: scenarios,
+                  selectedScenarioId: activeScenarioId,
+                ),
+              ),
+              plainHeader: true,
+              fullPageScroll: selectedPage == PropertyDetailPage.overview,
+              pagePadding: AppSpacing.xl,
+              headerActions: _propertyHeaderActions(context: context, ref: ref),
+              navigation: _propertyNavigation(
+                context: context,
+                ref: ref,
+                selectedPage: selectedPage,
+              ),
+              content: detailContent,
             ),
           ),
-          navigation: _propertyNavigation(
-            context: context,
-            ref: ref,
-            selectedPage: selectedPage,
-          ),
-          content: detailContent,
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error:
           (error, _) =>
               Center(child: Text(s.errorWithPrefix(s.text('Error'), error))),
+    );
+  }
+
+  ThemeData _propertyWorkspaceTheme(BuildContext context) {
+    final base = Theme.of(context);
+    final colors = base.colorScheme.copyWith(
+      brightness: Brightness.dark,
+      primary: _assetAccent,
+      secondary: const Color(0xFFBCC7DE),
+      surface: _assetPanel,
+      surfaceContainerHighest: _assetPanelHigh,
+      onSurface: _assetText,
+      onPrimary: const Color(0xFF003731),
+      outline: _assetBorder,
+      error: const Color(0xFFFB7185),
+    );
+    final densityConfig = base.extension<AppDensityConfig>();
+    final extensions = <ThemeExtension<dynamic>>[
+      if (densityConfig != null) densityConfig,
+      const AppSemanticColors(
+        success: _assetAccent,
+        warning: Color(0xFFFACC15),
+        error: Color(0xFFFB7185),
+        info: Color(0xFF93C5FD),
+        border: _assetBorder,
+        surfaceAlt: _assetPanelHigh,
+        textSecondary: _assetMuted,
+      ),
+    ];
+    return base.copyWith(
+      colorScheme: colors,
+      scaffoldBackgroundColor: _assetCanvas,
+      dividerColor: _assetBorder,
+      textTheme: base.textTheme.apply(
+        bodyColor: _assetText,
+        displayColor: _assetText,
+      ),
+      cardTheme: base.cardTheme.copyWith(
+        color: _assetPanel,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+          side: const BorderSide(color: _assetBorder),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _assetText,
+          side: const BorderSide(color: Color(0xFF475569)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+          ),
+        ),
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: _assetPanel,
+        textStyle: TextStyle(color: _assetText),
+      ),
+      extensions: extensions,
+    );
+  }
+
+  Widget _propertyHeaderActions({
+    required BuildContext context,
+    required WidgetRef ref,
+  }) {
+    final actions = <({IconData icon, String label, PropertyDetailPage page})>[
+      (
+        icon: Icons.edit_outlined,
+        label: 'Edit Master Data',
+        page: PropertyDetailPage.overview,
+      ),
+      (
+        icon: Icons.tune_outlined,
+        label: 'Edit Valuation',
+        page: PropertyDetailPage.inputs,
+      ),
+      (
+        icon: Icons.analytics_outlined,
+        label: 'Analysis',
+        page: PropertyDetailPage.analysis,
+      ),
+      (
+        icon: Icons.apartment_outlined,
+        label: 'Rent Management',
+        page: PropertyDetailPage.rentRoll,
+      ),
+      (
+        icon: Icons.add_task_outlined,
+        label: 'Task',
+        page: PropertyDetailPage.tasks,
+      ),
+      (
+        icon: Icons.note_add_outlined,
+        label: 'Document',
+        page: PropertyDetailPage.documents,
+      ),
+      (
+        icon: Icons.request_quote_outlined,
+        label: 'Check Budget',
+        page: PropertyDetailPage.budgetVsActual,
+      ),
+      (
+        icon: Icons.summarize_outlined,
+        label: 'Report',
+        page: PropertyDetailPage.reports,
+      ),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final action in actions)
+          OutlinedButton.icon(
+            onPressed:
+                () =>
+                    ref.read(propertyDetailPageProvider.notifier).state =
+                        action.page,
+            icon: Icon(action.icon, size: 16),
+            label: Text(context.strings.text(action.label)),
+          ),
+        PopupMenuButton<PropertyDetailPage>(
+          onSelected:
+              (page) =>
+                  ref.read(propertyDetailPageProvider.notifier).state = page,
+          itemBuilder:
+              (context) => [
+                _propertyActionMenuItem(context, PropertyDetailPage.scenarios),
+                _propertyActionMenuItem(context, PropertyDetailPage.comps),
+                _propertyActionMenuItem(context, PropertyDetailPage.offer),
+                _propertyActionMenuItem(context, PropertyDetailPage.criteria),
+                _propertyActionMenuItem(context, PropertyDetailPage.versions),
+                _propertyActionMenuItem(context, PropertyDetailPage.covenants),
+                _propertyActionMenuItem(context, PropertyDetailPage.audit),
+                _propertyActionMenuItem(context, PropertyDetailPage.alerts),
+              ],
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: context.semanticColors.border),
+              borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.more_horiz, size: 16),
+                const SizedBox(width: 8),
+                Text(context.strings.text('More')),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<PropertyDetailPage> _propertyActionMenuItem(
+    BuildContext context,
+    PropertyDetailPage page,
+  ) {
+    return PopupMenuItem<PropertyDetailPage>(
+      value: page,
+      child: Text(context.strings.text(propertyDestinationForPage(page).label)),
     );
   }
 
@@ -138,20 +332,27 @@ class PropertyShell extends ConsumerWidget {
     required PropertyDetailPage selectedPage,
   }) {
     final zone = context.desktopLayoutZone;
+    final sections = _visibleNavigationSections(selectedPage);
     if (zone == AppDesktopLayoutZone.narrow) {
       return _buildNarrowNavigation(
         context: context,
         ref: ref,
         selectedPage: selectedPage,
+        sections: sections,
       );
     }
     final compact = zone == AppDesktopLayoutZone.medium;
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _assetSidebar,
+        border: Border.all(color: _assetBorder),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+      ),
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.component),
         children:
             compact
-                ? propertyNavigationSections
+                ? sections
                     .map(
                       (section) => _buildCompactSection(
                         context: context,
@@ -161,14 +362,15 @@ class PropertyShell extends ConsumerWidget {
                       ),
                     )
                     .toList(growable: false)
-                : propertyNavigationSections
+                : sections
                     .expand(
                       (section) => <Widget>[
                         Padding(
                           padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
                           child: Text(
-                            section.title,
-                            style: Theme.of(context).textTheme.labelMedium,
+                            context.strings.text(section.title),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: _assetMuted),
                           ),
                         ),
                         ...section.items.map(
@@ -190,9 +392,15 @@ class PropertyShell extends ConsumerWidget {
     required BuildContext context,
     required WidgetRef ref,
     required PropertyDetailPage selectedPage,
+    required List<PropertyNavigationSection> sections,
   }) {
     final selectedSection = propertySectionForPage(selectedPage);
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _assetSidebar,
+        border: Border.all(color: _assetBorder),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.component),
         child: Column(
@@ -211,9 +419,12 @@ class PropertyShell extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.component),
             DropdownButtonFormField<PropertyDetailPage>(
-              value: selectedPage,
+              value:
+                  _menuContainsPage(sections, selectedPage)
+                      ? selectedPage
+                      : null,
               isExpanded: true,
-              items: propertyNavigationSections
+              items: sections
                   .expand(
                     (section) => section.items.map(
                       (item) => DropdownMenuItem<PropertyDetailPage>(
@@ -240,6 +451,34 @@ class PropertyShell extends ConsumerWidget {
     );
   }
 
+  List<PropertyNavigationSection> _visibleNavigationSections(
+    PropertyDetailPage selectedPage,
+  ) {
+    return propertyNavigationSections
+        .map((section) {
+          final visibleItems =
+              section.items
+                  .where((item) => _workflowMenuPages.contains(item.page))
+                  .toList(growable: false);
+          return PropertyNavigationSection(
+            title: section.title,
+            routeKey: section.routeKey,
+            items: visibleItems,
+          );
+        })
+        .where((section) => section.items.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  bool _menuContainsPage(
+    List<PropertyNavigationSection> sections,
+    PropertyDetailPage page,
+  ) {
+    return sections.any(
+      (section) => section.items.any((item) => item.page == page),
+    );
+  }
+
   Widget _buildCompactSection({
     required BuildContext context,
     required WidgetRef ref,
@@ -253,7 +492,9 @@ class PropertyShell extends ConsumerWidget {
       childrenPadding: const EdgeInsets.only(bottom: 8),
       title: Text(
         context.strings.text(section.title),
-        style: Theme.of(context).textTheme.titleMedium,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: _assetText,
+        ),
       ),
       children: section.items
           .map(
@@ -276,20 +517,60 @@ class PropertyShell extends ConsumerWidget {
   }) {
     final selected = item.page == selectedPage;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: ListTile(
-        dense: true,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+      padding: const EdgeInsets.only(bottom: 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected ? _assetPanelHigh : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              color: selected ? _assetAccent : Colors.transparent,
+              width: 4,
+            ),
+          ),
         ),
-        selected: selected,
-        selectedTileColor: const Color(0xFFEAF1F8),
-        title: Text(context.strings.text(item.label)),
-        onTap:
-            () =>
-                ref.read(propertyDetailPageProvider.notifier).state = item.page,
+        child: ListTile(
+          dense: true,
+          visualDensity: VisualDensity.compact,
+          leading: Icon(
+            _iconForPropertyPage(item.page),
+            size: 20,
+            color: selected ? _assetAccent : _assetMuted,
+          ),
+          title: Text(
+            context.strings.text(item.label),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: selected ? _assetText : _assetMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          onTap:
+              () =>
+                  ref.read(propertyDetailPageProvider.notifier).state =
+                      item.page,
+        ),
       ),
     );
+  }
+
+  IconData _iconForPropertyPage(PropertyDetailPage page) {
+    switch (page) {
+      case PropertyDetailPage.overview:
+        return Icons.dashboard_outlined;
+      case PropertyDetailPage.operationsOverview:
+        return Icons.business_center_outlined;
+      case PropertyDetailPage.rentRoll:
+        return Icons.apartment_outlined;
+      case PropertyDetailPage.inputs:
+        return Icons.account_balance_wallet_outlined;
+      case PropertyDetailPage.analysis:
+        return Icons.analytics_outlined;
+      case PropertyDetailPage.documents:
+        return Icons.folder_open_outlined;
+      case PropertyDetailPage.reports:
+        return Icons.summarize_outlined;
+      default:
+        return Icons.arrow_right_alt;
+    }
   }
 
   Widget _scenarioSelector({
@@ -390,7 +671,11 @@ class PropertyShell extends ConsumerWidget {
   }) {
     switch (page) {
       case PropertyDetailPage.overview:
-        return OverviewScreen(propertyId: propertyId, scenarioId: scenarioId!);
+        return OverviewScreen(
+          propertyId: propertyId,
+          scenarioId: scenarioId!,
+          scrollable: false,
+        );
       case PropertyDetailPage.inputs:
         return InputsScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.analysis:

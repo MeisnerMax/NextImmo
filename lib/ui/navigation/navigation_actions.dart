@@ -110,7 +110,72 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
     case 'open_dashboard':
       openGlobalPage(ref, GlobalPage.dashboard);
       break;
+    case 'open_assets_portfolio':
+      openGlobalPage(ref, GlobalPage.properties);
+      break;
+    case 'open_daily_business':
+      openGlobalPage(ref, GlobalPage.tasks);
+      break;
+    case 'open_valuation_scenarios':
+      _openPropertyAreaOrGlobal(
+        ref,
+        PropertyDetailPage.analysis,
+        GlobalPage.compare,
+      );
+      break;
+    case 'open_documents_reporting':
+      _openPropertyAreaOrGlobal(
+        ref,
+        PropertyDetailPage.documents,
+        GlobalPage.documents,
+      );
+      break;
+    case 'open_setup_administration':
+      openGlobalPage(ref, GlobalPage.settings);
+      break;
+    case 'edit_property_master_data':
+      _openPropertyDetailAction(ref, PropertyDetailPage.overview);
+      break;
+    case 'edit_property_valuation':
+      _openPropertyDetailAction(ref, PropertyDetailPage.inputs);
+      break;
+    case 'open_property_rent_management':
+      _openPropertyDetailAction(ref, PropertyDetailPage.rentRoll);
+      break;
+    case 'create_property_task':
+      _openPropertyDetailAction(ref, PropertyDetailPage.tasks);
+      break;
+    case 'add_property_document':
+      _openPropertyDetailAction(ref, PropertyDetailPage.documents);
+      break;
+    case 'check_property_budget':
+      _openPropertyDetailAction(ref, PropertyDetailPage.budgetVsActual);
+      break;
+    case 'create_property_report':
+      _openPropertyDetailAction(ref, PropertyDetailPage.reports);
+      break;
   }
+}
+
+void _openPropertyAreaOrGlobal(
+  WidgetRef ref,
+  PropertyDetailPage propertyPage,
+  GlobalPage fallbackPage,
+) {
+  if (ref.read(selectedPropertyIdProvider) == null) {
+    openGlobalPage(ref, fallbackPage);
+    return;
+  }
+  _openPropertyDetailAction(ref, propertyPage);
+}
+
+void _openPropertyDetailAction(WidgetRef ref, PropertyDetailPage page) {
+  if (ref.read(selectedPropertyIdProvider) == null) {
+    openGlobalPage(ref, GlobalPage.properties);
+    return;
+  }
+  ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
+  ref.read(propertyDetailPageProvider.notifier).state = page;
 }
 
 String? _extractToken(String? body, String key) {

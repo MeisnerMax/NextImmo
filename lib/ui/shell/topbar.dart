@@ -45,6 +45,8 @@ class _TopBarState extends ConsumerState<TopBar> {
     final security = ref.watch(securityControllerProvider).valueOrNull;
     final semantic = context.semanticColors;
     final colorScheme = Theme.of(context).colorScheme;
+    final inPropertyDetail =
+        page == GlobalPage.properties && selectedPropertyId != null;
     final title = _title(
       page: page,
       selectedPropertyId: selectedPropertyId,
@@ -61,7 +63,7 @@ class _TopBarState extends ConsumerState<TopBar> {
       color: colorScheme.surface,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.page,
-        vertical: 10,
+        vertical: 6,
       ),
       alignment: Alignment.centerLeft,
       child: LayoutBuilder(
@@ -75,20 +77,22 @@ class _TopBarState extends ConsumerState<TopBar> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                inPropertyDetail ? 'NexImmo Assets' : title,
                 style: Theme.of(
                   context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 2),
-              Text(
-                breadcrumb.join(' / '),
-                maxLines: compact ? 1 : 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: semantic.textSecondary),
-              ),
+              if (!inPropertyDetail) ...[
+                const SizedBox(height: 2),
+                Text(
+                  breadcrumb.join(' / '),
+                  maxLines: compact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: semantic.textSecondary,
+                  ),
+                ),
+              ],
             ],
           );
           final actions = <Widget>[

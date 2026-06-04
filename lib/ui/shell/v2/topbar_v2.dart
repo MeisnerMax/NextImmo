@@ -46,6 +46,8 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
     final propertiesAsync = ref.watch(propertiesControllerProvider);
     final security = ref.watch(securityControllerProvider).valueOrNull;
     final semantic = context.semanticColors;
+    final inPropertyDetail =
+        page == GlobalPage.properties && selectedPropertyId != null;
     final title = _title(
       page: page,
       selectedPropertyId: selectedPropertyId,
@@ -61,7 +63,12 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: context.adaptivePagePadding,
-        vertical: context.compactLayout ? 10 : 12,
+        vertical:
+            inPropertyDetail
+                ? 6
+                : context.compactLayout
+                ? 10
+                : 12,
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -78,20 +85,22 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                inPropertyDetail ? 'NexImmo Assets' : title,
                 style: Theme.of(
                   context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 2),
-              Text(
-                breadcrumb.join(' / '),
-                maxLines: compact ? 1 : 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: semantic.textSecondary),
-              ),
+              if (!inPropertyDetail) ...[
+                const SizedBox(height: 2),
+                Text(
+                  breadcrumb.join(' / '),
+                  maxLines: compact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: semantic.textSecondary,
+                  ),
+                ),
+              ],
             ],
           );
           final actions = <Widget>[
@@ -174,14 +183,16 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                 const SizedBox(width: 8),
               ],
               Expanded(child: titleBlock),
-              Text(
-                'NexImmo Assets',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.secondary,
-                  fontWeight: FontWeight.w600,
+              if (!inPropertyDetail) ...[
+                Text(
+                  'NexImmo Assets',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const Spacer(),
+                const Spacer(),
+              ],
               Wrap(
                 spacing: 8,
                 runSpacing: 8,

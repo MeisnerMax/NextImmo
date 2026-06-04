@@ -48,7 +48,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
 
     return ListFilterTemplate(
       title: 'Maintenance',
-      breadcrumbs: const ['Operations', 'Maintenance'],
+      breadcrumbs: const ['Daily Business', 'Maintenance'],
       subtitle:
           'Manage maintenance issues with visible asset context, linked documents and follow-up tasks.',
       primaryAction: ElevatedButton.icon(
