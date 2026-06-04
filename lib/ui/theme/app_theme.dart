@@ -55,10 +55,10 @@ class AppTypographyTokens {
 }
 
 class AppRadiusTokens {
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
+  static const double xs = 2;
+  static const double sm = 4;
+  static const double md = 6;
+  static const double lg = 8;
 
   const AppRadiusTokens._();
 }
@@ -175,15 +175,15 @@ class AppDensityConfig extends ThemeExtension<AppDensityConfig> {
 }
 
 class AppColors {
-  static const Color background = Color(0xFFF6F8FA);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFD4DCE5);
-  static const Color textPrimary = Color(0xFF1C2733);
-  static const Color textSecondary = Color(0xFF5A6B7C);
-  static const Color primary = Color(0xFF0F5C73);
-  static const Color positive = Color(0xFF1C8C5E);
-  static const Color negative = Color(0xFFC44949);
-  static const Color warning = Color(0xFFC28A1A);
+  static const Color background = Color(0xFF08122D);
+  static const Color surface = Color(0xFF030C28);
+  static const Color border = Color(0x3346464D);
+  static const Color textPrimary = Color(0xFFDBE1FF);
+  static const Color textSecondary = Color(0xFFC6C6CE);
+  static const Color primary = Color(0xFFE9C349);
+  static const Color positive = Color(0xFF59DE9B);
+  static const Color negative = Color(0xFFFFB4AB);
+  static const Color warning = Color(0xFFBFC5E4);
 
   const AppColors._();
 }
@@ -235,14 +235,20 @@ class AppLayout {
       final viewport = viewportForWidth(width);
       switch (viewport) {
         case AppViewport.mobile:
-          return 12;
+          return 20;
         case AppViewport.tablet:
-          return 16;
-        case AppViewport.desktop:
           return 24;
+        case AppViewport.desktop:
+          return 64;
       }
     }
-    return 24;
+    if (width <= AppBreakpoints.mobileMax) {
+      return 20;
+    }
+    if (width <= AppBreakpoints.tabletMax) {
+      return 24;
+    }
+    return 64;
   }
 
   static int columnsForWidth(double width) {
@@ -272,48 +278,48 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFFF6F8FA),
-    surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFEEF2F6),
-    border: Color(0xFFD4DCE5),
-    textPrimary: Color(0xFF1C2733),
-    textSecondary: Color(0xFF5A6B7C),
-    primary: Color(0xFF0F5C73),
-    secondary: Color(0xFF3A7E91),
-    accent: Color(0xFF16A3A6),
-    success: Color(0xFF1C8C5E),
-    warning: Color(0xFFC28A1A),
-    error: Color(0xFFC44949),
-    info: Color(0xFF2B78B8),
+    background: Color(0xFF08122D),
+    surface: Color(0xFF030C28),
+    surfaceAlt: Color(0xFF151E3A),
+    border: Color(0x3346464D),
+    textPrimary: Color(0xFFDBE1FF),
+    textSecondary: Color(0xFFC6C6CE),
+    primary: Color(0xFFE9C349),
+    secondary: Color(0xFFBFC5E4),
+    accent: Color(0xFF59DE9B),
+    success: Color(0xFF59DE9B),
+    warning: Color(0xFFBFC5E4),
+    error: Color(0xFFFFB4AB),
+    info: Color(0xFFBFC5E4),
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
-    background: Color(0xFF0F141A),
-    surface: Color(0xFF161D25),
-    surfaceAlt: Color(0xFF1E2731),
-    border: Color(0xFF2D3946),
-    textPrimary: Color(0xFFE8EEF5),
-    textSecondary: Color(0xFFB2C0CF),
-    primary: Color(0xFF41A8C4),
-    secondary: Color(0xFF5BB7C8),
-    accent: Color(0xFF57D2CF),
-    success: Color(0xFF41B883),
-    warning: Color(0xFFE0A13D),
-    error: Color(0xFFE47676),
-    info: Color(0xFF6AB0E8),
+    background: Color(0xFF08122D),
+    surface: Color(0xFF030C28),
+    surfaceAlt: Color(0xFF151E3A),
+    border: Color(0x3346464D),
+    textPrimary: Color(0xFFDBE1FF),
+    textSecondary: Color(0xFFC6C6CE),
+    primary: Color(0xFFE9C349),
+    secondary: Color(0xFFBFC5E4),
+    accent: Color(0xFF59DE9B),
+    success: Color(0xFF59DE9B),
+    warning: Color(0xFFBFC5E4),
+    error: Color(0xFFFFB4AB),
+    info: Color(0xFFBFC5E4),
   );
 
   static const AppTypographyTokens _comfortTypography = AppTypographyTokens(
-    h1Size: 32,
+    h1Size: 48,
     h2Size: 24,
-    h3Size: 20,
-    bodySize: 14,
+    h3Size: 18,
+    bodySize: 15,
     captionSize: 12,
-    buttonSize: 14,
+    buttonSize: 12,
   );
 
   static const AppTypographyTokens _compactTypography = AppTypographyTokens(
-    h1Size: 30,
+    h1Size: 32,
     h2Size: 22,
     h3Size: 18,
     bodySize: 13,
@@ -326,7 +332,7 @@ class AppTheme {
   }) {
     return _buildTheme(
       tokens: _lightTokens,
-      brightness: Brightness.light,
+      brightness: Brightness.dark,
       densityMode: densityMode,
     );
   }
@@ -386,93 +392,100 @@ class AppTheme {
         onPrimary: Colors.white,
       ),
       scaffoldBackgroundColor: tokens.background,
-      fontFamily: 'Segoe UI',
+      fontFamily: 'Geist',
       textTheme: TextTheme(
         displaySmall: TextStyle(
           fontSize: typography.h1Size,
-          height: 1.25,
-          fontWeight: FontWeight.w700,
+          height: 1.12,
+          fontWeight: FontWeight.w300,
           color: tokens.textPrimary,
+          letterSpacing: 0,
         ),
         headlineSmall: TextStyle(
           fontSize: typography.h2Size,
           height: 1.3,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
           color: tokens.textPrimary,
+          letterSpacing: 0,
         ),
         titleLarge: TextStyle(
           fontSize: typography.h3Size,
           height: 1.3,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: tokens.textPrimary,
+          letterSpacing: 0,
         ),
         titleMedium: TextStyle(
           fontSize: compact ? 15 : 16,
           height: 1.3,
           fontWeight: FontWeight.w600,
           color: tokens.textPrimary,
+          letterSpacing: 0,
         ),
         bodyMedium: TextStyle(
           fontSize: typography.bodySize,
           height: 1.5,
           fontWeight: FontWeight.w400,
           color: tokens.textPrimary,
+          letterSpacing: 0,
         ),
         bodySmall: TextStyle(
           fontSize: typography.captionSize,
           height: 1.4,
           fontWeight: FontWeight.w400,
           color: tokens.textSecondary,
+          letterSpacing: 0,
         ),
         labelMedium: TextStyle(
           fontSize: compact ? 11 : 12,
-          height: 1.4,
+          height: 1.2,
           fontWeight: FontWeight.w600,
           color: tokens.textSecondary,
+          letterSpacing: 1.2,
         ),
         labelLarge: TextStyle(
           fontSize: typography.buttonSize,
           fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
         ),
       ),
       cardTheme: CardThemeData(
         color: tokens.surface,
-        elevation:
-            brightness == Brightness.dark ? 0 : AppElevationTokens.level2,
-        shadowColor: Colors.black.withValues(alpha: 0.12),
+        elevation: 0,
+        shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           side: BorderSide(color: tokens.border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         isDense: compact,
         filled: true,
-        fillColor: tokens.surfaceAlt,
+        fillColor: tokens.surface,
         contentPadding: EdgeInsets.symmetric(
           horizontal: 12,
           vertical: compact ? 10 : 14,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           borderSide: BorderSide(color: tokens.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           borderSide: BorderSide(color: tokens.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-          borderSide: BorderSide(color: tokens.primary, width: 1.4),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderSide: BorderSide(color: tokens.primary, width: 1),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           borderSide: BorderSide(color: tokens.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-          borderSide: BorderSide(color: tokens.error, width: 1.4),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderSide: BorderSide(color: tokens.error, width: 1),
         ),
       ),
       dataTableTheme: DataTableThemeData(
@@ -492,9 +505,11 @@ class AppTheme {
         dataRowMaxHeight: compact ? 40 : 44,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: tokens.surfaceAlt,
+        backgroundColor: tokens.surfaceAlt.withValues(alpha: 0.72),
         side: BorderSide(color: tokens.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        ),
         labelStyle: TextStyle(
           fontSize: compact ? 11 : 12,
           fontWeight: FontWeight.w600,
@@ -520,31 +535,59 @@ class AppTheme {
           }
           return tokens.border;
         }),
-        thickness: const WidgetStatePropertyAll(8),
-        radius: const Radius.circular(8),
+        thickness: const WidgetStatePropertyAll(6),
+        radius: const Radius.circular(4),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
+          backgroundColor: tokens.primary,
+          foregroundColor: const Color(0xFF3C2F00),
+          elevation: 0,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 14 : 16,
             vertical: compact ? 10 : 12,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          foregroundColor: tokens.textPrimary,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 14 : 16,
             vertical: compact ? 10 : 12,
           ),
           side: BorderSide(color: tokens.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
           ),
         ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: tokens.textPrimary,
+          textStyle: TextStyle(
+            fontSize: typography.buttonSize,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: tokens.textSecondary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          ),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: tokens.textSecondary,
+        textColor: tokens.textPrimary,
+        selectedColor: tokens.primary,
+        selectedTileColor: tokens.surfaceAlt.withValues(alpha: 0.42),
       ),
       visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
       extensions: <ThemeExtension<dynamic>>[

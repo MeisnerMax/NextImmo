@@ -15,7 +15,9 @@ import '../../state/security_state.dart';
 import '../../theme/app_theme.dart';
 
 class TopBarV2 extends ConsumerStatefulWidget {
-  const TopBarV2({super.key});
+  const TopBarV2({super.key, this.showMenuButton = false});
+
+  final bool showMenuButton;
 
   @override
   ConsumerState<TopBarV2> createState() => _TopBarV2State();
@@ -79,7 +81,7 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                 title,
                 style: Theme.of(
                   context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
               Text(
@@ -93,22 +95,15 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
             ],
           );
           final actions = <Widget>[
-            if (!compact)
-              OutlinedButton.icon(
-                onPressed: () => showCommandPalette(context),
-                icon: const Icon(Icons.search, size: 16),
-                label: const Text('Ctrl+K'),
-              ),
-            if (compact)
-              IconButton(
-                tooltip: s.text('Command Palette'),
-                onPressed:
-                    () => showCommandPalette(
-                      context,
-                      initialQuery: _searchController.text,
-                    ),
-                icon: const Icon(Icons.search),
-              ),
+            IconButton(
+              tooltip: s.text('Command Palette'),
+              onPressed:
+                  () => showCommandPalette(
+                    context,
+                    initialQuery: _searchController.text,
+                  ),
+              icon: const Icon(Icons.search),
+            ),
             if (!compact && !hideWorkspaceUser && security != null) ...[
               OutlinedButton.icon(
                 onPressed: _openWorkspaceDialog,
@@ -123,11 +118,8 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                 ),
               ),
             ],
-            if (!compact)
-              SizedBox(
-                width: searchWidth,
-                child: _buildSearchAutocomplete(searchWidth),
-              ),
+            if (!compact && zone == AppDesktopLayoutZone.large)
+              SizedBox(width: searchWidth, child: _buildSearchAutocomplete(searchWidth)),
             if (security != null && security.settings.securityAppLockEnabled)
               IconButton(
                 tooltip: s.text('Lock app'),
@@ -153,7 +145,19 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                titleBlock,
+                Row(
+                  children: [
+                    if (widget.showMenuButton) ...[
+                      IconButton(
+                        tooltip: s.text('Open navigation'),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                        icon: const Icon(Icons.menu),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(child: titleBlock),
+                  ],
+                ),
                 const SizedBox(height: AppSpacing.component),
                 Wrap(spacing: 8, runSpacing: 8, children: actions),
               ],
@@ -161,7 +165,23 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
           }
           return Row(
             children: [
+              if (widget.showMenuButton) ...[
+                IconButton(
+                  tooltip: s.text('Open navigation'),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(child: titleBlock),
+              Text(
+                'NexImmo Assets',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,

@@ -42,7 +42,7 @@ class _PortfoliosScreenState extends ConsumerState<PortfoliosScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
+      padding: EdgeInsets.all(context.adaptivePagePadding),
       child: FutureBuilder<List<PortfolioRecord>>(
         future: ref.read(portfolioRepositoryProvider).listPortfolios(),
         builder: (context, snapshot) {
@@ -54,68 +54,17 @@ class _PortfoliosScreenState extends ConsumerState<PortfoliosScreen> {
           }
 
           final portfolios = snapshot.data!;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton(
-                    onPressed: _createPortfolio,
-                    child: const Text('New Portfolio'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => setState(() {}),
-                    child: const Text('Refresh'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.component),
-              if (portfolios.isEmpty)
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'No portfolios yet. Create your first portfolio.',
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: portfolios.length,
-                    itemBuilder: (context, index) {
-                      final portfolio = portfolios[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text(portfolio.name),
-                          subtitle: Text(
-                            portfolio.description ?? 'No description',
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _selectedPortfolioId = portfolio.id;
-                            });
-                          },
-                          trailing: Wrap(
-                            spacing: 8,
-                            children: [
-                              TextButton(
-                                onPressed: () => _renamePortfolio(portfolio),
-                                child: const Text('Rename'),
-                              ),
-                              TextButton(
-                                onPressed: () => _deletePortfolio(portfolio),
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
+          return _PortfolioLanding(
+            portfolios: portfolios,
+            onCreate: _createPortfolio,
+            onRefresh: () => setState(() {}),
+            onOpen: (portfolio) {
+              setState(() {
+                _selectedPortfolioId = portfolio.id;
+              });
+            },
+            onRename: _renamePortfolio,
+            onDelete: _deletePortfolio,
           );
         },
       ),
@@ -274,6 +223,258 @@ class _PortfoliosScreenState extends ConsumerState<PortfoliosScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+}
+
+class _PortfolioLanding extends StatelessWidget {
+  const _PortfolioLanding({
+    required this.portfolios,
+    required this.onCreate,
+    required this.onRefresh,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  final List<PortfolioRecord> portfolios;
+  final VoidCallback onCreate;
+  final VoidCallback onRefresh;
+  final ValueChanged<PortfolioRecord> onOpen;
+  final ValueChanged<PortfolioRecord> onRename;
+  final ValueChanged<PortfolioRecord> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width <= AppBreakpoints.mobileMax;
+    return ListView(
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1440),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                crossAxisAlignment: WrapCrossAlignment.end,
+                children: [
+                  SizedBox(
+                    width: mobile ? double.infinity : 720,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Portfolio Performance & Scenario Analysis',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Comprehensive overview of asset valuation, IRR trajectories, and portfolio modeling.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: onCreate,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('New Portfolio'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onRefresh,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Refresh'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                children: [
+                  _PortfolioMetric(
+                    label: 'TOTAL PORTFOLIOS',
+                    value: '${portfolios.length}',
+                  ),
+                  _PortfolioMetric(
+                    label: 'ACTIVE STRATEGY',
+                    value: portfolios.isEmpty ? 'N/A' : 'CORE',
+                    accent: true,
+                  ),
+                  _PortfolioMetric(
+                    label: 'REPORTING STATUS',
+                    value: portfolios.isEmpty ? 'OPEN' : 'READY',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 40),
+              if (portfolios.isEmpty)
+                _SovereignEmptyPortfolio(onCreate: onCreate)
+              else
+                _PortfolioTable(
+                  portfolios: portfolios,
+                  onOpen: onOpen,
+                  onRename: onRename,
+                  onDelete: onDelete,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PortfolioMetric extends StatelessWidget {
+  const _PortfolioMetric({
+    required this.label,
+    required this.value,
+    this.accent = false,
+  });
+
+  final String label;
+  final String value;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final width =
+        MediaQuery.sizeOf(context).width <= AppBreakpoints.mobileMax
+            ? double.infinity
+            : 260.0;
+    return Container(
+      width: width,
+      height: 132,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+              fontSize: 34,
+              color:
+                  accent
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortfolioTable extends StatelessWidget {
+  const _PortfolioTable({
+    required this.portfolios,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  final List<PortfolioRecord> portfolios;
+  final ValueChanged<PortfolioRecord> onOpen;
+  final ValueChanged<PortfolioRecord> onRename;
+  final ValueChanged<PortfolioRecord> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = context.semanticColors;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: semantic.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(28),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Managed Portfolios',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: semantic.border),
+          for (final portfolio in portfolios)
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 12,
+              ),
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: Text(portfolio.name),
+              subtitle: Text(portfolio.description ?? 'No description'),
+              onTap: () => onOpen(portfolio),
+              trailing: Wrap(
+                spacing: 8,
+                children: [
+                  IconButton(
+                    tooltip: 'Rename',
+                    onPressed: () => onRename(portfolio),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete',
+                    onPressed: () => onDelete(portfolio),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SovereignEmptyPortfolio extends StatelessWidget {
+  const _SovereignEmptyPortfolio({required this.onCreate});
+
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(48),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('No portfolios yet', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Create the first institutional portfolio workspace.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('New Portfolio'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -856,18 +1057,19 @@ class _PortfolioDetailScreenState extends ConsumerState<PortfolioDetailScreen> {
   }
 
   Widget _infoTile(String label, String value) {
+    final semantic = context.semanticColors;
     return Container(
       width: ResponsiveConstraints.itemWidth(context, idealWidth: 180),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: semantic.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: TextStyle(color: semantic.textSecondary)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],

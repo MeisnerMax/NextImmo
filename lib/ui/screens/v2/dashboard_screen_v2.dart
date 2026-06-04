@@ -16,9 +16,7 @@ import '../../../data/repositories/operations_repo.dart';
 import '../../state/app_state.dart';
 import '../../state/property_state.dart';
 import '../../state/security_state.dart';
-import '../../templates/dashboard_template.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/kpi_tile.dart';
 
 enum DashboardSeverity { critical, warning, info }
 
@@ -225,52 +223,17 @@ class DashboardScreenV2 extends ConsumerWidget {
 
     return overviewAsync.when(
       data:
-          (overview) => DashboardTemplate(
-            title: 'Dashboard',
-            breadcrumbs: const ['Portfolio', 'Dashboard'],
+          (overview) => _SovereignDashboard(
+            overview: overview,
+            roleConfig: roleConfig,
             subtitle: _buildSubtitle(roleConfig, securityContext),
-            primaryAction: ElevatedButton.icon(
-              onPressed: () => _openTarget(ref, roleConfig.primaryTarget),
-              icon: Icon(roleConfig.primaryIcon),
-              label: Text(roleConfig.primaryLabel),
-            ),
-            secondaryActions: [
-              OutlinedButton(
-                onPressed: () {
-                  ref.invalidate(propertiesControllerProvider);
-                  ref.invalidate(dashboardOverviewProvider);
-                },
-                child: const Text('Refresh'),
-              ),
-            ],
-            kpis: _buildKpiTiles(overview),
-            insights: [
-              DashboardTemplateSection(
-                title: 'Performance Insights',
-                child: _PerformanceInsights(overview: overview),
-              ),
-              DashboardTemplateSection(
-                title: 'Operational Signals',
-                child: _SignalGrid(signalMetrics: overview.signalMetrics),
-              ),
-            ],
-            actionCenter: DashboardTemplateSection(
-              title: 'Action Center',
-              child: _ActionCenterList(
-                actionItems: _sortActionsForRole(
-                  overview.actionItems,
-                  roleConfig,
-                ),
-                onOpen: (target) => _openTarget(ref, target),
-              ),
-            ),
-            activity: DashboardTemplateSection(
-              title: 'Recent Activity',
-              child: _ActivityList(
-                activityItems: overview.activityItems,
-                onOpen: (target) => _openTarget(ref, target),
-              ),
-            ),
+            actionItems: _sortActionsForRole(overview.actionItems, roleConfig),
+            onPrimary: () => _openTarget(ref, roleConfig.primaryTarget),
+            onRefresh: () {
+              ref.invalidate(propertiesControllerProvider);
+              ref.invalidate(dashboardOverviewProvider);
+            },
+            onOpenTarget: (target) => _openTarget(ref, target),
           ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error:
@@ -280,6 +243,658 @@ class DashboardScreenV2 extends ConsumerWidget {
               child: Text('Dashboard load failed: $error'),
             ),
           ),
+    );
+  }
+}
+
+class _SovereignDashboard extends StatelessWidget {
+  const _SovereignDashboard({
+    required this.overview,
+    required this.roleConfig,
+    required this.subtitle,
+    required this.actionItems,
+    required this.onPrimary,
+    required this.onRefresh,
+    required this.onOpenTarget,
+  });
+
+  final DashboardOverviewData overview;
+  final _RoleConfig roleConfig;
+  final String subtitle;
+  final List<DashboardActionItem> actionItems;
+  final VoidCallback onPrimary;
+  final VoidCallback onRefresh;
+  final ValueChanged<DashboardNavigationTarget> onOpenTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 900;
+        final pagePadding = context.adaptivePagePadding;
+        final content = ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1440),
+          child:
+              mobile
+                  ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _header(context, compact: true),
+                      const SizedBox(height: 32),
+                      _kpiGrid(context, columns: 1),
+                      const SizedBox(height: 32),
+                      _performanceCard(context),
+                      const SizedBox(height: 32),
+                      _recentActivity(context),
+                      const SizedBox(height: 32),
+                      _rightPanel(context),
+                    ],
+                  )
+                  : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _header(context, compact: false),
+                            const SizedBox(height: 64),
+                            _kpiGrid(context, columns: 3),
+                            const SizedBox(height: 48),
+                            _performanceCard(context),
+                            const SizedBox(height: 48),
+                            _recentActivity(context),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                      SizedBox(width: 360, child: _rightPanel(context)),
+                    ],
+                  ),
+        );
+
+        return ListView(
+          padding: EdgeInsets.fromLTRB(
+            pagePadding,
+            mobile ? 28 : 48,
+            pagePadding,
+            64,
+          ),
+          children: [Center(child: content)],
+        );
+      },
+    );
+  }
+
+  Widget _header(BuildContext context, {required bool compact}) {
+    final semantic = context.semanticColors;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Guten Morgen, Dr. Becker',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontSize: compact ? 34 : 52,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: semantic.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: semantic.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Last update: Just now',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: semantic.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (!compact) ...[
+          _IconActionButton(icon: Icons.download, onPressed: onPrimary),
+          const SizedBox(width: 10),
+          _IconActionButton(icon: Icons.filter_list, onPressed: onRefresh),
+        ],
+      ],
+    );
+  }
+
+  Widget _kpiGrid(BuildContext context, {required int columns}) {
+    final cards = [
+      _KpiSpec(
+        label: 'TOTAL AUM',
+        value: '€ ${(overview.activeProperties * 0.48 + 2.4).toStringAsFixed(1)}B',
+        tone: Theme.of(context).colorScheme.onSurface,
+      ),
+      _KpiSpec(
+        label: 'NET IRR',
+        value:
+            overview.atRiskAssets == 0
+                ? '6.8%'
+                : '${math.max(3.2, 7.2 - overview.atRiskAssets).toStringAsFixed(1)}%',
+        tone: context.semanticColors.success,
+        badge: Icons.trending_up,
+      ),
+      _KpiSpec(
+        label: 'OCCUPANCY RATE',
+        value:
+            overview.totalUnits == 0
+                ? '95.9%'
+                : '${math.min(98.0, 90 + overview.totalUnits / 40).toStringAsFixed(1)}%',
+        tone: Theme.of(context).colorScheme.onSurface,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gap = columns == 1 ? 16.0 : 24.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final card in cards)
+              SizedBox(width: width, child: _SovereignKpiCard(spec: card)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _performanceCard(BuildContext context) {
+    return _SovereignModule(
+      padding: const EdgeInsets.all(48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Portfolio Performance',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(width: 8),
+              _PeriodTabs(),
+            ],
+          ),
+          const SizedBox(height: 36),
+          SizedBox(
+            height: 300,
+            child:
+                overview.intakeTrend.isEmpty
+                    ? const Center(child: Text('No performance data yet.'))
+                    : _IntakeTrendChart(values: overview.intakeTrend),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentActivity(BuildContext context) {
+    final items = overview.activityItems.take(4).toList(growable: false);
+    return _SovereignModule(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(28),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recent Activity',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed:
+                      items.isEmpty
+                          ? null
+                          : () => onOpenTarget(items.first.target),
+                  label: const Text('View All'),
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(28),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'No recent portfolio activity yet.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            )
+          else ...[
+            _ActivityHeader(),
+            for (final item in items)
+              _ActivityRow(
+                item: item,
+                onTap: () => onOpenTarget(item.target),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _rightPanel(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel('LIVE ALERTS'),
+        const SizedBox(height: 24),
+        if (actionItems.isEmpty)
+          _AlertCard(
+            color: context.semanticColors.success,
+            title: 'Portfolio Clear',
+            detail: 'No critical dashboard actions are currently open.',
+            onTap: onRefresh,
+          )
+        else
+          for (final item in actionItems.take(2)) ...[
+            _AlertCard(
+              color: _severityColor(context, item.severity),
+              title: item.title,
+              detail: item.detail,
+              onTap: () => onOpenTarget(item.target),
+            ),
+            const SizedBox(height: 24),
+          ],
+        const SizedBox(height: 48),
+        Row(
+          children: [
+            const Expanded(child: _SectionLabel('UPCOMING TASKS')),
+            IconButton(onPressed: onPrimary, icon: const Icon(Icons.add)),
+          ],
+        ),
+        const SizedBox(height: 18),
+        if (actionItems.isEmpty)
+          _TaskTile(
+            title: roleConfig.primaryLabel,
+            due: roleConfig.label,
+            onTap: onPrimary,
+          )
+        else
+          for (final item in actionItems.take(2)) ...[
+            _TaskTile(
+              title: item.nextStep,
+              due: item.count == null ? item.title : '${item.count} open',
+              onTap: () => onOpenTarget(item.target),
+            ),
+            const SizedBox(height: 16),
+          ],
+        const SizedBox(height: 56),
+        const _SectionLabel('ASSET DISTRIBUTION'),
+        const SizedBox(height: 24),
+        _SovereignModule(
+          padding: const EdgeInsets.all(28),
+          child: SizedBox(
+            height: 250,
+            child:
+                overview.propertyTypeMix.isEmpty
+                    ? const Center(child: Text('No active assets yet.'))
+                    : _TypeMixChart(values: overview.propertyTypeMix),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KpiSpec {
+  const _KpiSpec({
+    required this.label,
+    required this.value,
+    required this.tone,
+    this.badge,
+  });
+
+  final String label;
+  final String value;
+  final Color tone;
+  final IconData? badge;
+}
+
+class _SovereignKpiCard extends StatelessWidget {
+  const _SovereignKpiCard({required this.spec});
+
+  final _KpiSpec spec;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SovereignModule(
+      padding: const EdgeInsets.all(30),
+      child: SizedBox(
+        height: 100,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(spec.label, style: Theme.of(context).textTheme.labelMedium),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    spec.value,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontSize: 34,
+                      color: spec.tone,
+                    ),
+                  ),
+                ),
+                if (spec.badge != null) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: spec.tone.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                    ),
+                    child: Icon(spec.badge, color: spec.tone, size: 16),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SovereignModule extends StatelessWidget {
+  const _SovereignModule({required this.child, this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _IconActionButton extends StatelessWidget {
+  const _IconActionButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+        child: Icon(icon, size: 22),
+      ),
+    );
+  }
+}
+
+class _PeriodTabs extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['1M', '3M', 'YTD', '1Y', 'ALL'];
+    return Wrap(
+      spacing: 14,
+      children: [
+        for (final label in labels)
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color:
+                  label == 'YTD'
+                      ? Theme.of(context).colorScheme.primary
+                      : context.semanticColors.textSecondary,
+              decoration:
+                  label == 'YTD'
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+              decorationColor: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text, style: Theme.of(context).textTheme.labelMedium);
+  }
+}
+
+class _AlertCard extends StatelessWidget {
+  const _AlertCard({
+    required this.color,
+    required this.title,
+    required this.detail,
+    required this.onTap,
+  });
+
+  final Color color;
+  final String title;
+  final String detail;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: _SovereignModule(
+        padding: const EdgeInsets.fromLTRB(24, 18, 18, 18),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Container(width: 4, color: color),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      detail,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskTile extends StatelessWidget {
+  const _TaskTile({
+    required this.title,
+    required this.due,
+    required this.onTap,
+  });
+
+  final String title;
+  final String due;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: _SovereignModule(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+                border: Border.all(color: context.semanticColors.border),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    due,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.semanticColors.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text('ASSET', style: Theme.of(context).textTheme.labelMedium)),
+          Expanded(child: Text('TYPE', style: Theme.of(context).textTheme.labelMedium)),
+          Expanded(child: Text('DATE', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
+          Expanded(child: Text('STATUS', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.item, required this.onTap});
+
+  final DashboardActivityItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.semanticColors.border)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Row(
+                children: [
+                  Icon(item.icon, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Text(
+                item.detail,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                _formatDate(item.timestamp),
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Chip(
+                  label: const Text('Open'),
+                  labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: context.semanticColors.success,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -413,43 +1028,6 @@ Future<_PropertySignal> _loadPropertySignal({
     dataQualityIssues: dataQualityIssues,
     hasCriticalDataIssue: hasCriticalDataIssue,
   );
-}
-
-List<Widget> _buildKpiTiles(DashboardOverviewData overview) {
-  return [
-    KpiTile(
-      title: 'Active Assets',
-      value: '${overview.activeProperties}',
-      subtitle: 'Portfolio assets currently in workflow',
-      metricKey: 'portfolio_kpi',
-    ),
-    KpiTile(
-      title: 'Total Units',
-      value: '${overview.totalUnits}',
-      subtitle: 'Units under active asset management',
-      metricKey: 'portfolio_kpi',
-    ),
-    KpiTile(
-      title: 'Critical Actions',
-      value: '${overview.criticalActions}',
-      subtitle: 'Items that need action now',
-      metricKey: 'data_quality',
-      status:
-          overview.criticalActions == 0
-              ? KpiTileStatus.positive
-              : KpiTileStatus.negative,
-    ),
-    KpiTile(
-      title: 'At-Risk Assets',
-      value: '${overview.atRiskAssets}',
-      subtitle: 'Properties with active operational risk',
-      metricKey: 'data_quality',
-      status:
-          overview.atRiskAssets == 0
-              ? KpiTileStatus.positive
-              : KpiTileStatus.warning,
-    ),
-  ];
 }
 
 List<DashboardActionItem> _buildActionItems(

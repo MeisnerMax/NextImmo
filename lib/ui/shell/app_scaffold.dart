@@ -108,9 +108,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   Widget _buildV2Scaffold(BuildContext context, GlobalPage page) {
     final semantic = context.semanticColors;
-    final zone = context.desktopLayoutZone;
-    final shellPadding = zone == AppDesktopLayoutZone.narrow ? 6.0 : 10.0;
-    final shellGap = zone == AppDesktopLayoutZone.narrow ? 6.0 : 10.0;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyK, control: true):
@@ -120,25 +117,43 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       },
       child: Focus(
         autofocus: true,
-        child: Scaffold(
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Theme.of(context).scaffoldBackgroundColor,
-                  Theme.of(context).colorScheme.surfaceContainerLowest,
-                ],
-              ),
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(shellPadding),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final mobile = constraints.maxWidth <= AppBreakpoints.mobileMax;
+            if (mobile) {
+              return Scaffold(
+                drawer: Drawer(
+                  width: 320,
+                  shape: const RoundedRectangleBorder(),
+                  child: SidebarV2(
+                    forceExpanded: true,
+                    drawerMode: true,
+                    onDestinationSelected:
+                        () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+                body: SafeArea(
+                  child: Column(
+                    children: [
+                      const TopBarV2(showMenuButton: true),
+                      Divider(height: 1, color: semantic.border),
+                      Expanded(
+                        child: Container(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          child: _buildPage(page),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Scaffold(
+              body: SafeArea(
                 child: Row(
                   children: [
                     const SidebarV2(),
-                    SizedBox(width: shellGap),
                     Expanded(
                       child: NxContentFrame(
                         child: Column(
@@ -159,8 +174,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   ],
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

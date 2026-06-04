@@ -35,16 +35,9 @@ class NxCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(
-          variant == NxCardVariant.kpi ? AppRadiusTokens.md : AppRadiusTokens.lg,
+          variant == NxCardVariant.kpi ? AppRadiusTokens.sm : AppRadiusTokens.lg,
         ),
         border: Border.all(color: semantic.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: variant == NxCardVariant.kpi ? 8 : 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: child,
     );
@@ -56,7 +49,7 @@ class NxCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        hoverColor: hoveredColor.withValues(alpha: 0.32),
+        hoverColor: hoveredColor.withValues(alpha: 0.18),
         child: card,
       ),
     );
