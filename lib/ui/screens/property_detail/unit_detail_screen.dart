@@ -53,7 +53,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
     }
     final bundle = _bundle;
     if (bundle == null) {
-      return const Center(child: Text('Select a unit.'));
+      return const Center(child: Text('Einheit auswaehlen.'));
     }
 
     return Padding(
@@ -67,22 +67,22 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           children: [
             FilledButton.tonal(
               onPressed: widget.onEdit,
-              child: const Text('Edit Unit'),
+              child: const Text('Einheit bearbeiten'),
             ),
             FilledButton.tonal(
               onPressed: _markVacant,
-              child: const Text('Mark Vacant'),
+              child: const Text('Als leer markieren'),
             ),
             FilledButton.tonal(
               onPressed: _markOffline,
-              child: const Text('Mark Offline'),
+              child: const Text('Offline setzen'),
             ),
             FilledButton.tonal(
               onPressed: () {
                 ref.read(selectedOperationsUnitIdProvider.notifier).state = bundle.unit.id;
                 ref.read(propertyDetailPageProvider.notifier).state = PropertyDetailPage.leases;
               },
-              child: const Text('Add Lease'),
+              child: const Text('Mietvertrag anlegen'),
             ),
             if (bundle.activeTenant != null)
               FilledButton.tonal(
@@ -92,7 +92,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                   ref.read(propertyDetailPageProvider.notifier).state =
                       PropertyDetailPage.tenants;
                 },
-                child: const Text('Open Tenant'),
+                child: const Text('Mieter oeffnen'),
               ),
             if (bundle.activeLease != null)
               FilledButton.tonal(
@@ -102,7 +102,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                   ref.read(propertyDetailPageProvider.notifier).state =
                       PropertyDetailPage.leases;
                 },
-                child: const Text('Open Lease'),
+                child: const Text('Mietvertrag oeffnen'),
               ),
             FilledButton.tonal(
               onPressed: () async {
@@ -111,11 +111,11 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                   ref: ref,
                   entityType: 'unit',
                   entityId: bundle.unit.id,
-                  defaultTitle: 'Review unit ${bundle.unit.unitCode}',
+                  defaultTitle: 'Einheit ${bundle.unit.unitCode} pruefen',
                 );
                 await _load();
               },
-              child: const Text('Create Task'),
+              child: const Text('Aufgabe anlegen'),
             ),
           ],
         ),
@@ -127,18 +127,18 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Master Data',
+                title: 'Stammdaten',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Unit: ${bundle.unit.unitCode}'),
-                    Text('Type: ${bundle.unit.unitType ?? '-'}'),
-                    Text('Status: ${bundle.unit.status}'),
-                    Text('Floor: ${bundle.unit.floor ?? '-'}'),
-                    Text('Beds / Baths: ${bundle.unit.beds ?? '-'} / ${bundle.unit.baths ?? '-'}'),
-                    Text('Size: ${bundle.unit.sqft?.toStringAsFixed(1) ?? '-'} sqft'),
+                    Text('Einheit: ${bundle.unit.unitCode}'),
+                    Text('Typ: ${bundle.unit.unitType ?? '-'}'),
+                    Text('Status: ${_unitStatusLabel(bundle.unit.status)}'),
+                    Text('Etage: ${bundle.unit.floor ?? '-'}'),
+                    Text('Zimmer / Baeder: ${bundle.unit.beds ?? '-'} / ${bundle.unit.baths ?? '-'}'),
+                    Text('Flaeche: ${bundle.unit.sqft?.toStringAsFixed(1) ?? '-'}'),
                     Text(
-                      'Target / Market Rent: ${bundle.unit.targetRentMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.unit.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
+                      'Soll- / Marktmiete: ${bundle.unit.targetRentMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.unit.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
                     ),
                   ],
                 ),
@@ -147,17 +147,17 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Current Status',
+                title: 'Aktueller Status',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Offline reason: ${bundle.unit.offlineReason ?? '-'}'),
-                    Text('Vacancy since: ${formatDateMillis(bundle.unit.vacancySince)}'),
-                    Text('Vacancy reason: ${bundle.unit.vacancyReason ?? '-'}'),
-                    Text('Marketing: ${bundle.unit.marketingStatus ?? '-'}'),
-                    Text('Renovation: ${bundle.unit.renovationStatus ?? '-'}'),
-                    Text('Expected ready: ${formatDateMillis(bundle.unit.expectedReadyDate)}'),
-                    Text('Next action: ${bundle.unit.nextAction ?? '-'}'),
+                    Text('Offline-Grund: ${bundle.unit.offlineReason ?? '-'}'),
+                    Text('Leer seit: ${formatDateMillis(bundle.unit.vacancySince)}'),
+                    Text('Leerstandsgrund: ${bundle.unit.vacancyReason ?? '-'}'),
+                    Text('Vermarktung: ${bundle.unit.marketingStatus ?? '-'}'),
+                    Text('Renovierung: ${bundle.unit.renovationStatus ?? '-'}'),
+                    Text('Bereit ab: ${formatDateMillis(bundle.unit.expectedReadyDate)}'),
+                    Text('Naechster Schritt: ${bundle.unit.nextAction ?? '-'}'),
                   ],
                 ),
               ),
@@ -165,17 +165,17 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Occupancy',
+                title: 'Belegung',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Active lease: ${bundle.activeLease?.leaseName ?? 'No active lease'}'),
-                    Text('Tenant: ${bundle.activeTenant?.displayName ?? '-'}'),
+                    Text('Aktiver Vertrag: ${bundle.activeLease?.leaseName ?? 'Kein aktiver Vertrag'}'),
+                    Text('Mieter: ${bundle.activeTenant?.displayName ?? '-'}'),
                     Text(
-                      'Base rent: ${bundle.activeLease?.baseRentMonthly.toStringAsFixed(2) ?? '-'}',
+                      'Grundmiete: ${bundle.activeLease?.baseRentMonthly.toStringAsFixed(2) ?? '-'}',
                     ),
                     Text(
-                      'Lease end: ${formatDateMillis(bundle.activeLease?.endDate)}',
+                      'Vertragsende: ${formatDateMillis(bundle.activeLease?.endDate)}',
                     ),
                   ],
                 ),
@@ -185,9 +185,9 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.component),
         OperationsSectionCard(
-          title: 'Lease History',
+          title: 'Mietverlauf',
           child: bundle.leaseHistory.isEmpty
-              ? const Text('No lease history yet.')
+              ? const Text('Noch kein Mietverlauf.')
               : Column(
                   children: bundle.leaseHistory
                       .map(
@@ -196,7 +196,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                           contentPadding: EdgeInsets.zero,
                           title: Text(lease.leaseName),
                           subtitle: Text(
-                            '${lease.status} · ${formatDateMillis(lease.startDate)} to ${formatDateMillis(lease.endDate)}',
+                            '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
                           ),
                           trailing: TextButton(
                             onPressed: () {
@@ -204,7 +204,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                               ref.read(propertyDetailPageProvider.notifier).state =
                                   PropertyDetailPage.leases;
                             },
-                            child: const Text('Open'),
+                            child: const Text('Oeffnen'),
                           ),
                         ),
                       )
@@ -219,18 +219,18 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Latest Rent Roll',
+                title: 'Aktuelle Miete',
                 child: bundle.latestRentRollLine == null
-                    ? const Text('No rent roll line available for this unit.')
+                    ? const Text('Keine Mietzeile fuer diese Einheit verfuegbar.')
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Status: ${bundle.latestRentRollLine!.status}'),
                           Text(
-                            'In place / Market: ${bundle.latestRentRollLine!.inPlaceRentMonthly.toStringAsFixed(2)} / ${bundle.latestRentRollLine!.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
+                            'Ist / Markt: ${bundle.latestRentRollLine!.inPlaceRentMonthly.toStringAsFixed(2)} / ${bundle.latestRentRollLine!.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
                           ),
                           Text(
-                            'Lease end: ${formatDateMillis(bundle.latestRentRollLine!.leaseEndDate)}',
+                            'Vertragsende: ${formatDateMillis(bundle.latestRentRollLine!.leaseEndDate)}',
                           ),
                         ],
                       ),
@@ -239,9 +239,9 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Open Alerts',
+                title: 'Offene Hinweise',
                 child: bundle.alerts.isEmpty
-                    ? const Text('No open alerts for this unit.')
+                    ? const Text('Keine offenen Hinweise fuer diese Einheit.')
                     : Column(
                         children: bundle.alerts
                             .map(
@@ -266,17 +266,17 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Tasks',
+                title: 'Aufgaben',
                 child: OperationsTasksPanel(
                   tasks: bundle.tasks,
-                  emptyHint: 'No unit tasks yet.',
+                  emptyHint: 'Noch keine Aufgaben fuer diese Einheit.',
                 ),
               ),
             ),
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Documents',
+                title: 'Dokumente',
                 action: TextButton(
                   onPressed: () async {
                     await showCreateDocumentHookDialog(
@@ -287,12 +287,12 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                     );
                     await _load();
                   },
-                  child: const Text('Add Hook'),
+                  child: const Text('Verknuepfung anlegen'),
                 ),
                 child: OperationsDocumentsPanel(
                   documents: bundle.documents,
                   emptyHint:
-                      'No documents linked yet. Document hooks are ready for later lease packs, handover files and evidence.',
+                      'Noch keine Dokumente verknuepft.',
                 ),
               ),
             ),
@@ -325,7 +325,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
         return;
       }
       setState(() {
-        _error = 'Failed to load unit detail: $error';
+        _error = 'Einheitsdetails konnten nicht geladen werden: $error';
         _loading = false;
       });
     }
@@ -342,14 +342,14 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Mark Vacant'),
+          title: const Text('Als leer markieren'),
           content: SizedBox(
             width: 380,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Vacancy Since'),
+                  decoration: const InputDecoration(labelText: 'Leer seit'),
                   child: Row(
                     children: [
                       Expanded(child: Text(formatDateMillis(vacancySince.millisecondsSinceEpoch))),
@@ -365,7 +365,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                             setDialogState(() => vacancySince = picked);
                           }
                         },
-                        child: const Text('Select'),
+                        child: const Text('Auswaehlen'),
                       ),
                     ],
                   ),
@@ -373,7 +373,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: reasonCtrl,
-                  decoration: const InputDecoration(labelText: 'Vacancy Reason'),
+                  decoration: const InputDecoration(labelText: 'Leerstandsgrund'),
                 ),
               ],
             ),
@@ -381,7 +381,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const Text('Abbrechen'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -415,7 +415,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                 widget.onChanged?.call();
                 await _load();
               },
-              child: const Text('Save'),
+              child: const Text('Speichern'),
             ),
           ],
         ),
@@ -433,18 +433,18 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mark Offline'),
+        title: const Text('Offline setzen'),
         content: SizedBox(
           width: 360,
           child: TextField(
             controller: reasonCtrl,
-            decoration: const InputDecoration(labelText: 'Offline Reason'),
+            decoration: const InputDecoration(labelText: 'Offline-Grund'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text('Abbrechen'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -478,11 +478,43 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
               widget.onChanged?.call();
               await _load();
             },
-            child: const Text('Save'),
+            child: const Text('Speichern'),
           ),
         ],
       ),
     );
     reasonCtrl.dispose();
+  }
+
+  String _unitStatusLabel(String status) {
+    switch (status) {
+      case 'occupied':
+        return 'Vermietet';
+      case 'vacant':
+        return 'Leer';
+      case 'offline':
+        return 'Offline';
+      case 'archived':
+        return 'Archiviert';
+      default:
+        return status;
+    }
+  }
+
+  String _leaseStatusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Entwurf';
+      case 'future':
+        return 'Zukuenftig';
+      case 'active':
+        return 'Aktiv';
+      case 'terminated':
+        return 'Gekuendigt';
+      case 'expired':
+        return 'Abgelaufen';
+      default:
+        return status;
+    }
   }
 }

@@ -78,7 +78,7 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('Error: $error')),
+      error: (error, _) => Center(child: Text('Bewertungsdaten konnten nicht geladen werden: $error')),
     );
   }
 
@@ -977,35 +977,35 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
   ) {
     if (state.saveError != null) {
       return _SavePresentation(
-        label: 'Save failed',
+        label: 'Speichern fehlgeschlagen',
         detail: state.saveError,
         tone: SaveStatusTone.error,
       );
     }
     if (state.isSaving) {
       return const _SavePresentation(
-        label: 'Saving changes...',
-        detail: 'The current assumptions are being synchronized.',
+        label: 'Aenderungen werden gespeichert...',
+        detail: 'Die aktuellen Annahmen werden synchronisiert.',
         tone: SaveStatusTone.working,
       );
     }
     if (state.hasUnsavedChanges) {
       return const _SavePresentation(
-        label: 'Unsaved changes',
-        detail: 'You have local edits that are not persisted yet.',
+        label: 'Ungespeicherte Aenderungen',
+        detail: 'Es gibt lokale Eingaben, die noch nicht gespeichert sind.',
         tone: SaveStatusTone.warning,
       );
     }
     if (state.lastSavedAt != null) {
       return _SavePresentation(
-        label: 'All changes saved',
-        detail: 'Last saved at ${_formatTime(context, state.lastSavedAt!)}.',
+        label: 'Alle Aenderungen gespeichert',
+        detail: 'Zuletzt gespeichert um ${_formatTime(context, state.lastSavedAt!)}.',
         tone: SaveStatusTone.success,
       );
     }
     return const _SavePresentation(
-      label: 'Ready for changes',
-      detail: 'Update the key assumptions for this scenario.',
+      label: 'Bereit fuer Eingaben',
+      detail: 'Wichtige Annahmen fuer dieses Szenario bearbeiten.',
       tone: SaveStatusTone.neutral,
     );
   }
@@ -1019,12 +1019,12 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       return null;
     }
     if (state.saveError != null) {
-      return const _SectionStatus('Retry pending', SaveStatusTone.error);
+      return const _SectionStatus('Erneut pruefen', SaveStatusTone.error);
     }
     if (state.isSaving) {
-      return const _SectionStatus('Saving', SaveStatusTone.working);
+      return const _SectionStatus('Speichert', SaveStatusTone.working);
     }
-    return const _SectionStatus('Unsaved', SaveStatusTone.warning);
+    return const _SectionStatus('Ungespeichert', SaveStatusTone.warning);
   }
 
   Widget _section(
@@ -1042,21 +1042,30 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            NxSectionHeader(
-              title: title,
-              description: description,
-              compact: true,
-              trailing: InfoTooltip(metricKey: metricKey, size: 14),
-              actions:
-                  status == null
-                      ? const <Widget>[]
-                      : <Widget>[
-                        SaveStatusIndicator(
-                          label: status.label,
-                          tone: status.tone,
-                          compact: true,
-                        ),
-                      ],
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.component),
+              decoration: BoxDecoration(
+                color: context.semanticColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+                border: Border.all(color: context.semanticColors.border),
+              ),
+              child: NxSectionHeader(
+                title: title,
+                description: description,
+                compact: true,
+                trailing: InfoTooltip(metricKey: metricKey, size: 14),
+                actions:
+                    status == null
+                        ? const <Widget>[]
+                        : <Widget>[
+                          SaveStatusIndicator(
+                            label: status.label,
+                            tone: status.tone,
+                            compact: true,
+                          ),
+                        ],
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             LayoutBuilder(

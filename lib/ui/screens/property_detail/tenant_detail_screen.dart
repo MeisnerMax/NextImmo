@@ -53,7 +53,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
     }
     final bundle = _bundle;
     if (bundle == null) {
-      return const Center(child: Text('Select a tenant.'));
+      return const Center(child: Text('Mieter auswaehlen.'));
     }
 
     final contactOk =
@@ -71,7 +71,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
           children: [
             FilledButton.tonal(
               onPressed: widget.onEdit,
-              child: const Text('Edit Tenant'),
+              child: const Text('Mieter bearbeiten'),
             ),
             FilledButton.tonal(
               onPressed: () async {
@@ -80,11 +80,11 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                   ref: ref,
                   entityType: 'tenant',
                   entityId: bundle.tenant.id,
-                  defaultTitle: 'Contact tenant ${bundle.tenant.displayName}',
+                  defaultTitle: 'Mieter ${bundle.tenant.displayName} kontaktieren',
                 );
                 await _load();
               },
-              child: const Text('Create Task'),
+              child: const Text('Aufgabe anlegen'),
             ),
           ],
         ),
@@ -96,16 +96,16 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Master Data',
+                title: 'Stammdaten',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Display name: ${bundle.tenant.displayName}'),
-                    Text('Legal name: ${bundle.tenant.legalName ?? '-'}'),
-                    Text('Status: ${bundle.tenant.status ?? 'active'}'),
-                    Text('Move-in reference: ${bundle.tenant.moveInReference ?? '-'}'),
-                    Text('Alternative contact: ${bundle.tenant.alternativeContact ?? '-'}'),
-                    Text('Billing contact: ${bundle.tenant.billingContact ?? '-'}'),
+                    Text('Anzeigename: ${bundle.tenant.displayName}'),
+                    Text('Rechtlicher Name: ${bundle.tenant.legalName ?? '-'}'),
+                    Text('Status: ${_tenantStatusLabel(bundle.tenant.status ?? 'active')}'),
+                    Text('Einzugsreferenz: ${bundle.tenant.moveInReference ?? '-'}'),
+                    Text('Alternativer Kontakt: ${bundle.tenant.alternativeContact ?? '-'}'),
+                    Text('Abrechnungskontakt: ${bundle.tenant.billingContact ?? '-'}'),
                   ],
                 ),
               ),
@@ -113,15 +113,15 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Contact Quality',
+                title: 'Kontaktqualitaet',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Email: ${bundle.tenant.email ?? '-'}'),
-                    Text('Phone: ${bundle.tenant.phone ?? '-'}'),
-                    Text(contactOk ? 'Contact quality: complete' : 'Contact quality: missing fields'),
+                    Text('E-Mail: ${bundle.tenant.email ?? '-'}'),
+                    Text('Telefon: ${bundle.tenant.phone ?? '-'}'),
+                    Text(contactOk ? 'Kontaktdaten: vollstaendig' : 'Kontaktdaten: unvollstaendig'),
                     if ((bundle.tenant.legalName?.trim().isEmpty ?? true))
-                      const Text('Recommendation: add legal name for formal correspondence.'),
+                      const Text('Empfehlung: Rechtlichen Namen fuer formelle Schreiben ergaenzen.'),
                     if (bundle.duplicateWarnings.isNotEmpty) ...bundle.duplicateWarnings.map(Text.new),
                   ],
                 ),
@@ -130,9 +130,9 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Alerts',
+                title: 'Hinweise',
                 child: bundle.alerts.isEmpty
-                    ? const Text('No open alerts for this tenant.')
+                    ? const Text('Keine offenen Hinweise fuer diesen Mieter.')
                     : Column(
                         children: bundle.alerts
                             .map(
@@ -151,9 +151,9 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.component),
         OperationsSectionCard(
-          title: 'Leases',
+          title: 'Mietvertraege',
           child: bundle.historicalLeases.isEmpty
-              ? const Text('No leases for this tenant.')
+              ? const Text('Keine Mietvertraege fuer diesen Mieter.')
               : Column(
                   children: bundle.historicalLeases
                       .map(
@@ -162,7 +162,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                           contentPadding: EdgeInsets.zero,
                           title: Text(lease.leaseName),
                           subtitle: Text(
-                            '${lease.status} · ${formatDateMillis(lease.startDate)} to ${formatDateMillis(lease.endDate)}',
+                            '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
                           ),
                           trailing: TextButton(
                             onPressed: () {
@@ -170,7 +170,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                               ref.read(propertyDetailPageProvider.notifier).state =
                                   PropertyDetailPage.leases;
                             },
-                            child: const Text('Open'),
+                            child: const Text('Oeffnen'),
                           ),
                         ),
                       )
@@ -179,9 +179,9 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.component),
         OperationsSectionCard(
-          title: 'Related Units',
+          title: 'Verknuepfte Einheiten',
           child: bundle.relatedUnits.isEmpty
-              ? const Text('No units linked yet.')
+              ? const Text('Noch keine Einheiten verknuepft.')
               : Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -207,17 +207,17 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Tasks',
+                title: 'Aufgaben',
                 child: OperationsTasksPanel(
                   tasks: bundle.tasks,
-                  emptyHint: 'No tenant tasks yet.',
+                  emptyHint: 'Noch keine Aufgaben fuer diesen Mieter.',
                 ),
               ),
             ),
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Documents',
+                title: 'Dokumente',
                 action: TextButton(
                   onPressed: () async {
                     await showCreateDocumentHookDialog(
@@ -228,12 +228,12 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                     );
                     await _load();
                   },
-                  child: const Text('Add Hook'),
+                  child: const Text('Verknuepfung anlegen'),
                 ),
                 child: OperationsDocumentsPanel(
                   documents: bundle.documents,
                   emptyHint:
-                      'No tenant documents linked yet. Hooks are ready for onboarding files, IDs and correspondence.',
+                      'Noch keine Mieterdokumente verknuepft.',
                 ),
               ),
             ),
@@ -266,9 +266,39 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
         return;
       }
       setState(() {
-        _error = 'Failed to load tenant detail: $error';
+        _error = 'Mieterdetails konnten nicht geladen werden: $error';
         _loading = false;
       });
+    }
+  }
+
+  String _tenantStatusLabel(String status) {
+    switch (status) {
+      case 'active':
+        return 'Aktiv';
+      case 'inactive':
+        return 'Inaktiv';
+      case 'prospect':
+        return 'Interessent';
+      default:
+        return status;
+    }
+  }
+
+  String _leaseStatusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Entwurf';
+      case 'future':
+        return 'Zukuenftig';
+      case 'active':
+        return 'Aktiv';
+      case 'terminated':
+        return 'Gekuendigt';
+      case 'expired':
+        return 'Abgelaufen';
+      default:
+        return status;
     }
   }
 }

@@ -57,7 +57,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
     }
     final bundle = _bundle;
     if (bundle == null) {
-      return const Center(child: Text('Select a lease.'));
+      return const Center(child: Text('Mietvertrag auswaehlen.'));
     }
 
     return Padding(
@@ -71,23 +71,23 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           children: [
             FilledButton.tonal(
               onPressed: widget.onEdit,
-              child: const Text('Edit Lease'),
+              child: const Text('Mietvertrag bearbeiten'),
             ),
             FilledButton.tonal(
               onPressed: widget.onAddRule,
-              child: const Text('Add Indexation Rule'),
+              child: const Text('Indexregel anlegen'),
             ),
             FilledButton.tonal(
               onPressed: widget.onAddManualOverride,
-              child: const Text('Add Manual Rent Step'),
+              child: const Text('Manuelle Miete anlegen'),
             ),
             FilledButton.tonal(
               onPressed: _renewLease,
-              child: const Text('Renew Lease'),
+              child: const Text('Vertrag verlaengern'),
             ),
             FilledButton.tonal(
               onPressed: _endLease,
-              child: const Text('End Lease'),
+              child: const Text('Vertrag beenden'),
             ),
             if (bundle.tenant != null)
               FilledButton.tonal(
@@ -96,7 +96,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                   ref.read(propertyDetailPageProvider.notifier).state =
                       PropertyDetailPage.tenants;
                 },
-                child: const Text('Open Tenant'),
+                child: const Text('Mieter oeffnen'),
               ),
             if (bundle.unit != null)
               FilledButton.tonal(
@@ -105,7 +105,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                   ref.read(propertyDetailPageProvider.notifier).state =
                       PropertyDetailPage.units;
                 },
-                child: const Text('Open Unit'),
+                child: const Text('Einheit oeffnen'),
               ),
             FilledButton.tonal(
               onPressed: () async {
@@ -114,11 +114,11 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                   ref: ref,
                   entityType: 'lease',
                   entityId: bundle.lease.id,
-                  defaultTitle: 'Review lease ${bundle.lease.leaseName}',
+                  defaultTitle: 'Mietvertrag ${bundle.lease.leaseName} pruefen',
                 );
                 await _load();
               },
-              child: const Text('Create Task'),
+              child: const Text('Aufgabe anlegen'),
             ),
           ],
         ),
@@ -130,16 +130,16 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Master Data',
+                title: 'Stammdaten',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Lease: ${bundle.lease.leaseName}'),
-                    Text('Status: ${bundle.lease.status}'),
-                    Text('Unit: ${bundle.unit?.unitCode ?? bundle.lease.unitId}'),
-                    Text('Tenant: ${bundle.tenant?.displayName ?? '-'}'),
-                    Text('Billing: ${bundle.lease.billingFrequency}'),
-                    Text('Payment day: ${bundle.lease.paymentDayOfMonth ?? '-'}'),
+                    Text('Vertrag: ${bundle.lease.leaseName}'),
+                    Text('Status: ${_leaseStatusLabel(bundle.lease.status)}'),
+                    Text('Einheit: ${bundle.unit?.unitCode ?? bundle.lease.unitId}'),
+                    Text('Mieter: ${bundle.tenant?.displayName ?? '-'}'),
+                    Text('Abrechnung: ${_billingLabel(bundle.lease.billingFrequency)}'),
+                    Text('Zahlungstag: ${bundle.lease.paymentDayOfMonth ?? '-'}'),
                   ],
                 ),
               ),
@@ -147,16 +147,16 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Term',
+                title: 'Laufzeit',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Start: ${formatDateMillis(bundle.lease.startDate)}'),
-                    Text('End: ${formatDateMillis(bundle.lease.endDate)}'),
-                    Text('Move in: ${formatDateMillis(bundle.lease.moveInDate)}'),
-                    Text('Move out: ${formatDateMillis(bundle.lease.moveOutDate)}'),
-                    Text('Signed: ${formatDateMillis(bundle.lease.leaseSignedDate)}'),
-                    Text('Notice: ${formatDateMillis(bundle.lease.noticeDate)}'),
+                    Text('Ende: ${formatDateMillis(bundle.lease.endDate)}'),
+                    Text('Einzug: ${formatDateMillis(bundle.lease.moveInDate)}'),
+                    Text('Auszug: ${formatDateMillis(bundle.lease.moveOutDate)}'),
+                    Text('Unterschrieben: ${formatDateMillis(bundle.lease.leaseSignedDate)}'),
+                    Text('Kuendigung: ${formatDateMillis(bundle.lease.noticeDate)}'),
                   ],
                 ),
               ),
@@ -164,19 +164,19 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
-                title: 'Rent and Deposit',
+                title: 'Miete und Kaution',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Base rent: ${bundle.lease.baseRentMonthly.toStringAsFixed(2)} ${bundle.lease.currencyCode}',
+                      'Grundmiete: ${bundle.lease.baseRentMonthly.toStringAsFixed(2)} ${bundle.lease.currencyCode}',
                     ),
                     Text(
-                      'Deposit: ${bundle.lease.securityDeposit?.toStringAsFixed(2) ?? '-'}',
+                      'Kaution: ${bundle.lease.securityDeposit?.toStringAsFixed(2) ?? '-'}',
                     ),
-                    Text('Deposit status: ${bundle.lease.depositStatus ?? 'unknown'}'),
+                    Text('Kautionsstatus: ${_depositLabel(bundle.lease.depositStatus ?? 'unknown')}'),
                     Text(
-                      'Ancillary / Other: ${bundle.lease.ancillaryChargesMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.lease.parkingOtherChargesMonthly?.toStringAsFixed(2) ?? '-'}',
+                      'Nebenkosten / Sonstiges: ${bundle.lease.ancillaryChargesMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.lease.parkingOtherChargesMonthly?.toStringAsFixed(2) ?? '-'}',
                     ),
                   ],
                 ),
@@ -186,15 +186,15 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.component),
         OperationsSectionCard(
-          title: 'Next Events',
+          title: 'Naechste Ereignisse',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Renewal option: ${formatDateMillis(bundle.lease.renewalOptionDate)}'),
-              Text('Break option: ${formatDateMillis(bundle.lease.breakOptionDate)}'),
-              Text('Executed: ${formatDateMillis(bundle.lease.executedDate)}'),
+              Text('Verlaengerungsoption: ${formatDateMillis(bundle.lease.renewalOptionDate)}'),
+              Text('Sonderkuendigung: ${formatDateMillis(bundle.lease.breakOptionDate)}'),
+              Text('Ausgefuehrt: ${formatDateMillis(bundle.lease.executedDate)}'),
               Text(
-                'Latest rent roll end: ${formatDateMillis(bundle.latestRentRollLine?.leaseEndDate)}',
+                'Letztes Mietende: ${formatDateMillis(bundle.latestRentRollLine?.leaseEndDate)}',
               ),
             ],
           ),
@@ -207,18 +207,18 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Indexation Rules',
+                title: 'Indexregeln',
                 child: bundle.rules.isEmpty
-                    ? const Text('No indexation rules defined.')
+                    ? const Text('Keine Indexregeln hinterlegt.')
                     : Column(
                         children: bundle.rules
                             .map(
                               (rule) => ListTile(
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
-                                title: Text('${rule.kind} from ${rule.effectiveFromPeriodKey}'),
+                                title: Text('${_ruleKindLabel(rule.kind)} ab ${rule.effectiveFromPeriodKey}'),
                                 subtitle: Text(
-                                  'annual ${rule.annualPercent?.toStringAsFixed(4) ?? '-'} · step ${rule.fixedStepAmount?.toStringAsFixed(2) ?? '-'}',
+                                  'jaehrlich ${rule.annualPercent?.toStringAsFixed(4) ?? '-'} · Schritt ${rule.fixedStepAmount?.toStringAsFixed(2) ?? '-'}',
                                 ),
                               ),
                             )
@@ -229,9 +229,9 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Rent Schedule',
+                title: 'Mietplan',
                 child: bundle.schedule.isEmpty
-                    ? const Text('No rent schedule rows generated yet.')
+                    ? const Text('Noch keine Mietplanzeilen erzeugt.')
                     : Column(
                         children: bundle.schedule.take(24)
                             .map(
@@ -256,9 +256,9 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Alerts',
+                title: 'Hinweise',
                 child: bundle.alerts.isEmpty
-                    ? const Text('No open alerts for this lease.')
+                    ? const Text('Keine offenen Hinweise fuer diesen Vertrag.')
                     : Column(
                         children: bundle.alerts
                             .map(
@@ -276,10 +276,10 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             SizedBox(
               width: 420,
               child: OperationsSectionCard(
-                title: 'Tasks',
+                title: 'Aufgaben',
                 child: OperationsTasksPanel(
                   tasks: bundle.tasks,
-                  emptyHint: 'No lease tasks yet.',
+                  emptyHint: 'Noch keine Aufgaben fuer diesen Vertrag.',
                 ),
               ),
             ),
@@ -287,7 +287,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.component),
         OperationsSectionCard(
-          title: 'Documents',
+          title: 'Dokumente',
           action: TextButton(
             onPressed: () async {
               await showCreateDocumentHookDialog(
@@ -298,12 +298,12 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               );
               await _load();
             },
-            child: const Text('Add Hook'),
+            child: const Text('Verknuepfung anlegen'),
           ),
           child: OperationsDocumentsPanel(
             documents: bundle.documents,
             emptyHint:
-                'No lease documents linked yet. Hooks are ready for signed leases, notices, deposit evidence and move-in packs.',
+                'Noch keine Vertragsdokumente verknuepft.',
           ),
         ),
         ],
@@ -333,7 +333,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
         return;
       }
       setState(() {
-        _error = 'Failed to load lease detail: $error';
+        _error = 'Mietvertragsdetails konnten nicht geladen werden: $error';
         _loading = false;
       });
     }
@@ -344,7 +344,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
     if (bundle == null) {
       return;
     }
-    final nameCtrl = TextEditingController(text: '${bundle.lease.leaseName} Renewal');
+    final nameCtrl = TextEditingController(text: '${bundle.lease.leaseName} Verlaengerung');
     final rentCtrl = TextEditingController(text: bundle.lease.baseRentMonthly.toStringAsFixed(2));
     DateTime startDate =
         bundle.lease.endDate == null
@@ -355,7 +355,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Renew Lease'),
+          title: const Text('Mietvertrag verlaengern'),
           content: SizedBox(
             width: 420,
             child: Column(
@@ -363,24 +363,24 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Lease Name'),
+                  decoration: const InputDecoration(labelText: 'Vertragsname'),
                 ),
                 const SizedBox(height: 8),
                 _DialogDateField(
-                  label: 'Start Date',
+                  label: 'Startdatum',
                   value: startDate,
                   onChanged: (value) => setDialogState(() => startDate = value),
                 ),
                 const SizedBox(height: 8),
                 _DialogDateField(
-                  label: 'End Date',
+                  label: 'Enddatum',
                   value: endDate,
                   onChanged: (value) => setDialogState(() => endDate = value),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: rentCtrl,
-                  decoration: const InputDecoration(labelText: 'Base Rent'),
+                  decoration: const InputDecoration(labelText: 'Grundmiete'),
                 ),
               ],
             ),
@@ -388,11 +388,11 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const Text('Abbrechen'),
             ),
             ElevatedButton(
               onPressed: () async {
-                final rent = double.tryParse(rentCtrl.text.trim());
+                final rent = double.tryParse(rentCtrl.text.trim().replaceAll(',', '.'));
                 if (nameCtrl.text.trim().isEmpty || rent == null) {
                   return;
                 }
@@ -421,7 +421,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 widget.onChanged?.call();
                 await _load();
               },
-              child: const Text('Create Renewal'),
+              child: const Text('Verlaengerung anlegen'),
             ),
           ],
         ),
@@ -444,11 +444,11 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('End Lease'),
+          title: const Text('Mietvertrag beenden'),
           content: SizedBox(
             width: 360,
             child: _DialogDateField(
-              label: 'End Date',
+              label: 'Enddatum',
               value: endDate,
               onChanged: (value) => setDialogState(() => endDate = value),
             ),
@@ -456,7 +456,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const Text('Abbrechen'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -497,12 +497,70 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 widget.onChanged?.call();
                 await _load();
               },
-              child: const Text('End Lease'),
+              child: const Text('Beenden'),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _leaseStatusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Entwurf';
+      case 'future':
+        return 'Zukuenftig';
+      case 'active':
+        return 'Aktiv';
+      case 'terminated':
+        return 'Gekuendigt';
+      case 'expired':
+        return 'Abgelaufen';
+      default:
+        return status;
+    }
+  }
+
+  String _billingLabel(String value) {
+    switch (value) {
+      case 'monthly':
+        return 'Monatlich';
+      case 'quarterly':
+        return 'Quartalsweise';
+      case 'yearly':
+        return 'Jaehrlich';
+      default:
+        return value;
+    }
+  }
+
+  String _depositLabel(String value) {
+    switch (value) {
+      case 'unknown':
+        return 'Unbekannt';
+      case 'pending':
+        return 'Ausstehend';
+      case 'received':
+        return 'Erhalten';
+      case 'waived':
+        return 'Erlassen';
+      default:
+        return value;
+    }
+  }
+
+  String _ruleKindLabel(String value) {
+    switch (value) {
+      case 'cpi':
+        return 'Index';
+      case 'fixed_step':
+        return 'Fester Schritt';
+      case 'manual':
+        return 'Manuell';
+      default:
+        return value;
+    }
   }
 }
 
@@ -536,7 +594,7 @@ class _DialogDateField extends StatelessWidget {
                 onChanged(picked);
               }
             },
-            child: const Text('Select'),
+            child: const Text('Auswaehlen'),
           ),
         ],
       ),

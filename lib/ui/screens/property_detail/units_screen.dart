@@ -515,6 +515,32 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   }
 
   Future<void> _deleteUnit(String unitId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Einheit endgueltig loeschen'),
+            content: const Text(
+              'Diese archivierte Einheit wirklich dauerhaft entfernen?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.semanticColors.error,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Loeschen'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true) {
+      return;
+    }
     await ref.read(rentRollRepositoryProvider).deleteUnit(unitId);
     if (ref.read(selectedOperationsUnitIdProvider) == unitId) {
       ref.read(selectedOperationsUnitIdProvider.notifier).state = null;
@@ -559,7 +585,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     if (trimmed.isEmpty) {
       return null;
     }
-    return double.tryParse(trimmed);
+    return double.tryParse(trimmed.replaceAll(',', '.'));
   }
 
   String? _nullIfEmpty(String value) {
@@ -601,7 +627,7 @@ class _DateField extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(value == null ? 'Not set' : value!.toIso8601String().substring(0, 10)),
+            child: Text(value == null ? 'Nicht gesetzt' : value!.toIso8601String().substring(0, 10)),
           ),
           TextButton(
             onPressed: () async {
@@ -616,12 +642,12 @@ class _DateField extends StatelessWidget {
                 onPick(picked);
               }
             },
-            child: const Text('Select'),
+            child: const Text('Auswaehlen'),
           ),
           if (value != null)
             TextButton(
               onPressed: () => onPick(null),
-              child: const Text('Clear'),
+              child: const Text('Leeren'),
             ),
         ],
       ),

@@ -55,18 +55,18 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
               ElevatedButton.icon(
                 onPressed: () => _leaseDialog(),
                 icon: const Icon(Icons.add),
-                label: const Text('Create Lease'),
+                label: const Text('Mietvertrag anlegen'),
               ),
               OutlinedButton(
                 onPressed: () => _tenantDialog(),
-                child: const Text('Add Tenant'),
+                child: const Text('Mieter anlegen'),
               ),
               SizedBox(
                 width: 220,
                 child: TextField(
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
-                    labelText: 'Search Leases',
+                    labelText: 'Mietvertraege suchen',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -76,14 +76,14 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 child: DropdownButtonFormField<String>(
                   value: _filter,
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Leases')),
-                    DropdownMenuItem(value: 'draft', child: Text('draft')),
-                    DropdownMenuItem(value: 'future', child: Text('future')),
-                    DropdownMenuItem(value: 'active', child: Text('active')),
-                    DropdownMenuItem(value: 'terminated', child: Text('terminated')),
-                    DropdownMenuItem(value: 'expired', child: Text('expired')),
-                    DropdownMenuItem(value: 'expiring_soon', child: Text('expiring soon')),
-                    DropdownMenuItem(value: 'missing_deposit', child: Text('missing deposit')),
+                    DropdownMenuItem(value: 'all', child: Text('Alle Vertraege')),
+                    DropdownMenuItem(value: 'draft', child: Text('Entwurf')),
+                    DropdownMenuItem(value: 'future', child: Text('Zukuenftig')),
+                    DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                    DropdownMenuItem(value: 'terminated', child: Text('Gekuendigt')),
+                    DropdownMenuItem(value: 'expired', child: Text('Abgelaufen')),
+                    DropdownMenuItem(value: 'expiring_soon', child: Text('Laeuft bald aus')),
+                    DropdownMenuItem(value: 'missing_deposit', child: Text('Kaution fehlt')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -94,20 +94,20 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 ),
               ),
               _MonthField(
-                label: 'From',
+                label: 'Von',
                 value: _fromPeriod,
                 onChanged: (value) => setState(() => _fromPeriod = value),
               ),
               _MonthField(
-                label: 'To',
+                label: 'Bis',
                 value: _toPeriod,
                 onChanged: (value) => setState(() => _toPeriod = value),
               ),
               OutlinedButton(
                 onPressed: selectedLease == null ? null : _generateSchedule,
-                child: const Text('Generate Schedule'),
+                child: const Text('Mietplan erzeugen'),
               ),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
+              OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
           if (_status != null) ...[
@@ -166,7 +166,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
             Text('Mietverträge', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
             if (leases.isEmpty)
-              const Text('No leases match the current filters.')
+              const Text('Keine Mietvertraege fuer diese Filter.')
             else
               Column(
                 children: [
@@ -176,7 +176,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: Text(lease.leaseName),
                       subtitle: Text(
-                        '${lease.status} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
+                        '${_leaseStatusLabel(lease.status)} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
                       ),
                       trailing: Wrap(
                         spacing: 8,
@@ -188,11 +188,11 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                             ),
                           TextButton(
                             onPressed: () => _leaseDialog(existing: lease),
-                            child: const Text('Edit'),
+                            child: const Text('Bearbeiten'),
                           ),
                           TextButton(
                             onPressed: () => _deleteLease(lease.id),
-                            child: const Text('Delete'),
+                            child: const Text('Loeschen'),
                           ),
                         ],
                       ),
@@ -218,7 +218,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
           selectedLease == null
               ? const Padding(
                 padding: EdgeInsets.all(AppSpacing.cardPadding),
-                child: Text('Select a lease to open the detail view.'),
+                child: Text('Mietvertrag auswaehlen, um Details zu oeffnen.'),
               )
               : LeaseDetailScreen(
                 propertyId: widget.propertyId,
@@ -285,7 +285,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(existing == null ? 'Add Tenant' : 'Edit Tenant'),
+        title: Text(existing == null ? 'Mieter anlegen' : 'Mieter bearbeiten'),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -293,23 +293,23 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Display Name'),
+                decoration: const InputDecoration(labelText: 'Anzeigename'),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: const InputDecoration(labelText: 'E-Mail'),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Phone'),
+                decoration: const InputDecoration(labelText: 'Telefon'),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
           ElevatedButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
@@ -327,7 +327,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
               }
               await _reload();
             },
-            child: const Text('Save'),
+            child: const Text('Speichern'),
           ),
         ],
       ),
@@ -339,7 +339,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
 
   Future<void> _leaseDialog({LeaseRecord? existing}) async {
     if (_units.isEmpty) {
-      setState(() => _status = 'Create units first.');
+      setState(() => _status = 'Bitte zuerst eine Einheit anlegen.');
       return;
     }
     final selectedUnitId = ref.read(selectedOperationsUnitIdProvider);
@@ -380,7 +380,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       ),
     ];
     final tenantItems = <DropdownMenuItem<String?>>[
-      const DropdownMenuItem<String?>(value: null, child: Text('No tenant')),
+      const DropdownMenuItem<String?>(value: null, child: Text('Kein Mieter')),
       if (tenantId != null && !_tenants.any((tenant) => tenant.id == tenantId))
         DropdownMenuItem<String?>(
           value: tenantId,
@@ -396,10 +396,10 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     const allowedBillingFrequencies = <String>['monthly', 'quarterly', 'yearly'];
     final billingItems = <DropdownMenuItem<String>>[
       if (!allowedBillingFrequencies.contains(billingFrequency))
-        DropdownMenuItem(value: billingFrequency, child: Text(billingFrequency)),
-      const DropdownMenuItem(value: 'monthly', child: Text('monthly')),
-      const DropdownMenuItem(value: 'quarterly', child: Text('quarterly')),
-      const DropdownMenuItem(value: 'yearly', child: Text('yearly')),
+        DropdownMenuItem(value: billingFrequency, child: Text(_billingLabel(billingFrequency))),
+      const DropdownMenuItem(value: 'monthly', child: Text('Monatlich')),
+      const DropdownMenuItem(value: 'quarterly', child: Text('Quartalsweise')),
+      const DropdownMenuItem(value: 'yearly', child: Text('Jaehrlich')),
     ];
     const allowedStatuses = <String>[
       'draft',
@@ -410,12 +410,12 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     ];
     final statusItems = <DropdownMenuItem<String>>[
       if (!allowedStatuses.contains(status))
-        DropdownMenuItem(value: status, child: Text(status)),
-      const DropdownMenuItem(value: 'draft', child: Text('draft')),
-      const DropdownMenuItem(value: 'future', child: Text('future')),
-      const DropdownMenuItem(value: 'active', child: Text('active')),
-      const DropdownMenuItem(value: 'terminated', child: Text('terminated')),
-      const DropdownMenuItem(value: 'expired', child: Text('expired')),
+        DropdownMenuItem(value: status, child: Text(_leaseStatusLabel(status))),
+      const DropdownMenuItem(value: 'draft', child: Text('Entwurf')),
+      const DropdownMenuItem(value: 'future', child: Text('Zukuenftig')),
+      const DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+      const DropdownMenuItem(value: 'terminated', child: Text('Gekuendigt')),
+      const DropdownMenuItem(value: 'expired', child: Text('Abgelaufen')),
     ];
     const allowedDepositStatuses = <String>[
       'unknown',
@@ -425,18 +425,18 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     ];
     final depositItems = <DropdownMenuItem<String>>[
       if (!allowedDepositStatuses.contains(depositStatus))
-        DropdownMenuItem(value: depositStatus, child: Text(depositStatus)),
-      const DropdownMenuItem(value: 'unknown', child: Text('unknown')),
-      const DropdownMenuItem(value: 'pending', child: Text('pending')),
-      const DropdownMenuItem(value: 'received', child: Text('received')),
-      const DropdownMenuItem(value: 'waived', child: Text('waived')),
+        DropdownMenuItem(value: depositStatus, child: Text(_depositLabel(depositStatus))),
+      const DropdownMenuItem(value: 'unknown', child: Text('Unbekannt')),
+      const DropdownMenuItem(value: 'pending', child: Text('Ausstehend')),
+      const DropdownMenuItem(value: 'received', child: Text('Erhalten')),
+      const DropdownMenuItem(value: 'waived', child: Text('Erlassen')),
     ];
 
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(existing == null ? 'Create Lease' : 'Edit Lease'),
+          title: Text(existing == null ? 'Mietvertrag anlegen' : 'Mietvertrag bearbeiten'),
           content: SizedBox(
             width: 560,
             child: SingleChildScrollView(
@@ -451,42 +451,42 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                         setDialogState(() => unitId = value);
                       }
                     },
-                    decoration: const InputDecoration(labelText: 'Unit'),
+                    decoration: const InputDecoration(labelText: 'Einheit'),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String?>(
                     value: tenantId,
                     items: tenantItems,
                     onChanged: (value) => setDialogState(() => tenantId = value),
-                    decoration: const InputDecoration(labelText: 'Tenant'),
+                    decoration: const InputDecoration(labelText: 'Mieter'),
                   ),
                   const SizedBox(height: 8),
-                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Lease Name')),
+                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Vertragsname')),
                   const SizedBox(height: 8),
-                  _DateField(label: 'Start Date', value: startDate, onPick: (value) => setDialogState(() => startDate = value ?? startDate)),
+                  _DateField(label: 'Startdatum', value: startDate, onPick: (value) => setDialogState(() => startDate = value ?? startDate)),
                   const SizedBox(height: 8),
-                  _DateField(label: 'End Date', value: endDate, onPick: (value) => setDialogState(() => endDate = value)),
+                  _DateField(label: 'Enddatum', value: endDate, onPick: (value) => setDialogState(() => endDate = value)),
                   const SizedBox(height: 8),
-                  _DateField(label: 'Move In Date', value: moveInDate, onPick: (value) => setDialogState(() => moveInDate = value)),
+                  _DateField(label: 'Einzugsdatum', value: moveInDate, onPick: (value) => setDialogState(() => moveInDate = value)),
                   const SizedBox(height: 8),
-                  _DateField(label: 'Move Out Date', value: moveOutDate, onPick: (value) => setDialogState(() => moveOutDate = value)),
+                  _DateField(label: 'Auszugsdatum', value: moveOutDate, onPick: (value) => setDialogState(() => moveOutDate = value)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: rentCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Base Rent'),
+                    decoration: const InputDecoration(labelText: 'Grundmiete'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: depositCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Security Deposit'),
+                    decoration: const InputDecoration(labelText: 'Kaution'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: paymentCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Payment Day of Month'),
+                    decoration: const InputDecoration(labelText: 'Zahlungstag im Monat'),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -497,7 +497,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                         setDialogState(() => billingFrequency = value);
                       }
                     },
-                    decoration: const InputDecoration(labelText: 'Billing Frequency'),
+                    decoration: const InputDecoration(labelText: 'Abrechnungsrhythmus'),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -519,20 +519,20 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                         setDialogState(() => depositStatus = value);
                       }
                     },
-                    decoration: const InputDecoration(labelText: 'Deposit Status'),
+                    decoration: const InputDecoration(labelText: 'Kautionsstatus'),
                   ),
                   const SizedBox(height: 8),
-                  _DateField(label: 'Lease Signed Date', value: signedDate, onPick: (value) => setDialogState(() => signedDate = value)),
+                  _DateField(label: 'Unterschrieben am', value: signedDate, onPick: (value) => setDialogState(() => signedDate = value)),
                   const SizedBox(height: 8),
-                  _DateField(label: 'Notice Date', value: noticeDate, onPick: (value) => setDialogState(() => noticeDate = value)),
+                  _DateField(label: 'Kuendigungsdatum', value: noticeDate, onPick: (value) => setDialogState(() => noticeDate = value)),
                   const SizedBox(height: 8),
-                  TextField(controller: notesCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')),
+                  TextField(controller: notesCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Notizen')),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
             ElevatedButton(
               onPressed: () async {
                 final rent = _parseDouble(rentCtrl.text);
@@ -605,7 +605,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                   }
                 }
               },
-              child: Text(existing == null ? 'Create' : 'Save'),
+              child: Text(existing == null ? 'Anlegen' : 'Speichern'),
             ),
           ],
         ),
@@ -632,7 +632,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Indexation Rule'),
+          title: const Text('Indexregel anlegen'),
           content: SizedBox(
             width: 420,
             child: Column(
@@ -641,9 +641,9 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 DropdownButtonFormField<String>(
                   value: kind,
                   items: const [
-                    DropdownMenuItem(value: 'cpi', child: Text('cpi')),
-                    DropdownMenuItem(value: 'fixed_step', child: Text('fixed_step')),
-                    DropdownMenuItem(value: 'manual', child: Text('manual')),
+                    DropdownMenuItem(value: 'cpi', child: Text('Index')),
+                    DropdownMenuItem(value: 'fixed_step', child: Text('Fester Schritt')),
+                    DropdownMenuItem(value: 'manual', child: Text('Manuell')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -653,25 +653,25 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 ),
                 const SizedBox(height: 8),
                 _MonthField(
-                  label: 'Effective From',
+                  label: 'Gueltig ab',
                   value: effectiveFrom,
                   onChanged: (value) => setDialogState(() => effectiveFrom = value),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: annualCtrl,
-                  decoration: const InputDecoration(labelText: 'Annual Percent'),
+                  decoration: const InputDecoration(labelText: 'Jaehrlicher Prozentsatz'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: stepCtrl,
-                  decoration: const InputDecoration(labelText: 'Fixed Step Amount'),
+                  decoration: const InputDecoration(labelText: 'Fester Betrag'),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
             ElevatedButton(
               onPressed: () async {
                 await ref.read(leaseRepositoryProvider).upsertIndexationRule(
@@ -686,7 +686,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 }
                 await _reload();
               },
-              child: const Text('Save'),
+              child: const Text('Speichern'),
             ),
           ],
         ),
@@ -707,27 +707,27 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Manual Override'),
+          title: const Text('Manuelle Anpassung'),
           content: SizedBox(
             width: 360,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _MonthField(
-                  label: 'Period',
+                  label: 'Periode',
                   value: period,
                   onChanged: (value) => setDialogState(() => period = value),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: rentCtrl,
-                  decoration: const InputDecoration(labelText: 'Rent Monthly'),
+                  decoration: const InputDecoration(labelText: 'Monatsmiete'),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
             ElevatedButton(
               onPressed: () async {
                 final rent = _parseDouble(rentCtrl.text);
@@ -744,7 +744,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 }
                 await _reload();
               },
-              child: const Text('Save'),
+              child: const Text('Speichern'),
             ),
           ],
         ),
@@ -767,6 +767,30 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
   }
 
   Future<void> _deleteLease(String leaseId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Mietvertrag loeschen'),
+            content: const Text('Diesen Mietvertrag wirklich loeschen?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.semanticColors.error,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Loeschen'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true) {
+      return;
+    }
     await ref.read(leaseRepositoryProvider).deleteLease(leaseId);
     if (ref.read(selectedOperationsLeaseIdProvider) == leaseId) {
       ref.read(selectedOperationsLeaseIdProvider.notifier).state = null;
@@ -776,6 +800,51 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
 
   bool _hasMissingDeposit(LeaseRecord lease) {
     return lease.status == 'active' && (lease.securityDeposit == null || lease.securityDeposit == 0);
+  }
+
+  String _leaseStatusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Entwurf';
+      case 'future':
+        return 'Zukuenftig';
+      case 'active':
+        return 'Aktiv';
+      case 'terminated':
+        return 'Gekuendigt';
+      case 'expired':
+        return 'Abgelaufen';
+      default:
+        return status;
+    }
+  }
+
+  String _billingLabel(String value) {
+    switch (value) {
+      case 'monthly':
+        return 'Monatlich';
+      case 'quarterly':
+        return 'Quartalsweise';
+      case 'yearly':
+        return 'Jaehrlich';
+      default:
+        return value;
+    }
+  }
+
+  String _depositLabel(String value) {
+    switch (value) {
+      case 'unknown':
+        return 'Unbekannt';
+      case 'pending':
+        return 'Ausstehend';
+      case 'received':
+        return 'Erhalten';
+      case 'waived':
+        return 'Erlassen';
+      default:
+        return value;
+    }
   }
 
   String _unitName(String unitId) {
@@ -789,7 +858,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
 
   String _tenantName(String? tenantId) {
     if (tenantId == null) {
-      return 'No tenant';
+      return 'Kein Mieter';
     }
     for (final tenant in _tenants) {
       if (tenant.id == tenantId) {
@@ -804,7 +873,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     if (trimmed.isEmpty) {
       return null;
     }
-    return double.tryParse(trimmed);
+    return double.tryParse(trimmed.replaceAll(',', '.'));
   }
 
   int? _parseInt(String value) {
@@ -839,7 +908,7 @@ class _DateField extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(value == null ? 'Not set' : value!.toIso8601String().substring(0, 10)),
+            child: Text(value == null ? 'Nicht gesetzt' : value!.toIso8601String().substring(0, 10)),
           ),
           TextButton(
             onPressed: () async {
@@ -854,10 +923,10 @@ class _DateField extends StatelessWidget {
                 onPick(picked);
               }
             },
-            child: const Text('Select'),
+            child: const Text('Auswaehlen'),
           ),
           if (value != null)
-            TextButton(onPressed: () => onPick(null), child: const Text('Clear')),
+            TextButton(onPressed: () => onPick(null), child: const Text('Leeren')),
         ],
       ),
     );
@@ -897,7 +966,7 @@ class _MonthField extends StatelessWidget {
                   onChanged('${picked.year}-${picked.month.toString().padLeft(2, '0')}');
                 }
               },
-              child: const Text('Select'),
+              child: const Text('Auswaehlen'),
             ),
           ],
         ),

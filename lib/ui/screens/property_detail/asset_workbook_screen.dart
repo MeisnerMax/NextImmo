@@ -343,160 +343,48 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
         _tableCard(
           title: 'Aktive Mietverträge',
           emptyText: 'Noch keine aktiven Mietverträge verbunden.',
+          horizontalScroll: false,
           child:
               bundle.leaseItems.isEmpty
                   ? null
-                  : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Einheit')),
-                      DataColumn(label: Text('Mietvertrag')),
-                      DataColumn(label: Text('Mieter')),
-                      DataColumn(label: Text('Kaltmiete')),
-                      DataColumn(label: Text('Nebenkosten')),
-                      DataColumn(label: Text('Weitere')),
-                      DataColumn(label: Text('Warmmiete')),
-                      DataColumn(label: Text('Jahr')),
-                      DataColumn(label: Text('Kaution')),
-                      DataColumn(label: Text('Kaution Status')),
-                      DataColumn(label: Text('Hinweis')),
+                  : _responsiveCards(
+                    context,
+                    [
+                      for (final item in bundle.leaseItems)
+                        _leasePaymentCard(context, item),
                     ],
-                    rows:
-                        bundle.leaseItems
-                            .map(
-                              (item) => DataRow(
-                                cells: [
-                                  DataCell(Text(item.unitCode)),
-                                  DataCell(Text(item.leaseName)),
-                                  DataCell(Text(item.tenantName)),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(item.baseRentMonthly),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(
-                                        item.ancillaryChargesMonthly,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(
-                                        item.otherChargesMonthly,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(item.warmRentMonthly),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(item.annualWarmRent),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(item.securityDeposit),
-                                    ),
-                                  ),
-                                  DataCell(Text(item.depositStatus)),
-                                  DataCell(Text(item.notes ?? '-')),
-                                ],
-                              ),
-                            )
-                            .toList(growable: false),
                   ),
         ),
         const SizedBox(height: AppSpacing.component),
         _tableCard(
           title: 'Jahresübersicht Vermietung',
           emptyText: 'Noch keine Mietplanzeilen angelegt.',
+          horizontalScroll: false,
           child:
               bundle.rentalPlans.isEmpty
                   ? null
-                  : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Einheit')),
-                      DataColumn(label: Text('Mieter')),
-                      DataColumn(label: Text('Sollmiete')),
-                      DataColumn(label: Text('Nebenkosten')),
-                      DataColumn(label: Text('Jahr')),
-                      DataColumn(label: Text('Summe')),
-                      DataColumn(label: Text('Status')),
-                      DataColumn(label: Text('')),
+                  : _responsiveCards(
+                    context,
+                    [
+                      for (final plan in bundle.rentalPlans)
+                        _rentalPlanCard(context, plan),
                     ],
-                    rows:
-                        bundle.rentalPlans
-                            .map(
-                              (plan) => DataRow(
-                                cells: [
-                                  DataCell(Text(plan.unitCode)),
-                                  DataCell(Text(plan.tenantName ?? '-')),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(
-                                        plan.targetRentMonthly ?? 0,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      _formatCurrency(
-                                        plan.sideCostsMonthly ?? 0,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(Text('${plan.year}')),
-                                  DataCell(
-                                    Text(_formatCurrency(plan.annualTotal)),
-                                  ),
-                                  DataCell(Text(plan.statusNote ?? '-')),
-                                  DataCell(
-                                    IconButton(
-                                      tooltip: 'Löschen',
-                                      onPressed:
-                                          () => _deleteRentalPlan(plan.id),
-                                      icon: const Icon(Icons.delete_outline),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                            .toList(growable: false),
                   ),
         ),
         const SizedBox(height: AppSpacing.component),
         _tableCard(
           title: 'Kautionen und Mietanpassungen',
           emptyText: 'Noch keine Kautionsdaten aus Mietverträgen vorhanden.',
+          horizontalScroll: false,
           child:
               bundle.depositItems.isEmpty
                   ? null
-                  : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Mietvertrag')),
-                      DataColumn(label: Text('Mieter')),
-                      DataColumn(label: Text('Kaution')),
-                      DataColumn(label: Text('Status')),
-                      DataColumn(label: Text('Hinweis')),
+                  : _responsiveCards(
+                    context,
+                    [
+                      for (final item in bundle.depositItems)
+                        _depositCard(context, item),
                     ],
-                    rows:
-                        bundle.depositItems
-                            .map(
-                              (item) => DataRow(
-                                cells: [
-                                  DataCell(Text(item.leaseName)),
-                                  DataCell(Text(item.tenantName)),
-                                  DataCell(Text(_formatCurrency(item.amount))),
-                                  DataCell(Text(item.status)),
-                                  DataCell(Text(item.notes ?? '-')),
-                                ],
-                              ),
-                            )
-                            .toList(growable: false),
                   ),
         ),
       ],
@@ -582,6 +470,166 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           costs: buildingAndContractCosts,
         ),
       ],
+    );
+  }
+
+  Widget _responsiveCards(BuildContext context, List<Widget> children) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width =
+            constraints.maxWidth < 360
+                ? constraints.maxWidth
+                : ((constraints.maxWidth - AppSpacing.component) / 2)
+                    .clamp(300.0, 520.0);
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            for (final child in children) SizedBox(width: width, child: child),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _leasePaymentCard(BuildContext context, LeasePaymentItem item) {
+    return _dataCard(
+      context,
+      title: item.unitCode,
+      subtitle: item.leaseName,
+      children: [
+        _dataLine('Mieter', item.tenantName),
+        _dataLine('Kaltmiete', _formatCurrency(item.baseRentMonthly)),
+        _dataLine('Nebenkosten', _formatCurrency(item.ancillaryChargesMonthly)),
+        _dataLine('Weitere', _formatCurrency(item.otherChargesMonthly)),
+        _dataLine('Warmmiete', _formatCurrency(item.warmRentMonthly)),
+        _dataLine('Jahr', _formatCurrency(item.annualWarmRent)),
+        _dataLine('Kaution', _formatCurrency(item.securityDeposit)),
+        _dataLine('Kautionsstatus', item.depositStatus),
+        if (item.notes?.trim().isNotEmpty ?? false)
+          _dataLine('Hinweis', item.notes!),
+      ],
+    );
+  }
+
+  Widget _rentalPlanCard(BuildContext context, RentalIncomePlanRecord plan) {
+    return _dataCard(
+      context,
+      title: plan.unitCode,
+      subtitle: '${plan.year}${plan.tenantName == null ? '' : ' / ${plan.tenantName}'}',
+      trailing: IconButton(
+        tooltip: 'Löschen',
+        onPressed: () => _deleteRentalPlan(plan.id),
+        icon: const Icon(Icons.delete_outline),
+      ),
+      children: [
+        _dataLine('Typ', plan.rentType ?? '-'),
+        _dataLine('Sollmiete', _formatCurrency(plan.targetRentMonthly ?? 0)),
+        _dataLine('Nebenkosten', _formatCurrency(plan.sideCostsMonthly ?? 0)),
+        _dataLine('Jahressumme', _formatCurrency(plan.annualTotal)),
+        if (plan.statusNote?.trim().isNotEmpty ?? false)
+          _dataLine('Status', plan.statusNote!),
+      ],
+    );
+  }
+
+  Widget _depositCard(BuildContext context, LeaseDepositItem item) {
+    return _dataCard(
+      context,
+      title: item.leaseName,
+      subtitle: item.tenantName,
+      children: [
+        _dataLine('Kaution', _formatCurrency(item.amount)),
+        _dataLine('Status', item.status),
+        if (item.notes?.trim().isNotEmpty ?? false)
+          _dataLine('Hinweis', item.notes!),
+      ],
+    );
+  }
+
+  Widget _dataCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+    required List<Widget> children,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: children,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dataLine(String label, String value) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 126, maxWidth: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: context.semanticColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1305,6 +1353,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     required String title,
     required String emptyText,
     required Widget? child,
+    bool horizontalScroll = true,
   }) {
     return Card(
       child: Padding(
@@ -1316,6 +1365,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
             const SizedBox(height: 12),
             if (child == null)
               Text(emptyText)
+            else if (!horizontalScroll)
+              child
             else
               ClipRect(
                 child: SingleChildScrollView(
