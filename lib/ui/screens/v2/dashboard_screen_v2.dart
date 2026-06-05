@@ -105,10 +105,25 @@ class DashboardMonthValue {
   final int value;
 }
 
+class DashboardValuePoint {
+  const DashboardValuePoint({required this.date, required this.value});
+
+  final DateTime date;
+  final double value;
+}
+
 class DashboardOverviewData {
   const DashboardOverviewData({
     required this.activeProperties,
     required this.totalUnits,
+    required this.occupiedUnits,
+    required this.vacantUnits,
+    required this.annualRent,
+    required this.monthlyRentRunRate,
+    required this.annualOperatingCosts,
+    required this.openDepositAmount,
+    required this.serviceChargeBalance,
+    required this.sourceCoverageRate,
     required this.criticalActions,
     required this.atRiskAssets,
     required this.propertyTypeMix,
@@ -120,6 +135,14 @@ class DashboardOverviewData {
 
   final int activeProperties;
   final int totalUnits;
+  final int occupiedUnits;
+  final int vacantUnits;
+  final double annualRent;
+  final double monthlyRentRunRate;
+  final double annualOperatingCosts;
+  final double openDepositAmount;
+  final double serviceChargeBalance;
+  final double sourceCoverageRate;
   final int criticalActions;
   final int atRiskAssets;
   final List<DashboardCategoryValue> propertyTypeMix;
@@ -132,6 +155,14 @@ class DashboardOverviewData {
     return DashboardOverviewData(
       activeProperties: 0,
       totalUnits: 0,
+      occupiedUnits: 0,
+      vacantUnits: 0,
+      annualRent: 0,
+      monthlyRentRunRate: 0,
+      annualOperatingCosts: 0,
+      openDepositAmount: 0,
+      serviceChargeBalance: 0,
+      sourceCoverageRate: 0,
       criticalActions: 0,
       atRiskAssets: 0,
       propertyTypeMix: const <DashboardCategoryValue>[],
@@ -158,6 +189,9 @@ final dashboardOverviewProvider =
       final tasksRepo = ref.read(tasksRepositoryProvider);
       final maintenanceRepo = ref.read(maintenanceRepositoryProvider);
       final budgetRepo = ref.read(budgetRepositoryProvider);
+      final rentalOverview = await ref
+          .read(assetWorkbookRepositoryProvider)
+          .loadPortfolioOverview();
       final now = DateTime.now();
       final tasks = await tasksRepo.listTasks();
       final maintenanceTickets = await maintenanceRepo.listTickets();
@@ -190,10 +224,15 @@ final dashboardOverviewProvider =
 
       return DashboardOverviewData(
         activeProperties: activeProperties.length,
-        totalUnits: activeProperties.fold<int>(
-          0,
-          (sum, property) => sum + property.units,
-        ),
+        totalUnits: rentalOverview.rentedUnits + rentalOverview.emptyUnits,
+        occupiedUnits: rentalOverview.rentedUnits,
+        vacantUnits: rentalOverview.emptyUnits,
+        annualRent: rentalOverview.annualRent,
+        monthlyRentRunRate: rentalOverview.monthlyRentRunRate,
+        annualOperatingCosts: rentalOverview.annualOperatingCosts,
+        openDepositAmount: rentalOverview.openDepositAmount,
+        serviceChargeBalance: rentalOverview.serviceChargeBalance,
+        sourceCoverageRate: rentalOverview.sourceCoverageRate,
         criticalActions:
             actionItems
                 .where((item) => item.severity == DashboardSeverity.critical)
@@ -225,10 +264,8 @@ class DashboardScreenV2 extends ConsumerWidget {
       data:
           (overview) => _SovereignDashboard(
             overview: overview,
-            roleConfig: roleConfig,
             subtitle: _buildSubtitle(roleConfig, securityContext),
             actionItems: _sortActionsForRole(overview.actionItems, roleConfig),
-            onPrimary: () => _openTarget(ref, roleConfig.primaryTarget),
             onRefresh: () {
               ref.invalidate(propertiesControllerProvider);
               ref.invalidate(dashboardOverviewProvider);
@@ -240,7 +277,7 @@ class DashboardScreenV2 extends ConsumerWidget {
           (error, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.page),
-              child: Text('Dashboard load failed: $error'),
+              child: Text('Dashboard konnte nicht geladen werden: $error'),
             ),
           ),
     );
@@ -250,19 +287,15 @@ class DashboardScreenV2 extends ConsumerWidget {
 class _SovereignDashboard extends StatelessWidget {
   const _SovereignDashboard({
     required this.overview,
-    required this.roleConfig,
     required this.subtitle,
     required this.actionItems,
-    required this.onPrimary,
     required this.onRefresh,
     required this.onOpenTarget,
   });
 
   final DashboardOverviewData overview;
-  final _RoleConfig roleConfig;
   final String subtitle;
   final List<DashboardActionItem> actionItems;
-  final VoidCallback onPrimary;
   final VoidCallback onRefresh;
   final ValueChanged<DashboardNavigationTarget> onOpenTarget;
 
@@ -328,6 +361,33 @@ class _SovereignDashboard extends StatelessWidget {
 
   Widget _header(BuildContext context, {required bool compact}) {
     final semantic = context.semanticColors;
+    final actionButtons = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        FilledButton.icon(
+          onPressed:
+              () => onOpenTarget(
+                const DashboardNavigationTarget(
+                  globalPage: GlobalPage.rentalOverview,
+                ),
+              ),
+          icon: const Icon(Icons.table_chart_outlined),
+          label: const Text('Vermietung & BK'),
+        ),
+        OutlinedButton.icon(
+          onPressed:
+              () => onOpenTarget(
+                const DashboardNavigationTarget(
+                  globalPage: GlobalPage.properties,
+                ),
+              ),
+          icon: const Icon(Icons.home_work_outlined),
+          label: const Text('Objekte'),
+        ),
+        _IconActionButton(icon: Icons.refresh, onPressed: onRefresh),
+      ],
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -336,7 +396,7 @@ class _SovereignDashboard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Guten Morgen, Dr. Becker',
+                'Dashboard',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontSize: compact ? 34 : 52,
                 ),
@@ -361,48 +421,73 @@ class _SovereignDashboard extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Last update: Just now',
+                    'Aktualisiert aus den gespeicherten Objekt-, Miet-, Aufgaben- und BK-Daten',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: semantic.textSecondary,
                     ),
                   ),
                 ],
               ),
+              if (compact) ...[
+                const SizedBox(height: 18),
+                actionButtons,
+              ],
             ],
           ),
         ),
-        if (!compact) ...[
-          _IconActionButton(icon: Icons.download, onPressed: onPrimary),
-          const SizedBox(width: 10),
-          _IconActionButton(icon: Icons.filter_list, onPressed: onRefresh),
-        ],
+        if (!compact) actionButtons,
       ],
     );
   }
 
   Widget _kpiGrid(BuildContext context, {required int columns}) {
+    final rentableUnits = overview.occupiedUnits + overview.vacantUnits;
+    final occupancyRate =
+        rentableUnits == 0 ? 0.0 : overview.occupiedUnits / rentableUnits;
+    final costRatio =
+        overview.annualRent == 0
+            ? 0.0
+            : overview.annualOperatingCosts / overview.annualRent;
     final cards = [
       _KpiSpec(
-        label: 'TOTAL AUM',
-        value: '€ ${(overview.activeProperties * 0.48 + 2.4).toStringAsFixed(1)}B',
+        label: 'JAHRESMIETE',
+        value: _formatCurrency(overview.annualRent),
         tone: Theme.of(context).colorScheme.onSurface,
       ),
       _KpiSpec(
-        label: 'NET IRR',
-        value:
-            overview.atRiskAssets == 0
-                ? '6.8%'
-                : '${math.max(3.2, 7.2 - overview.atRiskAssets).toStringAsFixed(1)}%',
+        label: 'MONATSLAUF',
+        value: _formatCurrency(overview.monthlyRentRunRate),
         tone: context.semanticColors.success,
         badge: Icons.trending_up,
       ),
       _KpiSpec(
-        label: 'OCCUPANCY RATE',
-        value:
-            overview.totalUnits == 0
-                ? '95.9%'
-                : '${math.min(98.0, 90 + overview.totalUnits / 40).toStringAsFixed(1)}%',
+        label: 'VERMIETUNGSQUOTE',
+        value: _formatPercent(occupancyRate),
         tone: Theme.of(context).colorScheme.onSurface,
+      ),
+      _KpiSpec(
+        label: 'BK / KOSTEN P.A.',
+        value: _formatCurrency(overview.annualOperatingCosts),
+        tone:
+            costRatio > 0.35
+                ? context.semanticColors.warning
+                : Theme.of(context).colorScheme.onSurface,
+      ),
+      _KpiSpec(
+        label: 'OFFENE KAUTIONEN',
+        value: _formatCurrency(overview.openDepositAmount),
+        tone:
+            overview.openDepositAmount > 0
+                ? context.semanticColors.warning
+                : context.semanticColors.success,
+      ),
+      _KpiSpec(
+        label: 'OFFENE AKTIONEN',
+        value: '${overview.criticalActions}',
+        tone:
+            overview.criticalActions > 0
+                ? context.semanticColors.error
+                : context.semanticColors.success,
       ),
     ];
 
@@ -423,35 +508,41 @@ class _SovereignDashboard extends StatelessWidget {
   }
 
   Widget _performanceCard(BuildContext context) {
+    final valuationPoints = _buildValuationTrend();
     return _SovereignModule(
-      padding: const EdgeInsets.all(48),
+      padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                'Portfolio Performance',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(width: 8),
-              _PeriodTabs(),
-            ],
+          _ValuationTrendPanel(
+            values: valuationPoints,
+            description:
+                'Portfolio-Wert aus Jahresmiete abzüglich laufender Kosten.',
           ),
-          const SizedBox(height: 36),
-          SizedBox(
-            height: 300,
-            child:
-                overview.intakeTrend.isEmpty
-                    ? const Center(child: Text('No performance data yet.'))
-                    : _IntakeTrendChart(values: overview.intakeTrend),
+          const SizedBox(height: 24),
+          _SignalGrid(
+            signalMetrics: overview.signalMetrics,
+            onOpenTarget: onOpenTarget,
           ),
         ],
       ),
     );
+  }
+
+  List<DashboardValuePoint> _buildValuationTrend() {
+    final netAnnual = overview.annualRent - overview.annualOperatingCosts;
+    if (netAnnual <= 0) {
+      return const <DashboardValuePoint>[];
+    }
+    final estimatedValue = netAnnual / 0.055;
+    final now = DateTime.now();
+    return <DashboardValuePoint>[
+      for (var index = 11; index >= 0; index--)
+        DashboardValuePoint(
+          date: DateTime(now.year, now.month - index),
+          value: estimatedValue * (1 - index * 0.004),
+        ),
+    ];
   }
 
   Widget _recentActivity(BuildContext context) {
@@ -466,7 +557,7 @@ class _SovereignDashboard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Recent Activity',
+                    'Aktuelle Aktivität',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
@@ -475,7 +566,7 @@ class _SovereignDashboard extends StatelessWidget {
                       items.isEmpty
                           ? null
                           : () => onOpenTarget(items.first.target),
-                  label: const Text('View All'),
+                  label: const Text('Öffnen'),
                   icon: const Icon(Icons.arrow_forward, size: 16),
                 ),
               ],
@@ -488,7 +579,7 @@ class _SovereignDashboard extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'No recent portfolio activity yet.',
+                  'Noch keine aktuelle Portfolio-Aktivität.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
@@ -510,13 +601,13 @@ class _SovereignDashboard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionLabel('LIVE ALERTS'),
+        _SectionLabel('AKTUELLE HINWEISE'),
         const SizedBox(height: 24),
         if (actionItems.isEmpty)
           _AlertCard(
             color: context.semanticColors.success,
-            title: 'Portfolio Clear',
-            detail: 'No critical dashboard actions are currently open.',
+            title: 'Keine kritischen offenen Punkte',
+            detail: 'Aktuell gibt es keine kritischen Dashboard-Aktionen.',
             onTap: onRefresh,
           )
         else
@@ -532,28 +623,44 @@ class _SovereignDashboard extends StatelessWidget {
         const SizedBox(height: 48),
         Row(
           children: [
-            const Expanded(child: _SectionLabel('UPCOMING TASKS')),
-            IconButton(onPressed: onPrimary, icon: const Icon(Icons.add)),
+            const Expanded(child: _SectionLabel('NÄCHSTE SCHRITTE')),
+            IconButton(
+              onPressed:
+                  () => onOpenTarget(
+                    const DashboardNavigationTarget(
+                      globalPage: GlobalPage.tasks,
+                    ),
+                  ),
+              icon: const Icon(Icons.add_task_outlined),
+            ),
           ],
         ),
         const SizedBox(height: 18),
         if (actionItems.isEmpty)
           _TaskTile(
-            title: roleConfig.primaryLabel,
-            due: roleConfig.label,
-            onTap: onPrimary,
+            title: 'Objekte und Vermietung prüfen',
+            due: 'Portfolioübersicht öffnen',
+            onTap:
+                () => onOpenTarget(
+                  const DashboardNavigationTarget(
+                    globalPage: GlobalPage.rentalOverview,
+                  ),
+                ),
           )
         else
           for (final item in actionItems.take(2)) ...[
             _TaskTile(
               title: item.nextStep,
-              due: item.count == null ? item.title : '${item.count} open',
+              due:
+                  item.count == null
+                      ? item.title
+                      : '${item.count} offen',
               onTap: () => onOpenTarget(item.target),
             ),
             const SizedBox(height: 16),
           ],
         const SizedBox(height: 56),
-        const _SectionLabel('ASSET DISTRIBUTION'),
+        const _SectionLabel('OBJEKTVERTEILUNG'),
         const SizedBox(height: 24),
         _SovereignModule(
           padding: const EdgeInsets.all(28),
@@ -561,7 +668,7 @@ class _SovereignDashboard extends StatelessWidget {
             height: 250,
             child:
                 overview.propertyTypeMix.isEmpty
-                    ? const Center(child: Text('No active assets yet.'))
+                    ? const Center(child: Text('Noch keine aktiven Objekte.'))
                     : _TypeMixChart(values: overview.propertyTypeMix),
           ),
         ),
@@ -592,42 +699,239 @@ class _SovereignKpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SovereignModule(
-      padding: const EdgeInsets.all(30),
-      child: SizedBox(
-        height: 100,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(spec.label, style: Theme.of(context).textTheme.labelMedium),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.all(22),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 112),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final valueSize = constraints.maxWidth < 210 ? 24.0 : 30.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(
-                  child: Text(
-                    spec.value,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontSize: 34,
-                      color: spec.tone,
-                    ),
-                  ),
+                Text(
+                  spec.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
-                if (spec.badge != null) ...[
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: spec.tone.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          spec.value,
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            fontSize: valueSize,
+                            color: spec.tone,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: Icon(spec.badge, color: spec.tone, size: 16),
-                  ),
-                ],
+                    if (spec.badge != null) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: spec.tone.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                            AppRadiusTokens.sm,
+                          ),
+                        ),
+                        child: Icon(spec.badge, color: spec.tone, size: 16),
+                      ),
+                    ],
+                  ],
+                ),
               ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ValuationTrendPanel extends StatefulWidget {
+  const _ValuationTrendPanel({
+    required this.values,
+    required this.description,
+  });
+
+  final List<DashboardValuePoint> values;
+  final String description;
+
+  @override
+  State<_ValuationTrendPanel> createState() => _ValuationTrendPanelState();
+}
+
+class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
+  String _selected = '6M';
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _filteredValues();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Wertentwicklung',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            Text(
+              widget.description,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            _ValuationPeriodSelector(
+              selected: _selected,
+              onChanged: (value) => setState(() => _selected = value),
             ),
           ],
         ),
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 280,
+          child:
+              values.isEmpty
+                  ? const Center(child: Text('Noch keine Wertdaten.'))
+                  : _ValuationTrendChart(values: values),
+        ),
+      ],
+    );
+  }
+
+  List<DashboardValuePoint> _filteredValues() {
+    if (_selected == '1J') {
+      return widget.values;
+    }
+    if (_selected == 'YTD') {
+      final year = DateTime.now().year;
+      final values =
+          widget.values.where((point) => point.date.year == year).toList();
+      if (values.isNotEmpty) {
+        return values;
+      }
+    }
+    final start = math.max(0, widget.values.length - 6);
+    return widget.values.skip(start).toList(growable: false);
+  }
+}
+
+class _ValuationPeriodSelector extends StatelessWidget {
+  const _ValuationPeriodSelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<String>(
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10),
+        ),
+      ),
+      segments: const [
+        ButtonSegment(value: '6M', label: Text('6M')),
+        ButtonSegment(value: 'YTD', label: Text('YTD')),
+        ButtonSegment(value: '1J', label: Text('1J')),
+      ],
+      selected: <String>{selected},
+      onSelectionChanged: (value) => onChanged(value.first),
+    );
+  }
+}
+
+class _ValuationTrendChart extends StatelessWidget {
+  const _ValuationTrendChart({required this.values});
+
+  final List<DashboardValuePoint> values;
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = <FlSpot>[
+      for (var index = 0; index < values.length; index++)
+        FlSpot(index.toDouble(), values[index].value),
+    ];
+    final maxValue = values.fold<double>(
+      0,
+      (max, point) => point.value > max ? point.value : max,
+    );
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: maxValue <= 0 ? 1 : maxValue * 1.1,
+        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        borderData: FlBorderData(show: false),
+        lineTouchData: const LineTouchData(enabled: true),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 48,
+              getTitlesWidget:
+                  (value, _) => Text(
+                    _formatCurrency(value),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, _) {
+                final index = value.toInt();
+                if (index < 0 || index >= values.length) {
+                  return const SizedBox.shrink();
+                }
+                final date = values[index].date;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${date.month}/${date.year % 100}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: true,
+            color: Theme.of(context).colorScheme.primary,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.14),
+            ),
+            spots: spots,
+          ),
+        ],
       ),
     );
   }
@@ -824,10 +1128,10 @@ class _ActivityHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text('ASSET', style: Theme.of(context).textTheme.labelMedium)),
-          Expanded(child: Text('TYPE', style: Theme.of(context).textTheme.labelMedium)),
-          Expanded(child: Text('DATE', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
-          Expanded(child: Text('STATUS', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
+          Expanded(flex: 2, child: Text('OBJEKT', style: Theme.of(context).textTheme.labelMedium)),
+          Expanded(child: Text('BEREICH', style: Theme.of(context).textTheme.labelMedium)),
+          Expanded(child: Text('DATUM', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
+          Expanded(child: Text('AKTION', style: Theme.of(context).textTheme.labelMedium, textAlign: TextAlign.right)),
         ],
       ),
     );
@@ -885,7 +1189,7 @@ class _ActivityRow extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Chip(
-                  label: const Text('Open'),
+                  label: const Text('Öffnen'),
                   labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: context.semanticColors.success,
                   ),
@@ -902,16 +1206,10 @@ class _ActivityRow extends StatelessWidget {
 class _RoleConfig {
   const _RoleConfig({
     required this.label,
-    required this.primaryLabel,
-    required this.primaryIcon,
-    required this.primaryTarget,
     required this.actionOrder,
   });
 
   final String label;
-  final String primaryLabel;
-  final IconData primaryIcon;
-  final DashboardNavigationTarget primaryTarget;
   final List<DashboardActionCategory> actionOrder;
 }
 
@@ -1041,9 +1339,10 @@ List<DashboardActionItem> _buildActionItems(
         DashboardActionItem(
           category: DashboardActionCategory.leaseExpiry,
           severity: DashboardSeverity.critical,
-          title: '${signal.property.name}: lease action required',
-          detail: '${signal.expiringIn30Days} lease(s) expire within 30 days.',
-          nextStep: 'Review leases',
+          title: '${signal.property.name}: Mietvertrag läuft aus',
+          detail:
+              '${signal.expiringIn30Days} Mietvertrag/Mietverträge laufen innerhalb von 30 Tagen aus.',
+          nextStep: 'Mietverträge prüfen',
           count: signal.expiringIn30Days,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1057,9 +1356,10 @@ List<DashboardActionItem> _buildActionItems(
         DashboardActionItem(
           category: DashboardActionCategory.leaseExpiry,
           severity: DashboardSeverity.warning,
-          title: '${signal.property.name}: renewal planning',
-          detail: '${signal.expiringIn90Days} lease(s) expire within 90 days.',
-          nextStep: 'Plan renewals',
+          title: '${signal.property.name}: Verlängerung planen',
+          detail:
+              '${signal.expiringIn90Days} Mietvertrag/Mietverträge laufen innerhalb von 90 Tagen aus.',
+          nextStep: 'Verlängerung planen',
           count: signal.expiringIn90Days,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1078,10 +1378,10 @@ List<DashboardActionItem> _buildActionItems(
               signal.missingDocuments >= 3
                   ? DashboardSeverity.critical
                   : DashboardSeverity.warning,
-          title: '${signal.property.name}: compliance documents missing',
+          title: '${signal.property.name}: Dokumente fehlen',
           detail:
-              '${signal.missingDocuments} required document issue(s) need attention.',
-          nextStep: 'Open documents',
+              '${signal.missingDocuments} Dokumentenpunkt(e) brauchen Aufmerksamkeit.',
+          nextStep: 'Dokumente öffnen',
           count: signal.missingDocuments,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1100,10 +1400,10 @@ List<DashboardActionItem> _buildActionItems(
               signal.budgetVarianceAlerts >= 2
                   ? DashboardSeverity.critical
                   : DashboardSeverity.warning,
-          title: '${signal.property.name}: budget variance threshold exceeded',
+          title: '${signal.property.name}: Budgetabweichung',
           detail:
-              '${signal.budgetVarianceAlerts} budget line(s) are outside threshold.',
-          nextStep: 'Review variance',
+              '${signal.budgetVarianceAlerts} Budgetzeile(n) liegen außerhalb der Schwelle.',
+          nextStep: 'Abweichung prüfen',
           count: signal.budgetVarianceAlerts,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1119,10 +1419,10 @@ List<DashboardActionItem> _buildActionItems(
         DashboardActionItem(
           category: DashboardActionCategory.maintenance,
           severity: DashboardSeverity.critical,
-          title: '${signal.property.name}: overdue maintenance',
+          title: '${signal.property.name}: Wartung überfällig',
           detail:
-              '${signal.overdueMaintenance} maintenance ticket(s) are overdue.',
-          nextStep: 'Open maintenance',
+              '${signal.overdueMaintenance} Wartungspunkt(e) sind überfällig.',
+          nextStep: 'Wartung öffnen',
           count: signal.overdueMaintenance,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1138,10 +1438,10 @@ List<DashboardActionItem> _buildActionItems(
         DashboardActionItem(
           category: DashboardActionCategory.task,
           severity: DashboardSeverity.critical,
-          title: '${signal.property.name}: critical tasks open',
+          title: '${signal.property.name}: wichtige Aufgaben offen',
           detail:
-              '${signal.openCriticalTasks} high-priority task(s) are still open.',
-          nextStep: 'Open tasks',
+              '${signal.openCriticalTasks} Aufgabe(n) mit hoher Priorität sind offen.',
+          nextStep: 'Aufgaben öffnen',
           count: signal.openCriticalTasks,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1160,10 +1460,10 @@ List<DashboardActionItem> _buildActionItems(
               signal.hasCriticalDataIssue
                   ? DashboardSeverity.critical
                   : DashboardSeverity.warning,
-          title: '${signal.property.name}: data quality conflicts',
+          title: '${signal.property.name}: Datenqualität prüfen',
           detail:
-              '${signal.dataQualityIssues} operational data issue(s) need cleanup.',
-          nextStep: 'Review alerts',
+              '${signal.dataQualityIssues} Datenpunkt(e) müssen geprüft werden.',
+          nextStep: 'Hinweise prüfen',
           count: signal.dataQualityIssues,
           target: DashboardNavigationTarget(
             globalPage: GlobalPage.properties,
@@ -1185,9 +1485,9 @@ List<DashboardActionItem> _buildActionItems(
       DashboardActionItem(
         category: DashboardActionCategory.task,
         severity: DashboardSeverity.critical,
-        title: 'Portfolio-wide critical task queue',
-        detail: '$globalCriticalTasks high-priority tasks are still open.',
-        nextStep: 'Open task board',
+        title: 'Portfolio: wichtige Aufgaben offen',
+        detail: '$globalCriticalTasks Aufgabe(n) mit hoher Priorität sind offen.',
+        nextStep: 'Aufgaben öffnen',
         count: globalCriticalTasks,
         target: const DashboardNavigationTarget(globalPage: GlobalPage.tasks),
       ),
@@ -1241,59 +1541,59 @@ List<DashboardSignalMetric> _buildSignalMetrics(
 
   return [
     DashboardSignalMetric(
-      label: 'Lease Expiries 30d',
+      label: 'Mietende 30 Tage',
       value: expiring30,
-      detail: 'Immediate lease follow-up required.',
+      detail: 'Kurzfristige Mietvertragsprüfung.',
       severity:
           expiring30 == 0 ? DashboardSeverity.info : DashboardSeverity.critical,
     ),
     DashboardSignalMetric(
-      label: 'Lease Expiries 90d',
+      label: 'Mietende 90 Tage',
       value: expiring90,
-      detail: 'Renewal planning window.',
+      detail: 'Verlängerungen und Neuvermietung planen.',
       severity:
           expiring90 == 0 ? DashboardSeverity.info : DashboardSeverity.warning,
     ),
     DashboardSignalMetric(
-      label: 'Missing Documents',
+      label: 'Dokumentlücken',
       value: missingDocuments,
-      detail: 'Required compliance files missing.',
+      detail: 'Erforderliche Unterlagen fehlen.',
       severity:
           missingDocuments == 0
               ? DashboardSeverity.info
               : DashboardSeverity.warning,
     ),
     DashboardSignalMetric(
-      label: 'Budget Variances',
+      label: 'Budgetabweichungen',
       value: budgetVarianceAlerts,
-      detail: 'Budget lines above threshold.',
+      detail: 'Kostenzeilen über Schwelle.',
       severity:
           budgetVarianceAlerts == 0
               ? DashboardSeverity.info
               : DashboardSeverity.warning,
     ),
     DashboardSignalMetric(
-      label: 'Overdue Maintenance',
+      label: 'Wartung überfällig',
       value: overdueMaintenance,
-      detail: 'Tickets past due date.',
+      detail: 'Fällige Wartungspunkte offen.',
       severity:
           overdueMaintenance == 0
               ? DashboardSeverity.info
               : DashboardSeverity.critical,
     ),
     DashboardSignalMetric(
-      label: 'Critical Tasks',
+      label: 'Wichtige Aufgaben',
       value: criticalTasks,
-      detail: 'High-priority tasks still open.',
+      detail: 'Aufgaben mit hoher Priorität offen.',
       severity:
           criticalTasks == 0
               ? DashboardSeverity.info
               : DashboardSeverity.critical,
     ),
     DashboardSignalMetric(
-      label: 'Data Quality Issues',
+      label: 'Datenqualität',
       value: dataQualityIssues,
-      detail: 'Operational records with conflicts.',
+      detail: 'Operative Datensätze mit Konflikten.',
       severity:
           dataQualityIssues == 0
               ? DashboardSeverity.info
@@ -1311,8 +1611,8 @@ List<DashboardActivityItem> _buildActivityItems({
   final items = <DashboardActivityItem>[
     ...properties.map(
       (property) => DashboardActivityItem(
-        title: 'Property updated',
-        detail: '${property.name} in ${property.city}',
+        title: property.name,
+        detail: 'Objekt / ${property.city}',
         timestamp: DateTime.fromMillisecondsSinceEpoch(property.updatedAt),
         target: DashboardNavigationTarget(
           globalPage: GlobalPage.properties,
@@ -1326,8 +1626,8 @@ List<DashboardActivityItem> _buildActivityItems({
         .where((task) => task.entityId != null)
         .map(
           (task) => DashboardActivityItem(
-            title: 'Task updated',
-            detail: task.title,
+            title: task.title,
+            detail: 'Aufgabe / ${task.status}',
             timestamp: DateTime.fromMillisecondsSinceEpoch(task.updatedAt),
             target: DashboardNavigationTarget(
               globalPage: GlobalPage.tasks,
@@ -1347,8 +1647,8 @@ List<DashboardActivityItem> _buildActivityItems({
         ),
     ...maintenanceTickets.map(
       (ticket) => DashboardActivityItem(
-        title: 'Maintenance reported',
-        detail: ticket.title,
+        title: ticket.title,
+        detail: 'Wartung / ${ticket.status}',
         timestamp: DateTime.fromMillisecondsSinceEpoch(ticket.updatedAt),
         target: DashboardNavigationTarget(
           globalPage: GlobalPage.properties,
@@ -1360,8 +1660,8 @@ List<DashboardActivityItem> _buildActivityItems({
     ),
     ...propertyDocuments.map(
       (document) => DashboardActivityItem(
-        title: 'Document added',
-        detail: document.fileName,
+        title: document.fileName,
+        detail: 'Dokument',
         timestamp: DateTime.fromMillisecondsSinceEpoch(document.createdAt),
         target: DashboardNavigationTarget(
           globalPage: GlobalPage.properties,
@@ -1445,9 +1745,9 @@ String _buildSubtitle(
 ) {
   final workspaceName = securityContext?.workspace.name;
   if (workspaceName == null || workspaceName.trim().isEmpty) {
-    return 'Action-oriented portfolio start view for ${roleConfig.label}.';
+    return 'Zentrale Übersicht für Portfolio, Vermietung, BK, Aufgaben und operative Hinweise.';
   }
-  return 'Action-oriented portfolio start view for ${roleConfig.label} in $workspaceName.';
+  return 'Zentrale Übersicht für $workspaceName: Portfolio, Vermietung, BK, Aufgaben und operative Hinweise.';
 }
 
 _RoleConfig _roleConfigFor(String role) {
@@ -1455,9 +1755,6 @@ _RoleConfig _roleConfigFor(String role) {
     case 'asset_manager':
       return const _RoleConfig(
         label: 'Asset Manager',
-        primaryLabel: 'Open Task Board',
-        primaryIcon: Icons.checklist_rtl_outlined,
-        primaryTarget: DashboardNavigationTarget(globalPage: GlobalPage.tasks),
         actionOrder: [
           DashboardActionCategory.maintenance,
           DashboardActionCategory.leaseExpiry,
@@ -1470,11 +1767,6 @@ _RoleConfig _roleConfigFor(String role) {
     case 'analyst':
       return const _RoleConfig(
         label: 'Analyst',
-        primaryLabel: 'Open Scenario Compare',
-        primaryIcon: Icons.compare_arrows_outlined,
-        primaryTarget: DashboardNavigationTarget(
-          globalPage: GlobalPage.compare,
-        ),
         actionOrder: [
           DashboardActionCategory.budgetVariance,
           DashboardActionCategory.dataQuality,
@@ -1487,11 +1779,6 @@ _RoleConfig _roleConfigFor(String role) {
     case 'viewer':
       return const _RoleConfig(
         label: 'Viewer',
-        primaryLabel: 'Browse Properties',
-        primaryIcon: Icons.home_work_outlined,
-        primaryTarget: DashboardNavigationTarget(
-          globalPage: GlobalPage.properties,
-        ),
         actionOrder: [
           DashboardActionCategory.leaseExpiry,
           DashboardActionCategory.documentGap,
@@ -1505,11 +1792,6 @@ _RoleConfig _roleConfigFor(String role) {
     default:
       return const _RoleConfig(
         label: 'Admin',
-        primaryLabel: 'Open Settings',
-        primaryIcon: Icons.settings_outlined,
-        primaryTarget: DashboardNavigationTarget(
-          globalPage: GlobalPage.settings,
-        ),
         actionOrder: [
           DashboardActionCategory.task,
           DashboardActionCategory.documentGap,
@@ -1704,7 +1986,7 @@ class _TypeMixChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return const Center(child: Text('No active assets yet.'));
+      return const Center(child: Text('Noch keine aktiven Objekte.'));
     }
 
     final bars = <BarChartGroupData>[];
@@ -1843,18 +2125,27 @@ class _IntakeTrendChart extends StatelessWidget {
 }
 
 class _SignalGrid extends StatelessWidget {
-  const _SignalGrid({required this.signalMetrics});
+  const _SignalGrid({
+    required this.signalMetrics,
+    required this.onOpenTarget,
+  });
 
   final List<DashboardSignalMetric> signalMetrics;
+  final ValueChanged<DashboardNavigationTarget> onOpenTarget;
 
   @override
   Widget build(BuildContext context) {
     if (signalMetrics.isEmpty) {
-      return Card(
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          border: Border.all(color: context.semanticColors.border),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.cardPadding),
           child: Text(
-            'Operational signals will appear once portfolio data is available.',
+            'Operative Signale erscheinen, sobald Portfolio-Daten vorhanden sind.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
@@ -1865,43 +2156,80 @@ class _SignalGrid extends StatelessWidget {
       spacing: AppSpacing.component,
       runSpacing: AppSpacing.component,
       children: signalMetrics
-          .map((metric) => _SignalCard(metric: metric))
+          .map(
+            (metric) => _SignalCard(
+              metric: metric,
+              onTap: () => onOpenTarget(_signalTarget(metric.label)),
+            ),
+          )
           .toList(growable: false),
     );
+  }
+
+  DashboardNavigationTarget _signalTarget(String label) {
+    if (label.contains('Mietende')) {
+      return const DashboardNavigationTarget(globalPage: GlobalPage.properties);
+    }
+    if (label.contains('Dokument')) {
+      return const DashboardNavigationTarget(globalPage: GlobalPage.documents);
+    }
+    if (label.contains('Budget')) {
+      return const DashboardNavigationTarget(globalPage: GlobalPage.budgets);
+    }
+    if (label.contains('Wartung')) {
+      return const DashboardNavigationTarget(globalPage: GlobalPage.maintenance);
+    }
+    if (label.contains('Aufgaben')) {
+      return const DashboardNavigationTarget(globalPage: GlobalPage.tasks);
+    }
+    return const DashboardNavigationTarget(globalPage: GlobalPage.properties);
   }
 }
 
 class _SignalCard extends StatelessWidget {
-  const _SignalCard({required this.metric});
+  const _SignalCard({required this.metric, required this.onTap});
 
   final DashboardSignalMetric metric;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = _severityColor(context, metric.severity);
     return SizedBox(
       width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                metric.label,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${metric.value}',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w800,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            border: Border.all(color: context.semanticColors.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metric.label,
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(metric.detail, style: Theme.of(context).textTheme.bodySmall),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  '${metric.value}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  metric.detail,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2030,4 +2358,20 @@ String _formatDate(DateTime value) {
   final month = value.month.toString().padLeft(2, '0');
   final day = value.day.toString().padLeft(2, '0');
   return '${value.year}-$month-$day';
+}
+
+String _formatCurrency(double value) {
+  final sign = value < 0 ? '-' : '';
+  final absValue = value.abs();
+  if (absValue >= 1000000) {
+    return '$sign€ ${(absValue / 1000000).toStringAsFixed(1)} Mio.';
+  }
+  if (absValue >= 1000) {
+    return '$sign€ ${(absValue / 1000).toStringAsFixed(1)} Tsd.';
+  }
+  return '$sign€ ${absValue.toStringAsFixed(0)}';
+}
+
+String _formatPercent(double value) {
+  return '${(value * 100).toStringAsFixed(1)}%';
 }

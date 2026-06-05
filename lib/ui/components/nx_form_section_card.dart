@@ -33,12 +33,21 @@ class NxFormSectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            NxSectionHeader(
-              title: title,
-              description: description,
-              compact: true,
-              trailing: trailing,
-              actions: actions,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.component),
+              decoration: BoxDecoration(
+                color: context.semanticColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+                border: Border.all(color: context.semanticColors.border),
+              ),
+              child: NxSectionHeader(
+                title: title,
+                description: description,
+                compact: true,
+                trailing: trailing,
+                actions: actions,
+              ),
             ),
             const SizedBox(height: AppSpacing.component),
             Wrap(

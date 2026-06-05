@@ -15,6 +15,11 @@ class Sidebar extends ConsumerStatefulWidget {
 }
 
 class _SidebarState extends ConsumerState<Sidebar> {
+  static const Color _menuBlue = Color(0xFF030C28);
+  static const Color _menuSelected = Color(0xFF17417D);
+  static const Color _menuText = Color(0xFFEAF2FF);
+  static const Color _menuMuted = Color(0xFFBFD0EA);
+
   final Map<String, bool> _expanded = <String, bool>{
     'Start': true,
     'Assets & Portfolio': true,
@@ -29,7 +34,6 @@ class _SidebarState extends ConsumerState<Sidebar> {
     final selected = ref.watch(globalPageProvider);
     final role = ref.watch(activeUserRoleProvider);
     final semantic = context.semanticColors;
-    final colorScheme = Theme.of(context).colorScheme;
     final zone = context.desktopLayoutZone;
     final collapsed = zone == AppDesktopLayoutZone.narrow;
     final width =
@@ -62,7 +66,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
 
     return Container(
       width: width,
-      color: colorScheme.surface,
+      color: _menuBlue,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
         children: [
@@ -79,7 +83,9 @@ class _SidebarState extends ConsumerState<Sidebar> {
                     ),
                     child: Text(
                       'NexImmo',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: _menuText,
+                      ),
                     ),
                   ),
                 ),
@@ -90,7 +96,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
                   child: Icon(
                     Icons.view_sidebar_outlined,
                     size: 18,
-                    color: semantic.textSecondary,
+                    color: _menuMuted,
                   ),
                 ),
             ],
@@ -161,7 +167,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
                 child: Text(
                   context.strings.text(title),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: semantic.textSecondary,
+                    color: _menuMuted,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -169,7 +175,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
               Icon(
                 expanded ? Icons.expand_less : Icons.expand_more,
                 size: 18,
-                color: semantic.textSecondary,
+                color: _menuMuted,
               ),
             ],
           ),
@@ -185,17 +191,16 @@ class _SidebarState extends ConsumerState<Sidebar> {
     AppSemanticColors semantic, {
     required bool collapsed,
   }) {
-    final primary = Theme.of(context).colorScheme.primary;
     final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: ListTile(
         visualDensity: VisualDensity.compact,
         selected: isSelected,
-        selectedTileColor: semantic.surfaceAlt,
+        selectedTileColor: _menuSelected,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         leading: Icon(
           item.icon,
-          color: isSelected ? primary : semantic.textSecondary,
+          color: isSelected ? Colors.white : _menuMuted,
         ),
         title:
             collapsed
@@ -203,7 +208,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
                 : Text(
                   context.strings.text(item.label),
                   style: TextStyle(
-                    color: isSelected ? primary : null,
+                    color: isSelected ? Colors.white : _menuMuted,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),

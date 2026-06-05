@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/task.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
+import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 
 class TaskTemplatesScreen extends ConsumerStatefulWidget {
@@ -27,143 +30,213 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: Column(
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ElevatedButton.icon(
-                onPressed: _createTemplateDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('New Template'),
+    return ListFilterTemplate(
+      title: 'Aufgabenvorlagen',
+      breadcrumbs: const ['Administration', 'Aufgabenvorlagen'],
+      subtitle:
+          'Wiederkehrende Aufgaben mit Standardpriorität, Rhythmus und Checkliste steuern.',
+      primaryAction: ElevatedButton.icon(
+        onPressed: _createTemplateDialog,
+        icon: const Icon(Icons.add_outlined),
+        label: const Text('Vorlage erstellen'),
+      ),
+      secondaryActions: [
+        OutlinedButton.icon(
+          onPressed: _generateNow,
+          icon: const Icon(Icons.play_circle_outline),
+          label: const Text('Jetzt erzeugen'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _reload,
+          icon: const Icon(Icons.refresh_outlined),
+          label: const Text('Aktualisieren'),
+        ),
+      ],
+      contextBar:
+          _status == null
+              ? null
+              : NxCard(
+                padding: const EdgeInsets.all(AppSpacing.component),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_status!)),
+                  ],
+                ),
               ),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
-              OutlinedButton.icon(
-                onPressed: _generateNow,
-                icon: const Icon(Icons.play_circle_outline),
-                label: const Text('Generate now'),
-              ),
-            ],
-          ),
-          if (_status != null) ...[
-            const SizedBox(height: 8),
-            Align(alignment: Alignment.centerLeft, child: Text(_status!)),
-          ],
-          const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: Row(
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 980;
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child:
-                      _templates.isEmpty
-                          ? const Card(
-                            child: Center(child: Text('No templates yet.')),
-                          )
-                          : ListView.builder(
-                            itemCount: _templates.length,
-                            itemBuilder: (context, index) {
-                              final t = _templates[index];
-                              final selected = _selected?.id == t.id;
-                              return Card(
-                                color:
-                                    selected ? const Color(0xFFEAF1F8) : null,
-                                child: ListTile(
-                                  title: Text(t.name),
-                                  subtitle: Text(
-                                    '${t.entityType} | ${t.recurrenceRule}/${t.recurrenceInterval}',
-                                  ),
-                                  onTap: () => _selectTemplate(t),
-                                  trailing: Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => _editTemplateDialog(t),
-                                        child: const Text('Edit'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => _deleteTemplate(t.id),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                ),
+                Expanded(child: _templatesPane(context)),
                 const SizedBox(width: AppSpacing.component),
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                      child:
-                          _selected == null
-                              ? const Center(child: Text('Select a template'))
-                              : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _selected!.name,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Default title: ${_selected!.defaultTitle}',
-                                  ),
-                                  Text('Entity type: ${_selected!.entityType}'),
-                                  Text(
-                                    'Recurrence: ${_selected!.recurrenceRule} / ${_selected!.recurrenceInterval}',
-                                  ),
-                                  const SizedBox(height: 8),
-                                  OutlinedButton(
-                                    onPressed:
-                                        () =>
-                                            _addChecklistDialog(_selected!.id),
-                                    child: const Text('Add Checklist Item'),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    child:
-                                        _checklist.isEmpty
-                                            ? const Center(
-                                              child: Text(
-                                                'No checklist items.',
-                                              ),
-                                            )
-                                            : ListView.builder(
-                                              itemCount: _checklist.length,
-                                              itemBuilder: (context, index) {
-                                                final item = _checklist[index];
-                                                return ListTile(
-                                                  title: Text(item.text),
-                                                  trailing: IconButton(
-                                                    onPressed:
-                                                        () =>
-                                                            _deleteChecklistItem(
-                                                              item.id,
-                                                            ),
-                                                    icon: const Icon(
-                                                      Icons.delete_outline,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                  ),
-                                ],
-                              ),
-                    ),
-                  ),
-                ),
+                Expanded(child: _detailPane(context)),
+              ],
+            );
+          }
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(height: 420, child: _templatesPane(context)),
+                const SizedBox(height: AppSpacing.component),
+                SizedBox(height: 420, child: _detailPane(context)),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _templatesPane(BuildContext context) {
+    return NxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PaneHeader(
+            icon: Icons.fact_check_outlined,
+            title: 'Vorlagen',
+            badge: '${_templates.length}',
+          ),
+          const SizedBox(height: AppSpacing.component),
+          Expanded(
+            child:
+                _templates.isEmpty
+                    ? const _TemplateEmptyState(
+                      title: 'Keine Vorlagen',
+                      description: 'Neue Vorlage erstellen, um Aufgaben automatisch zu erzeugen.',
+                      icon: Icons.fact_check_outlined,
+                    )
+                    : ListView.separated(
+                      itemCount: _templates.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final template = _templates[index];
+                        final selected = _selected?.id == template.id;
+                        return ListTile(
+                          selected: selected,
+                          selectedTileColor:
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                          title: Text(template.name),
+                          subtitle: Text(
+                            '${_entityTypeLabel(template.entityType)} | '
+                            '${_recurrenceLabel(template.recurrenceRule)} '
+                            'x${template.recurrenceInterval}',
+                          ),
+                          onTap: () => _selectTemplate(template),
+                          trailing: Wrap(
+                            spacing: 4,
+                            children: [
+                              IconButton(
+                                tooltip: 'Bearbeiten',
+                                onPressed: () => _editTemplateDialog(template),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Löschen',
+                                onPressed:
+                                    () => _confirmDeleteTemplate(template),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _detailPane(BuildContext context) {
+    final selected = _selected;
+    return NxCard(
+      child:
+          selected == null
+              ? const _TemplateEmptyState(
+                title: 'Vorlage auswählen',
+                description: 'Links eine Vorlage auswählen, um Details und Checkliste zu bearbeiten.',
+                icon: Icons.rule_folder_outlined,
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _PaneHeader(
+                    icon: Icons.rule_folder_outlined,
+                    title: selected.name,
+                    badge: _priorityLabel(selected.defaultPriority),
+                  ),
+                  const SizedBox(height: AppSpacing.component),
+                  Wrap(
+                    spacing: AppSpacing.component,
+                    runSpacing: AppSpacing.component,
+                    children: [
+                      _TemplateFact(
+                        label: 'Titel',
+                        value: selected.defaultTitle,
+                      ),
+                      _TemplateFact(
+                        label: 'Bereich',
+                        value: _entityTypeLabel(selected.entityType),
+                      ),
+                      _TemplateFact(
+                        label: 'Rhythmus',
+                        value:
+                            '${_recurrenceLabel(selected.recurrenceRule)} x${selected.recurrenceInterval}',
+                      ),
+                      _TemplateFact(
+                        label: 'Fälligkeit',
+                        value:
+                            selected.defaultDueDaysOffset == null
+                                ? 'Nicht gesetzt'
+                                : '+${selected.defaultDueDaysOffset} Tage',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.component),
+                  OutlinedButton.icon(
+                    onPressed: () => _addChecklistDialog(selected.id),
+                    icon: const Icon(Icons.playlist_add_outlined),
+                    label: const Text('Checklistenpunkt hinzufügen'),
+                  ),
+                  const SizedBox(height: AppSpacing.component),
+                  Expanded(
+                    child:
+                        _checklist.isEmpty
+                            ? const _TemplateEmptyState(
+                              title: 'Keine Checkliste',
+                              description: 'Checklistenpunkte strukturieren die automatisch erzeugten Aufgaben.',
+                              icon: Icons.checklist_outlined,
+                            )
+                            : ListView.separated(
+                              itemCount: _checklist.length,
+                              separatorBuilder:
+                                  (_, __) => const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final item = _checklist[index];
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    radius: 13,
+                                    child: Text('${index + 1}'),
+                                  ),
+                                  title: Text(item.text),
+                                  trailing: IconButton(
+                                    tooltip: 'Löschen',
+                                    onPressed:
+                                        () => _deleteChecklistItem(item.id),
+                                    icon: const Icon(Icons.delete_outline),
+                                  ),
+                                );
+                              },
+                            ),
+                  ),
+                ],
+              ),
     );
   }
 
@@ -224,7 +297,7 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(isEdit ? 'Edit Template' : 'Create Template'),
+              title: Text(isEdit ? 'Vorlage bearbeiten' : 'Vorlage erstellen'),
               content: SizedBox(
                 width: 520,
                 child: SingleChildScrollView(
@@ -233,31 +306,38 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                     children: [
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Name'),
+                        decoration: const InputDecoration(
+                          labelText: 'Name',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(
-                          labelText: 'Default title',
+                          labelText: 'Standardtitel',
+                          prefixIcon: Icon(Icons.title_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         value: entityType,
                         items: const [
-                          DropdownMenuItem(value: 'none', child: Text('none')),
+                          DropdownMenuItem(
+                            value: 'none',
+                            child: Text('Ohne festen Bereich'),
+                          ),
                           DropdownMenuItem(
                             value: 'property',
-                            child: Text('property'),
+                            child: Text('Objekt'),
                           ),
                           DropdownMenuItem(
                             value: 'portfolio',
-                            child: Text('portfolio'),
+                            child: Text('Portfolio'),
                           ),
                           DropdownMenuItem(
                             value: 'asset_property',
-                            child: Text('asset_property'),
+                            child: Text('Objekt (Asset)'),
                           ),
                         ],
                         onChanged: (value) {
@@ -265,59 +345,72 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                           setDialogState(() => entityType = value);
                         },
                         decoration: const InputDecoration(
-                          labelText: 'Entity type',
+                          labelText: 'Bereich',
+                          prefixIcon: Icon(Icons.category_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         value: priority,
                         items: const [
-                          DropdownMenuItem(value: 'low', child: Text('low')),
+                          DropdownMenuItem(
+                            value: 'low',
+                            child: Text('Niedrig'),
+                          ),
                           DropdownMenuItem(
                             value: 'normal',
-                            child: Text('normal'),
+                            child: Text('Normal'),
                           ),
-                          DropdownMenuItem(value: 'high', child: Text('high')),
+                          DropdownMenuItem(
+                            value: 'high',
+                            child: Text('Hoch'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value == null) return;
                           setDialogState(() => priority = value);
                         },
                         decoration: const InputDecoration(
-                          labelText: 'Default priority',
+                          labelText: 'Standardpriorität',
+                          prefixIcon: Icon(Icons.priority_high_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: dueOffsetController,
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: 'Default due days offset',
+                          labelText: 'Fällig nach Tagen',
+                          prefixIcon: Icon(Icons.event_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         value: recurrence,
                         items: const [
-                          DropdownMenuItem(value: 'none', child: Text('none')),
+                          DropdownMenuItem(
+                            value: 'none',
+                            child: Text('Einmalig'),
+                          ),
                           DropdownMenuItem(
                             value: 'daily',
-                            child: Text('daily'),
+                            child: Text('Täglich'),
                           ),
                           DropdownMenuItem(
                             value: 'weekly',
-                            child: Text('weekly'),
+                            child: Text('Wöchentlich'),
                           ),
                           DropdownMenuItem(
                             value: 'monthly',
-                            child: Text('monthly'),
+                            child: Text('Monatlich'),
                           ),
                           DropdownMenuItem(
                             value: 'quarterly',
-                            child: Text('quarterly'),
+                            child: Text('Quartalsweise'),
                           ),
                           DropdownMenuItem(
                             value: 'yearly',
-                            child: Text('yearly'),
+                            child: Text('Jährlich'),
                           ),
                         ],
                         onChanged: (value) {
@@ -325,14 +418,17 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                           setDialogState(() => recurrence = value);
                         },
                         decoration: const InputDecoration(
-                          labelText: 'Recurrence rule',
+                          labelText: 'Rhythmus',
+                          prefixIcon: Icon(Icons.repeat_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: intervalController,
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: 'Recurrence interval',
+                          labelText: 'Intervall',
+                          prefixIcon: Icon(Icons.numbers_outlined),
                         ),
                       ),
                     ],
@@ -342,7 +438,7 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text('Abbrechen'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -389,7 +485,7 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                     }
                     await _reload();
                   },
-                  child: Text(isEdit ? 'Save' : 'Create'),
+                  child: Text(isEdit ? 'Speichern' : 'Erstellen'),
                 ),
               ],
             );
@@ -404,8 +500,35 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
     intervalController.dispose();
   }
 
-  Future<void> _deleteTemplate(String id) async {
-    await ref.read(tasksRepositoryProvider).deleteTemplate(id);
+  Future<void> _confirmDeleteTemplate(TaskTemplateRecord template) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Vorlage löschen'),
+            content: Text(
+              '"${template.name}" wird inklusive Checkliste gelöscht.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                child: const Text('Löschen'),
+              ),
+            ],
+          ),
+    );
+    if (shouldDelete != true || !mounted) {
+      return;
+    }
+    await ref.read(tasksRepositoryProvider).deleteTemplate(template.id);
     await _reload();
   }
 
@@ -415,15 +538,18 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Add Template Checklist Item'),
+            title: const Text('Checklistenpunkt hinzufügen'),
             content: TextField(
               controller: textController,
-              decoration: const InputDecoration(labelText: 'Text'),
+              decoration: const InputDecoration(
+                labelText: 'Text',
+                prefixIcon: Icon(Icons.checklist_outlined),
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: const Text('Abbrechen'),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -444,7 +570,7 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                     await _selectTemplate(selected);
                   }
                 },
-                child: const Text('Add'),
+                child: const Text('Hinzufügen'),
               ),
             ],
           ),
@@ -480,7 +606,149 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
     if (!mounted) return;
     setState(() {
       _status =
-          'Generated ${summary.generatedTasks} task(s), ${summary.generatedNotifications} notification(s).';
+          '${summary.generatedTasks} Aufgabe(n) und ${summary.generatedNotifications} Benachrichtigung(en) erzeugt.';
     });
+  }
+}
+
+class _PaneHeader extends StatelessWidget {
+  const _PaneHeader({
+    required this.icon,
+    required this.title,
+    required this.badge,
+  });
+
+  final IconData icon;
+  final String title;
+  final String badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        NxStatusBadge(label: badge, kind: NxBadgeKind.info),
+      ],
+    );
+  }
+}
+
+class _TemplateFact extends StatelessWidget {
+  const _TemplateFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: context.viewport == AppViewport.mobile ? double.infinity : 220,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateEmptyState extends StatelessWidget {
+  const _TemplateEmptyState({
+    required this.title,
+    required this.description,
+    required this.icon,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          border: Border.all(color: context.semanticColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 26, color: context.semanticColors.textSecondary),
+            const SizedBox(height: 8),
+            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _entityTypeLabel(String value) {
+  switch (value) {
+    case 'property':
+    case 'asset_property':
+      return 'Objekt';
+    case 'portfolio':
+      return 'Portfolio';
+    case 'document':
+      return 'Dokument';
+    default:
+      return 'Ohne festen Bereich';
+  }
+}
+
+String _recurrenceLabel(String value) {
+  switch (value) {
+    case 'daily':
+      return 'Täglich';
+    case 'weekly':
+      return 'Wöchentlich';
+    case 'monthly':
+      return 'Monatlich';
+    case 'quarterly':
+      return 'Quartalsweise';
+    case 'yearly':
+      return 'Jährlich';
+    default:
+      return 'Einmalig';
+  }
+}
+
+String _priorityLabel(String value) {
+  switch (value) {
+    case 'low':
+      return 'Niedrig';
+    case 'high':
+      return 'Hoch';
+    default:
+      return 'Normal';
   }
 }

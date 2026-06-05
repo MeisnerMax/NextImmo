@@ -13,7 +13,7 @@ class NxActionToolbar extends StatelessWidget {
     return Container(
       padding: padding ?? const EdgeInsets.all(AppSpacing.component),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: context.semanticColors.surfaceAlt,
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: context.semanticColors.border),
       ),

@@ -35,7 +35,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   static const List<_CompareColumnDef> _availableColumns = <_CompareColumnDef>[
     _CompareColumnDef(
       id: 'monthly_cashflow',
-      label: 'Monthly CF',
+      label: 'Cashflow',
       extractor: _extractMonthlyCashflow,
     ),
     _CompareColumnDef(
@@ -46,7 +46,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     ),
     _CompareColumnDef(
       id: 'cash_on_cash',
-      label: 'COC',
+      label: 'CoC',
       extractor: _extractCashOnCash,
       percent: true,
     ),
@@ -102,27 +102,29 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     };
 
     return ListFilterTemplate(
-      title: 'Scenario Compare',
-      breadcrumbs: const ['Valuation & Scenarios', 'Scenario Compare'],
+      title: 'Szenariovergleich',
+      breadcrumbs: const ['Bewertung', 'Szenariovergleich'],
       subtitle:
-          'Select scenarios, tailor visible metrics, and compare results in a consistent table workflow.',
+          'Szenarien auswaehlen, Kennzahlen steuern und Ergebnisse direkt vergleichen.',
       secondaryActions: [
-        OutlinedButton(
+        OutlinedButton.icon(
           onPressed: _loading ? null : _loadCompareRows,
-          child: const Text('Refresh'),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Aktualisieren'),
         ),
-        OutlinedButton(
+        OutlinedButton.icon(
           onPressed:
               _loading || selectedRows.isEmpty
                   ? null
                   : () => _exportCsv(selectedRows),
-          child: const Text('Export CSV'),
+          icon: const Icon(Icons.download_outlined),
+          label: const Text('Export'),
         ),
       ],
       contextBar: ListFilterBar(
         children: [
           Text(
-            'Visible metrics',
+            'Sichtbare Kennzahlen',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           ..._availableColumns.map((column) {
@@ -149,7 +151,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               items: [
                 const DropdownMenuItem(
                   value: 'all',
-                  child: Text('All Portfolios'),
+                  child: Text('Alle Portfolios'),
                 ),
                 ..._portfolios.map(
                   (portfolio) => DropdownMenuItem(
@@ -167,11 +169,11 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                 });
                 _loadCompareRows();
               },
-              decoration: const InputDecoration(labelText: 'Portfolio filter'),
+              decoration: const InputDecoration(labelText: 'Portfolio'),
             ),
           ),
           NxStatusBadge(
-            label: '${selectedRows.length} selected',
+            label: '${selectedRows.length} ausgewaehlt',
             kind: NxBadgeKind.info,
           ),
         ],
@@ -186,7 +188,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
           _lastExportPath == null
               ? null
               : Text(
-                'Last export: $_lastExportPath',
+                'Letzter Export: $_lastExportPath',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
     );
@@ -204,7 +206,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
     if (_error != null) {
       return NxEmptyState(
-        title: 'Compare data unavailable',
+        title: 'Vergleichsdaten nicht verfuegbar',
         description: _error!,
         icon: Icons.error_outline,
       );
@@ -264,9 +266,9 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget _buildSelectionPane(BuildContext context, int selectedCount) {
     if (_rows.isEmpty) {
       return const NxEmptyState(
-        title: 'No scenarios available',
+        title: 'Keine Szenarien verfuegbar',
         description:
-            'Create scenarios or widen the portfolio filter to build a comparison set.',
+            'Lege Szenarien an oder erweitere den Portfoliofilter, um einen Vergleich aufzubauen.',
         icon: Icons.table_chart_outlined,
       );
     }
@@ -282,12 +284,12 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Scenario selection',
+                    'Szenarioauswahl',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 NxStatusBadge(
-                  label: '$selectedCount selected',
+                  label: '$selectedCount ausgewaehlt',
                   kind: NxBadgeKind.info,
                 ),
               ],
@@ -311,7 +313,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                   },
                   title: Text(row.property.name),
                   subtitle: Text(
-                    '${row.scenario.name} (${row.scenario.strategyType})',
+                    '${row.scenario.name} (${_strategyLabel(row.scenario.strategyType)})',
                   ),
                   controlAffinity: ListTileControlAffinity.leading,
                   dense: true,
@@ -331,15 +333,15 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     required Map<String, double?> maxByColumn,
   }) {
     final minWidth =
-        math.max(860, 340 + (activeColumns.length * 140)).toDouble();
+        math.max(720, 260 + (activeColumns.length * 118)).toDouble();
 
     return NxDataTableShell(
       minTableWidth: minWidth,
       mobileBreakpoint: 1120,
       isEmpty: selectedRows.isEmpty,
-      emptyTitle: 'No scenarios selected',
+      emptyTitle: 'Keine Szenarien ausgewaehlt',
       emptyDescription:
-          'Select one or more scenarios from the left panel to compare performance metrics.',
+          'Waehle links ein oder mehrere Szenarien aus, um die Kennzahlen zu vergleichen.',
       emptyIcon: Icons.analytics_outlined,
       mobileChild: ListView.separated(
         padding: const EdgeInsets.all(AppSpacing.component),
@@ -348,7 +350,13 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             (_, __) => const SizedBox(height: AppSpacing.component),
         itemBuilder: (context, index) {
           final row = selectedRows[index];
-          return NxCard(
+          return Container(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            decoration: BoxDecoration(
+              color: context.semanticColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+              border: Border.all(color: context.semanticColors.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -373,7 +381,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                     ),
                     const SizedBox(width: 12),
                     NxStatusBadge(
-                      label: row.scenario.strategyType,
+                      label: _strategyLabel(row.scenario.strategyType),
                       kind: NxBadgeKind.info,
                     ),
                   ],
@@ -402,9 +410,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       ),
       child: DataTable(
         columns: <DataColumn>[
-          const DataColumn(label: Text('Property')),
-          const DataColumn(label: Text('Scenario Id')),
-          const DataColumn(label: Text('Scenario')),
+          const DataColumn(label: Text('Objekt')),
+          const DataColumn(label: Text('Szenario')),
           ...activeColumns.map(
             (column) => DataColumn(
               label: Row(
@@ -423,7 +430,6 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
                   (row) => DataRow(
                     cells: <DataCell>[
                       DataCell(Text(row.property.name)),
-                      DataCell(Text(row.scenario.id)),
                       DataCell(Text(row.scenario.name)),
                       ...activeColumns.map(
                         (column) => DataCell(
@@ -564,7 +570,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
         return;
       }
       setState(() {
-        _error = 'Failed to load compare data: $error';
+        _error = 'Vergleichsdaten konnten nicht geladen werden: $error';
         _loading = false;
       });
     }
@@ -604,7 +610,8 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             .toList();
 
     final location = await getSaveLocation(
-      suggestedName: 'compare_${DateTime.now().millisecondsSinceEpoch}.csv',
+      suggestedName:
+          'szenario_vergleich_${DateTime.now().millisecondsSinceEpoch}.csv',
       acceptedTypeGroups: const [
         XTypeGroup(label: 'CSV', extensions: <String>['csv']),
       ],
@@ -616,11 +623,11 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
     final header = <dynamic>[
       'portfolio_id',
-      'portfolio_name',
-      'property_name',
-      'scenario_id',
-      'scenario_name',
-      'strategy',
+      'portfolio',
+      'objekt',
+      'szenario_id',
+      'szenario',
+      'strategie',
       ...activeColumns.map((column) => column.id),
     ];
     PortfolioRecord? selectedPortfolio;
@@ -688,6 +695,21 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       }
       await File(sourcePath).copy(targetPath);
     } catch (_) {}
+  }
+
+  String _strategyLabel(String value) {
+    switch (value) {
+      case 'buy_hold':
+        return 'Bestand halten';
+      case 'fix_flip':
+        return 'Sanieren & verkaufen';
+      case 'refinance':
+        return 'Refinanzieren';
+      case 'development':
+        return 'Entwicklung';
+      default:
+        return value;
+    }
   }
 }
 

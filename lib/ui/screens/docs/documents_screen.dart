@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,6 +33,14 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
   bool _loading = true;
   String? _error;
 
+  static const _entityOptions = <String>[
+    'property',
+    'unit',
+    'lease',
+    'tenant',
+    'scenario',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -58,21 +67,25 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
       });
     }
     return ListFilterTemplate(
-      title: 'Documents',
-      breadcrumbs: const ['Documents & Reporting', 'Documents'],
+      title: 'Dokumente',
+      breadcrumbs: const ['Dokumente & Berichte', 'Dokumente'],
       subtitle:
-          'Manage files, document types, required rules, and compliance in one shared workflow.',
+          'Dateien, Dokumenttypen, Pflichtregeln und Compliance in einem Workflow verwalten.',
       secondaryActions: [
-        OutlinedButton(onPressed: _load, child: const Text('Refresh')),
+        OutlinedButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Aktualisieren'),
+        ),
       ],
       contextBar: NxCard(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Documents'),
-            Tab(text: 'Types'),
-            Tab(text: 'Required'),
+            Tab(text: 'Dokumente'),
+            Tab(text: 'Typen'),
+            Tab(text: 'Pflichtregeln'),
             Tab(text: 'Compliance'),
           ],
         ),
@@ -128,21 +141,23 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
           spacing: 8,
           runSpacing: 8,
           children: [
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: () => _openDocumentDialog(),
-              child: const Text('Add Document'),
+              icon: const Icon(Icons.add),
+              label: const Text('Dokument erfassen'),
             ),
-            OutlinedButton(
+            OutlinedButton.icon(
               onPressed:
                   _selectedDocumentIds.isEmpty ? null : _prepareBatchSelection,
-              child: Text('Batch Review (${_selectedDocumentIds.length})'),
+              icon: const Icon(Icons.fact_check_outlined),
+              label: Text('Auswahl pruefen (${_selectedDocumentIds.length})'),
             ),
             SizedBox(
               width: 220,
               child: TextField(
                 onChanged: (value) => setState(() => _documentQuery = value),
                 decoration: const InputDecoration(
-                  labelText: 'Search documents',
+                  labelText: 'Dokumente suchen',
                   prefixIcon: Icon(Icons.search),
                 ),
               ),
@@ -152,13 +167,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
               child: DropdownButtonFormField<String>(
                 value: _documentStatusFilter,
                 items: const [
-                  DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                  DropdownMenuItem(value: 'all', child: Text('Alle Status')),
                   DropdownMenuItem(
                     value: 'available',
-                    child: Text('Available'),
+                    child: Text('Verfuegbar'),
                   ),
-                  DropdownMenuItem(value: 'verified', child: Text('Verified')),
-                  DropdownMenuItem(value: 'expiring', child: Text('Expiring')),
+                  DropdownMenuItem(value: 'verified', child: Text('Geprueft')),
+                  DropdownMenuItem(value: 'expiring', child: Text('Laeuft ab')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -173,31 +188,31 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
               child: DropdownButtonFormField<String>(
                 value: _documentEntityFilter,
                 items: const [
-                  DropdownMenuItem(value: 'all', child: Text('All entities')),
-                  DropdownMenuItem(value: 'property', child: Text('Property')),
-                  DropdownMenuItem(value: 'unit', child: Text('Unit')),
-                  DropdownMenuItem(value: 'lease', child: Text('Lease')),
-                  DropdownMenuItem(value: 'tenant', child: Text('Tenant')),
-                  DropdownMenuItem(value: 'scenario', child: Text('Scenario')),
+                  DropdownMenuItem(value: 'all', child: Text('Alle Ebenen')),
+                  DropdownMenuItem(value: 'property', child: Text('Objekt')),
+                  DropdownMenuItem(value: 'unit', child: Text('Einheit')),
+                  DropdownMenuItem(value: 'lease', child: Text('Mietvertrag')),
+                  DropdownMenuItem(value: 'tenant', child: Text('Mieter')),
+                  DropdownMenuItem(value: 'scenario', child: Text('Szenario')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
                     setState(() => _documentEntityFilter = value);
                   }
                 },
-                decoration: const InputDecoration(labelText: 'Entity'),
+                decoration: const InputDecoration(labelText: 'Ebene'),
               ),
             ),
             NxStatusBadge(
-              label: '$availableCount available',
+              label: '$availableCount verfuegbar',
               kind: NxBadgeKind.info,
             ),
             NxStatusBadge(
-              label: '$verifiedCount verified',
+              label: '$verifiedCount geprueft',
               kind: NxBadgeKind.success,
             ),
             NxStatusBadge(
-              label: '$expiringCount expiring',
+              label: '$expiringCount laeuft ab',
               kind:
                   expiringCount == 0
                       ? NxBadgeKind.neutral
@@ -207,12 +222,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
         ),
         const SizedBox(height: 8),
         Expanded(
-          child:
+              child:
               documents.isEmpty
                   ? const NxEmptyState(
-                    title: 'No documents match the current filters',
+                    title: 'Keine Dokumente fuer diese Filter',
                     description:
-                        'Adjust the current filters or add a document to continue the workflow.',
+                        'Passe die Filter an oder erfasse ein neues Dokument.',
                     icon: Icons.folder_open_outlined,
                   )
                   : LayoutBuilder(
@@ -248,35 +263,74 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: _openTypeDialog,
-          child: const Text('Add Type'),
+          icon: const Icon(Icons.add),
+          label: const Text('Dokumenttyp anlegen'),
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: ListView.builder(
-            itemCount: _types.length,
-            itemBuilder: (context, index) {
-              final type = _types[index];
-              return Card(
-                child: ListTile(
-                  title: Text(type.name),
-                  subtitle: Text(
-                    '${type.entityType} · required fields: ${type.requiredFields.join(', ')}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      await ref
-                          .read(documentTypesRepositoryProvider)
-                          .delete(type.id);
-                      await _load();
+          child:
+              _types.isEmpty
+                  ? const NxEmptyState(
+                    title: 'Noch keine Dokumenttypen',
+                    description:
+                        'Dokumenttypen strukturieren Pflichtunterlagen und Metadaten.',
+                    icon: Icons.category_outlined,
+                  )
+                  : ListView.separated(
+                    itemCount: _types.length,
+                    separatorBuilder:
+                        (_, __) =>
+                            const SizedBox(height: AppSpacing.component),
+                    itemBuilder: (context, index) {
+                      final type = _types[index];
+                      return NxCard(
+                        child: Wrap(
+                          spacing: AppSpacing.component,
+                          runSpacing: AppSpacing.component,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: 260,
+                                maxWidth: 560,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    type.name,
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Ebene: ${_entityLabel(type.entityType)}',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  if (type.requiredFields.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Pflichtfelder: ${type.requiredFields.join(', ')}',
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _deleteType(type),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Loeschen'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
-                    child: const Text('Delete'),
                   ),
-                ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -286,37 +340,82 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: _openRequiredDialog,
-          child: const Text('Add Requirement'),
+          icon: const Icon(Icons.add),
+          label: const Text('Pflichtregel anlegen'),
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: ListView.builder(
-            itemCount: _required.length,
-            itemBuilder: (context, index) {
-              final requirement = _required[index];
-              return Card(
-                child: ListTile(
-                  title: Text(
-                    '${requirement.entityType} · ${requirement.typeId}',
-                  ),
-                  subtitle: Text(
-                    'propertyType=${requirement.propertyType ?? '-'} · required=${requirement.required ? 'yes' : 'no'} · expiresKey=${requirement.expiresFieldKey ?? '-'}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      await ref
-                          .read(requiredDocumentsRepositoryProvider)
-                          .delete(requirement.id);
-                      await _load();
+          child:
+              _required.isEmpty
+                  ? const NxEmptyState(
+                    title: 'Noch keine Pflichtregeln',
+                    description:
+                        'Pflichtregeln zeigen spaeter automatisch fehlende Unterlagen je Objekt, Einheit oder Vertrag.',
+                    icon: Icons.assignment_late_outlined,
+                  )
+                  : ListView.separated(
+                    itemCount: _required.length,
+                    separatorBuilder:
+                        (_, __) =>
+                            const SizedBox(height: AppSpacing.component),
+                    itemBuilder: (context, index) {
+                      final requirement = _required[index];
+                      return NxCard(
+                        child: Wrap(
+                          spacing: AppSpacing.component,
+                          runSpacing: AppSpacing.component,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: 280,
+                                maxWidth: 640,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_entityLabel(requirement.entityType)} · ${_typeName(requirement.typeId)}',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Objektart: ${requirement.propertyType?.isNotEmpty == true ? requirement.propertyType : '-'}',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Ablauffeld: ${requirement.expiresFieldKey?.isNotEmpty == true ? requirement.expiresFieldKey : '-'}',
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            NxStatusBadge(
+                              label:
+                                  requirement.required
+                                      ? 'Pflicht'
+                                      : 'Optional',
+                              kind:
+                                  requirement.required
+                                      ? NxBadgeKind.warning
+                                      : NxBadgeKind.neutral,
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _deleteRequirement(requirement),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Loeschen'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
-                    child: const Text('Delete'),
                   ),
-                ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -350,7 +449,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
             ),
             title: Text(doc.document.fileName),
             subtitle: Text(
-              '${doc.contextTitle} · ${doc.contextSubtitle}\n${doc.typeName ?? 'Untyped'}${doc.isRequired ? ' · required' : ''}',
+              '${doc.contextTitle} · ${doc.contextSubtitle}\n${doc.typeName ?? 'Ohne Typ'}${doc.isRequired ? ' · Pflicht' : ''}',
             ),
             isThreeLine: true,
             selected: selected,
@@ -368,7 +467,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
           selected == null
               ? const Center(
                 child: Text(
-                  'Select a document to inspect assignment and metadata.',
+                  'Dokument auswaehlen, um Zuordnung und Metadaten zu sehen.',
                 ),
               )
               : ListView(
@@ -387,12 +486,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                         kind: _documentStatusKind(selected.status),
                       ),
                       NxStatusBadge(
-                        label: selected.typeName ?? 'Untyped',
+                        label: selected.typeName ?? 'Ohne Typ',
                         kind: NxBadgeKind.info,
                       ),
                       if (selected.isRequired)
                         const NxStatusBadge(
-                          label: 'Required',
+                          label: 'Pflicht',
                           kind: NxBadgeKind.warning,
                         ),
                     ],
@@ -403,17 +502,17 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                   ),
                   if (selected.propertyName != null) ...[
                     const SizedBox(height: 4),
-                    Text('Asset: ${selected.propertyName}'),
+                    Text('Objekt: ${selected.propertyName}'),
                   ],
                   const SizedBox(height: 12),
-                  Text('Path: ${selected.document.filePath}'),
+                  Text('Pfad: ${selected.document.filePath}'),
                   if (selected.document.mimeType != null) ...[
                     const SizedBox(height: 4),
                     Text('MIME: ${selected.document.mimeType}'),
                   ],
                   if (selected.document.sizeBytes != null) ...[
                     const SizedBox(height: 4),
-                    Text('Size: ${selected.document.sizeBytes} bytes'),
+                    Text('Groesse: ${selected.document.sizeBytes} Bytes'),
                   ],
                   const SizedBox(height: 12),
                   Wrap(
@@ -425,28 +524,24 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                             selected.propertyId == null
                                 ? null
                                 : () => _openDocumentContext(selected),
-                        child: const Text('Open Context'),
+                        child: const Text('Kontext oeffnen'),
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          await ref
-                              .read(documentsRepositoryProvider)
-                              .deleteDocument(selected.document.id);
-                          await _load();
-                        },
-                        child: const Text('Delete'),
+                      TextButton.icon(
+                        onPressed: () => _deleteDocument(selected),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Loeschen'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Metadata / Preview Slot',
+                    'Metadaten',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   if (selected.metadata.isEmpty)
                     Text(
-                      'No metadata stored yet. This area is reserved for richer preview and verification states.',
+                      'Noch keine Metadaten gespeichert.',
                       style: Theme.of(context).textTheme.bodySmall,
                     )
                   else
@@ -525,9 +620,10 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
     String? prefilledEntityId,
     String? prefilledTypeId,
   }) async {
-    final entityTypeController = TextEditingController(
-      text: prefilledEntityType ?? 'property',
-    );
+    var entityType =
+        _entityOptions.contains(prefilledEntityType)
+            ? prefilledEntityType!
+            : 'property';
     final entityIdController = TextEditingController(
       text: prefilledEntityId ?? '',
     );
@@ -544,89 +640,134 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Add Document'),
+              title: const Text('Dokument erfassen'),
               content: SizedBox(
                 width: 520,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: entityTypeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Entity Type',
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: entityType,
+                        items:
+                            _entityOptions
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text(_entityLabel(value)),
+                                  ),
+                                )
+                                .toList(growable: false),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setDialogState(() => entityType = value);
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Zuordnungsebene',
+                          prefixIcon: Icon(Icons.account_tree_outlined),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: entityIdController,
-                      decoration: const InputDecoration(labelText: 'Entity ID'),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: typeId,
-                      items: _types
-                          .map(
-                            (t) => DropdownMenuItem(
-                              value: t.id,
-                              child: Text('${t.name} (${t.entityType})'),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged:
-                          (value) => setDialogState(() => typeId = value),
-                      decoration: const InputDecoration(labelText: 'Type'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: filePathController,
-                      decoration: const InputDecoration(labelText: 'File Path'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: fileNameController,
-                      decoration: const InputDecoration(labelText: 'File Name'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: metadataKeyController,
-                      decoration: const InputDecoration(
-                        labelText: 'Metadata key (optional)',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: metadataValueController,
-                      decoration: const InputDecoration(
-                        labelText: 'Metadata value (optional)',
-                      ),
-                    ),
-                    if (errorText != null) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        errorText!,
-                        style: const TextStyle(color: Colors.red),
+                      TextField(
+                        controller: entityIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Zuordnungs-ID',
+                          hintText:
+                              'Objekt-, Einheits-, Vertrags- oder Mieter-ID',
+                        ),
                       ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: typeId,
+                        items:
+                            _types
+                                .map(
+                                  (t) => DropdownMenuItem(
+                                    value: t.id,
+                                    child: Text(
+                                      '${t.name} (${_entityLabel(t.entityType)})',
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                        onChanged:
+                            (value) => setDialogState(() => typeId = value),
+                        decoration: const InputDecoration(
+                          labelText: 'Dokumenttyp',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: filePathController,
+                        decoration: InputDecoration(
+                          labelText: 'Dateipfad',
+                          suffixIcon: IconButton(
+                            tooltip: 'Datei auswaehlen',
+                            onPressed: () async {
+                              final file = await openFile();
+                              if (file == null) {
+                                return;
+                              }
+                              setDialogState(() {
+                                filePathController.text = file.path;
+                                if (fileNameController.text.trim().isEmpty) {
+                                  fileNameController.text = file.name;
+                                }
+                              });
+                            },
+                            icon: const Icon(Icons.folder_open_outlined),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: fileNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Dateiname',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: metadataKeyController,
+                        decoration: const InputDecoration(
+                          labelText: 'Metadaten-Schluessel (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: metadataValueController,
+                        decoration: const InputDecoration(
+                          labelText: 'Metadaten-Wert (optional)',
+                        ),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text('Abbrechen'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    final entityType = entityTypeController.text.trim();
                     final entityId = entityIdController.text.trim();
                     final filePath = filePathController.text.trim();
                     final fileName = fileNameController.text.trim();
-                    if (entityType.isEmpty ||
-                        entityId.isEmpty ||
+                    if (entityId.isEmpty ||
                         filePath.isEmpty ||
                         fileName.isEmpty) {
                       setDialogState(() {
-                        errorText = 'Please fill required fields.';
+                        errorText = 'Bitte alle Pflichtfelder ausfuellen.';
                       });
                       return;
                     }
@@ -637,7 +778,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                         (typeId == null || typeId!.isEmpty)) {
                       setDialogState(() {
                         errorText =
-                            'Type selection is required for this entity.';
+                            'Fuer diese Ebene ist ein Dokumenttyp erforderlich.';
                       });
                       return;
                     }
@@ -666,7 +807,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                     Navigator.of(context).pop();
                     await _load();
                   },
-                  child: const Text('Save'),
+                  child: const Text('Speichern'),
                 ),
               ],
             );
@@ -675,7 +816,6 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
       },
     );
 
-    entityTypeController.dispose();
     entityIdController.dispose();
     filePathController.dispose();
     fileNameController.dispose();
@@ -686,7 +826,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
   void _prepareBatchSelection() {
     setState(() {
       _error =
-          'Batch selection prepared for ${_selectedDocumentIds.length} documents. Review and verification actions can build on this selection next.';
+          'Auswahl mit ${_selectedDocumentIds.length} Dokumenten vorbereitet. Darauf koennen Pruef- und Freigabeaktionen aufbauen.';
     });
   }
 
@@ -726,11 +866,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
   String _documentStatusLabel(String value) {
     switch (value) {
       case 'verified':
-        return 'Verified';
+        return 'Geprueft';
       case 'expiring':
-        return 'Expiring';
+        return 'Laeuft ab';
       default:
-        return 'Available';
+        return 'Verfuegbar';
     }
   }
 
@@ -747,79 +887,106 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
 
   Future<void> _openTypeDialog() async {
     final nameController = TextEditingController();
-    final entityTypeController = TextEditingController(text: 'property');
     final requiredFieldsController = TextEditingController();
+    var entityType = 'property';
+    String? errorText;
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add Document Type'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Name'),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Dokumenttyp anlegen'),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Name',
+                        errorText: errorText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: entityType,
+                      items:
+                          _entityOptions
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(_entityLabel(value)),
+                                ),
+                              )
+                              .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setDialogState(() => entityType = value);
+                      },
+                      decoration: const InputDecoration(labelText: 'Ebene'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: requiredFieldsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Pflichtfelder (kommagetrennt)',
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: entityTypeController,
-                  decoration: const InputDecoration(labelText: 'Entity Type'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Abbrechen'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: requiredFieldsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Required fields (comma separated)',
-                  ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    if (name.isEmpty) {
+                      setDialogState(() => errorText = 'Bitte Namen eingeben.');
+                      return;
+                    }
+                    await ref
+                        .read(documentTypesRepositoryProvider)
+                        .create(
+                          name: name,
+                          entityType: entityType,
+                          requiredFields: requiredFieldsController.text
+                              .split(',')
+                              .map((x) => x.trim())
+                              .where((x) => x.isNotEmpty)
+                              .toList(growable: false),
+                        );
+                    if (!mounted) {
+                      return;
+                    }
+                    if (!context.mounted) {
+                      return;
+                    }
+                    Navigator.of(context).pop();
+                    await _load();
+                  },
+                  child: const Text('Speichern'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await ref
-                    .read(documentTypesRepositoryProvider)
-                    .create(
-                      name: nameController.text.trim(),
-                      entityType: entityTypeController.text.trim(),
-                      requiredFields: requiredFieldsController.text
-                          .split(',')
-                          .map((x) => x.trim())
-                          .where((x) => x.isNotEmpty)
-                          .toList(growable: false),
-                    );
-                if (!mounted) {
-                  return;
-                }
-                if (!context.mounted) {
-                  return;
-                }
-                Navigator.of(context).pop();
-                await _load();
-              },
-              child: const Text('Save'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
     nameController.dispose();
-    entityTypeController.dispose();
     requiredFieldsController.dispose();
   }
 
   Future<void> _openRequiredDialog() async {
-    final entityTypeController = TextEditingController(text: 'property');
     final propertyTypeController = TextEditingController();
     final expiresFieldController = TextEditingController();
+    var entityType = 'property';
     String? typeId = _types.isEmpty ? null : _types.first.id;
     bool requiredFlag = true;
 
@@ -829,23 +996,36 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Add Required Document Rule'),
+              title: const Text('Pflichtregel anlegen'),
               content: SizedBox(
-                width: 420,
+                width: 460,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: entityTypeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Entity Type',
-                      ),
+                    DropdownButtonFormField<String>(
+                      value: entityType,
+                      items:
+                          _entityOptions
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(_entityLabel(value)),
+                                ),
+                              )
+                              .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setDialogState(() => entityType = value);
+                      },
+                      decoration: const InputDecoration(labelText: 'Ebene'),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: propertyTypeController,
                       decoration: const InputDecoration(
-                        labelText: 'Property Type (optional)',
+                        labelText: 'Objektart (optional)',
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -861,20 +1041,20 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                           .toList(growable: false),
                       onChanged:
                           (value) => setDialogState(() => typeId = value),
-                      decoration: const InputDecoration(labelText: 'Type'),
+                      decoration: const InputDecoration(labelText: 'Dokumenttyp'),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: expiresFieldController,
                       decoration: const InputDecoration(
-                        labelText: 'Expiry Metadata Key (optional)',
+                        labelText: 'Ablauf-Metadatenfeld (optional)',
                       ),
                     ),
                     SwitchListTile(
                       value: requiredFlag,
                       onChanged:
                           (value) => setDialogState(() => requiredFlag = value),
-                      title: const Text('Required'),
+                      title: const Text('Pflichtdokument'),
                     ),
                   ],
                 ),
@@ -882,7 +1062,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text('Abbrechen'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -892,7 +1072,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                     await ref
                         .read(requiredDocumentsRepositoryProvider)
                         .upsert(
-                          entityType: entityTypeController.text.trim(),
+                          entityType: entityType,
                           propertyType: propertyTypeController.text.trim(),
                           typeId: typeId!,
                           requiredFlag: requiredFlag,
@@ -907,7 +1087,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
                     Navigator.of(context).pop();
                     await _load();
                   },
-                  child: const Text('Save'),
+                  child: const Text('Speichern'),
                 ),
               ],
             );
@@ -915,8 +1095,100 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
         );
       },
     );
-    entityTypeController.dispose();
     propertyTypeController.dispose();
     expiresFieldController.dispose();
+  }
+
+  Future<void> _deleteDocument(DocumentWorkflowRecord document) async {
+    final confirmed = await _confirmDelete(
+      title: 'Dokument loeschen',
+      message: '"${document.document.fileName}" wirklich loeschen?',
+    );
+    if (!confirmed) {
+      return;
+    }
+    await ref
+        .read(documentsRepositoryProvider)
+        .deleteDocument(document.document.id);
+    await _load();
+  }
+
+  Future<void> _deleteType(DocumentTypeRecord type) async {
+    final confirmed = await _confirmDelete(
+      title: 'Dokumenttyp loeschen',
+      message: '"${type.name}" wirklich loeschen?',
+    );
+    if (!confirmed) {
+      return;
+    }
+    await ref.read(documentTypesRepositoryProvider).delete(type.id);
+    await _load();
+  }
+
+  Future<void> _deleteRequirement(RequiredDocumentRecord requirement) async {
+    final confirmed = await _confirmDelete(
+      title: 'Pflichtregel loeschen',
+      message:
+          'Regel fuer ${_entityLabel(requirement.entityType)} und ${_typeName(requirement.typeId)} wirklich loeschen?',
+    );
+    if (!confirmed) {
+      return;
+    }
+    await ref.read(requiredDocumentsRepositoryProvider).delete(requirement.id);
+    await _load();
+  }
+
+  Future<bool> _confirmDelete({
+    required String title,
+    required String message,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.semanticColors.error,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Loeschen'),
+              ),
+            ],
+          ),
+    );
+    return result ?? false;
+  }
+
+  String _typeName(String typeId) {
+    for (final type in _types) {
+      if (type.id == typeId) {
+        return type.name;
+      }
+    }
+    return typeId;
+  }
+
+  String _entityLabel(String value) {
+    switch (value) {
+      case 'property':
+        return 'Objekt';
+      case 'unit':
+        return 'Einheit';
+      case 'lease':
+        return 'Mietvertrag';
+      case 'tenant':
+        return 'Mieter';
+      case 'scenario':
+        return 'Szenario';
+      default:
+        return value;
+    }
   }
 }

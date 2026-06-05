@@ -255,6 +255,9 @@ class AppStrings {
     'Property Action': 'Objektaktion',
     'Open property, portfolio and ESG views':
         'Objekte, Portfolios und ESG-Uebersicht oeffnen',
+    'Vermietung & BK': 'Vermietung & BK',
+    'Open portfolio rent, operating costs and BK settlement overview':
+        'Portfolio-Mieten, Betriebskosten und BK-Abrechnung oeffnen',
     'Open active tasks, maintenance, budgets and ledger work':
         'Aufgaben, Instandhaltung, Budgets und Buchungen oeffnen',
     'Open scenario analysis, criteria or comparison work':
@@ -266,6 +269,9 @@ class AppStrings {
     'Edit Master Data': 'Stammdaten bearbeiten',
     'Edit Valuation': 'Bewertung bearbeiten',
     'Rent Management': 'Mietmanagement',
+    'Open rent, operating costs and BK settlement workflow':
+        'Mieten, Betriebskosten und BK-Abrechnung oeffnen',
+    'Basisszenario wird erstellt...': 'Basisszenario wird erstellt...',
     'Valuation Inputs': 'Bewertungseingaben',
     'Task': 'Aufgabe',
     'Document': 'Dokument',

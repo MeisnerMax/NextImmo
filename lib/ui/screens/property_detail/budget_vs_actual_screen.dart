@@ -132,9 +132,10 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                 ),
                               ),
                             )
-                          : SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
+                          : ClipRect(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
                               columns: const [
                                 DataColumn(label: Text('Account')),
                                 DataColumn(label: Text('Period')),
@@ -185,6 +186,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                         ),
                                       )
                                       .toList(),
+                              ),
                             ),
                           ),
                 );

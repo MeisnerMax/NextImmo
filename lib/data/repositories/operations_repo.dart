@@ -257,8 +257,8 @@ class OperationsRepo {
   Future<List<UnitRecord>> _loadUnits(String propertyId) async {
     final rows = await _database.query(
       'units',
-      where: 'asset_property_id = ?',
-      whereArgs: <Object?>[propertyId],
+      where: 'asset_property_id = ? AND status != ?',
+      whereArgs: <Object?>[propertyId, 'archived'],
       orderBy: 'unit_code COLLATE NOCASE',
     );
     return rows.map(UnitRecord.fromMap).toList(growable: false);

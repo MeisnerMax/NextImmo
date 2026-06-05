@@ -32,13 +32,13 @@ class OverviewScreen extends ConsumerStatefulWidget {
 }
 
 class _OverviewScreenState extends ConsumerState<OverviewScreen> {
-  static const Color _panel = Color(0xFF1E293B);
-  static const Color _panelHigh = Color(0xFF263244);
-  static const Color _border = Color(0x33475569);
-  static const Color _text = Color(0xFFE0E3E5);
-  static const Color _muted = Color(0xFFC6C6CD);
-  static const Color _teal = Color(0xFF2DD4BF);
-  static const Color _rose = Color(0xFFFB7185);
+  static const Color _panel = Color(0xFFF8FBFF);
+  static const Color _panelHigh = Color(0xFFEFF6FF);
+  static const Color _border = Color(0xFFE2E8F0);
+  static const Color _text = Color(0xFF0F172A);
+  static const Color _muted = Color(0xFF64748B);
+  static const Color _teal = Color(0xFF2563EB);
+  static const Color _rose = Color(0xFFDC2626);
 
   _CashflowMode _cashflowMode = _CashflowMode.annual;
 
@@ -107,6 +107,11 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
         page: PropertyDetailPage.rentRoll,
       ),
       (
+        icon: Icons.request_quote_outlined,
+        label: 'Vermietung & BK',
+        page: PropertyDetailPage.assetWorkbook,
+      ),
+      (
         icon: Icons.checklist_outlined,
         label: 'Daily Business',
         page: PropertyDetailPage.operationsOverview,
@@ -139,7 +144,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
             builder: (context, constraints) {
               final columns =
                   constraints.maxWidth >= 1080
-                      ? 6
+                      ? 7
                       : constraints.maxWidth >= 720
                       ? 3
                       : 2;

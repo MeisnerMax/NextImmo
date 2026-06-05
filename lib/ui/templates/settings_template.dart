@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../components/nx_card.dart';
 import '../components/nx_page_header.dart';
 import '../theme/app_theme.dart';
 
@@ -70,7 +69,12 @@ class SettingsTemplate extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxWidth < 1060;
-                final nav = NxCard(
+                final nav = Container(
+                  decoration: BoxDecoration(
+                    color: context.semanticColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+                    border: Border.all(color: context.semanticColors.border),
+                  ),
                   padding: const EdgeInsets.all(AppSpacing.component),
                   child: ListView.separated(
                     itemCount: navigationItems.length,
@@ -78,26 +82,34 @@ class SettingsTemplate extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final item = navigationItems[index];
                       final selected = item.id == selectedId;
-                      return ListTile(
-                        dense: true,
-                        leading: Icon(item.icon),
-                        selected: selected,
-                        selectedTileColor: context.semanticColors.surfaceAlt,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppRadiusTokens.md,
-                          ),
+                      return Material(
+                        color:
+                            selected
+                                ? Theme.of(context).colorScheme.surface
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(
+                          AppRadiusTokens.md,
                         ),
-                        title: Text(item.label),
-                        subtitle: Text(item.description),
-                        trailing:
-                            item.badgeLabel == null
-                                ? null
-                                : _NavigationBadge(
-                                  label: item.badgeLabel!,
-                                  kind: item.badgeKind,
-                                ),
-                        onTap: () => onSelect(item.id),
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(item.icon),
+                          selected: selected,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadiusTokens.md,
+                            ),
+                          ),
+                          title: Text(item.label),
+                          subtitle: Text(item.description),
+                          trailing:
+                              item.badgeLabel == null
+                                  ? null
+                                  : _NavigationBadge(
+                                    label: item.badgeLabel!,
+                                    kind: item.badgeKind,
+                                  ),
+                          onTap: () => onSelect(item.id),
+                        ),
                       );
                     },
                   ),

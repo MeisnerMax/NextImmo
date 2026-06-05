@@ -60,9 +60,11 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
       return const Center(child: Text('Select a lease.'));
     }
 
-    return ListView(
+    return Padding(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -304,7 +306,8 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 'No lease documents linked yet. Hooks are ready for signed leases, notices, deposit evidence and move-in packs.',
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 

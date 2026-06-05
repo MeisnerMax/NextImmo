@@ -31,14 +31,21 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   Widget build(BuildContext context) {
     final selectedUnitId = ref.watch(selectedOperationsUnitIdProvider);
     final filteredUnits = _units.where((unit) {
-      final matchesStatus = _statusFilter == 'all' || unit.status == _statusFilter;
+      final visibleByArchive =
+          _statusFilter == 'archived'
+              ? unit.status == 'archived'
+              : unit.status != 'archived';
+      final matchesStatus =
+          _statusFilter == 'all' ||
+          _statusFilter == 'archived' ||
+          unit.status == _statusFilter;
       final needle = _query.trim().toLowerCase();
       final matchesQuery =
           needle.isEmpty ||
           unit.unitCode.toLowerCase().contains(needle) ||
           (unit.unitType?.toLowerCase().contains(needle) ?? false) ||
           (unit.floor?.toLowerCase().contains(needle) ?? false);
-      return matchesStatus && matchesQuery;
+      return visibleByArchive && matchesStatus && matchesQuery;
     }).toList(growable: false);
     final selectedUnit = filteredUnits
         .where((unit) => unit.id == selectedUnitId)
@@ -57,14 +64,14 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
               ElevatedButton.icon(
                 onPressed: _createUnitDialog,
                 icon: const Icon(Icons.add),
-                label: const Text('Add Unit'),
+                label: const Text('Einheit hinzufügen'),
               ),
               SizedBox(
                 width: 220,
                 child: TextField(
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
-                    labelText: 'Search Units',
+                    labelText: 'Einheiten suchen',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -74,10 +81,11 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                 child: DropdownButtonFormField<String>(
                   value: _statusFilter,
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Statuses')),
-                    DropdownMenuItem(value: 'occupied', child: Text('occupied')),
-                    DropdownMenuItem(value: 'vacant', child: Text('vacant')),
-                    DropdownMenuItem(value: 'offline', child: Text('offline')),
+                    DropdownMenuItem(value: 'all', child: Text('Aktive anzeigen')),
+                    DropdownMenuItem(value: 'occupied', child: Text('Vermietet')),
+                    DropdownMenuItem(value: 'vacant', child: Text('Leer')),
+                    DropdownMenuItem(value: 'offline', child: Text('Offline')),
+                    DropdownMenuItem(value: 'archived', child: Text('archiviert')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -87,7 +95,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                   decoration: const InputDecoration(labelText: 'Status'),
                 ),
               ),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
+              OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
           if (_status != null) ...[
@@ -95,84 +103,131 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
             Text(_status!, style: const TextStyle(color: Colors.red)),
           ],
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final stacked = constraints.maxWidth < 1100;
-                final listPane = Card(
-                  child: filteredUnits.isEmpty
-                      ? const Center(child: Text('No units match the current filters.'))
-                      : ListView.builder(
-                          itemCount: filteredUnits.length,
-                          itemBuilder: (context, index) {
-                            final unit = filteredUnits[index];
-                            return ListTile(
-                              selected: unit.id == selectedUnitId,
-                              title: Text(unit.unitCode),
-                              subtitle: Text(
-                                '${unit.status}${unit.unitType == null ? '' : ' · ${unit.unitType}'}${unit.targetRentMonthly == null ? '' : ' · target ${unit.targetRentMonthly!.toStringAsFixed(2)}'}',
-                              ),
-                              trailing: Wrap(
-                                spacing: 8,
-                                children: [
-                                  if (unit.status == 'vacant' && unit.vacancySince == null)
-                                    const Tooltip(
-                                      message: 'Missing vacancy date',
-                                      child: Icon(Icons.warning_amber_outlined, color: Colors.orange),
-                                    ),
-                                  TextButton(
-                                    onPressed: () => _editUnitDialog(unit),
-                                    child: const Text('Edit'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => _deleteUnit(unit.id),
-                                    child: const Text('Delete'),
-                                  ),
-                                ],
-                              ),
-                              onTap: () {
-                                ref.read(selectedOperationsUnitIdProvider.notifier).state = unit.id;
-                              },
-                            );
-                          },
-                        ),
-                );
-                final detailPane = Card(
-                  child: selectedUnit == null
-                      ? const Center(child: Text('Select a unit to open the detail view.'))
-                      : UnitDetailScreen(
-                          propertyId: widget.propertyId,
-                          unitId: selectedUnit.id,
-                          onEdit: () => _editUnitDialog(selectedUnit),
-                          onChanged: _reload,
-                        ),
-                );
-                if (stacked) {
-                  return Column(
-                    children: [
-                      Expanded(child: listPane),
-                      const SizedBox(height: AppSpacing.component),
-                      Expanded(child: detailPane),
-                    ],
-                  );
-                }
-                return Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 1100;
+              final listPane = _unitListCard(
+                context: context,
+                units: filteredUnits,
+                selectedUnitId: selectedUnitId,
+              );
+              final detailPane = _unitDetailCard(selectedUnit);
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: 420, child: listPane),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(child: detailPane),
+                    listPane,
+                    const SizedBox(height: AppSpacing.component),
+                    detailPane,
                   ],
                 );
-              },
-            ),
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 420, child: listPane),
+                  const SizedBox(width: AppSpacing.component),
+                  Expanded(child: detailPane),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
+  Widget _unitListCard({
+    required BuildContext context,
+    required List<UnitRecord> units,
+    required String? selectedUnitId,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Einheiten', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (units.isEmpty)
+              const Text('Keine Einheiten für diesen Filter.')
+            else
+              Column(
+                children: [
+                  for (final unit in units)
+                    ListTile(
+                      selected: unit.id == selectedUnitId,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(unit.unitCode),
+                      subtitle: Text(
+                        '${_statusLabel(unit.status)}${unit.unitType == null ? '' : ' · ${unit.unitType}'}${unit.targetRentMonthly == null ? '' : ' · Soll ${unit.targetRentMonthly!.toStringAsFixed(2)}'}',
+                      ),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (unit.status == 'vacant' &&
+                              unit.vacancySince == null)
+                            const Tooltip(
+                              message: 'Leerstandsdatum fehlt',
+                              child: Icon(
+                                Icons.warning_amber_outlined,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          TextButton(
+                            onPressed: () => _editUnitDialog(unit),
+                            child: const Text('Bearbeiten'),
+                          ),
+                          if (unit.status == 'archived')
+                            TextButton(
+                              onPressed: () => _deleteUnit(unit.id),
+                              child: const Text('Endgültig löschen'),
+                            )
+                          else
+                            TextButton(
+                              onPressed: () => _archiveUnit(unit),
+                              child: const Text('Archivieren'),
+                            ),
+                        ],
+                      ),
+                      onTap:
+                          () =>
+                              ref
+                                  .read(
+                                    selectedOperationsUnitIdProvider.notifier,
+                                  )
+                                  .state = unit.id,
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _unitDetailCard(UnitRecord? selectedUnit) {
+    return Card(
+      child:
+          selectedUnit == null
+              ? const Padding(
+                padding: EdgeInsets.all(AppSpacing.cardPadding),
+                child: Text('Einheit auswählen, um Details zu öffnen.'),
+              )
+              : UnitDetailScreen(
+                propertyId: widget.propertyId,
+                unitId: selectedUnit.id,
+                onEdit: () => _editUnitDialog(selectedUnit),
+                onChanged: _reload,
+              ),
+    );
+  }
+
   Future<void> _reload() async {
-    final units = await ref.read(rentRollRepositoryProvider).listUnitsByAsset(widget.propertyId);
+    final units = await ref
+        .read(rentRollRepositoryProvider)
+        .listUnitsByAsset(widget.propertyId, includeArchived: true);
     if (!mounted) {
       return;
     }
@@ -182,7 +237,12 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
       _status = null;
     });
     if (units.isNotEmpty && !units.any((unit) => unit.id == selectedId)) {
-      ref.read(selectedOperationsUnitIdProvider.notifier).state = units.first.id;
+      final firstVisible = units
+          .where((unit) => unit.status != 'archived')
+          .cast<UnitRecord?>()
+          .firstOrNull;
+      ref.read(selectedOperationsUnitIdProvider.notifier).state =
+          firstVisible?.id;
     }
   }
 
@@ -213,12 +273,21 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
         existing?.expectedReadyDate == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(existing!.expectedReadyDate!);
+    const allowedStatuses = <String>['occupied', 'vacant', 'offline', 'archived'];
+    final statusItems = <DropdownMenuItem<String>>[
+      if (!allowedStatuses.contains(status))
+        DropdownMenuItem(value: status, child: Text(status)),
+      const DropdownMenuItem(value: 'occupied', child: Text('Vermietet')),
+      const DropdownMenuItem(value: 'vacant', child: Text('Leer')),
+      const DropdownMenuItem(value: 'offline', child: Text('Offline')),
+      const DropdownMenuItem(value: 'archived', child: Text('archiviert')),
+    ];
 
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(isEdit ? 'Edit Unit' : 'Create Unit'),
+          title: Text(isEdit ? 'Einheit bearbeiten' : 'Einheit anlegen'),
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
@@ -227,21 +296,17 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                 children: [
                   TextField(
                     controller: codeCtrl,
-                    decoration: const InputDecoration(labelText: 'Unit Number / Name'),
+                    decoration: const InputDecoration(labelText: 'Einheit / Name'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: unitTypeCtrl,
-                    decoration: const InputDecoration(labelText: 'Unit Type'),
+                    decoration: const InputDecoration(labelText: 'Einheitstyp'),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: status,
-                    items: const [
-                      DropdownMenuItem(value: 'occupied', child: Text('occupied')),
-                      DropdownMenuItem(value: 'vacant', child: Text('vacant')),
-                      DropdownMenuItem(value: 'offline', child: Text('offline')),
-                    ],
+                    items: statusItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => status = value);
@@ -250,83 +315,83 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                     decoration: const InputDecoration(labelText: 'Status'),
                   ),
                   const SizedBox(height: 8),
-                  TextField(controller: floorCtrl, decoration: const InputDecoration(labelText: 'Floor')),
+                  TextField(controller: floorCtrl, decoration: const InputDecoration(labelText: 'Etage')),
                   const SizedBox(height: 8),
                   TextField(
                     controller: bedsCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Beds'),
+                    decoration: const InputDecoration(labelText: 'Zimmer'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: bathsCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Baths'),
+                    decoration: const InputDecoration(labelText: 'Bäder'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: sqftCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Size'),
+                    decoration: const InputDecoration(labelText: 'Fläche'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: targetCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Target Rent'),
+                    decoration: const InputDecoration(labelText: 'Sollmiete'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: marketCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Market Rent'),
+                    decoration: const InputDecoration(labelText: 'Marktmiete'),
                   ),
                   if (status == 'offline') ...[
                     const SizedBox(height: 8),
                     TextField(
                       controller: offlineReasonCtrl,
-                      decoration: const InputDecoration(labelText: 'Offline Reason'),
+                      decoration: const InputDecoration(labelText: 'Offline-Grund'),
                     ),
                   ],
                   if (status == 'vacant') ...[
                     const SizedBox(height: 8),
                     _DateField(
-                      label: 'Vacancy Since',
+                      label: 'Leer seit',
                       value: vacancySince,
                       onPick: (value) => setDialogState(() => vacancySince = value),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: vacancyReasonCtrl,
-                      decoration: const InputDecoration(labelText: 'Vacancy Reason'),
+                      decoration: const InputDecoration(labelText: 'Leerstandsgrund'),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: marketingStatusCtrl,
-                      decoration: const InputDecoration(labelText: 'Marketing Status'),
+                      decoration: const InputDecoration(labelText: 'Vermarktungsstatus'),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: renovationStatusCtrl,
-                      decoration: const InputDecoration(labelText: 'Renovation Status'),
+                      decoration: const InputDecoration(labelText: 'Renovierungsstatus'),
                     ),
                     const SizedBox(height: 8),
                     _DateField(
-                      label: 'Expected Ready Date',
+                      label: 'Bereit ab',
                       value: expectedReadyDate,
                       onPick: (value) => setDialogState(() => expectedReadyDate = value),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: nextActionCtrl,
-                      decoration: const InputDecoration(labelText: 'Next Action'),
+                      decoration: const InputDecoration(labelText: 'Nächster Schritt'),
                     ),
                   ],
                   const SizedBox(height: 8),
                   TextField(
                     controller: notesCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Notes'),
+                    decoration: const InputDecoration(labelText: 'Notizen'),
                   ),
                 ],
               ),
@@ -335,7 +400,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const Text('Abbrechen'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -426,7 +491,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                   }
                 }
               },
-              child: Text(isEdit ? 'Save' : 'Create'),
+              child: Text(isEdit ? 'Speichern' : 'Anlegen'),
             ),
           ],
         ),
@@ -457,6 +522,38 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
     await _reload();
   }
 
+  Future<void> _archiveUnit(UnitRecord unit) async {
+    await ref.read(rentRollRepositoryProvider).updateUnit(
+          UnitRecord(
+            id: unit.id,
+            assetPropertyId: unit.assetPropertyId,
+            unitCode: unit.unitCode,
+            unitType: unit.unitType,
+            beds: unit.beds,
+            baths: unit.baths,
+            sqft: unit.sqft,
+            floor: unit.floor,
+            status: 'archived',
+            targetRentMonthly: unit.targetRentMonthly,
+            marketRentMonthly: unit.marketRentMonthly,
+            offlineReason: unit.offlineReason,
+            vacancySince: unit.vacancySince,
+            vacancyReason: unit.vacancyReason,
+            marketingStatus: unit.marketingStatus,
+            renovationStatus: unit.renovationStatus,
+            expectedReadyDate: unit.expectedReadyDate,
+            nextAction: unit.nextAction,
+            notes: unit.notes,
+            createdAt: unit.createdAt,
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+    if (ref.read(selectedOperationsUnitIdProvider) == unit.id) {
+      ref.read(selectedOperationsUnitIdProvider.notifier).state = null;
+    }
+    await _reload();
+  }
+
   double? _parseDouble(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
@@ -468,6 +565,21 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
   String? _nullIfEmpty(String value) {
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+String _statusLabel(String status) {
+  switch (status) {
+    case 'occupied':
+      return 'Vermietet';
+    case 'vacant':
+      return 'Leer';
+    case 'offline':
+      return 'Offline';
+    case 'archived':
+      return 'Archiviert';
+    default:
+      return status;
   }
 }
 

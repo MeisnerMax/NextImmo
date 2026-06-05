@@ -26,6 +26,7 @@ import '../../core/services/ledger_service.dart';
 import '../../core/services/zip_service.dart';
 import '../../core/services/task_generation_service.dart';
 import '../../data/repositories/audit_log_repo.dart';
+import '../../data/repositories/asset_workbook_repo.dart';
 import '../../data/repositories/budget_repo.dart';
 import '../../data/repositories/capital_events_repo.dart';
 import '../../data/repositories/comps_repo.dart';
@@ -64,6 +65,7 @@ import '../../data/sqlite/db.dart';
 enum GlobalPage {
   dashboard,
   properties,
+  rentalOverview,
   ledger,
   budgets,
   maintenance,
@@ -101,6 +103,7 @@ enum PropertyDetailPage {
   tenants,
   leases,
   rentRoll,
+  assetWorkbook,
   alerts,
   budgetVsActual,
   maintenance,
@@ -135,6 +138,7 @@ final selectedOperationsTenantIdProvider = StateProvider<String?>(
   (ref) => null,
 );
 final selectedOperationsLeaseIdProvider = StateProvider<String?>((ref) => null);
+final selectedAssetWorkbookTabProvider = StateProvider<int>((ref) => 0);
 final tasksRequestedDueFilterProvider = StateProvider<String?>((ref) => null);
 final documentsRequestedTabProvider = StateProvider<int?>((ref) => null);
 final propertyDetailPageProvider = StateProvider<PropertyDetailPage>(
@@ -260,6 +264,9 @@ final budgetRepositoryProvider = Provider<BudgetRepo>((ref) {
     ref.watch(budgetVsActualEngineProvider),
     auditLogRepo: ref.watch(auditLogRepositoryProvider),
   );
+});
+final assetWorkbookRepositoryProvider = Provider<AssetWorkbookRepo>((ref) {
+  return AssetWorkbookRepo(ref.watch(databaseProvider));
 });
 final maintenanceRepositoryProvider = Provider<MaintenanceRepo>((ref) {
   return MaintenanceRepo(ref.watch(databaseProvider));

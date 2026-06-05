@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/models/report_templates.dart';
+import '../components/nx_card.dart';
+import '../components/nx_empty_state.dart';
+import '../components/nx_status_badge.dart';
 import '../state/app_state.dart';
+import '../templates/list_filter_template.dart';
 import '../theme/app_theme.dart';
 
 class ReportTemplatesScreen extends ConsumerStatefulWidget {
@@ -26,173 +30,248 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: FutureBuilder<List<ReportTemplateRecord>>(
-        future: _templatesFuture,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            if (snapshot.hasError) {
-              return Text('Error: ${snapshot.error}');
-            }
-            return const Center(child: CircularProgressIndicator());
-          }
+    return FutureBuilder<List<ReportTemplateRecord>>(
+      future: _templatesFuture,
+      builder: (context, snapshot) {
+        final templates = snapshot.data ?? const <ReportTemplateRecord>[];
+        final selected = templates.firstWhere(
+          (template) => template.id == _selectedTemplateId,
+          orElse: () => templates.isEmpty ? _emptyTemplate() : templates.first,
+        );
 
-          final templates = snapshot.data!;
-          final selected = templates.firstWhere(
-            (template) => template.id == _selectedTemplateId,
-            orElse:
-                () => templates.isEmpty ? _emptyTemplate() : templates.first,
-          );
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  ElevatedButton(
-                    onPressed: () => _showTemplateDialog(existing: null),
-                    child: const Text('New Template'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    onPressed: _reload,
-                    child: const Text('Refresh'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.component),
-              Expanded(
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 420,
-                      child:
-                          templates.isEmpty
-                              ? const Card(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text('No templates yet. Create one.'),
-                                ),
-                              )
-                              : ListView.builder(
-                                itemCount: templates.length,
-                                itemBuilder: (context, index) {
-                                  final template = templates[index];
-                                  final isSelected =
-                                      template.id == selected.id &&
-                                      selected.id != '__none__';
-                                  return Card(
-                                    color:
-                                        isSelected
-                                            ? Theme.of(
-                                              context,
-                                            ).colorScheme.primaryContainer
-                                            : null,
-                                    child: ListTile(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedTemplateId = template.id;
-                                        });
-                                      },
-                                      title: Text(template.name),
-                                      subtitle: Text(
-                                        _sectionsSummary(template),
-                                      ),
-                                      trailing: Wrap(
-                                        spacing: 8,
-                                        children: [
-                                          if (template.isDefault)
-                                            const Chip(label: Text('Default')),
-                                          TextButton(
-                                            onPressed:
-                                                () => _showTemplateDialog(
-                                                  existing: template,
-                                                ),
-                                            child: const Text('Edit'),
-                                          ),
-                                          TextButton(
-                                            onPressed:
-                                                template.isDefault
-                                                    ? null
-                                                    : () => _setDefault(
-                                                      template.id,
-                                                    ),
-                                            child: const Text('Set default'),
-                                          ),
-                                          TextButton(
-                                            onPressed:
-                                                () => _confirmDelete(template),
-                                            child: const Text('Delete'),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                    ),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child:
-                              templates.isEmpty
-                                  ? const Center(
-                                    child: Text('Preview unavailable'),
-                                  )
-                                  : _preview(selected),
-                        ),
-                      ),
-                    ),
-                  ],
+        return ListFilterTemplate(
+          title: 'Report-Vorlagen',
+          breadcrumbs: const ['Administration', 'Report-Vorlagen'],
+          subtitle:
+              'Berichtsaufbau, Standardvorlage, Branding und Abschnitte steuern.',
+          primaryAction: ElevatedButton.icon(
+            onPressed: () => _showTemplateDialog(existing: null),
+            icon: const Icon(Icons.add_outlined),
+            label: const Text('Vorlage erstellen'),
+          ),
+          secondaryActions: [
+            OutlinedButton.icon(
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh_outlined),
+              label: const Text('Aktualisieren'),
+            ),
+          ],
+          contextBar: NxCard(
+            padding: const EdgeInsets.all(AppSpacing.component),
+            child: Row(
+              children: [
+                const Icon(Icons.article_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('${templates.length} Vorlage(n) verfügbar'),
                 ),
+                if (templates.any((template) => template.isDefault))
+                  NxStatusBadge(
+                    label:
+                        'Standard: ${templates.firstWhere((template) => template.isDefault).name}',
+                    kind: NxBadgeKind.success,
+                  ),
+              ],
+            ),
+          ),
+          content:
+              snapshot.hasError
+                  ? NxEmptyState(
+                    title: 'Vorlagen konnten nicht geladen werden',
+                    description: '${snapshot.error}',
+                    icon: Icons.error_outline,
+                    primaryAction: OutlinedButton(
+                      onPressed: _reload,
+                      child: const Text('Erneut laden'),
+                    ),
+                  )
+                  : !snapshot.hasData
+                      ? const Center(child: CircularProgressIndicator())
+                      : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final wide = constraints.maxWidth >= 980;
+                          final list = _templateListPane(context, templates, selected);
+                          final preview = _previewPane(context, templates, selected);
+                          if (wide) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(flex: 2, child: list),
+                                const SizedBox(width: AppSpacing.component),
+                                Expanded(flex: 3, child: preview),
+                              ],
+                            );
+                          }
+                          return SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                SizedBox(height: 430, child: list),
+                                const SizedBox(height: AppSpacing.component),
+                                SizedBox(height: 520, child: preview),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+        );
+      },
+    );
+  }
+
+  Widget _templateListPane(
+    BuildContext context,
+    List<ReportTemplateRecord> templates,
+    ReportTemplateRecord selected,
+  ) {
+    return NxCard(
+      child:
+          templates.isEmpty
+              ? const NxEmptyState(
+                title: 'Keine Vorlagen',
+                description: 'Neue Report-Vorlage erstellen.',
+                icon: Icons.article_outlined,
+              )
+              : ListView.separated(
+                itemCount: templates.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final template = templates[index];
+                  final isSelected =
+                      template.id == selected.id && selected.id != '__none__';
+                  return ListTile(
+                    selected: isSelected,
+                    selectedTileColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    onTap: () {
+                      setState(() {
+                        _selectedTemplateId = template.id;
+                      });
+                    },
+                    leading: Icon(
+                      template.isDefault
+                          ? Icons.star_outlined
+                          : Icons.article_outlined,
+                    ),
+                    title: Text(template.name),
+                    subtitle: Text(
+                      _sectionsSummary(template),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      tooltip: 'Aktionen',
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'edit':
+                            _showTemplateDialog(existing: template);
+                            break;
+                          case 'default':
+                            _setDefault(template.id);
+                            break;
+                          case 'delete':
+                            _confirmDelete(template);
+                            break;
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Bearbeiten'),
+                            ),
+                            PopupMenuItem(
+                              value: 'default',
+                              enabled: !template.isDefault,
+                              child: const Text('Als Standard setzen'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Löschen'),
+                            ),
+                          ],
+                    ),
+                  );
+                },
               ),
-            ],
-          );
-        },
-      ),
+    );
+  }
+
+  Widget _previewPane(
+    BuildContext context,
+    List<ReportTemplateRecord> templates,
+    ReportTemplateRecord selected,
+  ) {
+    return NxCard(
+      child:
+          templates.isEmpty
+              ? const NxEmptyState(
+                title: 'Keine Vorschau',
+                description: 'Eine Vorlage erstellen oder auswählen.',
+                icon: Icons.preview_outlined,
+              )
+              : _preview(selected),
     );
   }
 
   Widget _preview(ReportTemplateRecord template) {
     final sections = <String>[
-      if (template.includeOverview) 'Overview',
-      if (template.includeInputs) 'Inputs',
+      if (template.includeOverview) 'Übersicht',
+      if (template.includeInputs) 'Eingaben',
       if (template.includeCashflowTable) 'Proforma',
-      if (template.includeAmortization) 'Amortization',
-      if (template.includeSensitivity) 'Sensitivity',
+      if (template.includeAmortization) 'Tilgung',
+      if (template.includeSensitivity) 'Sensitivität',
       if (template.includeEsg) 'ESG',
-      if (template.includeCriteria) 'Criteria',
-      if (template.includeComps) 'Comps',
-      if (template.includeOffer) 'Offer',
+      if (template.includeCriteria) 'Kriterien',
+      if (template.includeComps) 'Vergleichswerte',
+      if (template.includeOffer) 'Angebot',
     ];
     final icons = <String, IconData>{
-      'Overview': Icons.dashboard_outlined,
-      'Inputs': Icons.tune_outlined,
+      'Übersicht': Icons.dashboard_outlined,
+      'Eingaben': Icons.tune_outlined,
       'Proforma': Icons.table_chart_outlined,
-      'Amortization': Icons.schedule_outlined,
-      'Sensitivity': Icons.grid_4x4_outlined,
+      'Tilgung': Icons.schedule_outlined,
+      'Sensitivität': Icons.grid_4x4_outlined,
       'ESG': Icons.eco_outlined,
-      'Criteria': Icons.rule_outlined,
-      'Comps': Icons.home_work_outlined,
-      'Offer': Icons.calculate_outlined,
+      'Kriterien': Icons.rule_outlined,
+      'Vergleichswerte': Icons.home_work_outlined,
+      'Angebot': Icons.calculate_outlined,
     };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(template.name, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.component),
+        Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            _ReportFact(
+              label: 'Titel',
+              value: template.reportTitle ?? 'Nicht gesetzt',
+            ),
+            _ReportFact(
+              label: 'Investor',
+              value: template.investorName ?? 'Nicht gesetzt',
+            ),
+            _ReportFact(
+              label: 'Logo',
+              value: template.brandingLogoPath ?? 'Nicht gesetzt',
+            ),
+          ],
+        ),
+        if ((template.reportDisclaimer ?? '').trim().isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.component),
+          _ReportFact(
+            label: 'Disclaimer',
+            value: template.reportDisclaimer!,
+            wide: true,
+          ),
+        ],
+        const SizedBox(height: AppSpacing.component),
+        Text('Abschnitte', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        Text('Report title: ${template.reportTitle ?? '(none)'}'),
-        Text('Investor: ${template.investorName ?? '(none)'}'),
-        Text('Disclaimer: ${template.reportDisclaimer ?? '(none)'}'),
-        Text('Logo path: ${template.brandingLogoPath ?? '(none)'}'),
-        const SizedBox(height: 12),
-        Text('Sections', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (sections.isEmpty) const Text('No sections selected.'),
+        if (sections.isEmpty) const Text('Keine Abschnitte ausgewählt.'),
         ...sections.asMap().entries.map((entry) {
           final label = entry.value;
           return Padding(
@@ -261,7 +340,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
             }
 
             return AlertDialog(
-              title: Text(isEdit ? 'Edit Template' : 'Create Template'),
+              title: Text(isEdit ? 'Vorlage bearbeiten' : 'Vorlage erstellen'),
               content: SizedBox(
                 width: 520,
                 child: SingleChildScrollView(
@@ -272,19 +351,24 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                         controller: nameController,
                         decoration: InputDecoration(
                           labelText: 'Name',
+                          prefixIcon: const Icon(Icons.badge_outlined),
                           errorText: errorText,
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: titleController,
-                        decoration: const InputDecoration(labelText: 'Title'),
+                        decoration: const InputDecoration(
+                          labelText: 'Report-Titel',
+                          prefixIcon: Icon(Icons.title_outlined),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: disclaimerController,
                         decoration: const InputDecoration(
                           labelText: 'Disclaimer',
+                          prefixIcon: Icon(Icons.notes_outlined),
                         ),
                         maxLines: 2,
                       ),
@@ -292,40 +376,42 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                       TextField(
                         controller: investorController,
                         decoration: const InputDecoration(
-                          labelText: 'Investor Name',
+                          labelText: 'Investor',
+                          prefixIcon: Icon(Icons.account_circle_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: logoController,
                         decoration: const InputDecoration(
-                          labelText: 'Logo Path (optional)',
+                          labelText: 'Logo-Pfad optional',
+                          prefixIcon: Icon(Icons.image_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
                       sectionCheck(
-                        label: 'Include Overview',
+                        label: 'Übersicht',
                         value: includeOverview,
                         onChanged:
                             (value) =>
                                 setDialogState(() => includeOverview = value),
                       ),
                       sectionCheck(
-                        label: 'Include Inputs',
+                        label: 'Eingaben',
                         value: includeInputs,
                         onChanged:
                             (value) =>
                                 setDialogState(() => includeInputs = value),
                       ),
                       sectionCheck(
-                        label: 'Include Proforma',
+                        label: 'Proforma',
                         value: includeProforma,
                         onChanged:
                             (value) =>
                                 setDialogState(() => includeProforma = value),
                       ),
                       sectionCheck(
-                        label: 'Include Amortization',
+                        label: 'Tilgung',
                         value: includeAmortization,
                         onChanged:
                             (value) => setDialogState(
@@ -333,7 +419,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                             ),
                       ),
                       sectionCheck(
-                        label: 'Include Sensitivity',
+                        label: 'Sensitivität',
                         value: includeSensitivity,
                         onChanged:
                             (value) => setDialogState(
@@ -341,27 +427,27 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                             ),
                       ),
                       sectionCheck(
-                        label: 'Include ESG',
+                        label: 'ESG',
                         value: includeEsg,
                         onChanged:
                             (value) => setDialogState(() => includeEsg = value),
                       ),
                       sectionCheck(
-                        label: 'Include Criteria',
+                        label: 'Kriterien',
                         value: includeCriteria,
                         onChanged:
                             (value) =>
                                 setDialogState(() => includeCriteria = value),
                       ),
                       sectionCheck(
-                        label: 'Include Comps',
+                        label: 'Vergleichswerte',
                         value: includeComps,
                         onChanged:
                             (value) =>
                                 setDialogState(() => includeComps = value),
                       ),
                       sectionCheck(
-                        label: 'Include Offer',
+                        label: 'Angebot',
                         value: includeOffer,
                         onChanged:
                             (value) =>
@@ -375,7 +461,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                           });
                         },
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Set as default template'),
+                        title: const Text('Als Standardvorlage verwenden'),
                       ),
                     ],
                   ),
@@ -384,14 +470,14 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text('Abbrechen'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
                     final name = nameController.text.trim();
                     if (name.isEmpty) {
                       setDialogState(() {
-                        errorText = 'Name is required.';
+                        errorText = 'Name ist erforderlich.';
                       });
                       return;
                     }
@@ -441,7 +527,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                       });
                     }
                   },
-                  child: Text(isEdit ? 'Save' : 'Create'),
+                  child: Text(isEdit ? 'Speichern' : 'Erstellen'),
                 ),
               ],
             );
@@ -462,16 +548,20 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete Template'),
-            content: Text('Delete "${template.name}"?'),
+            title: const Text('Vorlage löschen'),
+            content: Text('"${template.name}" löschen?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: const Text('Abbrechen'),
               ),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Delete'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                child: const Text('Löschen'),
               ),
             ],
           ),
@@ -502,18 +592,18 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
 
   String _sectionsSummary(ReportTemplateRecord template) {
     final enabled = <String>[
-      if (template.includeOverview) 'overview',
-      if (template.includeInputs) 'inputs',
+      if (template.includeOverview) 'Übersicht',
+      if (template.includeInputs) 'Eingaben',
       if (template.includeCashflowTable) 'proforma',
-      if (template.includeAmortization) 'amortization',
-      if (template.includeSensitivity) 'sensitivity',
+      if (template.includeAmortization) 'Tilgung',
+      if (template.includeSensitivity) 'Sensitivität',
       if (template.includeEsg) 'esg',
-      if (template.includeCriteria) 'criteria',
-      if (template.includeComps) 'comps',
-      if (template.includeOffer) 'offer',
+      if (template.includeCriteria) 'Kriterien',
+      if (template.includeComps) 'Vergleichswerte',
+      if (template.includeOffer) 'Angebot',
     ];
     if (enabled.isEmpty) {
-      return 'No sections selected';
+      return 'Keine Abschnitte ausgewählt';
     }
     return enabled.join(', ');
   }
@@ -539,6 +629,48 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
       isDefault: false,
       createdAt: 0,
       updatedAt: 0,
+    );
+  }
+}
+
+class _ReportFact extends StatelessWidget {
+  const _ReportFact({
+    required this.label,
+    required this.value,
+    this.wide = false,
+  });
+
+  final String label;
+  final String value;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: wide
+          ? double.infinity
+          : context.viewport == AppViewport.mobile
+              ? double.infinity
+              : 230,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: wide ? 4 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
     );
   }
 }

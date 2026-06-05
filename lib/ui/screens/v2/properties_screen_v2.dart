@@ -178,6 +178,18 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                                 () => controller.archive(property.id, true),
                             child: const Text('Archive'),
                           ),
+                          TextButton(
+                            onPressed:
+                                () => _confirmPermanentDelete(
+                                  context,
+                                  property,
+                                ),
+                            style: TextButton.styleFrom(
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.error,
+                            ),
+                            child: const Text('Endgültig löschen'),
+                          ),
                         ],
                       ),
                     ],
@@ -224,6 +236,18 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                                 onPressed:
                                     () => controller.archive(property.id, true),
                                 child: const Text('Archive'),
+                              ),
+                              TextButton(
+                                onPressed:
+                                    () => _confirmPermanentDelete(
+                                      context,
+                                      property,
+                                    ),
+                                style: TextButton.styleFrom(
+                                  foregroundColor:
+                                      Theme.of(context).colorScheme.error,
+                                ),
+                                child: const Text('Endgültig löschen'),
                               ),
                             ],
                           ),
@@ -276,6 +300,46 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     ref.read(selectedPropertyIdProvider.notifier).state = property.id;
     ref.read(propertyDetailPageProvider.notifier).state =
         PropertyDetailPage.overview;
+  }
+
+  Future<void> _confirmPermanentDelete(
+    BuildContext context,
+    PropertyRecord property,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Objekt endgültig löschen'),
+            content: Text(
+              '"${property.name}" wird vollständig entfernt. Dazu gehören '
+              'Einheiten, Mietverträge, Kosten, Dokumente, Aufgaben und '
+              'Verknüpfungen. Diese Aktion kann nicht rückgängig gemacht '
+              'werden.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                  foregroundColor:
+                      Theme.of(dialogContext).colorScheme.onError,
+                ),
+                child: const Text('Endgültig löschen'),
+              ),
+            ],
+          ),
+    );
+    if (shouldDelete != true || !mounted) {
+      return;
+    }
+    await ref
+        .read(propertiesControllerProvider.notifier)
+        .deletePermanently(property.id);
   }
 
   String _formatDate(int millis) {

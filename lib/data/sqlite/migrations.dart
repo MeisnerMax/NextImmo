@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 24;
+  static const int currentVersion = 33;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -28,6 +28,15 @@ class DbMigrations {
     await _createV22(db);
     await _createV23(db);
     await _createV24(db);
+    await _createV25(db);
+    await _createV26(db);
+    await _createV27(db);
+    await _createV28(db);
+    await _createV29(db);
+    await _createV30(db);
+    await _createV31(db);
+    await _createV32(db);
+    await _createV33(db);
   }
 
   static Future<void> onUpgrade(
@@ -106,6 +115,33 @@ class DbMigrations {
     }
     if (oldVersion < 24) {
       await _createV24(db);
+    }
+    if (oldVersion < 25) {
+      await _createV25(db);
+    }
+    if (oldVersion < 26) {
+      await _createV26(db);
+    }
+    if (oldVersion < 27) {
+      await _createV27(db);
+    }
+    if (oldVersion < 28) {
+      await _createV28(db);
+    }
+    if (oldVersion < 29) {
+      await _createV29(db);
+    }
+    if (oldVersion < 30) {
+      await _createV30(db);
+    }
+    if (oldVersion < 31) {
+      await _createV31(db);
+    }
+    if (oldVersion < 32) {
+      await _createV32(db);
+    }
+    if (oldVersion < 33) {
+      await _createV33(db);
     }
   }
 
@@ -1836,6 +1872,1542 @@ class DbMigrations {
       alterSql:
           "ALTER TABLE maintenance_tickets ADD COLUMN category TEXT NOT NULL DEFAULT 'general'",
     );
+  }
+
+  static Future<void> _createV25(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS asset_operating_costs (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        unit_code TEXT,
+        cost_type TEXT NOT NULL,
+        provider TEXT,
+        contract_number TEXT,
+        allocation_key TEXT,
+        monthly_amount REAL,
+        yearly_amount REAL,
+        canceled INTEGER NOT NULL DEFAULT 0,
+        start_date INTEGER,
+        end_date INTEGER,
+        next_due_date INTEGER,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_asset_operating_costs_property_scope ON asset_operating_costs(property_id, scope, cost_type)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS rental_income_plans (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        unit_code TEXT NOT NULL,
+        tenant_name TEXT,
+        rent_type TEXT,
+        target_rent_monthly REAL,
+        side_costs_monthly REAL,
+        month_1 REAL NOT NULL DEFAULT 0,
+        month_2 REAL NOT NULL DEFAULT 0,
+        month_3 REAL NOT NULL DEFAULT 0,
+        month_4 REAL NOT NULL DEFAULT 0,
+        month_5 REAL NOT NULL DEFAULT 0,
+        month_6 REAL NOT NULL DEFAULT 0,
+        month_7 REAL NOT NULL DEFAULT 0,
+        month_8 REAL NOT NULL DEFAULT 0,
+        month_9 REAL NOT NULL DEFAULT 0,
+        month_10 REAL NOT NULL DEFAULT 0,
+        month_11 REAL NOT NULL DEFAULT 0,
+        month_12 REAL NOT NULL DEFAULT 0,
+        status_note TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_rental_income_plans_property_year ON rental_income_plans(property_id, year, unit_code)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS hotel_kpis (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        rooms_total INTEGER,
+        rooms_available INTEGER,
+        rooms_occupied INTEGER,
+        adr REAL,
+        revpar REAL,
+        fb_revenue REAL,
+        room_revenue REAL,
+        total_revenue REAL,
+        gop_percent REAL,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_hotel_kpis_property_period ON hotel_kpis(property_id, period_key)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_projects (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        project_code TEXT NOT NULL,
+        category TEXT,
+        measure TEXT,
+        status TEXT NOT NULL,
+        start_date INTEGER,
+        planned_end_date INTEGER,
+        actual_end_date INTEGER,
+        budget_amount REAL,
+        actual_amount REAL,
+        owner TEXT,
+        next_step TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_renovation_projects_property_status ON renovation_projects(property_id, status, planned_end_date)',
+    );
+
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV26(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV27(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV28(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV29(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV30(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV31(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV32(Database db) async {
+    await _seedAssetOverviewWorkbookData(db);
+  }
+
+  static Future<void> _createV33(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS asset_operating_cost_history (
+        id TEXT PRIMARY KEY,
+        cost_id TEXT NOT NULL,
+        property_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        unit_code TEXT,
+        cost_type TEXT NOT NULL,
+        provider TEXT,
+        contract_number TEXT,
+        allocation_key TEXT,
+        monthly_amount REAL,
+        yearly_amount REAL,
+        canceled INTEGER NOT NULL DEFAULT 0,
+        start_date INTEGER,
+        end_date INTEGER,
+        next_due_date INTEGER,
+        notes TEXT,
+        changed_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_asset_operating_cost_history_cost ON asset_operating_cost_history(cost_id, changed_at DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_asset_operating_cost_history_property ON asset_operating_cost_history(property_id, changed_at DESC)',
+    );
+    await db.execute('''
+      INSERT OR IGNORE INTO asset_operating_cost_history (
+        id,
+        cost_id,
+        property_id,
+        action,
+        scope,
+        unit_code,
+        cost_type,
+        provider,
+        contract_number,
+        allocation_key,
+        monthly_amount,
+        yearly_amount,
+        canceled,
+        start_date,
+        end_date,
+        next_due_date,
+        notes,
+        changed_at
+      )
+      SELECT
+        id || '_initial_history',
+        id,
+        property_id,
+        'imported',
+        scope,
+        unit_code,
+        cost_type,
+        provider,
+        contract_number,
+        allocation_key,
+        monthly_amount,
+        yearly_amount,
+        canceled,
+        start_date,
+        end_date,
+        next_due_date,
+        notes,
+        updated_at
+      FROM asset_operating_costs
+    ''');
+  }
+
+  static Future<void> _seedAssetOverviewWorkbookData(Database db) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final assets = <Map<String, Object?>>[
+      {
+        'id': 'A001',
+        'name': 'Allee 7',
+        'type': 'Mehrfamilienhaus',
+        'status': 'Active',
+        'street': 'Allee 7',
+        'zip': '96450',
+        'city': 'Coburg',
+        'year': 1862,
+        'area': null,
+        'units': 16,
+        'notes': 'Sandsteinbau, Loft-Einheiten',
+      },
+      {
+        'id': 'A002',
+        'name': 'Allee 5',
+        'type': 'Mehrfamilienhaus',
+        'status': 'Under examination',
+        'street': 'Allee 5',
+        'zip': '96450',
+        'city': 'Coburg',
+        'year': 1750,
+        'area': 1313.0,
+        'units': 0,
+      },
+      {
+        'id': 'A003',
+        'name': 'Steinweg 36/38',
+        'type': 'Mischobjekt',
+        'status': 'Active',
+        'street': 'Steinweg 36/38',
+        'zip': '96450',
+        'city': 'Coburg',
+        'area': 1295.5,
+        'units': 8,
+      },
+      {
+        'id': 'A004',
+        'name': 'Steinweg 57',
+        'type': 'Hotel',
+        'status': 'Shut down',
+        'street': 'Steinweg 57',
+        'zip': '96450',
+        'city': 'Coburg',
+        'units': 0,
+      },
+      {
+        'id': 'A005',
+        'name': 'Steinweg 68',
+        'type': 'Hotel',
+        'status': 'Active',
+        'street': 'Steinweg 68',
+        'zip': '96450',
+        'city': 'Coburg',
+        'area': 3622.6,
+        'units': 0,
+      },
+      {
+        'id': 'A006',
+        'name': 'Steinweg 70',
+        'type': 'Mischobjekt',
+        'status': 'Active',
+        'street': 'Steinweg 70',
+        'zip': '96450',
+        'city': 'Coburg',
+        'area': 211.53,
+        'units': 4,
+      },
+      {
+        'id': 'A007',
+        'name': 'Kirchgasse 8',
+        'type': 'Mischobjekt',
+        'status': 'Active',
+        'street': 'Kirchgasse 8',
+        'zip': '96450',
+        'city': 'Coburg',
+        'units': 0,
+      },
+      {
+        'id': 'A008',
+        'name': 'Bambergerstr. 1',
+        'type': 'Mehrfamilienhaus',
+        'status': 'Shut down',
+        'street': 'Bamberger Str. 1',
+        'zip': '96231',
+        'city': 'Bad Staffelstein',
+        'units': 0,
+      },
+      {
+        'id': 'A009',
+        'name': 'Goldbergstr. 11',
+        'type': 'Wohnhaus',
+        'status': 'Shut down',
+        'street': 'Goldbergstr. 11',
+        'zip': '96450',
+        'city': 'Coburg',
+        'area': 220.0,
+        'units': 0,
+      },
+      {
+        'id': 'A010',
+        'name': 'Ketschengasse 1',
+        'type': 'Mischobjekt',
+        'status': 'Active',
+        'street': 'Ketschengasse 1',
+        'zip': '96450',
+        'city': 'Coburg',
+        'area': 527.0,
+        'units': 0,
+      },
+      {
+        'id': 'A011',
+        'name': 'Allee 6',
+        'type': 'Hotel',
+        'status': 'Active',
+        'street': 'Allee 6',
+        'zip': '96450',
+        'city': 'Coburg',
+        'units': 0,
+      },
+      {
+        'id': 'A012',
+        'name': 'Pfarrgasse 1',
+        'type': 'Mehrfamilienhaus',
+        'status': 'Shut down',
+        'street': 'Pfarrgasse 1',
+        'zip': '96176',
+        'city': 'Pfarrweisach',
+        'units': 0,
+      },
+      {
+        'id': 'A013',
+        'name': 'Friedrichgasse 18',
+        'type': 'Hotel',
+        'status': 'Shut down',
+        'street': 'Friedrichgasse 18',
+        'zip': '90762',
+        'city': 'Fürth',
+        'units': 0,
+      },
+      {
+        'id': 'A017',
+        'name': 'Parkplatz ROS',
+        'type': 'Gewerbe',
+        'status': 'Active',
+        'street': 'Ummerstadt',
+        'zip': '98663',
+        'city': 'Ummerstadt',
+        'units': 0,
+      },
+      {
+        'id': 'A018',
+        'name': 'Ummerstadt GS',
+        'type': 'Mischobjekt',
+        'status': 'Shut down',
+        'street': 'Ummerstadt',
+        'zip': '98663',
+        'city': 'Ummerstadt',
+        'area': 6620.0,
+        'units': 0,
+      },
+      {
+        'id': 'A019',
+        'name': 'Allee 7a',
+        'type': 'Gewerbe',
+        'status': 'Shut down',
+        'street': 'Allee 7a',
+        'zip': '96450',
+        'city': 'Coburg',
+        'units': 0,
+      },
+    ];
+
+    for (final asset in assets) {
+      final status = asset['status']! as String;
+      await db.insert(
+        'properties',
+        <String, Object?>{
+          'id': asset['id'],
+          'name': asset['name'],
+          'address_line1': asset['street'],
+          'address_line2': null,
+          'zip': asset['zip'],
+          'city': asset['city'],
+          'country': 'Germany',
+          'property_type': asset['type'],
+          'units': asset['units'],
+          'sqft': asset['area'],
+          'year_built': asset['year'],
+          'notes': [
+            'Importstatus: $status',
+            asset['notes'],
+          ].whereType<String>().join('\n'),
+          'created_at': now,
+          'updated_at': now,
+          'archived': status == 'Active' ? 0 : 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    final rents = <Map<String, Object?>>[
+      {
+        'id': 'asset_overview_rent_001',
+        'property_id': 'A003',
+        'unit_code': 'Wohnung DG',
+        'target': 608.0,
+        'type': 'Privat',
+        'tenant': 'Maritta Müller',
+        'months': <double>[1216, 0, 3040, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Teilweise Sammel-/Nachzahlungen',
+      },
+      {
+        'id': 'asset_overview_rent_002',
+        'property_id': 'A003',
+        'unit_code': 'Wohnung DG links',
+        'target': 620.0,
+        'type': 'Privat',
+        'tenant': 'Beata Cwik | Deducted from salary',
+        'months': <double>[620, 620, 620, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Laufend bis Oktober erfasst',
+      },
+      {
+        'id': 'asset_overview_rent_003',
+        'property_id': 'A003',
+        'unit_code': 'Wohnung DG rechts',
+        'target': 750.0,
+        'type': 'Privat ab 17.01.25',
+        'tenant':
+            'Mariusz Troczynski | Marek Mazur | Robert Lukowski | Deducted from salary',
+        'months': <double>[338.66, 750, 750, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Bis August erfasst',
+      },
+      {
+        'id': 'asset_overview_rent_004',
+        'property_id': 'A003',
+        'unit_code': 'Wohnung DG rechts',
+        'target': 900.0,
+        'type': 'Privat ab 01.09.25',
+        'tenant':
+            'Daniel Kendzia | Szcezpan Gal | Andrzej Mazur | Deducted from receipt',
+        'months': <double>[900, 900, 900, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Neuer Mieter ab September',
+      },
+      {
+        'id': 'asset_overview_rent_005',
+        'property_id': 'A003',
+        'unit_code': 'Gewerbe EG links',
+        'target': 38670.5,
+        'type': 'Kommerziell',
+        'tenant': 'Monkey',
+        'months': <double>[38670.5, 38670.5, 38670.5, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Start ab Juli sichtbar',
+      },
+      {
+        'id': 'asset_overview_rent_006',
+        'property_id': 'A003',
+        'unit_code': 'Gewerbe EG rechts',
+        'target': 952.0,
+        'type': 'Kommerziell ab 01.03.25',
+        'tenant': 'Infinity / LEER',
+        'months': <double>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Neuvermietung ab März',
+      },
+      {
+        'id': 'asset_overview_rent_007',
+        'property_id': 'A003',
+        'unit_code': 'Gewerbe UG / Loom',
+        'target': 2430.0,
+        'type': 'Kommerziell ab 01.04.25',
+        'tenant': 'Kocukcusoy / Loom ab 01.04.2025',
+        'months': <double>[2428.49, 2428.49, 2428.49, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_008',
+        'property_id': 'A003',
+        'unit_code': 'Büroräume 1. OG Räume 1+2',
+        'target': 2127.5,
+        'type': 'Kommerziell',
+        'tenant': 'Yehonatan LLM',
+        'months': <double>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_009',
+        'property_id': 'A006',
+        'unit_code': 'Wohnung 1. OG rechts',
+        'target': 370.0,
+        'type': 'Privat',
+        'tenant': 'Kryzstof Boguczynski / Ausgezogen',
+        'months': <double>[370, 370, 370, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Gekündigt zum 31.3',
+      },
+      {
+        'id': 'asset_overview_rent_010',
+        'property_id': 'A006',
+        'unit_code': 'Wohnung 1. OG links',
+        'target': 500.0,
+        'type': 'Privat ab 14.01.25',
+        'tenant': 'Ariel Borysik | Slawomir Stando | Deducted from salary',
+        'months': <double>[274.21, 500, 500, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_011',
+        'property_id': 'A006',
+        'unit_code': 'Wohnung 1. OG links',
+        'target': 300.0,
+        'type': 'Privat ab 01.10.25',
+        'tenant': 'Janusz Loakotz | Noch 2 Zimmer frei | Deducted from receipt',
+        'months': <double>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_012',
+        'property_id': 'A006',
+        'unit_code': 'Gewerbe EG / Pizzeria',
+        'target': 1136.45,
+        'type': 'Kommerziell',
+        'tenant': 'Pizzeria',
+        'months': <double>[1136.45, 1136.45, 1136.45, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_013',
+        'property_id': 'A006',
+        'unit_code': 'Wohnung 2.OG',
+        'target': 350.0,
+        'type': 'Privat',
+        'tenant': 'Lukasz Klimczak',
+        'months': <double>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        'id': 'asset_overview_rent_014',
+        'property_id': 'A010',
+        'unit_code': 'Gewerbe EG / Bäckerei',
+        'target': 3082.1,
+        'type': 'Kommerziell',
+        'tenant': 'Bäckerei',
+        'months': <double>[3082.1, 3082.1, 3082.1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        'note': 'Gekündigt zum 31.04',
+      },
+    ];
+
+    for (final rent in rents) {
+      final months = rent['months']! as List<double>;
+      await db.insert(
+        'rental_income_plans',
+        <String, Object?>{
+          'id': rent['id'],
+          'property_id': rent['property_id'],
+          'year': 2026,
+          'unit_code': rent['unit_code'],
+          'tenant_name': rent['tenant'],
+          'rent_type': rent['type'],
+          'target_rent_monthly': rent['target'],
+          'side_costs_monthly': 0,
+          for (var i = 0; i < 12; i++) 'month_${i + 1}': months[i],
+          'status_note': rent['note'],
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    final rentUnits = <Map<String, Object?>>[
+      {
+        'id': 'asset_overview_unit_001',
+        'property_id': 'A002',
+        'code': 'Flat 8',
+        'status': 'occupied',
+        'tenant': 'Steen',
+        'rent': 302.76,
+        'market': 1160.58,
+        'area': 100.92,
+        'note': 'Warmmiete 302.76; Status Rented',
+      },
+      {
+        'id': 'asset_overview_unit_002',
+        'property_id': 'A003',
+        'code': 'EG right',
+        'status': 'vacant',
+        'tenant': 'Neubauer 01.08',
+        'rent': 850.0,
+        'market': 1248.0,
+        'area': 78.0,
+        'note': 'NK 75.0; Heizung 100.0; Steuer 194.75',
+      },
+      {
+        'id': 'asset_overview_unit_003',
+        'property_id': 'A003',
+        'code': 'UG',
+        'status': 'vacant',
+        'rent': 2360.0,
+        'market': 2360.0,
+        'area': 236.0,
+        'note': 'NK 250.0; Heizung 290.0',
+      },
+      {
+        'id': 'asset_overview_unit_004',
+        'property_id': 'A003',
+        'code': '2. OG',
+        'status': 'vacant',
+        'rent': 0.0,
+        'market': 2226.0,
+        'area': 212.0,
+      },
+      {
+        'id': 'asset_overview_unit_005',
+        'property_id': 'A003',
+        'code': '1. OG',
+        'status': 'occupied',
+        'tenant': '613 Investment Group',
+        'rent': 0.0,
+        'market': 2226.0,
+        'area': 212.0,
+      },
+      {
+        'id': 'asset_overview_unit_006',
+        'property_id': 'A003',
+        'code': '3. OG Left',
+        'status': 'occupied',
+        'tenant': 'Müller',
+        'rent': 440.0,
+        'market': 908.0,
+        'area': 90.8,
+        'note': 'Warmmiete 608.0; NK 56.0; Heizung 112.0',
+      },
+      {
+        'id': 'asset_overview_unit_007',
+        'property_id': 'A003',
+        'code': '3. OG Mid',
+        'status': 'occupied',
+        'tenant': 'Beata Cwik',
+        'rent': 630.0,
+        'market': 784.35,
+        'area': 74.7,
+        'note': 'Warmmiete 800.0; NK 80.0; Heizung 90.0',
+      },
+      {
+        'id': 'asset_overview_unit_008',
+        'property_id': 'A003',
+        'code': '3.OG Right',
+        'status': 'occupied',
+        'tenant': 'Daniel Kendzia | Rafa | Andrzej Mazur',
+        'rent': 950.0,
+        'market': 840.0,
+        'area': 80.0,
+        'note': 'Warmmiete 1125.0; NK 75.0; Heizung 100.0',
+      },
+      {
+        'id': 'asset_overview_unit_009',
+        'property_id': 'A003',
+        'code': 'EG left',
+        'status': 'occupied',
+        'tenant': 'Wettbüro / Ufulx',
+        'rent': 2500.0,
+        'market': 3744.0,
+        'area': 312.0,
+        'note': 'Warmmiete 3867.5; NK 350.0; Heizung 400.0; Steuer 617.5',
+      },
+      {
+        'id': 'asset_overview_unit_010',
+        'property_id': 'A006',
+        'code': '1. OG right',
+        'status': 'vacant',
+        'tenant': 'Ruhid Nustri',
+        'rent': 0.0,
+        'market': 300.0,
+        'area': 25.0,
+      },
+      {
+        'id': 'asset_overview_unit_011',
+        'property_id': 'A006',
+        'code': '1. OG left',
+        'status': 'vacant',
+        'tenant': 'Szcezpan Ga / Dareck',
+        'rent': 550.0,
+        'market': 525.0,
+        'area': 50.0,
+        'note': 'Warmmiete 750.0; NK 125.0; Heizung 75.0',
+      },
+      {
+        'id': 'asset_overview_unit_012',
+        'property_id': 'A006',
+        'code': 'EG',
+        'status': 'occupied',
+        'tenant': 'Pizzeria',
+        'rent': 1036.45,
+        'market': 973.42,
+        'area': 69.53,
+        'note': 'Warmmiete 1136.45; NK 100.0',
+      },
+      {
+        'id': 'asset_overview_unit_013',
+        'property_id': 'A006',
+        'code': '2. OG',
+        'status': 'occupied',
+        'tenant': 'Januz Loskot / Slawomir Stando',
+        'rent': 489.5,
+        'market': 670.0,
+        'area': 67.0,
+        'note': 'Warmmiete 750.0; NK 160.0; Heizung 100.5',
+      },
+      {
+        'id': 'asset_overview_unit_014',
+        'property_id': 'A009',
+        'code': 'WG 1',
+        'status': 'vacant',
+        'rent': 0.0,
+        'market': 1050.0,
+        'area': 110.0,
+      },
+      {
+        'id': 'asset_overview_unit_015',
+        'property_id': 'A009',
+        'code': 'WG 2',
+        'status': 'vacant',
+        'rent': 0.0,
+        'market': 1050.0,
+        'area': 110.0,
+      },
+      {
+        'id': 'asset_overview_unit_016',
+        'property_id': 'A010',
+        'code': 'EG',
+        'status': 'occupied',
+        'tenant': 'Bäckerei',
+        'rent': 2067.55,
+        'market': 2054.16,
+        'area': 76.08,
+        'note': 'Warmmiete 2545.15; NK 90.0; Steuer 387.6',
+      },
+      {
+        'id': 'asset_overview_unit_017',
+        'property_id': 'A017',
+        'code': 'Gewerbe / ROS',
+        'status': 'occupied',
+        'tenant': 'ROS',
+        'rent': 50.0,
+        'market': 0.0,
+        'note': 'Warmmiete 59.5; Steuer 9.5',
+      },
+      {
+        'id': 'asset_overview_unit_018',
+        'property_id': 'A019',
+        'code': 'Kiosk',
+        'status': 'vacant',
+        'rent': 950.0,
+        'market': 304.0,
+        'area': 19.0,
+        'note': 'Warmmiete 1000.0; NK 50.0',
+      },
+    ];
+
+    for (final unit in rentUnits) {
+      await db.insert(
+        'units',
+        <String, Object?>{
+          'id': unit['id'],
+          'asset_property_id': unit['property_id'],
+          'unit_code': unit['code'],
+          'unit_type': null,
+          'beds': null,
+          'baths': null,
+          'sqft': unit['area'],
+          'floor': null,
+          'status': unit['status'],
+          'target_rent_monthly': unit['rent'],
+          'market_rent_monthly': unit['market'],
+          'offline_reason': null,
+          'vacancy_since': null,
+          'vacancy_reason': null,
+          'marketing_status': unit['status'] == 'vacant' ? 'Empty' : 'Rented',
+          'renovation_status': null,
+          'expected_ready_date': null,
+          'next_action': unit['status'] == 'vacant' ? 'Vermietung prüfen' : null,
+          'notes': [
+            unit['tenant'] == null ? null : 'Mieter laut Import: ${unit['tenant']}',
+            unit['note'],
+          ].whereType<String>().join('\n'),
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    final importedUnitCounts = <String, int>{};
+    for (final unit in rentUnits) {
+      final propertyId = unit['property_id']! as String;
+      importedUnitCounts[propertyId] = (importedUnitCounts[propertyId] ?? 0) + 1;
+    }
+    for (final asset in assets) {
+      final propertyId = asset['id']! as String;
+      final targetUnits = ((asset['units'] as num?) ?? 0).toInt();
+      final importedUnits = importedUnitCounts[propertyId] ?? 0;
+      if (targetUnits <= importedUnits) {
+        continue;
+      }
+      for (var index = importedUnits + 1; index <= targetUnits; index++) {
+        final paddedIndex = index.toString().padLeft(2, '0');
+        await db.insert(
+          'units',
+          <String, Object?>{
+            'id': 'asset_overview_unit_${propertyId}_placeholder_$paddedIndex',
+            'asset_property_id': propertyId,
+            'unit_code': 'Einheit $paddedIndex',
+            'unit_type': null,
+            'beds': null,
+            'baths': null,
+            'sqft': null,
+            'floor': null,
+            'status': 'vacant',
+            'target_rent_monthly': 0,
+            'market_rent_monthly': 0,
+            'offline_reason': null,
+            'vacancy_since': null,
+            'vacancy_reason': 'Noch nicht einzeln gepflegt',
+            'marketing_status': 'Empty',
+            'renovation_status': null,
+            'expected_ready_date': null,
+            'next_action': 'Einheit konkretisieren und vermieten',
+            'notes': 'Aus Objektstamm als fehlende Einheit ergänzt.',
+            'created_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+
+    final leaseStart = DateTime(2026).millisecondsSinceEpoch;
+    final activeRentRelations = <Map<String, Object?>>[
+      {
+        'tenant_id': 'asset_overview_tenant_001',
+        'tenant': 'Steen',
+        'lease_id': 'asset_overview_lease_001',
+        'property_id': 'A002',
+        'unit_id': 'asset_overview_unit_001',
+        'unit_code': 'Flat 8',
+        'base_rent': 302.76,
+        'side_costs': 0.0,
+        'warm_rent': 302.76,
+        'deposit': 3481.74,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_002',
+        'tenant': '613 Investment Group',
+        'lease_id': 'asset_overview_lease_002',
+        'property_id': 'A003',
+        'unit_id': 'asset_overview_unit_005',
+        'unit_code': '1. OG',
+        'base_rent': 0.0,
+        'side_costs': 0.0,
+        'warm_rent': 0.0,
+        'deposit': 6678.0,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_003',
+        'tenant': 'Müller',
+        'lease_id': 'asset_overview_lease_003',
+        'property_id': 'A003',
+        'unit_id': 'asset_overview_unit_006',
+        'unit_code': '3. OG Left',
+        'base_rent': 440.0,
+        'side_costs': 168.0,
+        'warm_rent': 608.0,
+        'deposit': 2724.0,
+        'deposit_status': 'open',
+        'indexation_note':
+            'Mieterhöhung ab 2026-06-01: +117.00 EUR / 26.59%, alle 6 Monate, Zeitraum 24 Monate, neue Kaltmiete 557.00 EUR',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_004',
+        'tenant': 'Beata Cwik',
+        'lease_id': 'asset_overview_lease_004',
+        'property_id': 'A003',
+        'unit_id': 'asset_overview_unit_007',
+        'unit_code': '3. OG Mid',
+        'base_rent': 630.0,
+        'side_costs': 170.0,
+        'warm_rent': 800.0,
+        'deposit': 2350.0,
+        'deposit_status': 'open',
+        'indexation_note':
+            'Mieterhöhung ab 2026-06-01: +284.35 EUR / 56.87%, neue Kaltmiete 914.35 EUR',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_005',
+        'tenant': 'Daniel Kendzia | Rafa | Andrzej Mazur',
+        'lease_id': 'asset_overview_lease_005',
+        'property_id': 'A003',
+        'unit_id': 'asset_overview_unit_008',
+        'unit_code': '3.OG Right',
+        'base_rent': 950.0,
+        'side_costs': 175.0,
+        'warm_rent': 1125.0,
+        'deposit': 2520.0,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_006',
+        'tenant': 'Wettbüro / Ufulx',
+        'lease_id': 'asset_overview_lease_006',
+        'property_id': 'A003',
+        'unit_id': 'asset_overview_unit_009',
+        'unit_code': 'EG left',
+        'base_rent': 2500.0,
+        'side_costs': 1367.5,
+        'warm_rent': 3867.5,
+        'deposit': 5000.0,
+        'deposit_status': 'paid',
+        'indexation_note':
+            'Mieterhöhung ab 2026-06-01: +75.00 EUR / 3.00%, alle 12 Monate, Zeitraum 60 Monate, neue Kaltmiete 2575.00 EUR',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_007',
+        'tenant': 'Pizzeria',
+        'lease_id': 'asset_overview_lease_007',
+        'property_id': 'A006',
+        'unit_id': 'asset_overview_unit_012',
+        'unit_code': 'EG',
+        'base_rent': 1036.45,
+        'side_costs': 100.0,
+        'warm_rent': 1136.45,
+        'deposit': 2920.26,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_008',
+        'tenant': 'Januz Loskot / Slawomir Stando',
+        'lease_id': 'asset_overview_lease_008',
+        'property_id': 'A006',
+        'unit_id': 'asset_overview_unit_013',
+        'unit_code': '2. OG',
+        'base_rent': 489.5,
+        'side_costs': 260.5,
+        'warm_rent': 750.0,
+        'deposit': 2010.0,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_009',
+        'tenant': 'Bäckerei',
+        'lease_id': 'asset_overview_lease_009',
+        'property_id': 'A010',
+        'unit_id': 'asset_overview_unit_016',
+        'unit_code': 'EG',
+        'base_rent': 2067.55,
+        'side_costs': 477.6,
+        'warm_rent': 2545.15,
+        'deposit': 6162.48,
+        'deposit_status': 'open',
+      },
+      {
+        'tenant_id': 'asset_overview_tenant_010',
+        'tenant': 'ROS',
+        'lease_id': 'asset_overview_lease_010',
+        'property_id': 'A017',
+        'unit_id': 'asset_overview_unit_017',
+        'unit_code': 'Gewerbe / ROS',
+        'base_rent': 50.0,
+        'side_costs': 9.5,
+        'warm_rent': 59.5,
+      },
+    ];
+
+    for (final relation in activeRentRelations) {
+      await db.insert(
+        'tenants',
+        <String, Object?>{
+          'id': relation['tenant_id'],
+          'display_name': relation['tenant'],
+          'legal_name': null,
+          'email': null,
+          'phone': null,
+          'alternative_contact': null,
+          'billing_contact': null,
+          'status': 'active',
+          'move_in_reference': 'Import Vermietung',
+          'notes': 'Aus Importdaten als aktives Mietverhältnis übernommen.',
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+      await db.insert(
+        'leases',
+        <String, Object?>{
+          'id': relation['lease_id'],
+          'asset_property_id': relation['property_id'],
+          'unit_id': relation['unit_id'],
+          'tenant_id': relation['tenant_id'],
+          'lease_name': '${relation['unit_code']} - ${relation['tenant']}',
+          'start_date': leaseStart,
+          'end_date': null,
+          'move_in_date': leaseStart,
+          'move_out_date': null,
+          'status': 'active',
+          'base_rent_monthly': relation['base_rent'],
+          'currency_code': 'EUR',
+          'security_deposit': relation['deposit'],
+          'payment_day_of_month': 3,
+          'billing_frequency': 'monthly',
+          'lease_signed_date': null,
+          'notice_date': null,
+          'renewal_option_date': null,
+          'break_option_date': null,
+          'executed_date': null,
+          'deposit_status': relation['deposit_status'] ?? 'unknown',
+          'rent_free_period_months': null,
+          'ancillary_charges_monthly': relation['side_costs'],
+          'parking_other_charges_monthly': null,
+          'notes': [
+            'Import-Warmmiete: ${relation['warm_rent']}',
+            relation['indexation_note'],
+          ].whereType<String>().join('\n'),
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+      await db.update(
+        'leases',
+        <String, Object?>{
+          'security_deposit': relation['deposit'],
+          'deposit_status': relation['deposit_status'] ?? 'unknown',
+          'ancillary_charges_monthly': relation['side_costs'],
+          'notes': [
+            'Import-Warmmiete: ${relation['warm_rent']}',
+            relation['indexation_note'],
+          ].whereType<String>().join('\n'),
+          'updated_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: <Object?>[relation['lease_id']],
+      );
+    }
+
+    final costs = <Map<String, Object?>>[
+      {
+        'id': 'asset_overview_cost_001',
+        'property_id': 'A001',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 14797.24,
+      },
+      {
+        'id': 'asset_overview_cost_002',
+        'property_id': 'A003',
+        'scope': 'insurance',
+        'type': 'Liability',
+        'yearly': 2013.04,
+      },
+      {
+        'id': 'asset_overview_cost_003',
+        'property_id': 'A003',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 5569.84,
+      },
+      {
+        'id': 'asset_overview_cost_004',
+        'property_id': 'A004',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 1133.47,
+      },
+      {
+        'id': 'asset_overview_cost_005',
+        'property_id': 'A005',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 7888.36,
+      },
+      {
+        'id': 'asset_overview_cost_006',
+        'property_id': 'A006',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 3062.28,
+      },
+      {
+        'id': 'asset_overview_cost_007',
+        'property_id': 'A006',
+        'scope': 'insurance',
+        'type': 'Liability',
+        'yearly': 387.31,
+      },
+      {
+        'id': 'asset_overview_cost_008',
+        'property_id': 'A007',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 2010.68,
+      },
+      {
+        'id': 'asset_overview_cost_009',
+        'property_id': 'A003',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 450.49,
+      },
+      {
+        'id': 'asset_overview_cost_010',
+        'property_id': 'A003',
+        'scope': 'building',
+        'type': 'Abfallentsorgung',
+        'yearly': 1097.08,
+      },
+      {
+        'id': 'asset_overview_cost_011',
+        'property_id': 'A003',
+        'scope': 'building',
+        'type': 'Straßenreinigung',
+        'yearly': 269.55,
+      },
+      {
+        'id': 'asset_overview_cost_012',
+        'property_id': 'A003',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 329.84,
+      },
+      {
+        'id': 'asset_overview_cost_013',
+        'property_id': 'A003',
+        'scope': 'building',
+        'type': 'Abwasser / Kanal',
+        'yearly': 1387.20,
+      },
+      {
+        'id': 'asset_overview_cost_014',
+        'property_id': 'A006',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 70.50,
+      },
+      {
+        'id': 'asset_overview_cost_015',
+        'property_id': 'A006',
+        'scope': 'building',
+        'type': 'Abfallentsorgung',
+        'yearly': 276.14,
+      },
+      {
+        'id': 'asset_overview_cost_016',
+        'property_id': 'A006',
+        'scope': 'building',
+        'type': 'Straßenreinigung',
+        'yearly': 197.64,
+      },
+      {
+        'id': 'asset_overview_cost_017',
+        'property_id': 'A006',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 102.30,
+      },
+      {
+        'id': 'asset_overview_cost_018',
+        'property_id': 'A006',
+        'scope': 'building',
+        'type': 'Abwasser / Kanal',
+        'yearly': 1008.00,
+      },
+      {
+        'id': 'asset_overview_cost_019',
+        'property_id': 'A003',
+        'scope': 'insurance',
+        'type': 'Liability additional',
+        'yearly': 1026.72,
+      },
+      {
+        'id': 'asset_overview_cost_020',
+        'property_id': 'A005',
+        'scope': 'insurance',
+        'type': 'Liability',
+        'yearly': 1590.00,
+      },
+      {
+        'id': 'asset_overview_cost_021',
+        'property_id': 'A008',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 712.25,
+      },
+      {
+        'id': 'asset_overview_cost_022',
+        'property_id': 'A008',
+        'scope': 'insurance',
+        'type': 'Liability',
+        'yearly': 167.36,
+      },
+      {
+        'id': 'asset_overview_cost_023',
+        'property_id': 'A009',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 912.02,
+      },
+      {
+        'id': 'asset_overview_cost_024',
+        'property_id': 'A010',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 5014.88,
+      },
+      {
+        'id': 'asset_overview_cost_025',
+        'property_id': 'A012',
+        'scope': 'insurance',
+        'type': 'Building',
+        'yearly': 4236.36,
+      },
+      {
+        'id': 'asset_overview_cost_026',
+        'property_id': 'A019',
+        'scope': 'insurance',
+        'type': 'Business interruption',
+        'yearly': 488.67,
+      },
+      {
+        'id': 'asset_overview_cost_027',
+        'property_id': 'A001',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 167.01,
+      },
+      {
+        'id': 'asset_overview_cost_028',
+        'property_id': 'A004',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 120.21,
+      },
+      {
+        'id': 'asset_overview_cost_029',
+        'property_id': 'A004',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 106.02,
+      },
+      {
+        'id': 'asset_overview_cost_030',
+        'property_id': 'A005',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 380.91,
+      },
+      {
+        'id': 'asset_overview_cost_031',
+        'property_id': 'A005',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 256.06,
+      },
+      {
+        'id': 'asset_overview_cost_032',
+        'property_id': 'A005',
+        'scope': 'building',
+        'type': 'Abwasser / Kanal',
+        'yearly': 696.00,
+      },
+      {
+        'id': 'asset_overview_cost_033',
+        'property_id': 'A007',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 77.73,
+      },
+      {
+        'id': 'asset_overview_cost_034',
+        'property_id': 'A007',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 37.82,
+      },
+      {
+        'id': 'asset_overview_cost_035',
+        'property_id': 'A007',
+        'scope': 'building',
+        'type': 'Abwasser / Kanal',
+        'yearly': 175.20,
+      },
+      {
+        'id': 'asset_overview_cost_036',
+        'property_id': 'A008',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 244.63,
+      },
+      {
+        'id': 'asset_overview_cost_037',
+        'property_id': 'A009',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 86.41,
+      },
+      {
+        'id': 'asset_overview_cost_038',
+        'property_id': 'A010',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 210.31,
+      },
+      {
+        'id': 'asset_overview_cost_039',
+        'property_id': 'A010',
+        'scope': 'building',
+        'type': 'Niederschlagswasser',
+        'yearly': 118.42,
+      },
+      {
+        'id': 'asset_overview_cost_040',
+        'property_id': 'A010',
+        'scope': 'building',
+        'type': 'Abwasser / Kanal',
+        'yearly': 648.00,
+      },
+      {
+        'id': 'asset_overview_cost_041',
+        'property_id': 'A012',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 13.20,
+      },
+      {
+        'id': 'asset_overview_cost_042',
+        'property_id': 'A018',
+        'scope': 'building',
+        'type': 'Grundsteuer',
+        'yearly': 31.32,
+      },
+    ];
+
+    for (final cost in costs) {
+      await db.insert(
+        'asset_operating_costs',
+        <String, Object?>{
+          'id': cost['id'],
+          'property_id': cost['property_id'],
+          'scope': cost['scope'],
+          'unit_code': null,
+          'cost_type': cost['type'],
+          'provider': null,
+          'contract_number': null,
+          'allocation_key': 'Wohnfläche',
+          'monthly_amount': null,
+          'yearly_amount': cost['yearly'],
+          'canceled': 0,
+          'start_date': null,
+          'end_date': null,
+          'next_due_date': null,
+          'notes': 'Aus Erstbestand übernommen.',
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    const unitCostRows = <String>[
+      'unitcost_001|A003||1572.00|18864.00|Heizung/Gas Nr 264631.0 Zaehler 84009553.0 Typ Gas Status aktiv M 1572',
+      'unitcost_002|A003|UG|0.00|0.00|Heizung/Gas Nr  Zaehler 17301886.0 Typ Gas Status aktiv M 0',
+      'unitcost_003|A003||152.00|1824.00|Wasser Nr 264518.0 Zaehler 366926.0 Status aktiv M 152',
+      'unitcost_004|A003|House|176.00|2112.00|Strom Nr 264621.0 Zaehler 1EMH0011724422 Status aktiv M 176',
+      'unitcost_005|A003|3. OG Left|0.00|0.00|Strom Nr  Zaehler 1EMH0004349920 Status Canceled M 0',
+      'unitcost_006|A003|UG|0.00|0.00|Strom Nr  Zaehler 1EMH0006609839 Status Canceled M 0',
+      'unitcost_007|A003|3. OG Mid|0.00|0.00|Strom Nr  Zaehler 1EMH0004349922 Status Canceled M 0',
+      'unitcost_008|A003|1. OG|112.00|1344.00|Strom Nr 264624.0 Zaehler 1EMH0007148956 Status aktiv M 112',
+      'unitcost_009|A003|EG left|0.00|0.00|Strom Nr 471923.0 Zaehler 1EMH0007654603 Status Canceled M 39.0',
+      'unitcost_010|A003|3. OG Right|188.00|2256.00|Strom Nr 472246.0 Zaehler 1EMH0004349892 Status aktiv M 188',
+      'unitcost_011|A003|EG right|0.00|0.00|Strom Nr  Zaehler 1EMH0007654570 Status Canceld M 0',
+      'unitcost_014|A006||96.00|1152.00|Wasser Nr 185963.0 Zaehler 366999.0 Status aktiv M 96',
+      'unitcost_015|A006|1. OG right|19.00|228.00|Strom Nr 185962.0 Zaehler 1EMH0013457689 Status aktiv M 19',
+      'unitcost_016|A006|2. OG|91.00|1092.00|Strom Nr 299839.0 Zaehler 1EMH0005619189 Status aktiv M 91',
+      'unitcost_017|A006|1. OG left|93.00|1116.00|Strom Nr 333499.0 Zaehler 1EMH0005619201 Status aktiv M 93',
+      'unitcost_020|A005||95.00|1140.00|Wasser Nr 239810.0 Zaehler 366548.0 Status aktiv M 95',
+      'unitcost_021|A005||1334.00|16008.00|Heizung/Gas Nr 186406.0 Zaehler 71280848.0 Typ Fernwaerme Status aktiv M 1334',
+      'unitcost_022|A005||140.00|1680.00|Strom Nr 247441.0 Zaehler 1EMH0009135584 Status aktiv M 140',
+      'unitcost_023|A005|EG Right|16.00|192.00|Strom Nr 247473.0 Zaehler 1EMH0009135579 Status aktiv M 16',
+      'unitcost_024|A005||27.00|324.00|Strom Nr 263130.0 Zaehler 1EMH0009135580 Status aktiv M 27',
+      'unitcost_026|A010||79.00|948.00|Wasser Nr 188651.0 Zaehler 367967.0 Status aktiv M 79',
+      'unitcost_027|A010|1. OG Left|309.00|3708.00|Heizung/Gas Nr 201407.0 Zaehler 517309.0 Typ Gas Status aktiv M 309',
+      'unitcost_028|A010||32.00|384.00|Strom Nr 188652.0 Zaehler 1EMH0005619713 Status aktiv M 32',
+      'unitcost_029|A010|3. OG|217.00|2604.00|Strom Nr 192321.0 Zaehler 1EMH0012979228 Status aktiv M 30; Heizung/Gas Nr 192320.0 Zaehler 517307.0 Typ Gas Status aktiv M 187',
+      'unitcost_030|A010|4. OG|198.00|2376.00|Strom Nr 201398.0 Zaehler 1EMH0009135419 Status aktiv M 48; Heizung/Gas Nr 201397.0 Zaehler 517301.0 Typ Gas Status aktiv M 150',
+      'unitcost_031|A010|2. OG|354.00|4248.00|Strom Nr 202600.0 Zaehler 1EMH0015269246 Status aktiv M 71; Heizung/Gas Nr 202599.0 Zaehler 517300.0 Typ Gas Status aktiv M 283',
+      'unitcost_032|A010||91.00|1092.00|Strom Nr 205363.0 Zaehler 1EMH0015269245 Status aktiv M 91',
+      'unitcost_034|A007||32.00|384.00|Wasser Nr 188654.0 Zaehler 367968.0 Status aktiv M 32',
+      'unitcost_035|A007||19.00|228.00|Strom Nr 188653.0 Zaehler 1EMH0006024572 Status aktiv M 19',
+      'unitcost_036|A007||197.00|2364.00|Strom Nr 224876.0 Zaehler 1EMH0009135425 Status aktiv M 57; Heizung/Gas Nr 224875.0 Zaehler 517308.0 Typ Gas Status aktiv M 140',
+      'unitcost_037|A007||26.00|312.00|Strom Nr 230930.0 Zaehler 1EMH0009135420 Status aktiv M 20; Heizung/Gas Nr 230929.0 Zaehler 517304.0 Typ Gas Status aktiv M 6',
+      'unitcost_038|A007||175.00|2100.00|Strom Nr 236512.0 Zaehler 1EMH0009135426 Status aktiv M 50; Heizung/Gas Nr 236513.0 Zaehler 517302.0 Typ Gas Status aktiv M 125',
+      'unitcost_040|A019||15.00|180.00|Wasser Nr 255567.0 Zaehler 8DME7687865316 Status aktiv M 15',
+      'unitcost_041|A019||16.00|192.00|Strom Nr 255568.0 Zaehler 1EMH0009137186 Status aktiv M 16',
+      'unitcost_043|A001||376.00|4512.00|Wasser Nr 189371.0 Zaehler 8DME7681452745 Status aktiv M 376',
+      'unitcost_044|A001||875.00|10500.00|Heizung/Gas Nr 466559.0 Zaehler 72047284.0 Typ Fernwaerme Status aktiv M 875',
+      'unitcost_045|A001||15.00|180.00|Strom Nr 474178.0 Zaehler 1EMH0015268574 Status aktiv M 15',
+      'unitcost_046|A001||15.00|180.00|Strom Nr 474179.0 Zaehler 1EMH0015268575 Status aktiv M 15',
+      'unitcost_047|A001||15.00|180.00|Strom Nr 474180.0 Zaehler 1EMH0015268582 Status aktiv M 15',
+      'unitcost_048|A001||15.00|180.00|Strom Nr 474186.0 Zaehler 1EMH0015270095 Status aktiv M 15',
+      'unitcost_049|A001||15.00|180.00|Strom Nr 474187.0 Zaehler 1EMH0015268581 Status aktiv M 15',
+      'unitcost_050|A001||15.00|180.00|Strom Nr 474191.0 Zaehler 1EMH0015270088 Status aktiv M 15',
+      'unitcost_051|A001||15.00|180.00|Strom Nr 474192.0 Zaehler 1EMH0015268590 Status aktiv M 15',
+      'unitcost_052|A001||15.00|180.00|Strom Nr 474194.0 Zaehler 1EMH0015268583 Status aktiv M 15',
+      'unitcost_053|A001||15.00|180.00|Strom Nr 474195.0 Zaehler 1EMH0015270094 Status aktiv M 15',
+      'unitcost_054|A001||38.00|456.00|Strom Nr 475258.0 Zaehler 1EMH0015270086 Status aktiv M 38',
+      'unitcost_055|A001||19.00|228.00|Strom Nr 475792.0 Zaehler 1EMH0015270078 Status aktiv M 19',
+      'unitcost_056|A001||28.00|336.00|Strom Nr 475793.0 Zaehler 1EMH0015270087 Status aktiv M 28',
+      'unitcost_057|A001||18.00|216.00|Strom Nr 475795.0 Zaehler 1EMH0015270104 Status aktiv M 18',
+      'unitcost_058|A001||67.00|804.00|Strom Nr 475796.0 Zaehler 1EMH0015441974 Status aktiv M 67',
+      'unitcost_059|A001||17.00|204.00|Strom Nr 475797.0 Zaehler 1EMH0015270096 Status aktiv M 17',
+      'unitcost_060|A001||18.00|216.00|Strom Nr 475798.0 Zaehler 1EMH0015270103 Status aktiv M 18',
+      'unitcost_061|A001||17.00|204.00|Strom Nr 476337.0 Zaehler 1EMH0015270079 Status aktiv M 17',
+      'unitcost_063|A012||39.00|468.00|Strom Nr 232050108508.0 Zaehler 1EMH0008915564 Status aktiv M 39.0; Heizung/Gas Typ E-On Status aktiv M 0',
+      'unitcost_065|A008||15.00|180.00|Heizung/Gas Nr 242223733156.0 Zaehler 7PIP0004065130 Typ Gas / E-On Status aktiv M 15.0',
+      'unitcost_066|A008||73.00|876.00|Strom Nr 242176094201.0 Zaehler 1126120053441151 Status aktiv M 73.0',
+      'unitcost_068|A009||22.00|264.00|Wasser Nr 377881.0 Zaehler 8PIP0006248649 Status aktiv M 22',
+      'unitcost_069|A009||107.00|1284.00|Heizung/Gas Nr 377876.0 Zaehler 511520.0 Typ Gas Status aktiv M 107.0',
+      'unitcost_070|A009|WG|22.00|264.00|Strom Nr 442531.0 Zaehler 1EMH0012979095 Status aktiv M 22',
+    ];
+
+    for (final row in unitCostRows) {
+      final parts = row.split('|');
+      if (parts.length < 6) {
+        continue;
+      }
+      await db.insert(
+        'asset_operating_costs',
+        <String, Object?>{
+          'id': 'asset_overview_${parts[0]}',
+          'property_id': parts[1],
+          'scope': 'unit',
+          'unit_code': parts[2].isEmpty ? null : parts[2],
+          'cost_type': _deriveSeedUnitCostType(parts[5]),
+          'provider': _deriveSeedProvider(parts[5]),
+          'contract_number': _deriveSeedContractOrMeter(parts[5]),
+          'allocation_key': 'Direkt',
+          'monthly_amount': double.tryParse(parts[3]),
+          'yearly_amount': double.tryParse(parts[4]),
+          'canceled': parts[5].contains('Canceled') || parts[5].contains('Canceld') ? 1 : 0,
+          'start_date': null,
+          'end_date': null,
+          'next_due_date': null,
+          'notes': parts[5],
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    final renovations = <Map<String, Object?>>[
+      {'id': 'asset_overview_reno_001', 'code': 'R001', 'property_id': 'A001'},
+      {'id': 'asset_overview_reno_002', 'code': 'R002', 'property_id': 'A003'},
+      {'id': 'asset_overview_reno_003', 'code': 'R003', 'property_id': 'A004'},
+      {'id': 'asset_overview_reno_004', 'code': 'R004', 'property_id': 'A005'},
+    ];
+
+    for (final renovation in renovations) {
+      await db.insert(
+        'renovation_projects',
+        <String, Object?>{
+          'id': renovation['id'],
+          'property_id': renovation['property_id'],
+          'project_code': renovation['code'],
+          'category': null,
+          'measure': null,
+          'status': 'Geplant',
+          'start_date': null,
+          'planned_end_date': null,
+          'actual_end_date': null,
+          'budget_amount': null,
+          'actual_amount': null,
+          'owner': null,
+          'next_step': 'Maßnahme konkretisieren',
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+  }
+
+  static String _deriveSeedUnitCostType(String note) {
+    final parts = <String>[];
+    if (note.contains('Heizung/Gas')) {
+      parts.add('Heizung/Gas');
+    }
+    if (note.contains('Wasser')) {
+      parts.add('Wasser');
+    }
+    if (note.contains('Strom')) {
+      parts.add('Strom');
+    }
+    return parts.isEmpty ? 'Einheitenkosten' : parts.toSet().join(' + ');
+  }
+
+  static String? _deriveSeedProvider(String note) {
+    if (note.contains('E-On')) {
+      return 'E-On';
+    }
+    return null;
+  }
+
+  static String? _deriveSeedContractOrMeter(String note) {
+    final values = <String>[];
+    final contractMatch = RegExp(r'Nr\s+([0-9A-Za-z./-]+)').firstMatch(note);
+    final meterMatch = RegExp(r'Zaehler\s+([0-9A-Za-z./-]+)').firstMatch(note);
+    final contract = contractMatch?.group(1)?.trim();
+    final meter = meterMatch?.group(1)?.trim();
+    if (contract != null && contract.isNotEmpty) {
+      values.add('Vertrag $contract');
+    }
+    if (meter != null && meter.isNotEmpty) {
+      values.add('Zähler $meter');
+    }
+    return values.isEmpty ? null : values.join(' / ');
   }
 
   static Future<void> _addColumnIfMissing(

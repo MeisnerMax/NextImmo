@@ -1423,8 +1423,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: TextField(
                 controller: _workspaceRootController,
                 enabled: canExport || canBackupRestore,
-                decoration: InputDecoration(
-                  labelText: s.text('Workspace Root Path (optional)'),
+                decoration: _settingInputDecoration(
+                  s.text('Workspace Root Path (optional)'),
                   helperText: s.text('Optional root folder for the workspace.'),
                 ),
               ),
@@ -1597,7 +1597,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         controller: controller,
         enabled: enabled,
         obscureText: obscureText,
-        decoration: InputDecoration(labelText: label, helperText: helperText),
+        decoration: _settingInputDecoration(label, helperText: helperText),
       ),
     );
   }
@@ -1614,7 +1614,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         controller: controller,
         enabled: enabled,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(labelText: label, helperText: helperText),
+        decoration: _settingInputDecoration(label, helperText: helperText),
       ),
     );
   }
@@ -1631,8 +1631,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         controller: controller,
         enabled: enabled,
         keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label, helperText: helperText),
+        decoration: _settingInputDecoration(label, helperText: helperText),
       ),
+    );
+  }
+
+  InputDecoration _settingInputDecoration(
+    String label, {
+    String? helperText,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      helperText: helperText,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: context.semanticColors.surfaceAlt,
     );
   }
 

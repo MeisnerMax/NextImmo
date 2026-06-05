@@ -227,6 +227,15 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         kindLabel: context.strings.text('Area'),
       ),
       _PaletteEntry.action(
+        actionId: 'open_rental_overview',
+        title: context.strings.text('Vermietung & BK'),
+        subtitle: context.strings.text(
+          'Open portfolio rent, operating costs and BK settlement overview',
+        ),
+        icon: Icons.table_chart_outlined,
+        kindLabel: context.strings.text('Area'),
+      ),
+      _PaletteEntry.action(
         actionId: 'open_daily_business',
         title: context.strings.text('Daily Business'),
         subtitle: context.strings.text(
@@ -317,11 +326,11 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         ),
         _PaletteEntry.action(
           actionId: 'open_property_rent_management',
-          title: context.strings.text('Rent Management'),
+          title: context.strings.text('Vermietung & BK'),
           subtitle: context.strings.text(
-            'Open rent roll, units, tenants and leases',
+            'Open rent, operating costs and BK settlement workflow',
           ),
-          icon: Icons.apartment_outlined,
+          icon: Icons.request_quote_outlined,
           kindLabel: context.strings.text('Property Action'),
         ),
         _PaletteEntry.action(

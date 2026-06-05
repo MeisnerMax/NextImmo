@@ -131,9 +131,10 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   if (_covenants.isNotEmpty)
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: DataTable(
+                                    ClipRect(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: DataTable(
                                         columns: const [
                                           DataColumn(label: Text('Kind')),
                                           DataColumn(label: Text('Operator')),
@@ -164,6 +165,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                                   ),
                                                 )
                                                 .toList(),
+                                        ),
                                       ),
                                     ),
                                   const SizedBox(height: 12),
@@ -174,9 +176,10 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   if (_checks.isNotEmpty)
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: DataTable(
+                                    ClipRect(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: DataTable(
                                         columns: const [
                                           DataColumn(label: Text('Period')),
                                           DataColumn(label: Text('Actual')),
@@ -216,6 +219,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                                   ),
                                                 )
                                                 .toList(),
+                                        ),
                                       ),
                                     ),
                                 ],

@@ -56,9 +56,11 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
       return const Center(child: Text('Select a unit.'));
     }
 
-    return ListView(
+    return Padding(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -296,7 +298,8 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
             ),
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 

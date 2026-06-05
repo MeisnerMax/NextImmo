@@ -24,6 +24,11 @@ class SidebarV2 extends ConsumerStatefulWidget {
 }
 
 class _SidebarV2State extends ConsumerState<SidebarV2> {
+  static const Color _menuBlue = Color(0xFF030C28);
+  static const Color _menuSelected = Color(0xFF17417D);
+  static const Color _menuText = Color(0xFFEAF2FF);
+  static const Color _menuMuted = Color(0xFFBFD0EA);
+
   final Map<String, bool> _expanded = <String, bool>{
     'Start': true,
     'Assets & Portfolio': true,
@@ -40,7 +45,6 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     final role = ref.watch(activeUserRoleProvider);
     final semantic = context.semanticColors;
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final zone = context.desktopLayoutZone;
     final collapsed =
         !widget.forceExpanded &&
@@ -82,8 +86,8 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
       width: width,
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
-        color: const Color(0xFF030C28),
-        border: Border(right: BorderSide(color: semantic.border)),
+        color: _menuBlue,
+        border: const Border(right: BorderSide(color: Color(0xFF17417D))),
       ),
       child: Column(
         children: [
@@ -108,16 +112,15 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.45),
+                            color: _menuSelected,
                             borderRadius: BorderRadius.circular(
                               AppRadiusTokens.sm,
                             ),
-                            border: Border.all(color: semantic.border),
+                            border: Border.all(color: _menuSelected),
                           ),
                           child: Icon(
                             Icons.account_balance,
-                            color: colorScheme.primary,
+                            color: Colors.white,
                             size: 22,
                           ),
                         ),
@@ -127,20 +130,20 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Capital Management',
+                                '613 Investment Group GmbH',
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurface,
+                                  color: _menuText,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 1.4,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Venture Fund III',
+                                'Asset Management',
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  color: semantic.textSecondary,
+                                  color: _menuMuted,
                                   letterSpacing: 1.6,
                                 ),
                               ),
@@ -256,7 +259,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
               child: Text(
                 context.strings.text(title).toUpperCase(),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: semantic.textSecondary,
+                  color: _menuMuted,
                   letterSpacing: 1.6,
                 ),
               ),
@@ -264,7 +267,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
             Icon(
               expanded ? Icons.expand_less : Icons.expand_more,
               size: 18,
-              color: semantic.textSecondary,
+              color: _menuMuted,
             ),
           ],
         ),
@@ -280,17 +283,15 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     required bool collapsed,
   }) {
     final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
+    const primary = Colors.white;
     final tile = ListTile(
       visualDensity: VisualDensity.compact,
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.surfaceContainerHighest.withValues(
-        alpha: 0.24,
-      ),
+      selectedTileColor: _menuSelected,
       shape: const RoundedRectangleBorder(),
       leading: Icon(
         item.icon,
-        color: isSelected ? primary : semantic.textSecondary,
+        color: isSelected ? primary : _menuMuted,
       ),
       title:
           collapsed
@@ -298,7 +299,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
               : Text(
                 context.strings.text(item.label),
                 style: TextStyle(
-                  color: isSelected ? primary : semantic.textSecondary,
+                  color: isSelected ? primary : _menuMuted,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.4,
                 ),
@@ -315,7 +316,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     final wrapped = DecoratedBox(
       decoration: BoxDecoration(
         border:
-            isSelected ? Border(right: BorderSide(color: primary, width: 2)) : null,
+            isSelected ? const Border(right: BorderSide(color: primary, width: 2)) : null,
       ),
       child: tile,
     );

@@ -52,30 +52,28 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
 
         return Padding(
           padding: const EdgeInsets.all(AppSpacing.page),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildModeCard(context, state, controller),
-                const SizedBox(height: AppSpacing.component),
-                ...(_mode == _InputsMode.basic
-                    ? _buildBasicSections(
-                      context: context,
-                      state: state,
-                      inputs: inputs,
-                      patchInput: patchInput,
-                      controller: controller,
-                    )
-                    : _buildAdvancedSections(
-                      context: context,
-                      state: state,
-                      inputs: inputs,
-                      valuation: valuation,
-                      patchInput: patchInput,
-                      patchValuation: patchValuation,
-                    )),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildModeCard(context, state, controller),
+              const SizedBox(height: AppSpacing.component),
+              ...(_mode == _InputsMode.basic
+                  ? _buildBasicSections(
+                    context: context,
+                    state: state,
+                    inputs: inputs,
+                    patchInput: patchInput,
+                    controller: controller,
+                  )
+                  : _buildAdvancedSections(
+                    context: context,
+                    state: state,
+                    inputs: inputs,
+                    valuation: valuation,
+                    patchInput: patchInput,
+                    patchValuation: patchValuation,
+                  )),
+            ],
           ),
         );
       },
@@ -882,8 +880,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     final savePresentation = _savePresentation(context, state);
     final modeDescription =
         _mode == _InputsMode.basic
-            ? 'Basic keeps the core underwriting assumptions within easy reach.'
-            : 'Advanced exposes transaction details, overrides, and exit valuation controls.';
+            ? 'Basis zeigt die wichtigsten Annahmen für Kauf, Finanzierung, Flächen, Mieten und Exit.'
+            : 'Erweitert zeigt Detailannahmen, Overrides und die Exit-Bewertung für genauere Szenarien.';
 
     return Card(
       child: Padding(
@@ -891,34 +889,56 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: AppSpacing.component,
-              runSpacing: AppSpacing.component,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: ResponsiveConstraints.itemWidth(
-                      context,
-                      idealWidth: 340,
-                      maxWidth: 420,
-                    ),
-                  ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final status = ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
                   child: SaveStatusIndicator(
                     label: savePresentation.label,
                     detail: savePresentation.detail,
                     tone: savePresentation.tone,
                   ),
-                ),
+                );
+                final title = Text(
+                  'Bewertungsannahmen',
+                  style: Theme.of(context).textTheme.titleLarge,
+                );
+                if (constraints.maxWidth < 760) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      title,
+                      const SizedBox(height: AppSpacing.sm),
+                      status,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: AppSpacing.component),
+                    Flexible(child: Align(alignment: Alignment.centerRight, child: status)),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.component),
+            Wrap(
+              spacing: AppSpacing.component,
+              runSpacing: AppSpacing.component,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
                 SegmentedButton<_InputsMode>(
                   segments: const [
                     ButtonSegment<_InputsMode>(
                       value: _InputsMode.basic,
-                      label: Text('Basic'),
+                      icon: Icon(Icons.fact_check_outlined),
+                      label: Text('Basis'),
                     ),
                     ButtonSegment<_InputsMode>(
                       value: _InputsMode.advanced,
-                      label: Text('Advanced'),
+                      icon: Icon(Icons.tune_outlined),
+                      label: Text('Erweitert'),
                     ),
                   ],
                   selected: <_InputsMode>{_mode},
@@ -931,16 +951,19 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                     });
                   },
                 ),
-                OutlinedButton(
+                OutlinedButton.icon(
                   onPressed: () => _confirmApplySettings(context, controller),
-                  child: const Text('Apply Default Assumptions'),
+                  icon: const Icon(Icons.restore_outlined),
+                  label: const Text('Standardannahmen anwenden'),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Text(
+                    modeDescription,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.component),
-            Text(
-              modeDescription,
-              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),
@@ -1014,31 +1037,29 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.component),
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        tilePadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.component,
-        ),
-        title: NxSectionHeader(
-          title: title,
-          description: description,
-          compact: true,
-          trailing: InfoTooltip(metricKey: metricKey, size: 14),
-          actions:
-              status == null
-                  ? const <Widget>[]
-                  : <Widget>[
-                    SaveStatusIndicator(
-                      label: status.label,
-                      tone: status.tone,
-                      compact: true,
-                    ),
-                  ],
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.component),
-            child: LayoutBuilder(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.component),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            NxSectionHeader(
+              title: title,
+              description: description,
+              compact: true,
+              trailing: InfoTooltip(metricKey: metricKey, size: 14),
+              actions:
+                  status == null
+                      ? const <Widget>[]
+                      : <Widget>[
+                        SaveStatusIndicator(
+                          label: status.label,
+                          tone: status.tone,
+                          compact: true,
+                        ),
+                      ],
+            ),
+            const SizedBox(height: AppSpacing.component),
+            LayoutBuilder(
               builder: (context, constraints) {
                 final sectionFieldWidth = _sectionFieldWidth(
                   constraints.maxWidth,
@@ -1053,8 +1074,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

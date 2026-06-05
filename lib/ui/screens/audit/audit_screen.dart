@@ -8,8 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/audit_log.dart';
 import '../../../core/security/rbac.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
 import '../../state/security_state.dart';
+import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 
 class AuditScreen extends ConsumerStatefulWidget {
@@ -58,47 +62,50 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
       permission: Permission.auditRead,
     );
     if (!canReadAudit) {
-      return const Padding(
-        padding: EdgeInsets.all(AppSpacing.page),
-        child: Text('You do not have permission to view the audit log.'),
+      return const NxEmptyState(
+        title: 'Kein Zugriff',
+        description: 'Du hast keine Berechtigung für das Audit Log.',
+        icon: Icons.lock_outline,
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ListFilterTemplate(
+      title: 'Audit Log',
+      breadcrumbs: const ['Administration', 'Audit Log'],
+      subtitle:
+          'Änderungen, Rollenwechsel, Importe und Systemereignisse nachvollziehen.',
+      filters: ListFilterBar(
         children: [
-          Text('Audit Log', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
               SizedBox(
                 width: 180,
                 child: TextField(
                   controller: _entityTypeController,
-                  decoration: const InputDecoration(labelText: 'Entity Type'),
+                  decoration: const InputDecoration(
+                    labelText: 'Entität',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
                 ),
               ),
               SizedBox(
-                width: 160,
+                width: 190,
                 child: DropdownButtonFormField<String>(
                   value: _actionFilter,
-                  decoration: const InputDecoration(labelText: 'Action'),
+                  decoration: const InputDecoration(
+                    labelText: 'Aktion',
+                    prefixIcon: Icon(Icons.bolt_outlined),
+                  ),
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All')),
-                    DropdownMenuItem(value: 'create', child: Text('Create')),
-                    DropdownMenuItem(value: 'update', child: Text('Update')),
-                    DropdownMenuItem(value: 'delete', child: Text('Delete')),
+                    DropdownMenuItem(value: 'all', child: Text('Alle')),
+                    DropdownMenuItem(value: 'create', child: Text('Erstellt')),
+                    DropdownMenuItem(value: 'update', child: Text('Geändert')),
+                    DropdownMenuItem(value: 'delete', child: Text('Gelöscht')),
                     DropdownMenuItem(value: 'import', child: Text('Import')),
-                    DropdownMenuItem(value: 'approved', child: Text('Approved')),
-                    DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-                    DropdownMenuItem(value: 'switch_user', child: Text('Switch User')),
+                    DropdownMenuItem(value: 'approved', child: Text('Freigegeben')),
+                    DropdownMenuItem(value: 'rejected', child: Text('Abgelehnt')),
+                    DropdownMenuItem(value: 'switch_user', child: Text('Nutzerwechsel')),
                     DropdownMenuItem(
                       value: 'switch_workspace',
-                      child: Text('Switch Workspace'),
+                      child: Text('Workspacewechsel'),
                     ),
                   ],
                   onChanged:
@@ -109,154 +116,262 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
                 width: 160,
                 child: TextField(
                   controller: _sourceController,
-                  decoration: const InputDecoration(labelText: 'Source'),
+                  decoration: const InputDecoration(
+                    labelText: 'Quelle',
+                    prefixIcon: Icon(Icons.source_outlined),
+                  ),
                 ),
               ),
               SizedBox(
                 width: 160,
                 child: TextField(
                   controller: _userController,
-                  decoration: const InputDecoration(labelText: 'User'),
+                  decoration: const InputDecoration(
+                    labelText: 'Benutzer',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
                 ),
               ),
               SizedBox(
                 width: 160,
                 child: TextField(
                   controller: _workspaceController,
-                  decoration: const InputDecoration(labelText: 'Workspace'),
-                ),
-              ),
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  controller: _fromController,
-                  decoration: const InputDecoration(labelText: 'From YYYY-MM-DD'),
-                ),
-              ),
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  controller: _toController,
-                  decoration: const InputDecoration(labelText: 'To YYYY-MM-DD'),
-                ),
-              ),
-              ElevatedButton(onPressed: _load, child: const Text('Apply')),
-              OutlinedButton(
-                onPressed: _isLoading ? null : _exportCsv,
-                child: const Text('Export CSV'),
-              ),
-              OutlinedButton(
-                onPressed: _selected == null ? null : _exportSelectedJson,
-                child: const Text('Export Selected JSON'),
-              ),
-            ],
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          ],
-          const SizedBox(height: 8),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child:
-                      _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : Card(
-                            child: ListView.builder(
-                              itemCount: _rows.length,
-                              itemBuilder: (context, index) {
-                                final row = _rows[index];
-                                return ListTile(
-                                  selected: _selected?.id == row.id,
-                                  title: Text(
-                                    '${row.action} · ${row.entityType}:${row.entityId}',
-                                  ),
-                                  subtitle: Text(
-                                    '${_formatDate(row.occurredAt)}'
-                                    '\n${row.summary ?? '-'}'
-                                    '\n${row.actorUserId ?? '-'} · ${row.source}',
-                                  ),
-                                  onTap: () => setState(() => _selected = row),
-                                );
-                              },
-                            ),
-                          ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child:
-                          _selected == null
-                              ? const Center(child: Text('Select an event'))
-                              : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Details',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text('Action: ${_selected!.action}'),
-                                  Text('Source: ${_selected!.source}'),
-                                  Text('Workspace: ${_selected!.workspaceId ?? '-'}'),
-                                  Text('User: ${_selected!.actorUserId ?? '-'}'),
-                                  Text('Role: ${_selected!.actorRole ?? '-'}'),
-                                  Text('Parent: ${_selected!.parentEntityType ?? '-'}:${_selected!.parentEntityId ?? '-'}'),
-                                  if (_selected!.reason != null)
-                                    Text('Reason: ${_selected!.reason}'),
-                                  Text('System: ${_selected!.isSystemEvent ? 'yes' : 'no'}'),
-                                  Text('Summary: ${_selected!.summary ?? '-'}'),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    child: ListView(
-                                      children: [
-                                        _JsonBlock(
-                                          title: 'Old Values',
-                                          value: _selected!.oldValues,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        _JsonBlock(
-                                          title: 'New Values',
-                                          value: _selected!.newValues,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Diff',
-                                          style:
-                                              Theme.of(
-                                                context,
-                                              ).textTheme.titleSmall,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        ..._selected!.diffItems.map(
-                                          (item) => ListTile(
-                                            dense: true,
-                                            title: Text(item.fieldKey),
-                                            subtitle: Text(
-                                              'Before: ${item.before ?? '-'}\nAfter: ${item.after ?? '-'}',
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                    ),
+                  decoration: const InputDecoration(
+                    labelText: 'Workspace',
+                    prefixIcon: Icon(Icons.workspaces_outline),
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+              SizedBox(
+                width: 140,
+                child: _AuditDateField(
+                  controller: _fromController,
+                  label: 'Von',
+                  onPick: () => _pickDate(_fromController),
+                ),
+              ),
+              SizedBox(
+                width: 140,
+                child: _AuditDateField(
+                  controller: _toController,
+                  label: 'Bis',
+                  onPick: () => _pickDate(_toController),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.filter_alt_outlined),
+                label: const Text('Anwenden'),
+              ),
         ],
       ),
+      secondaryActions: [
+        OutlinedButton.icon(
+          onPressed: _isLoading ? null : _exportCsv,
+          icon: const Icon(Icons.table_view_outlined),
+          label: const Text('CSV exportieren'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _selected == null ? null : _exportSelectedJson,
+          icon: const Icon(Icons.data_object_outlined),
+          label: const Text('JSON exportieren'),
+        ),
+      ],
+      contextBar:
+          _error == null
+              ? NxCard(
+                padding: const EdgeInsets.all(AppSpacing.component),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('${_rows.length} Ereignisse geladen')),
+                  ],
+                ),
+              )
+              : NxCard(
+                padding: const EdgeInsets.all(AppSpacing.component),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_error!)),
+                  ],
+                ),
+              ),
+      content: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 980;
+          final list = _auditListPane(context);
+          final details = _auditDetailPane(context);
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 3, child: list),
+                const SizedBox(width: AppSpacing.component),
+                Expanded(flex: 2, child: details),
+              ],
+            );
+          }
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(height: 460, child: list),
+                const SizedBox(height: AppSpacing.component),
+                SizedBox(height: 520, child: details),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _auditListPane(BuildContext context) {
+    return NxCard(
+      child:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _rows.isEmpty
+                  ? const NxEmptyState(
+                    title: 'Keine Ereignisse',
+                    description: 'Filter ändern oder später erneut laden.',
+                    icon: Icons.history_toggle_off_outlined,
+                  )
+                  : ListView.separated(
+                    itemCount: _rows.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final row = _rows[index];
+                      return ListTile(
+                        selected: _selected?.id == row.id,
+                        selectedTileColor:
+                            Theme.of(context).colorScheme.surfaceContainerHighest,
+                        leading: Icon(_auditIcon(row.action)),
+                        title: Text(
+                          '${_actionLabel(row.action)} · ${row.entityType}:${row.entityId}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${_formatDate(row.occurredAt)}\n'
+                          '${row.summary ?? '-'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: NxStatusBadge(
+                          label: row.source,
+                          kind: NxBadgeKind.neutral,
+                        ),
+                        onTap: () => setState(() => _selected = row),
+                      );
+                    },
+                  ),
+    );
+  }
+
+  Widget _auditDetailPane(BuildContext context) {
+    final selected = _selected;
+    return NxCard(
+      child:
+          selected == null
+              ? const NxEmptyState(
+                title: 'Ereignis auswählen',
+                description: 'Links ein Audit-Ereignis auswählen.',
+                icon: Icons.manage_search_outlined,
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(_auditIcon(selected.action), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _actionLabel(selected.action),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      NxStatusBadge(
+                        label: selected.isSystemEvent ? 'System' : 'User',
+                        kind:
+                            selected.isSystemEvent
+                                ? NxBadgeKind.info
+                                : NxBadgeKind.neutral,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.component),
+                  Wrap(
+                    spacing: AppSpacing.component,
+                    runSpacing: AppSpacing.component,
+                    children: [
+                      _AuditFact(label: 'Quelle', value: selected.source),
+                      _AuditFact(
+                        label: 'Workspace',
+                        value: selected.workspaceId ?? '-',
+                      ),
+                      _AuditFact(
+                        label: 'Benutzer',
+                        value: selected.actorUserId ?? '-',
+                      ),
+                      _AuditFact(
+                        label: 'Rolle',
+                        value: selected.actorRole ?? '-',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.component),
+                  Text(
+                    selected.summary ?? 'Keine Zusammenfassung',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  if (selected.reason != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Grund: ${selected.reason}'),
+                  ],
+                  const SizedBox(height: AppSpacing.component),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _JsonBlock(
+                          title: 'Vorher',
+                          value: selected.oldValues,
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        _JsonBlock(
+                          title: 'Nachher',
+                          value: selected.newValues,
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        Text(
+                          'Änderungen',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 4),
+                        if (selected.diffItems.isEmpty)
+                          const Text('Keine einzelnen Feldänderungen.')
+                        else
+                          for (final item in selected.diffItems)
+                            ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(item.fieldKey),
+                              subtitle: Text(
+                                'Vorher: ${item.before ?? '-'}\nNachher: ${item.after ?? '-'}',
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
     );
   }
 
@@ -410,6 +525,88 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
     final min = dt.minute.toString().padLeft(2, '0');
     return '${dt.year}-$mm-$dd $hh:$min';
   }
+
+  Future<void> _pickDate(TextEditingController controller) async {
+    final initial =
+        DateTime.tryParse(controller.text.trim()) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) {
+      return;
+    }
+    controller.text = _formatDateOnly(picked);
+  }
+
+  String _formatDateOnly(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
+  }
+}
+
+class _AuditDateField extends StatelessWidget {
+  const _AuditDateField({
+    required this.controller,
+    required this.label,
+    required this.onPick,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.event_outlined),
+        suffixIcon: IconButton(
+          onPressed: onPick,
+          icon: const Icon(Icons.calendar_month_outlined),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuditFact extends StatelessWidget {
+  const _AuditFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: context.viewport == AppViewport.mobile ? double.infinity : 190,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _JsonBlock extends StatelessWidget {
@@ -424,8 +621,9 @@ class _JsonBlock extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
-        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,5 +639,50 @@ class _JsonBlock extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+String _actionLabel(String action) {
+  switch (action) {
+    case 'create':
+      return 'Erstellt';
+    case 'update':
+    case 'update_role':
+      return 'Geändert';
+    case 'delete':
+      return 'Gelöscht';
+    case 'import':
+      return 'Import';
+    case 'approved':
+      return 'Freigegeben';
+    case 'rejected':
+      return 'Abgelehnt';
+    case 'switch_user':
+      return 'Nutzerwechsel';
+    case 'switch_workspace':
+      return 'Workspacewechsel';
+    default:
+      return action;
+  }
+}
+
+IconData _auditIcon(String action) {
+  switch (action) {
+    case 'create':
+      return Icons.add_circle_outline;
+    case 'delete':
+      return Icons.delete_outline;
+    case 'import':
+      return Icons.upload_file_outlined;
+    case 'approved':
+      return Icons.verified_outlined;
+    case 'rejected':
+      return Icons.block_outlined;
+    case 'switch_user':
+      return Icons.person_search_outlined;
+    case 'switch_workspace':
+      return Icons.workspaces_outline;
+    default:
+      return Icons.edit_outlined;
   }
 }

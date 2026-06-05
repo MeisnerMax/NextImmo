@@ -11,10 +11,13 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../core/models/esg.dart';
 import '../../core/models/portfolio.dart';
 import '../../core/models/property.dart';
+import '../components/nx_card.dart';
+import '../components/nx_empty_state.dart';
+import '../components/nx_status_badge.dart';
 import '../state/app_state.dart';
+import '../templates/list_filter_template.dart';
 import '../theme/app_theme.dart';
 import '../widgets/info_tooltip.dart';
-import '../widgets/status_badge.dart';
 
 class EsgDashboardScreen extends ConsumerStatefulWidget {
   const EsgDashboardScreen({super.key});
@@ -74,15 +77,13 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
               return true;
             }).toList();
 
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        return ListFilterTemplate(
+          title: 'ESG',
+          breadcrumbs: const ['Portfolio', 'ESG'],
+          subtitle:
+              'EPC-Ratings, Ablaufdaten, Emissionen und Zielwerte je Objekt pflegen.',
+          filters: ListFilterBar(
             children: [
-              Wrap(
-                spacing: AppSpacing.component,
-                runSpacing: 8,
-                children: [
                   SizedBox(
                     width: 300,
                     child: DropdownButtonFormField<String>(
@@ -90,7 +91,7 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
                       items: [
                         const DropdownMenuItem(
                           value: 'all',
-                          child: Text('All Portfolios'),
+                          child: Text('Alle Portfolios'),
                         ),
                         ...vm.portfolios.map(
                           (portfolio) => DropdownMenuItem(
@@ -108,168 +109,92 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
                         });
                       },
                       decoration: const InputDecoration(
-                        labelText: 'Portfolio filter',
+                        labelText: 'Portfolio',
+                        prefixIcon: Icon(Icons.account_balance_outlined),
                       ),
                     ),
                   ),
-                  FilterChip(
-                    label: const Text('Missing EPC'),
-                    selected: _missingOnly,
-                    onSelected: (selected) {
-                      setState(() {
-                        _missingOnly = selected;
-                      });
-                    },
+                  SizedBox(
+                    height: 48,
+                    child: FilterChip(
+                      label: const Text('EPC fehlt'),
+                      selected: _missingOnly,
+                      onSelected: (selected) {
+                        setState(() {
+                          _missingOnly = selected;
+                        });
+                      },
+                    ),
                   ),
-                  FilterChip(
-                    label: const Text('EPC expires in 90 days'),
-                    selected: _expiringSoonOnly,
-                    onSelected: (selected) {
-                      setState(() {
-                        _expiringSoonOnly = selected;
-                      });
-                    },
+                  SizedBox(
+                    height: 48,
+                    child: FilterChip(
+                      label: const Text('Ablauf in 90 Tagen'),
+                      selected: _expiringSoonOnly,
+                      onSelected: (selected) {
+                        setState(() {
+                          _expiringSoonOnly = selected;
+                        });
+                      },
+                    ),
                   ),
-                  ElevatedButton(
-                    onPressed: () => _exportCsv(filtered, vm.profileByProperty),
-                    child: const Text('Export ESG CSV'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => _exportPdf(filtered, vm.profileByProperty),
-                    child: const Text('Export ESG PDF'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => setState(() {}),
-                    child: const Text('Refresh'),
-                  ),
-                ],
-              ),
-              if (_status != null) ...[
-                const SizedBox(height: 8),
-                Text(_status!),
-              ],
-              const SizedBox(height: AppSpacing.component),
-              Expanded(
-                child:
-                    filtered.isEmpty
-                        ? const Center(
-                          child: Text('No ESG rows for current filter.'),
-                        )
-                        : ListView.builder(
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final property = filtered[index];
-                            final profile = vm.profileByProperty[property.id];
-                            final validUntil = profile?.epcValidUntil;
-                            final expiryDate =
-                                validUntil == null
-                                    ? null
-                                    : DateTime.fromMillisecondsSinceEpoch(
-                                      validUntil,
-                                    );
-                            final expiresSoon =
-                                expiryDate != null &&
-                                expiryDate.isBefore(
-                                  DateTime.now().add(const Duration(days: 90)),
-                                );
-                            return Card(
-                              child: ListTile(
-                                title: Text(property.name),
-                                subtitle: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        StatusBadge(
-                                          label:
-                                              'EPC ${profile?.epcRating ?? 'N/A'}',
-                                          color: _epcColor(profile?.epcRating),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        const InfoTooltip(
-                                          metricKey: 'epc_rating',
-                                          size: 14,
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        StatusBadge(
-                                          label:
-                                              'Expiry ${_dateLabel(expiryDate)}',
-                                          color:
-                                              expiresSoon
-                                                  ? AppColors.warning
-                                                  : AppColors.textSecondary,
-                                        ),
-                                        if (expiresSoon) ...[
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.warning_amber_rounded,
-                                            size: 16,
-                                            color: AppColors.warning,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Emissions ${profile?.emissionsKgCo2M2?.toStringAsFixed(2) ?? 'N/A'}',
-                                        ),
-                                        const SizedBox(width: 6),
-                                        const InfoTooltip(
-                                          metricKey: 'emissions',
-                                          size: 14,
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                trailing: TextButton(
-                                  onPressed:
-                                      () => _editProfile(property, profile),
-                                  child: const Text('Edit ESG'),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-              ),
             ],
           ),
+          primaryAction: ElevatedButton.icon(
+            onPressed: () => _exportCsv(filtered, vm.profileByProperty),
+            icon: const Icon(Icons.table_view_outlined),
+            label: const Text('CSV exportieren'),
+          ),
+          secondaryActions: [
+                  OutlinedButton.icon(
+                    onPressed: () => _exportPdf(filtered, vm.profileByProperty),
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('PDF exportieren'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh_outlined),
+                    label: const Text('Aktualisieren'),
+                  ),
+          ],
+          contextBar:
+              _status == null
+                  ? null
+                  : NxCard(
+                    padding: const EdgeInsets.all(AppSpacing.component),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_status!)),
+                      ],
+                    ),
+                  ),
+          content:
+              filtered.isEmpty
+                  ? const NxEmptyState(
+                    title: 'Keine ESG-Daten',
+                    description: 'Filter ändern oder ESG-Profil am Objekt pflegen.',
+                    icon: Icons.energy_savings_leaf_outlined,
+                  )
+                  : ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder:
+                        (_, __) =>
+                            const SizedBox(height: AppSpacing.component),
+                    itemBuilder: (context, index) {
+                      final property = filtered[index];
+                      final profile = vm.profileByProperty[property.id];
+                      return _EsgPropertyCard(
+                        property: property,
+                        profile: profile,
+                        onEdit: () => _editProfile(property, profile),
+                      );
+                    },
+                  ),
         );
       },
     );
-  }
-
-  String _dateLabel(DateTime? date) {
-    if (date == null) {
-      return 'N/A';
-    }
-    return date.toIso8601String().substring(0, 10);
-  }
-
-  Color _epcColor(String? rating) {
-    switch ((rating ?? '').toUpperCase()) {
-      case 'A':
-      case 'B':
-        return AppColors.positive;
-      case 'C':
-      case 'D':
-        return AppColors.warning;
-      case 'E':
-      case 'F':
-      case 'G':
-        return AppColors.negative;
-      default:
-        return AppColors.textSecondary;
-    }
   }
 
   Future<_EsgVm> _loadVm() async {
@@ -302,22 +227,18 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
     PropertyRecord property,
     EsgProfileRecord? existing,
   ) async {
-    final epcController = TextEditingController(
-      text: existing?.epcRating ?? '',
-    );
     final epcValidController = TextEditingController(
-      text: existing?.epcValidUntil?.toString() ?? '',
+      text: _dateLabelFromMillis(existing?.epcValidUntil),
     );
     final emissionsController = TextEditingController(
       text: existing?.emissionsKgCo2M2?.toString() ?? '',
     );
     final auditController = TextEditingController(
-      text: existing?.lastAuditDate?.toString() ?? '',
-    );
-    final targetController = TextEditingController(
-      text: existing?.targetRating ?? '',
+      text: _dateLabelFromMillis(existing?.lastAuditDate),
     );
     final notesController = TextEditingController(text: existing?.notes ?? '');
+    String? epcRating = _normalizeRating(existing?.epcRating);
+    String? targetRating = _normalizeRating(existing?.targetRating);
     String? errorText;
 
     await showDialog<void>(
@@ -326,49 +247,103 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text('ESG Profile: ${property.name}'),
+              title: Text('ESG-Profil: ${property.name}'),
               content: SizedBox(
                 width: 520,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextField(
-                        controller: epcController,
+                      DropdownButtonFormField<String>(
+                        value: epcRating ?? '',
+                        isExpanded: true,
+                        items: _ratingItems(),
+                        onChanged:
+                            (value) => setDialogState(() {
+                              epcRating =
+                                  (value ?? '').isEmpty ? null : value;
+                            }),
                         decoration: InputDecoration(
-                          labelText: 'EPC Rating',
+                          labelText: 'EPC-Rating',
+                          prefixIcon: const Icon(Icons.energy_savings_leaf_outlined),
                           errorText: errorText,
                         ),
                       ),
-                      TextField(
+                      const SizedBox(height: 12),
+                      _DateTextField(
                         controller: epcValidController,
-                        decoration: const InputDecoration(
-                          labelText: 'EPC Valid Until (epoch ms)',
-                        ),
+                        label: 'EPC gültig bis',
+                        onClear:
+                            () => setDialogState(() {
+                              epcValidController.text = '';
+                            }),
+                        onPick: () async {
+                          final picked = await _pickDate(
+                            context,
+                            epcValidController.text,
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              epcValidController.text = _dateLabel(picked);
+                            });
+                          }
+                        },
                       ),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: emissionsController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         decoration: const InputDecoration(
-                          labelText: 'Emissions kgCO2/m2',
+                          labelText: 'Emissionen kgCO2/m2',
+                          prefixIcon: Icon(Icons.cloud_outlined),
                         ),
                       ),
-                      TextField(
+                      const SizedBox(height: 12),
+                      _DateTextField(
                         controller: auditController,
+                        label: 'Letztes Audit',
+                        onClear:
+                            () => setDialogState(() {
+                              auditController.text = '';
+                            }),
+                        onPick: () async {
+                          final picked = await _pickDate(
+                            context,
+                            auditController.text,
+                          );
+                          if (picked != null) {
+                            setDialogState(() {
+                              auditController.text = _dateLabel(picked);
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: targetRating ?? '',
+                        isExpanded: true,
+                        items: _ratingItems(),
+                        onChanged:
+                            (value) => setDialogState(() {
+                              targetRating =
+                                  (value ?? '').isEmpty ? null : value;
+                            }),
                         decoration: const InputDecoration(
-                          labelText: 'Last Audit Date (epoch ms)',
+                          labelText: 'Zielrating',
+                          prefixIcon: Icon(Icons.flag_outlined),
                         ),
                       ),
-                      TextField(
-                        controller: targetController,
-                        decoration: const InputDecoration(
-                          labelText: 'Target Rating',
-                        ),
-                      ),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: notesController,
                         minLines: 2,
                         maxLines: 4,
-                        decoration: const InputDecoration(labelText: 'Notes'),
+                        decoration: const InputDecoration(
+                          labelText: 'Notizen',
+                          prefixIcon: Icon(Icons.notes_outlined),
+                        ),
                       ),
                     ],
                   ),
@@ -377,7 +352,7 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: const Text('Abbrechen'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -387,35 +362,27 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
                             : double.tryParse(emissionsController.text.trim());
                     if (emissions != null && emissions < 0) {
                       setDialogState(() {
-                        errorText = 'Emissions must be >= 0';
+                        errorText = 'Emissionen müssen mindestens 0 sein';
                       });
                       return;
                     }
+                    final epcValidUntil = _parseDateMillis(
+                      epcValidController.text,
+                    );
+                    final lastAuditDate = _parseDateMillis(
+                      auditController.text,
+                    );
 
                     await ref
                         .read(esgRepositoryProvider)
                         .upsertProfile(
                           EsgProfileRecord(
                             propertyId: property.id,
-                            epcRating:
-                                epcController.text.trim().isEmpty
-                                    ? null
-                                    : epcController.text.trim(),
-                            epcValidUntil:
-                                epcValidController.text.trim().isEmpty
-                                    ? null
-                                    : int.tryParse(
-                                      epcValidController.text.trim(),
-                                    ),
+                            epcRating: epcRating,
+                            epcValidUntil: epcValidUntil,
                             emissionsKgCo2M2: emissions,
-                            lastAuditDate:
-                                auditController.text.trim().isEmpty
-                                    ? null
-                                    : int.tryParse(auditController.text.trim()),
-                            targetRating:
-                                targetController.text.trim().isEmpty
-                                    ? null
-                                    : targetController.text.trim(),
+                            lastAuditDate: lastAuditDate,
+                            targetRating: targetRating,
                             notes:
                                 notesController.text.trim().isEmpty
                                     ? null
@@ -430,7 +397,7 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
                       setState(() {});
                     }
                   },
-                  child: const Text('Save'),
+                  child: const Text('Speichern'),
                 ),
               ],
             );
@@ -439,12 +406,20 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
       },
     );
 
-    epcController.dispose();
     epcValidController.dispose();
     emissionsController.dispose();
     auditController.dispose();
-    targetController.dispose();
     notesController.dispose();
+  }
+
+  Future<DateTime?> _pickDate(BuildContext context, String currentValue) {
+    final initial = _parseDate(currentValue) ?? DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1990),
+      lastDate: DateTime(2100),
+    );
   }
 
   Future<void> _exportCsv(
@@ -492,7 +467,7 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
       return;
     }
     setState(() {
-      _status = 'CSV exported to ${location.path}';
+      _status = 'CSV exportiert: ${location.path}';
     });
   }
 
@@ -552,7 +527,7 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
       return;
     }
     setState(() {
-      _status = 'PDF exported to ${location.path}';
+      _status = 'PDF exportiert: ${location.path}';
     });
   }
 
@@ -571,6 +546,217 @@ class _EsgDashboardScreenState extends ConsumerState<EsgDashboardScreen> {
   }
 }
 
+class _EsgPropertyCard extends StatelessWidget {
+  const _EsgPropertyCard({
+    required this.property,
+    required this.profile,
+    required this.onEdit,
+  });
+
+  final PropertyRecord property;
+  final EsgProfileRecord? profile;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final validUntil = profile?.epcValidUntil;
+    final expiryDate =
+        validUntil == null ? null : DateTime.fromMillisecondsSinceEpoch(validUntil);
+    final expiresSoon =
+        expiryDate != null &&
+        expiryDate.isBefore(DateTime.now().add(const Duration(days: 90)));
+    return NxCard(
+      variant: NxCardVariant.interactive,
+      onTap: onEdit,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 780;
+          final facts = [
+            _EsgFact(
+              'EPC',
+              profile?.epcRating ?? 'Nicht gesetzt',
+              _ratingBadgeKind(profile?.epcRating),
+              Icons.energy_savings_leaf_outlined,
+              const InfoTooltip(metricKey: 'epc_rating', size: 14),
+            ),
+            _EsgFact(
+              'Gültig bis',
+              _dateLabelFromMillis(profile?.epcValidUntil),
+              expiresSoon ? NxBadgeKind.warning : NxBadgeKind.neutral,
+              Icons.event_outlined,
+              null,
+            ),
+            _EsgFact(
+              'Emissionen',
+              profile?.emissionsKgCo2M2 == null
+                  ? 'Nicht gesetzt'
+                  : '${profile!.emissionsKgCo2M2!.toStringAsFixed(2)} kgCO2/m2',
+              profile?.emissionsKgCo2M2 == null
+                  ? NxBadgeKind.neutral
+                  : NxBadgeKind.info,
+              Icons.cloud_outlined,
+              const InfoTooltip(metricKey: 'emissions', size: 14),
+            ),
+            _EsgFact(
+              'Ziel',
+              profile?.targetRating ?? 'Nicht gesetzt',
+              _ratingBadgeKind(profile?.targetRating),
+              Icons.flag_outlined,
+              null,
+            ),
+          ];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          property.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${property.addressLine1}, ${property.zip} ${property.city}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Bearbeiten'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.component),
+              Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: AppSpacing.component,
+                children: [
+                  for (final fact in facts)
+                    SizedBox(
+                      width:
+                          compact
+                              ? double.infinity
+                              : (constraints.maxWidth - AppSpacing.component) / 2,
+                      child: _EsgFactTile(fact: fact),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _EsgFactTile extends StatelessWidget {
+  const _EsgFactTile({required this.fact});
+
+  final _EsgFact fact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(fact.icon, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fact.label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    NxStatusBadge(label: fact.value, kind: fact.kind),
+                    if (fact.tooltip != null) fact.tooltip!,
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EsgFact {
+  const _EsgFact(
+    this.label,
+    this.value,
+    this.kind,
+    this.icon,
+    this.tooltip,
+  );
+
+  final String label;
+  final String value;
+  final NxBadgeKind kind;
+  final IconData icon;
+  final Widget? tooltip;
+}
+
+class _DateTextField extends StatelessWidget {
+  const _DateTextField({
+    required this.controller,
+    required this.label,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.event_outlined),
+        suffixIcon: SizedBox(
+          width: 96,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                onPressed: onClear,
+                icon: const Icon(Icons.clear_outlined),
+              ),
+              IconButton(
+                onPressed: onPick,
+                icon: const Icon(Icons.calendar_month_outlined),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EsgVm {
   const _EsgVm({
     required this.properties,
@@ -583,4 +769,74 @@ class _EsgVm {
   final Map<String, EsgProfileRecord> profileByProperty;
   final List<PortfolioRecord> portfolios;
   final Set<String> allowedPropertyIds;
+}
+
+List<DropdownMenuItem<String>> _ratingItems() {
+  return const [
+    DropdownMenuItem(value: '', child: Text('Nicht gesetzt')),
+    DropdownMenuItem(value: 'A', child: Text('A')),
+    DropdownMenuItem(value: 'B', child: Text('B')),
+    DropdownMenuItem(value: 'C', child: Text('C')),
+    DropdownMenuItem(value: 'D', child: Text('D')),
+    DropdownMenuItem(value: 'E', child: Text('E')),
+    DropdownMenuItem(value: 'F', child: Text('F')),
+    DropdownMenuItem(value: 'G', child: Text('G')),
+  ];
+}
+
+String? _normalizeRating(String? value) {
+  final normalized = (value ?? '').trim().toUpperCase();
+  return _ratingItems().any((item) => item.value == normalized) &&
+          normalized.isNotEmpty
+      ? normalized
+      : null;
+}
+
+String _dateLabelFromMillis(int? millis) {
+  if (millis == null) {
+    return 'Nicht gesetzt';
+  }
+  return _dateLabel(DateTime.fromMillisecondsSinceEpoch(millis));
+}
+
+String _dateLabel(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
+}
+
+DateTime? _parseDate(String value) {
+  final parts = value.trim().split('-');
+  if (parts.length != 3) {
+    return null;
+  }
+  final year = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  final day = int.tryParse(parts[2]);
+  if (year == null || month == null || day == null) {
+    return null;
+  }
+  return DateTime(year, month, day);
+}
+
+int? _parseDateMillis(String value) {
+  final date = _parseDate(value);
+  return date?.millisecondsSinceEpoch;
+}
+
+NxBadgeKind _ratingBadgeKind(String? rating) {
+  switch ((rating ?? '').toUpperCase()) {
+    case 'A':
+    case 'B':
+      return NxBadgeKind.success;
+    case 'C':
+    case 'D':
+      return NxBadgeKind.warning;
+    case 'E':
+    case 'F':
+    case 'G':
+      return NxBadgeKind.error;
+    default:
+      return NxBadgeKind.neutral;
+  }
 }

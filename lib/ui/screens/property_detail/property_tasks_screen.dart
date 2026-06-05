@@ -288,6 +288,22 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
     );
     var status = existing?.status ?? 'todo';
     var priority = existing?.priority ?? 'normal';
+    const allowedStatuses = <String>['todo', 'in_progress', 'done'];
+    final statusItems = <DropdownMenuItem<String>>[
+      if (!allowedStatuses.contains(status))
+        DropdownMenuItem(value: status, child: Text(status)),
+      const DropdownMenuItem(value: 'todo', child: Text('To do')),
+      const DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+      const DropdownMenuItem(value: 'done', child: Text('Done')),
+    ];
+    const allowedPriorities = <String>['low', 'normal', 'high'];
+    final priorityItems = <DropdownMenuItem<String>>[
+      if (!allowedPriorities.contains(priority))
+        DropdownMenuItem(value: priority, child: Text(priority)),
+      const DropdownMenuItem(value: 'low', child: Text('Low')),
+      const DropdownMenuItem(value: 'normal', child: Text('Normal')),
+      const DropdownMenuItem(value: 'high', child: Text('High')),
+    ];
 
     await showDialog<void>(
       context: context,
@@ -310,14 +326,7 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
                       DropdownButtonFormField<String>(
                         value: status,
                         decoration: const InputDecoration(labelText: 'Status'),
-                        items: const [
-                          DropdownMenuItem(value: 'todo', child: Text('To do')),
-                          DropdownMenuItem(
-                            value: 'in_progress',
-                            child: Text('In progress'),
-                          ),
-                          DropdownMenuItem(value: 'done', child: Text('Done')),
-                        ],
+                        items: statusItems,
                         onChanged: (value) {
                           if (value == null) {
                             return;
@@ -331,14 +340,7 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Priority',
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'low', child: Text('Low')),
-                          DropdownMenuItem(
-                            value: 'normal',
-                            child: Text('Normal'),
-                          ),
-                          DropdownMenuItem(value: 'high', child: Text('High')),
-                        ],
+                        items: priorityItems,
                         onChanged: (value) {
                           if (value == null) {
                             return;

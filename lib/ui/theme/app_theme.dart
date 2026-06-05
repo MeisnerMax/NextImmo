@@ -175,15 +175,15 @@ class AppDensityConfig extends ThemeExtension<AppDensityConfig> {
 }
 
 class AppColors {
-  static const Color background = Color(0xFF08122D);
-  static const Color surface = Color(0xFF030C28);
-  static const Color border = Color(0x3346464D);
-  static const Color textPrimary = Color(0xFFDBE1FF);
-  static const Color textSecondary = Color(0xFFC6C6CE);
-  static const Color primary = Color(0xFFE9C349);
-  static const Color positive = Color(0xFF59DE9B);
-  static const Color negative = Color(0xFFFFB4AB);
-  static const Color warning = Color(0xFFBFC5E4);
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color border = Color(0xFFE2E8F0);
+  static const Color textPrimary = Color(0xFF0F172A);
+  static const Color textSecondary = Color(0xFF64748B);
+  static const Color primary = Color(0xFF2563EB);
+  static const Color positive = Color(0xFF16A34A);
+  static const Color negative = Color(0xFFDC2626);
+  static const Color warning = Color(0xFFD97706);
 
   const AppColors._();
 }
@@ -278,35 +278,35 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFF08122D),
-    surface: Color(0xFF030C28),
-    surfaceAlt: Color(0xFF151E3A),
-    border: Color(0x3346464D),
-    textPrimary: Color(0xFFDBE1FF),
-    textSecondary: Color(0xFFC6C6CE),
-    primary: Color(0xFFE9C349),
-    secondary: Color(0xFFBFC5E4),
-    accent: Color(0xFF59DE9B),
-    success: Color(0xFF59DE9B),
-    warning: Color(0xFFBFC5E4),
-    error: Color(0xFFFFB4AB),
-    info: Color(0xFFBFC5E4),
+    background: Color(0xFFE2E8F0),
+    surface: Color(0xFFFFFFFF),
+    surfaceAlt: Color(0xFFEFF6FF),
+    border: Color(0xFFE2E8F0),
+    textPrimary: Color(0xFF0F172A),
+    textSecondary: Color(0xFF64748B),
+    primary: Color(0xFF2563EB),
+    secondary: Color(0xFF0F172A),
+    accent: Color(0xFF0EA5A4),
+    success: Color(0xFF16A34A),
+    warning: Color(0xFFD97706),
+    error: Color(0xFFDC2626),
+    info: Color(0xFF2563EB),
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
     background: Color(0xFF08122D),
     surface: Color(0xFF030C28),
     surfaceAlt: Color(0xFF151E3A),
-    border: Color(0x3346464D),
+    border: Color(0x334B5E7A),
     textPrimary: Color(0xFFDBE1FF),
     textSecondary: Color(0xFFC6C6CE),
-    primary: Color(0xFFE9C349),
-    secondary: Color(0xFFBFC5E4),
-    accent: Color(0xFF59DE9B),
+    primary: Color(0xFF7DB4FF),
+    secondary: Color(0xFFBFD0EA),
+    accent: Color(0xFF5EEAD4),
     success: Color(0xFF59DE9B),
-    warning: Color(0xFFBFC5E4),
+    warning: Color(0xFFFBBF24),
     error: Color(0xFFFFB4AB),
-    info: Color(0xFFBFC5E4),
+    info: Color(0xFF7DB4FF),
   );
 
   static const AppTypographyTokens _comfortTypography = AppTypographyTokens(
@@ -332,7 +332,7 @@ class AppTheme {
   }) {
     return _buildTheme(
       tokens: _lightTokens,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       densityMode: densityMode,
     );
   }
@@ -389,7 +389,13 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme.copyWith(
         onSurface: tokens.textPrimary,
-        onPrimary: Colors.white,
+        onSurfaceVariant: tokens.textSecondary,
+        onPrimary:
+            brightness == Brightness.light
+                ? Colors.white
+                : const Color(0xFF06224A),
+        outlineVariant: tokens.border,
+        surfaceContainerHighest: tokens.surfaceAlt,
       ),
       scaffoldBackgroundColor: tokens.background,
       fontFamily: 'Geist',
@@ -441,12 +447,12 @@ class AppTheme {
           height: 1.2,
           fontWeight: FontWeight.w600,
           color: tokens.textSecondary,
-          letterSpacing: 1.2,
+          letterSpacing: 0,
         ),
         labelLarge: TextStyle(
           fontSize: typography.buttonSize,
           fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
+          letterSpacing: 0,
         ),
       ),
       cardTheme: CardThemeData(
@@ -541,7 +547,10 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: tokens.primary,
-          foregroundColor: const Color(0xFF3C2F00),
+          foregroundColor:
+              brightness == Brightness.light
+                  ? Colors.white
+                  : const Color(0xFF06224A),
           elevation: 0,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 14 : 16,
@@ -571,7 +580,7 @@ class AppTheme {
           textStyle: TextStyle(
             fontSize: typography.buttonSize,
             fontWeight: FontWeight.w600,
-            letterSpacing: 1.2,
+            letterSpacing: 0,
           ),
         ),
       ),

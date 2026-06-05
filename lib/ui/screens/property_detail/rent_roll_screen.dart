@@ -149,117 +149,171 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final snapshotPane = Card(
-                  child: _snapshots.isEmpty
-                      ? const Center(child: Text('No snapshots yet.'))
-                      : ListView.builder(
-                            itemCount: _snapshots.length,
-                            itemBuilder: (context, index) {
-                              final snapshot = _snapshots[index];
-                              return ListTile(
-                                selected: _selected?.snapshot.id == snapshot.id,
-                                title: Text(snapshot.periodKey),
-                                subtitle: Text(
-                                  'Occ ${(snapshot.occupancyRate * 100).toStringAsFixed(1)}% · In Place ${snapshot.inPlaceRentMonthly.toStringAsFixed(2)}',
-                                ),
-                                onTap: () => _loadSnapshot(snapshot.id),
-                                trailing: TextButton(
-                                  onPressed: () => _deleteSnapshot(snapshot.id),
-                                  child: const Text('Delete'),
-                                ),
-                              );
-                            },
-                          ),
-                );
-                final tablePane = Card(
-                  child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                      child: _selected == null
-                          ? const Center(child: Text('Select a snapshot'))
-                          : filteredRows.isEmpty
-                              ? const Center(child: Text('No rent roll rows match the current filters.'))
-                              : SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Unit')),
-                                      DataColumn(label: Text('Tenant')),
-                                      DataColumn(label: Text('Lease')),
-                                      DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('In Place')),
-                                      DataColumn(label: Text('Market')),
-                                      DataColumn(label: Text('Variance')),
-                                      DataColumn(label: Text('Deposit')),
-                                      DataColumn(label: Text('Lease End')),
-                                      DataColumn(label: Text('Days')),
-                                      DataColumn(label: Text('Flags')),
-                                    ],
-                                    rows: filteredRows
-                                        .map(
-                                          (row) => DataRow(
-                                            cells: [
-                                              DataCell(Text(row.unitLabel)),
-                                              DataCell(Text(row.tenantLabel)),
-                                              DataCell(Text(row.leaseLabel)),
-                                              DataCell(Text(row.line.status)),
-                                              DataCell(Text(row.line.inPlaceRentMonthly.toStringAsFixed(2))),
-                                              DataCell(Text(row.line.marketRentMonthly?.toStringAsFixed(2) ?? '-')),
-                                              DataCell(Text(row.varianceText)),
-                                              DataCell(Text(row.depositStatus)),
-                                              DataCell(Text(formatDateMillis(row.line.leaseEndDate))),
-                                              DataCell(Text(row.daysToExpiryText)),
-                                              DataCell(
-                                                SizedBox(
-                                                  width: 220,
-                                                  child: Wrap(
-                                                    spacing: 4,
-                                                    runSpacing: 4,
-                                                    children: row.flags
-                                                        .map(
-                                                          (flag) => Container(
-                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                            decoration: BoxDecoration(
-                                                              color: const Color(0xFFEAF1F8),
-                                                              borderRadius: BorderRadius.circular(999),
-                                                            ),
-                                                            child: Text(flag, style: const TextStyle(fontSize: 12)),
-                                                          ),
-                                                        )
-                                                        .toList(growable: false),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                        .toList(growable: false),
-                                  ),
-                                ),
-                  ),
-                );
-                if (constraints.maxWidth < 1040) {
-                  return Column(
-                    children: [
-                      SizedBox(height: 180, child: snapshotPane),
-                      const SizedBox(height: AppSpacing.component),
-                      Expanded(child: tablePane),
-                    ],
-                  );
-                }
-                return Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final snapshotPane = _snapshotCard(context);
+              final tablePane = _rentRollTableCard(filteredRows);
+              if (constraints.maxWidth < 1040) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: snapshotPane),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(flex: 3, child: tablePane),
+                    snapshotPane,
+                    const SizedBox(height: AppSpacing.component),
+                    tablePane,
                   ],
                 );
-              },
-            ),
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 320, child: snapshotPane),
+                  const SizedBox(width: AppSpacing.component),
+                  Expanded(child: tablePane),
+                ],
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _snapshotCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Snapshots', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (_snapshots.isEmpty)
+              const Text('No snapshots yet.')
+            else
+              Column(
+                children: [
+                  for (final snapshot in _snapshots)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      selected: _selected?.snapshot.id == snapshot.id,
+                      title: Text(snapshot.periodKey),
+                      subtitle: Text(
+                        'Occ ${(snapshot.occupancyRate * 100).toStringAsFixed(1)}% · In Place ${snapshot.inPlaceRentMonthly.toStringAsFixed(2)}',
+                      ),
+                      onTap: () => _loadSnapshot(snapshot.id),
+                      trailing: TextButton(
+                        onPressed: () => _deleteSnapshot(snapshot.id),
+                        child: const Text('Delete'),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _rentRollTableCard(List<_RentRollDisplayRow> filteredRows) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child:
+            _selected == null
+                ? const Text('Select a snapshot')
+                : filteredRows.isEmpty
+                ? const Text('No rent roll rows match the current filters.')
+                : ClipRect(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Unit')),
+                      DataColumn(label: Text('Tenant')),
+                      DataColumn(label: Text('Lease')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('In Place')),
+                      DataColumn(label: Text('Market')),
+                      DataColumn(label: Text('Variance')),
+                      DataColumn(label: Text('Deposit')),
+                      DataColumn(label: Text('Lease End')),
+                      DataColumn(label: Text('Days')),
+                      DataColumn(label: Text('Flags')),
+                    ],
+                    rows:
+                        filteredRows
+                            .map(
+                              (row) => DataRow(
+                                cells: [
+                                  DataCell(Text(row.unitLabel)),
+                                  DataCell(Text(row.tenantLabel)),
+                                  DataCell(Text(row.leaseLabel)),
+                                  DataCell(Text(row.line.status)),
+                                  DataCell(
+                                    Text(
+                                      row.line.inPlaceRentMonthly
+                                          .toStringAsFixed(2),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      row.line.marketRentMonthly
+                                              ?.toStringAsFixed(2) ??
+                                          '-',
+                                    ),
+                                  ),
+                                  DataCell(Text(row.varianceText)),
+                                  DataCell(Text(row.depositStatus)),
+                                  DataCell(
+                                    Text(
+                                      formatDateMillis(row.line.leaseEndDate),
+                                    ),
+                                  ),
+                                  DataCell(Text(row.daysToExpiryText)),
+                                  DataCell(
+                                    SizedBox(
+                                      width: 220,
+                                      child: Wrap(
+                                        spacing: 4,
+                                        runSpacing: 4,
+                                        children:
+                                            row.flags
+                                                .map(
+                                                  (flag) => Container(
+                                                    padding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                        0xFFEAF1F8,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      flag,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                )
+                                                .toList(growable: false),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            .toList(growable: false),
+                    ),
+                  ),
+                ),
       ),
     );
   }

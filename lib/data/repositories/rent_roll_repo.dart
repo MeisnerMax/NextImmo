@@ -10,11 +10,20 @@ class RentRollRepo {
   final Database _db;
   final RentRollEngine _engine;
 
-  Future<List<UnitRecord>> listUnitsByAsset(String assetPropertyId) async {
+  Future<List<UnitRecord>> listUnitsByAsset(
+    String assetPropertyId, {
+    bool includeArchived = false,
+  }) async {
     final rows = await _db.query(
       'units',
-      where: 'asset_property_id = ?',
-      whereArgs: <Object?>[assetPropertyId],
+      where:
+          includeArchived
+              ? 'asset_property_id = ?'
+              : 'asset_property_id = ? AND status != ?',
+      whereArgs:
+          includeArchived
+              ? <Object?>[assetPropertyId]
+              : <Object?>[assetPropertyId, 'archived'],
       orderBy: 'unit_code COLLATE NOCASE',
     );
     return rows.map(UnitRecord.fromMap).toList();

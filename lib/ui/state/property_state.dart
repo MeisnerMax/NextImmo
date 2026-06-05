@@ -64,6 +64,18 @@ class PropertiesController
     await reload();
   }
 
+  Future<void> deletePermanently(String propertyId) async {
+    await _repo.deletePermanently(propertyId);
+    final selectedPropertyId = ref.read(selectedPropertyIdProvider);
+    if (selectedPropertyId == propertyId) {
+      ref.read(selectedScenarioIdProvider.notifier).state = null;
+      ref.read(selectedPropertyIdProvider.notifier).state = null;
+      ref.read(propertyDetailPageProvider.notifier).state =
+          PropertyDetailPage.overview;
+    }
+    await reload();
+  }
+
   PropertyRepository get _repo => ref.read(propertyRepositoryProvider);
   InputsRepository get _inputsRepo => ref.read(inputsRepositoryProvider);
 }

@@ -77,7 +77,7 @@ class _TopBarState extends ConsumerState<TopBar> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                inPropertyDetail ? 'NexImmo Assets' : title,
+                inPropertyDetail ? 'NexImmo' : title,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),

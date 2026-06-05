@@ -329,9 +329,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         border: Border.all(color: semantic.border),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: ClipRect(
         child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
           child: DataTable(
             columns: <DataColumn>[
               DataColumn(
@@ -402,6 +403,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 ],
               );
             }),
+          ),
           ),
         ),
       ),

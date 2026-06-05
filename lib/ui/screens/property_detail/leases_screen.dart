@@ -46,6 +46,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Wrap(
             spacing: 8,
@@ -117,78 +118,116 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
             ),
           ],
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final stacked = constraints.maxWidth < 1120;
-                final listPane = Card(
-                  child: leases.isEmpty
-                      ? const Center(child: Text('No leases match the current filters.'))
-                      : ListView.builder(
-                          itemCount: leases.length,
-                          itemBuilder: (context, index) {
-                            final lease = leases[index];
-                            return ListTile(
-                              selected: lease.id == selectedLeaseId,
-                              title: Text(lease.leaseName),
-                              subtitle: Text(
-                                '${lease.status} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
-                              ),
-                              trailing: Wrap(
-                                spacing: 8,
-                                children: [
-                                  if (_hasMissingDeposit(lease))
-                                    const Icon(Icons.warning_amber_outlined, color: Colors.orange),
-                                  TextButton(
-                                    onPressed: () => _leaseDialog(existing: lease),
-                                    child: const Text('Edit'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => _deleteLease(lease.id),
-                                    child: const Text('Delete'),
-                                  ),
-                                ],
-                              ),
-                              onTap: () {
-                                ref.read(selectedOperationsLeaseIdProvider.notifier).state = lease.id;
-                              },
-                            );
-                          },
-                        ),
-                );
-                final detailPane = Card(
-                  child: selectedLease == null
-                      ? const Center(child: Text('Select a lease to open the detail view.'))
-                      : LeaseDetailScreen(
-                          propertyId: widget.propertyId,
-                          leaseId: selectedLease.id,
-                          onEdit: () => _leaseDialog(existing: selectedLease),
-                          onAddRule: _addRuleDialog,
-                          onAddManualOverride: _manualOverrideDialog,
-                          onChanged: _reload,
-                        ),
-                );
-                if (stacked) {
-                  return Column(
-                    children: [
-                      Expanded(child: listPane),
-                      const SizedBox(height: AppSpacing.component),
-                      Expanded(child: detailPane),
-                    ],
-                  );
-                }
-                return Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 1120;
+              final listPane = _leaseListCard(
+                context: context,
+                leases: leases,
+                selectedLeaseId: selectedLeaseId,
+              );
+              final detailPane = _leaseDetailCard(selectedLease);
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: 460, child: listPane),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(child: detailPane),
+                    listPane,
+                    const SizedBox(height: AppSpacing.component),
+                    detailPane,
                   ],
                 );
-              },
-            ),
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 420, child: listPane),
+                  const SizedBox(width: AppSpacing.component),
+                  Expanded(child: detailPane),
+                ],
+              );
+            },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _leaseListCard({
+    required BuildContext context,
+    required List<LeaseRecord> leases,
+    required String? selectedLeaseId,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mietverträge', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (leases.isEmpty)
+              const Text('No leases match the current filters.')
+            else
+              Column(
+                children: [
+                  for (final lease in leases)
+                    ListTile(
+                      selected: lease.id == selectedLeaseId,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(lease.leaseName),
+                      subtitle: Text(
+                        '${lease.status} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
+                      ),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (_hasMissingDeposit(lease))
+                            const Icon(
+                              Icons.warning_amber_outlined,
+                              color: Colors.orange,
+                            ),
+                          TextButton(
+                            onPressed: () => _leaseDialog(existing: lease),
+                            child: const Text('Edit'),
+                          ),
+                          TextButton(
+                            onPressed: () => _deleteLease(lease.id),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                      onTap:
+                          () =>
+                              ref
+                                  .read(
+                                    selectedOperationsLeaseIdProvider.notifier,
+                                  )
+                                  .state = lease.id,
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _leaseDetailCard(LeaseRecord? selectedLease) {
+    return Card(
+      child:
+          selectedLease == null
+              ? const Padding(
+                padding: EdgeInsets.all(AppSpacing.cardPadding),
+                child: Text('Select a lease to open the detail view.'),
+              )
+              : LeaseDetailScreen(
+                propertyId: widget.propertyId,
+                leaseId: selectedLease.id,
+                onEdit: () => _leaseDialog(existing: selectedLease),
+                onAddRule: _addRuleDialog,
+                onAddManualOverride: _manualOverrideDialog,
+                onChanged: _reload,
+              ),
     );
   }
 
@@ -218,7 +257,10 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
   Future<void> _reload() async {
     final rentRollRepo = ref.read(rentRollRepositoryProvider);
     final leaseRepo = ref.read(leaseRepositoryProvider);
-    final units = await rentRollRepo.listUnitsByAsset(widget.propertyId);
+    final units = await rentRollRepo.listUnitsByAsset(
+      widget.propertyId,
+      includeArchived: true,
+    );
     final leases = await leaseRepo.listLeasesByAsset(widget.propertyId);
     final tenants = await leaseRepo.listTenants();
     if (!mounted) {
@@ -327,6 +369,68 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
         existing?.leaseSignedDate == null ? null : DateTime.fromMillisecondsSinceEpoch(existing!.leaseSignedDate!);
     DateTime? noticeDate =
         existing?.noticeDate == null ? null : DateTime.fromMillisecondsSinceEpoch(existing!.noticeDate!);
+    final unitItems = <DropdownMenuItem<String>>[
+      if (!_units.any((unit) => unit.id == unitId))
+        DropdownMenuItem(
+          value: unitId,
+          child: Text('Aktuelle Einheit: $unitId'),
+        ),
+      ..._units.map(
+        (unit) => DropdownMenuItem(value: unit.id, child: Text(unit.unitCode)),
+      ),
+    ];
+    final tenantItems = <DropdownMenuItem<String?>>[
+      const DropdownMenuItem<String?>(value: null, child: Text('No tenant')),
+      if (tenantId != null && !_tenants.any((tenant) => tenant.id == tenantId))
+        DropdownMenuItem<String?>(
+          value: tenantId,
+          child: Text('Aktueller Mieter: $tenantId'),
+        ),
+      ..._tenants.map(
+        (tenant) => DropdownMenuItem<String?>(
+          value: tenant.id,
+          child: Text(tenant.displayName),
+        ),
+      ),
+    ];
+    const allowedBillingFrequencies = <String>['monthly', 'quarterly', 'yearly'];
+    final billingItems = <DropdownMenuItem<String>>[
+      if (!allowedBillingFrequencies.contains(billingFrequency))
+        DropdownMenuItem(value: billingFrequency, child: Text(billingFrequency)),
+      const DropdownMenuItem(value: 'monthly', child: Text('monthly')),
+      const DropdownMenuItem(value: 'quarterly', child: Text('quarterly')),
+      const DropdownMenuItem(value: 'yearly', child: Text('yearly')),
+    ];
+    const allowedStatuses = <String>[
+      'draft',
+      'future',
+      'active',
+      'terminated',
+      'expired',
+    ];
+    final statusItems = <DropdownMenuItem<String>>[
+      if (!allowedStatuses.contains(status))
+        DropdownMenuItem(value: status, child: Text(status)),
+      const DropdownMenuItem(value: 'draft', child: Text('draft')),
+      const DropdownMenuItem(value: 'future', child: Text('future')),
+      const DropdownMenuItem(value: 'active', child: Text('active')),
+      const DropdownMenuItem(value: 'terminated', child: Text('terminated')),
+      const DropdownMenuItem(value: 'expired', child: Text('expired')),
+    ];
+    const allowedDepositStatuses = <String>[
+      'unknown',
+      'pending',
+      'received',
+      'waived',
+    ];
+    final depositItems = <DropdownMenuItem<String>>[
+      if (!allowedDepositStatuses.contains(depositStatus))
+        DropdownMenuItem(value: depositStatus, child: Text(depositStatus)),
+      const DropdownMenuItem(value: 'unknown', child: Text('unknown')),
+      const DropdownMenuItem(value: 'pending', child: Text('pending')),
+      const DropdownMenuItem(value: 'received', child: Text('received')),
+      const DropdownMenuItem(value: 'waived', child: Text('waived')),
+    ];
 
     await showDialog<void>(
       context: context,
@@ -341,9 +445,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     value: unitId,
-                    items: _units
-                        .map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.unitCode)))
-                        .toList(growable: false),
+                    items: unitItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => unitId = value);
@@ -354,12 +456,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String?>(
                     value: tenantId,
-                    items: [
-                      const DropdownMenuItem<String?>(value: null, child: Text('No tenant')),
-                      ..._tenants.map(
-                        (tenant) => DropdownMenuItem<String?>(value: tenant.id, child: Text(tenant.displayName)),
-                      ),
-                    ],
+                    items: tenantItems,
                     onChanged: (value) => setDialogState(() => tenantId = value),
                     decoration: const InputDecoration(labelText: 'Tenant'),
                   ),
@@ -394,11 +491,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: billingFrequency,
-                    items: const [
-                      DropdownMenuItem(value: 'monthly', child: Text('monthly')),
-                      DropdownMenuItem(value: 'quarterly', child: Text('quarterly')),
-                      DropdownMenuItem(value: 'yearly', child: Text('yearly')),
-                    ],
+                    items: billingItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => billingFrequency = value);
@@ -409,13 +502,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: status,
-                    items: const [
-                      DropdownMenuItem(value: 'draft', child: Text('draft')),
-                      DropdownMenuItem(value: 'future', child: Text('future')),
-                      DropdownMenuItem(value: 'active', child: Text('active')),
-                      DropdownMenuItem(value: 'terminated', child: Text('terminated')),
-                      DropdownMenuItem(value: 'expired', child: Text('expired')),
-                    ],
+                    items: statusItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => status = value);
@@ -426,12 +513,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: depositStatus,
-                    items: const [
-                      DropdownMenuItem(value: 'unknown', child: Text('unknown')),
-                      DropdownMenuItem(value: 'pending', child: Text('pending')),
-                      DropdownMenuItem(value: 'received', child: Text('received')),
-                      DropdownMenuItem(value: 'waived', child: Text('waived')),
-                    ],
+                    items: depositItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => depositStatus = value);

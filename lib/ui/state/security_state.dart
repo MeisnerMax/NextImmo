@@ -217,6 +217,14 @@ class SecurityController extends AsyncNotifier<SecurityState> {
     );
   }
 
+  Future<void> updateUserRole({
+    required String userId,
+    required String role,
+  }) async {
+    await _securityRepo.updateUserRole(userId: userId, role: role);
+    await refresh();
+  }
+
   Future<void> deleteUser(String userId) {
     return _deleteUserAndRefresh(userId);
   }

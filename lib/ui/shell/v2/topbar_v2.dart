@@ -85,7 +85,7 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                inPropertyDetail ? 'NexImmo Assets' : title,
+                inPropertyDetail ? 'NexImmo' : title,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -137,18 +137,6 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                 },
                 icon: const Icon(Icons.lock_outline),
               ),
-            if (selectedPropertyId != null)
-              compact
-                  ? IconButton(
-                    tooltip: s.text('Back to list'),
-                    onPressed: _backToList,
-                    icon: const Icon(Icons.arrow_back),
-                  )
-                  : TextButton.icon(
-                    onPressed: _backToList,
-                    icon: const Icon(Icons.arrow_back),
-                    label: Text(s.text('Back to list')),
-                  ),
           ];
           if (compact) {
             return Column(
@@ -164,6 +152,12 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                       ),
                       const SizedBox(width: 8),
                     ],
+                    if (selectedPropertyId != null)
+                      IconButton(
+                        tooltip: s.text('Back'),
+                        onPressed: _backToList,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
                     Expanded(child: titleBlock),
                   ],
                 ),
@@ -182,10 +176,16 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
                 ),
                 const SizedBox(width: 8),
               ],
+              if (selectedPropertyId != null)
+                TextButton.icon(
+                  onPressed: _backToList,
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(s.text('Back')),
+                ),
               Expanded(child: titleBlock),
               if (!inPropertyDetail) ...[
                 Text(
-                  'NexImmo Assets',
+                  'NexImmo',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Theme.of(context).colorScheme.secondary,
                     fontWeight: FontWeight.w600,
@@ -208,15 +208,23 @@ class _TopBarV2State extends ConsumerState<TopBarV2> {
 
   void _backToList() {
     final selectedScenarioId = ref.read(selectedScenarioIdProvider);
-    if (selectedScenarioId != null) {
-      ref
-          .read(scenarioAnalysisControllerProvider(selectedScenarioId).notifier)
-          .flushPendingSave();
+    final propertyPage = ref.read(propertyDetailPageProvider);
+    
+    if (propertyPage != PropertyDetailPage.overview) {
+      // Wenn nicht auf Overview, gehe zum Overview
+      ref.read(propertyDetailPageProvider.notifier).state = PropertyDetailPage.overview;
+    } else {
+      // Wenn auf Overview, gehe zur Liste
+      if (selectedScenarioId != null) {
+        ref
+            .read(scenarioAnalysisControllerProvider(selectedScenarioId).notifier)
+            .flushPendingSave();
+      }
+      ref.read(selectedPropertyIdProvider.notifier).state = null;
+      ref.read(selectedScenarioIdProvider.notifier).state = null;
+      ref.read(propertyDetailPageProvider.notifier).state =
+          PropertyDetailPage.overview;
     }
-    ref.read(selectedPropertyIdProvider.notifier).state = null;
-    ref.read(selectedScenarioIdProvider.notifier).state = null;
-    ref.read(propertyDetailPageProvider.notifier).state =
-        PropertyDetailPage.overview;
   }
 
   Widget _buildSearchAutocomplete(double width) {

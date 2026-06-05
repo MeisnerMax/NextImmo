@@ -68,14 +68,14 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
               ElevatedButton.icon(
                 onPressed: _createTenantDialog,
                 icon: const Icon(Icons.add),
-                label: const Text('Add Tenant'),
+                label: const Text('Mieter anlegen'),
               ),
               SizedBox(
                 width: 220,
                 child: TextField(
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
-                    labelText: 'Search Tenants',
+                    labelText: 'Mieter suchen',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -85,10 +85,10 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
                 child: DropdownButtonFormField<String>(
                   value: _filter,
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Tenants')),
-                    DropdownMenuItem(value: 'active', child: Text('active')),
-                    DropdownMenuItem(value: 'inactive', child: Text('inactive')),
-                    DropdownMenuItem(value: 'missing_contact', child: Text('missing contact')),
+                    DropdownMenuItem(value: 'all', child: Text('Alle Mieter')),
+                    DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                    DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                    DropdownMenuItem(value: 'missing_contact', child: Text('Kontakt fehlt')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -98,7 +98,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
                   decoration: const InputDecoration(labelText: 'Filter'),
                 ),
               ),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
+              OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
           if (_status != null) ...[
@@ -106,78 +106,113 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
             Text(_status!, style: const TextStyle(color: Colors.red)),
           ],
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final stacked = constraints.maxWidth < 1100;
-                final listPane = Card(
-                  child: filteredTenants.isEmpty
-                      ? const Center(child: Text('No tenants match the current filters.'))
-                      : ListView.builder(
-                          itemCount: filteredTenants.length,
-                          itemBuilder: (context, index) {
-                            final tenant = filteredTenants[index];
-                            final contactOk =
-                                (tenant.email?.trim().isNotEmpty ?? false) &&
-                                (tenant.phone?.trim().isNotEmpty ?? false);
-                            return ListTile(
-                              selected: tenant.id == selectedTenantId,
-                              title: Text(tenant.displayName),
-                              subtitle: Text(
-                                '${tenant.status ?? 'active'}${tenant.email == null ? '' : ' · ${tenant.email}'}${tenant.phone == null ? '' : ' · ${tenant.phone}'}',
-                              ),
-                              trailing: Wrap(
-                                spacing: 8,
-                                children: [
-                                  if (!contactOk)
-                                    const Tooltip(
-                                      message: 'Missing contact data',
-                                      child: Icon(Icons.warning_amber_outlined, color: Colors.orange),
-                                    ),
-                                  TextButton(
-                                    onPressed: () => _tenantDialog(existing: tenant),
-                                    child: const Text('Edit'),
-                                  ),
-                                ],
-                              ),
-                              onTap: () {
-                                ref.read(selectedOperationsTenantIdProvider.notifier).state = tenant.id;
-                              },
-                            );
-                          },
-                        ),
-                );
-                final detailPane = Card(
-                  child: selectedTenant == null
-                      ? const Center(child: Text('Select a tenant to open the detail view.'))
-                      : TenantDetailScreen(
-                          propertyId: widget.propertyId,
-                          tenantId: selectedTenant.id,
-                          onEdit: () => _tenantDialog(existing: selectedTenant),
-                          onChanged: _reload,
-                        ),
-                );
-                if (stacked) {
-                  return Column(
-                    children: [
-                      Expanded(child: listPane),
-                      const SizedBox(height: AppSpacing.component),
-                      Expanded(child: detailPane),
-                    ],
-                  );
-                }
-                return Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 1100;
+              final listPane = _tenantListCard(
+                context: context,
+                tenants: filteredTenants,
+                selectedTenantId: selectedTenantId,
+              );
+              final detailPane = _tenantDetailCard(selectedTenant);
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: 420, child: listPane),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(child: detailPane),
+                    listPane,
+                    const SizedBox(height: AppSpacing.component),
+                    detailPane,
                   ],
                 );
-              },
-            ),
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 420, child: listPane),
+                  const SizedBox(width: AppSpacing.component),
+                  Expanded(child: detailPane),
+                ],
+              );
+            },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _tenantListCard({
+    required BuildContext context,
+    required List<TenantRecord> tenants,
+    required String? selectedTenantId,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mieter', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (tenants.isEmpty)
+              const Text('Keine Mieter fuer diese Filter.')
+            else
+              Column(
+                children: [
+                  for (final tenant in tenants)
+                    ListTile(
+                      selected: tenant.id == selectedTenantId,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tenant.displayName),
+                      subtitle: Text(
+                        '${_tenantStatusLabel(tenant.status ?? 'active')}${tenant.email == null ? '' : ' · ${tenant.email}'}${tenant.phone == null ? '' : ' · ${tenant.phone}'}',
+                      ),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (!_hasContact(tenant))
+                            const Tooltip(
+                              message: 'Kontaktdaten fehlen',
+                              child: Icon(
+                                Icons.warning_amber_outlined,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          TextButton(
+                            onPressed: () => _tenantDialog(existing: tenant),
+                            child: const Text('Bearbeiten'),
+                          ),
+                        ],
+                      ),
+                      onTap:
+                          () =>
+                              ref
+                                  .read(
+                                    selectedOperationsTenantIdProvider.notifier,
+                                  )
+                                  .state = tenant.id,
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tenantDetailCard(TenantRecord? selectedTenant) {
+    return Card(
+      child:
+          selectedTenant == null
+              ? const Padding(
+                padding: EdgeInsets.all(AppSpacing.cardPadding),
+                child: Text('Mieter auswaehlen, um Details zu oeffnen.'),
+              )
+              : TenantDetailScreen(
+                propertyId: widget.propertyId,
+                tenantId: selectedTenant.id,
+                onEdit: () => _tenantDialog(existing: selectedTenant),
+                onChanged: _reload,
+              ),
     );
   }
 
@@ -198,6 +233,11 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
 
   Future<void> _createTenantDialog() => _tenantDialog();
 
+  bool _hasContact(TenantRecord tenant) {
+    return (tenant.email?.trim().isNotEmpty ?? false) &&
+        (tenant.phone?.trim().isNotEmpty ?? false);
+  }
+
   Future<void> _tenantDialog({TenantRecord? existing}) async {
     final nameCtrl = TextEditingController(text: existing?.displayName ?? '');
     final legalNameCtrl = TextEditingController(text: existing?.legalName ?? '');
@@ -208,12 +248,20 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
     final moveInReferenceCtrl = TextEditingController(text: existing?.moveInReference ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
     String status = existing?.status ?? 'active';
+    const allowedStatuses = <String>['active', 'inactive', 'prospect'];
+    final statusItems = <DropdownMenuItem<String>>[
+      if (!allowedStatuses.contains(status))
+        DropdownMenuItem(value: status, child: Text(_tenantStatusLabel(status))),
+      const DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+      const DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+      const DropdownMenuItem(value: 'prospect', child: Text('Interessent')),
+    ];
 
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(existing == null ? 'Create Tenant' : 'Edit Tenant'),
+          title: Text(existing == null ? 'Mieter anlegen' : 'Mieter bearbeiten'),
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
@@ -222,41 +270,37 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
                 children: [
                   TextField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(labelText: 'Display Name'),
+                    decoration: const InputDecoration(labelText: 'Anzeigename'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: legalNameCtrl,
-                    decoration: const InputDecoration(labelText: 'Legal Name'),
+                    decoration: const InputDecoration(labelText: 'Rechtlicher Name'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: emailCtrl,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    decoration: const InputDecoration(labelText: 'E-Mail'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: phoneCtrl,
-                    decoration: const InputDecoration(labelText: 'Phone'),
+                    decoration: const InputDecoration(labelText: 'Telefon'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: altContactCtrl,
-                    decoration: const InputDecoration(labelText: 'Alternative Contact'),
+                    decoration: const InputDecoration(labelText: 'Alternativer Kontakt'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: billingCtrl,
-                    decoration: const InputDecoration(labelText: 'Billing Contact'),
+                    decoration: const InputDecoration(labelText: 'Abrechnungskontakt'),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: status,
-                    items: const [
-                      DropdownMenuItem(value: 'active', child: Text('active')),
-                      DropdownMenuItem(value: 'inactive', child: Text('inactive')),
-                      DropdownMenuItem(value: 'prospect', child: Text('prospect')),
-                    ],
+                    items: statusItems,
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() => status = value);
@@ -267,13 +311,13 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: moveInReferenceCtrl,
-                    decoration: const InputDecoration(labelText: 'Move In Reference'),
+                    decoration: const InputDecoration(labelText: 'Einzugsreferenz'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: notesCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Notes'),
+                    decoration: const InputDecoration(labelText: 'Notizen'),
                   ),
                 ],
               ),
@@ -282,7 +326,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const Text('Abbrechen'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -314,7 +358,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
                   }
                 }
               },
-              child: Text(existing == null ? 'Create' : 'Save'),
+              child: Text(existing == null ? 'Anlegen' : 'Speichern'),
             ),
           ],
         ),
@@ -334,5 +378,18 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
   String? _nullIfEmpty(String value) {
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String _tenantStatusLabel(String status) {
+    switch (status) {
+      case 'active':
+        return 'Aktiv';
+      case 'inactive':
+        return 'Inaktiv';
+      case 'prospect':
+        return 'Interessent';
+      default:
+        return status;
+    }
   }
 }

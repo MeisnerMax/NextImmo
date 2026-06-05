@@ -113,6 +113,9 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
     case 'open_assets_portfolio':
       openGlobalPage(ref, GlobalPage.properties);
       break;
+    case 'open_rental_overview':
+      openGlobalPage(ref, GlobalPage.rentalOverview);
+      break;
     case 'open_daily_business':
       openGlobalPage(ref, GlobalPage.tasks);
       break;
@@ -140,7 +143,7 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
       _openPropertyDetailAction(ref, PropertyDetailPage.inputs);
       break;
     case 'open_property_rent_management':
-      _openPropertyDetailAction(ref, PropertyDetailPage.rentRoll);
+      _openPropertyDetailAction(ref, PropertyDetailPage.assetWorkbook);
       break;
     case 'create_property_task':
       _openPropertyDetailAction(ref, PropertyDetailPage.tasks);

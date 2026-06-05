@@ -177,7 +177,7 @@ class _PortfolioAnalyticsScreenState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: AppColors.border),
       ),
       child: Column(

@@ -60,9 +60,11 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
         (bundle.tenant.email?.trim().isNotEmpty ?? false) &&
         (bundle.tenant.phone?.trim().isNotEmpty ?? false);
 
-    return ListView(
+    return Padding(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -237,7 +239,8 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             ),
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 

@@ -227,4 +227,36 @@ void main() {
     expect(scenarioNames.contains('review_comment'), isTrue);
     expect(scenarioNames.contains('changed_since_approval'), isTrue);
   });
+
+  test('creates v25 asset workbook tables', () async {
+    Future<bool> tableExists(String name) async {
+      final rows = await db.query(
+        'sqlite_master',
+        where: 'type = ? AND name = ?',
+        whereArgs: <Object?>['table', name],
+      );
+      return rows.isNotEmpty;
+    }
+
+    expect(await tableExists('asset_operating_costs'), isTrue);
+    expect(await tableExists('rental_income_plans'), isTrue);
+    expect(await tableExists('hotel_kpis'), isTrue);
+    expect(await tableExists('renovation_projects'), isTrue);
+
+    final costColumns = await db.rawQuery(
+      'PRAGMA table_info(asset_operating_costs)',
+    );
+    final costNames = costColumns.map((row) => row['name']).toSet();
+    expect(costNames.contains('scope'), isTrue);
+    expect(costNames.contains('allocation_key'), isTrue);
+    expect(costNames.contains('monthly_amount'), isTrue);
+    expect(costNames.contains('yearly_amount'), isTrue);
+
+    final rentColumns = await db.rawQuery(
+      'PRAGMA table_info(rental_income_plans)',
+    );
+    final rentNames = rentColumns.map((row) => row['name']).toSet();
+    expect(rentNames.contains('month_1'), isTrue);
+    expect(rentNames.contains('month_12'), isTrue);
+  });
 }
