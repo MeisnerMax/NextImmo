@@ -62,11 +62,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
               value: _roleFilter,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('Alle Rollen')),
-                DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                DropdownMenuItem(value: 'manager', child: Text('Manager')),
-                DropdownMenuItem(value: 'analyst', child: Text('Analyst')),
-                DropdownMenuItem(value: 'operations', child: Text('Operations')),
-                DropdownMenuItem(value: 'viewer', child: Text('Viewer')),
+                ..._roleItems,
               ],
               onChanged:
                   (value) => setState(() => _roleFilter = value ?? 'all'),
@@ -125,6 +121,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                             isActiveUser: user.id == activeUserId,
                             onRoleChanged:
                                 (role) => _updateRole(user: user, role: role),
+                            onSetPassword: () => _setPasswordDialog(user),
                             onDelete: () => _confirmDelete(user),
                           );
                         },
@@ -166,7 +163,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   Future<void> _openCreateDialog() async {
     final displayNameController = TextEditingController();
     final emailController = TextEditingController();
-    String role = 'viewer';
+    final passwordController = TextEditingController();
+    String role = 'asset_manager';
     String? errorText;
     await showDialog<void>(
       context: context,
@@ -212,6 +210,15 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                         prefixIcon: Icon(Icons.admin_panel_settings_outlined),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Startpasswort optional',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -237,13 +244,17 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                     try {
                       await ref
                           .read(securityControllerProvider.notifier)
-                          .createUser(
+                          .createUserWithPassword(
                             workspaceId: state.context.workspace.id,
                             displayName: displayName,
                             email: emailController.text.trim().isEmpty
                                 ? null
                                 : emailController.text.trim(),
                             role: role,
+                            password:
+                                passwordController.text.trim().isEmpty
+                                    ? null
+                                    : passwordController.text,
                           );
                       if (!mounted || !context.mounted) {
                         return;
@@ -266,6 +277,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     );
     displayNameController.dispose();
     emailController.dispose();
+    passwordController.dispose();
   }
 
   Future<void> _updateRole({
@@ -331,6 +343,67 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     }
   }
 
+  Future<void> _setPasswordDialog(LocalUserRecord user) async {
+    final passwordController = TextEditingController();
+    String? errorText;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder:
+              (context, setDialogState) => AlertDialog(
+                title: Text('Passwort für ${user.displayName} setzen'),
+                content: TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Neues Passwort',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    errorText: errorText,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final password = passwordController.text.trim();
+                      if (password.isEmpty) {
+                        setDialogState(() {
+                          errorText = 'Passwort ist erforderlich.';
+                        });
+                        return;
+                      }
+                      try {
+                        await ref
+                            .read(securityControllerProvider.notifier)
+                            .setUserPassword(
+                              userId: user.id,
+                              password: password,
+                            );
+                        if (!mounted || !context.mounted) {
+                          return;
+                        }
+                        Navigator.of(context).pop();
+                        await _load();
+                      } catch (error) {
+                        setDialogState(() {
+                          errorText = _formatError(error);
+                        });
+                      }
+                    },
+                    child: const Text('Speichern'),
+                  ),
+                ],
+              ),
+        );
+      },
+    );
+    passwordController.dispose();
+  }
+
   String _formatError(Object error) {
     final message = error.toString();
     final cleaned = message
@@ -345,12 +418,14 @@ class _UserCard extends StatelessWidget {
     required this.user,
     required this.isActiveUser,
     required this.onRoleChanged,
+    required this.onSetPassword,
     required this.onDelete,
   });
 
   final LocalUserRecord user;
   final bool isActiveUser;
   final ValueChanged<String> onRoleChanged;
+  final VoidCallback onSetPassword;
   final VoidCallback onDelete;
 
   @override
@@ -413,6 +488,17 @@ class _UserCard extends StatelessWidget {
                 ),
               ),
               OutlinedButton.icon(
+                onPressed: onSetPassword,
+                icon: Icon(
+                  user.passwordHash == null
+                      ? Icons.lock_open_outlined
+                      : Icons.lock_reset_outlined,
+                ),
+                label: Text(
+                  user.passwordHash == null ? 'Passwort setzen' : 'Passwort',
+                ),
+              ),
+              OutlinedButton.icon(
                 onPressed: isActiveUser ? null : onDelete,
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Löschen'),
@@ -444,9 +530,18 @@ class _UserCard extends StatelessWidget {
 }
 
 const _roleItems = [
-  DropdownMenuItem(value: 'admin', child: Text('Admin')),
-  DropdownMenuItem(value: 'manager', child: Text('Manager')),
-  DropdownMenuItem(value: 'analyst', child: Text('Analyst')),
-  DropdownMenuItem(value: 'operations', child: Text('Operations')),
-  DropdownMenuItem(value: 'viewer', child: Text('Viewer')),
+  DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+  DropdownMenuItem(value: 'asset_manager', child: Text('Asset Manager')),
+  DropdownMenuItem(value: 'hausmeister', child: Text('Hausmeister')),
+  DropdownMenuItem(value: 'bauleiter', child: Text('Bauleiter')),
+  DropdownMenuItem(value: 'bauarbeiter', child: Text('Bauarbeiter')),
+  DropdownMenuItem(value: 'buchhaltung', child: Text('Buchhaltung')),
+  DropdownMenuItem(value: 'vermietung', child: Text('Vermietung')),
+  DropdownMenuItem(value: 'buerokraft', child: Text('Bürokraft')),
+  DropdownMenuItem(value: 'housekeeping', child: Text('Housekeeping')),
+  DropdownMenuItem(
+    value: 'externer_dienstleister',
+    child: Text('Externer Dienstleister'),
+  ),
+  DropdownMenuItem(value: 'viewer', child: Text('Nur Lesen')),
 ];

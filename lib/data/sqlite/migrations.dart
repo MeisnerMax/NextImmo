@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 33;
+  static const int currentVersion = 36;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -37,6 +37,9 @@ class DbMigrations {
     await _createV31(db);
     await _createV32(db);
     await _createV33(db);
+    await _createV34(db);
+    await _createV35(db);
+    await _createV36(db);
   }
 
   static Future<void> onUpgrade(
@@ -142,6 +145,15 @@ class DbMigrations {
     }
     if (oldVersion < 33) {
       await _createV33(db);
+    }
+    if (oldVersion < 34) {
+      await _createV34(db);
+    }
+    if (oldVersion < 35) {
+      await _createV35(db);
+    }
+    if (oldVersion < 36) {
+      await _createV36(db);
     }
   }
 
@@ -831,6 +843,9 @@ class DbMigrations {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         entity_type TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'general',
+        assignee_group TEXT NOT NULL DEFAULT 'asset_management',
+        property_type TEXT NOT NULL DEFAULT 'all',
         default_title TEXT NOT NULL,
         default_priority TEXT NOT NULL,
         default_due_days_offset INTEGER,
@@ -1081,6 +1096,10 @@ class DbMigrations {
         cost_actual REAL,
         vendor_name TEXT,
         document_id TEXT,
+        damage_location TEXT,
+        insurance_case INTEGER NOT NULL DEFAULT 0,
+        insurance_status TEXT,
+        insurance_claim_number TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (asset_property_id) REFERENCES properties(id) ON DELETE CASCADE,
@@ -1092,6 +1111,19 @@ class DbMigrations {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_maintenance_priority_due ON maintenance_tickets(priority, due_at)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS maintenance_ticket_history (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        note TEXT,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (ticket_id) REFERENCES maintenance_tickets(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_maintenance_ticket_history_ticket ON maintenance_ticket_history(ticket_id, created_at DESC)',
     );
   }
 
@@ -1395,6 +1427,7 @@ class DbMigrations {
         email TEXT,
         display_name TEXT NOT NULL,
         password_hash TEXT,
+        password_salt TEXT,
         role TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
@@ -1443,6 +1476,7 @@ class DbMigrations {
       'email': null,
       'display_name': 'Owner',
       'password_hash': null,
+      'password_salt': null,
       'role': 'admin',
       'created_at': now,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -2083,6 +2117,81 @@ class DbMigrations {
         updated_at
       FROM asset_operating_costs
     ''');
+  }
+
+  static Future<void> _createV34(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'task_templates',
+      column: 'category',
+      alterSql:
+          "ALTER TABLE task_templates ADD COLUMN category TEXT NOT NULL DEFAULT 'general'",
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'task_templates',
+      column: 'assignee_group',
+      alterSql:
+          "ALTER TABLE task_templates ADD COLUMN assignee_group TEXT NOT NULL DEFAULT 'asset_management'",
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'task_templates',
+      column: 'property_type',
+      alterSql:
+          "ALTER TABLE task_templates ADD COLUMN property_type TEXT NOT NULL DEFAULT 'all'",
+    );
+  }
+
+  static Future<void> _createV35(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'local_users',
+      column: 'password_salt',
+      alterSql: 'ALTER TABLE local_users ADD COLUMN password_salt TEXT',
+    );
+  }
+
+  static Future<void> _createV36(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'damage_location',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN damage_location TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'insurance_case',
+      alterSql:
+          'ALTER TABLE maintenance_tickets ADD COLUMN insurance_case INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'insurance_status',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN insurance_status TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'insurance_claim_number',
+      alterSql:
+          'ALTER TABLE maintenance_tickets ADD COLUMN insurance_claim_number TEXT',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS maintenance_ticket_history (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        note TEXT,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (ticket_id) REFERENCES maintenance_tickets(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_maintenance_ticket_history_ticket ON maintenance_ticket_history(ticket_id, created_at DESC)',
+    );
   }
 
   static Future<void> _seedAssetOverviewWorkbookData(Database db) async {

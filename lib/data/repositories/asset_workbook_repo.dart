@@ -63,6 +63,12 @@ class AssetWorkbookRepo {
         0,
         (sum, summary) => sum + summary.settlementBalance,
       );
+      final ownerLabels = bundle.renovations
+          .map((project) => project.owner?.trim())
+          .whereType<String>()
+          .where((owner) => owner.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
       serviceChargeBalance += propertyServiceChargeBalance;
       final completeSources =
           bundle.sourceItems.where((item) => item.complete).length;
@@ -82,6 +88,7 @@ class AssetWorkbookRepo {
           annualOperatingCosts: bundle.annualOperatingCosts,
           openDepositAmount: bundle.openDepositAmount,
           serviceChargeBalance: propertyServiceChargeBalance,
+          ownerLabels: ownerLabels,
           sourceAreasComplete: completeSources,
           sourceAreasTotal: bundle.sourceItems.length,
           missingSourceLabels: bundle.sourceItems
@@ -118,11 +125,12 @@ class AssetWorkbookRepo {
       year: currentYear,
     );
     final leases = await _loadLeases(propertyId);
+    final units = await _loadUnits(propertyId);
     final settlementLines = _buildSettlementLines(
       costs: costs,
+      units: units,
       year: currentYear,
     );
-    final units = await _loadUnits(propertyId);
     final settlementSummaries = _buildSettlementSummaries(
       costs: costs,
       units: units,
@@ -928,8 +936,11 @@ class AssetWorkbookRepo {
 
   List<ServiceChargeSettlementLine> _buildSettlementLines({
     required List<AssetOperatingCostRecord> costs,
+    required List<UnitRecord> units,
     required int year,
   }) {
+    final totalArea = units.fold<double>(0, (sum, unit) => sum + (unit.sqft ?? 0));
+    final unitShare = units.isEmpty ? 1.0 : 1 / units.length;
     return costs
         .where(
           (cost) =>
@@ -940,18 +951,64 @@ class AssetWorkbookRepo {
         .map((cost) {
           final yearlyRunRate = cost.yearlyRunRateForYear(year);
           final direct = cost.scope == 'unit' || cost.allocationKey == 'Direkt';
+          final allocationKey =
+              cost.allocationKey ?? (direct ? 'Direkt' : 'Wohnfläche');
+          final allocationShare = _allocationShareForCost(
+            cost: cost,
+            units: units,
+            totalArea: totalArea,
+            fallbackUnitShare: unitShare,
+            allocationKey: allocationKey,
+          );
           return ServiceChargeSettlementLine(
             costType: direct && cost.unitCode != null
                 ? '${cost.costType} (${cost.unitCode})'
                 : cost.costType,
             totalYearlyCost: yearlyRunRate,
-            allocationKey: cost.allocationKey ?? (direct ? 'Direkt' : 'Wohnfläche'),
-            allocationShare: 1,
+            allocationKey: allocationKey,
+            allocationShare: allocationShare,
             timeShare: 1,
-            tenantShare: yearlyRunRate,
+            tenantShare: yearlyRunRate * allocationShare,
           );
         })
         .toList(growable: false);
+  }
+
+  double _allocationShareForCost({
+    required AssetOperatingCostRecord cost,
+    required List<UnitRecord> units,
+    required double totalArea,
+    required double fallbackUnitShare,
+    required String allocationKey,
+  }) {
+    if (cost.scope != 'unit' && allocationKey != 'Direkt') {
+      return 1;
+    }
+    final unitCode = cost.unitCode?.trim();
+    if (unitCode == null || unitCode.isEmpty) {
+      return 1;
+    }
+    UnitRecord? unit;
+    for (final candidate in units) {
+      if (candidate.unitCode.trim().toLowerCase() == unitCode.toLowerCase()) {
+        unit = candidate;
+        break;
+      }
+    }
+    if (unit == null) {
+      return 1;
+    }
+    final normalizedKey = allocationKey.trim().toLowerCase();
+    if (normalizedKey.contains('wohnfläche') ||
+        normalizedKey.contains('flaeche') ||
+        normalizedKey.contains('fläche')) {
+      final area = unit.sqft ?? 0;
+      return totalArea > 0 ? area / totalArea : fallbackUnitShare;
+    }
+    if (normalizedKey.contains('einheit') || normalizedKey.contains('anzahl')) {
+      return fallbackUnitShare;
+    }
+    return 1;
   }
 
   List<ServiceChargeSettlementSummary> _buildSettlementSummaries({

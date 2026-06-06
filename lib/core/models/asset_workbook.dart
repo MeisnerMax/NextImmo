@@ -569,6 +569,7 @@ class PortfolioRentalOverviewRow {
     required this.annualOperatingCosts,
     required this.openDepositAmount,
     required this.serviceChargeBalance,
+    required this.ownerLabels,
     required this.sourceAreasComplete,
     required this.sourceAreasTotal,
     required this.missingSourceLabels,
@@ -585,6 +586,7 @@ class PortfolioRentalOverviewRow {
   final double annualOperatingCosts;
   final double openDepositAmount;
   final double serviceChargeBalance;
+  final List<String> ownerLabels;
   final int sourceAreasComplete;
   final int sourceAreasTotal;
   final List<String> missingSourceLabels;

@@ -61,6 +61,8 @@ class TaskGenerationService {
           entityType: entityRef.entityType,
           entityId: entityRef.entityId,
           title: template.defaultTitle,
+          category: template.category,
+          assignedTo: template.assigneeGroup,
           priority: template.defaultPriority,
           dueAt: dueAt,
           status: 'todo',

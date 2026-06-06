@@ -388,55 +388,70 @@ class _SovereignDashboard extends StatelessWidget {
         _IconActionButton(icon: Icons.refresh, onPressed: onRefresh),
       ],
     );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Dashboard',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontSize: compact ? 34 : 52,
-                ),
+        Text(
+          'Dashboard',
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontSize: compact ? 34 : 52,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: semantic.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(top: 7),
+              decoration: BoxDecoration(
+                color: semantic.success,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 16),
-              Text(
-                subtitle,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Aktualisiert aus den gespeicherten Objekt-, Miet-, Aufgaben- und BK-Daten',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: semantic.textSecondary,
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: semantic.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Aktualisiert aus den gespeicherten Objekt-, Miet-, Aufgaben- und BK-Daten',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: semantic.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              if (compact) ...[
-                const SizedBox(height: 18),
-                actionButtons,
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
-        if (!compact) actionButtons,
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackActions = compact || constraints.maxWidth < 760;
+        if (stackActions) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleBlock,
+              const SizedBox(height: 18),
+              actionButtons,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 24),
+            Flexible(child: Align(alignment: Alignment.bottomRight, child: actionButtons)),
+          ],
+        );
+      },
     );
   }
 
@@ -621,45 +636,6 @@ class _SovereignDashboard extends StatelessWidget {
             const SizedBox(height: 24),
           ],
         const SizedBox(height: 48),
-        Row(
-          children: [
-            const Expanded(child: _SectionLabel('NÄCHSTE SCHRITTE')),
-            IconButton(
-              onPressed:
-                  () => onOpenTarget(
-                    const DashboardNavigationTarget(
-                      globalPage: GlobalPage.tasks,
-                    ),
-                  ),
-              icon: const Icon(Icons.add_task_outlined),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        if (actionItems.isEmpty)
-          _TaskTile(
-            title: 'Objekte und Vermietung prüfen',
-            due: 'Portfolioübersicht öffnen',
-            onTap:
-                () => onOpenTarget(
-                  const DashboardNavigationTarget(
-                    globalPage: GlobalPage.rentalOverview,
-                  ),
-                ),
-          )
-        else
-          for (final item in actionItems.take(2)) ...[
-            _TaskTile(
-              title: item.nextStep,
-              due:
-                  item.count == null
-                      ? item.title
-                      : '${item.count} offen',
-              onTap: () => onOpenTarget(item.target),
-            ),
-            const SizedBox(height: 16),
-          ],
-        const SizedBox(height: 56),
         const _SectionLabel('OBJEKTVERTEILUNG'),
         const SizedBox(height: 24),
         _SovereignModule(
@@ -1852,7 +1828,7 @@ bool _isVarianceAboveThreshold(BudgetVarianceRecord variance) {
 }
 
 bool _isClosedMaintenanceStatus(String status) {
-  return status == 'resolved' || status == 'closed';
+  return const {'completed', 'billed', 'resolved', 'closed'}.contains(status);
 }
 
 bool _isClosedTaskStatus(String status) {

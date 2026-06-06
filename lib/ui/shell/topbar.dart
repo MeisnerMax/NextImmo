@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/search.dart';
+import '../../core/models/security.dart';
 import '../components/command_palette.dart';
 import '../i18n/app_strings.dart';
 import '../navigation/app_navigation.dart';
@@ -139,6 +140,12 @@ class _TopBarState extends ConsumerState<TopBar> {
                 },
                 icon: const Icon(Icons.lock_outline),
               ),
+            if (security != null)
+              IconButton(
+                tooltip: s.text('Logout'),
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_outlined),
+              ),
             if (ref.watch(selectedPropertyIdProvider) != null)
               compact
                   ? IconButton(
@@ -189,6 +196,15 @@ class _TopBarState extends ConsumerState<TopBar> {
     ref.read(selectedScenarioIdProvider.notifier).state = null;
     ref.read(propertyDetailPageProvider.notifier).state =
         PropertyDetailPage.overview;
+  }
+
+  void _logout() {
+    final security = ref.read(securityControllerProvider).valueOrNull;
+    if (security?.settings.securityAppLockEnabled == true) {
+      ref.read(securityControllerProvider.notifier).lock();
+      return;
+    }
+    _openUserDialog();
   }
 
   Widget _buildSearchAutocomplete(double width) {
@@ -403,6 +419,8 @@ class _TopBarState extends ConsumerState<TopBar> {
     }
     final users = await controller.listUsers(current.context.workspace.id);
     String selectedId = current.context.user.id;
+    final passwordController = TextEditingController();
+    String? errorText;
     if (!mounted) {
       return;
     }
@@ -413,26 +431,56 @@ class _TopBarState extends ConsumerState<TopBar> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text(context.strings.text('Switch User')),
-              content: DropdownButtonFormField<String>(
-                value: selectedId,
-                items: users
-                    .map(
-                      (user) => DropdownMenuItem<String>(
-                        value: user.id,
-                        child: Text(
-                          '${user.displayName} (${context.strings.userRoleLabel(user.role)})',
-                        ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedId,
+                      items:
+                          users
+                              .map(
+                                (user) => DropdownMenuItem<String>(
+                                  value: user.id,
+                                  child: Text(
+                                    '${user.displayName} (${context.strings.userRoleLabel(user.role)})',
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setDialogState(() {
+                          selectedId = value;
+                          passwordController.clear();
+                          errorText = null;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: context.strings.text('User'),
                       ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setDialogState(() => selectedId = value);
-                },
-                decoration: InputDecoration(
-                  labelText: context.strings.text('User'),
+                    ),
+                    if (_userNeedsPassword(users, selectedId)) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: context.strings.text('Password'),
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          errorText: errorText,
+                        ),
+                        onChanged: (_) {
+                          if (errorText != null) {
+                            setDialogState(() => errorText = null);
+                          }
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               ),
               actions: [
@@ -442,14 +490,25 @@ class _TopBarState extends ConsumerState<TopBar> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    await controller.switchUser(selectedId);
-                    if (!mounted) {
-                      return;
+                    try {
+                      await controller.switchUser(
+                        selectedId,
+                        password: passwordController.text,
+                      );
+                      if (!mounted) {
+                        return;
+                      }
+                      if (!context.mounted) {
+                        return;
+                      }
+                      Navigator.of(context).pop();
+                    } catch (error) {
+                      setDialogState(() {
+                        errorText = error
+                            .toString()
+                            .replaceFirst('Bad state: ', '');
+                      });
                     }
-                    if (!context.mounted) {
-                      return;
-                    }
-                    Navigator.of(context).pop();
                   },
                   child: Text(context.strings.text('Switch')),
                 ),
@@ -459,5 +518,15 @@ class _TopBarState extends ConsumerState<TopBar> {
         );
       },
     );
+    passwordController.dispose();
+  }
+
+  bool _userNeedsPassword(List<LocalUserRecord> users, String userId) {
+    for (final user in users) {
+      if (user.id == userId) {
+        return user.passwordHash != null && user.passwordSalt != null;
+      }
+    }
+    return false;
   }
 }

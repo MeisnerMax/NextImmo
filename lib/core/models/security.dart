@@ -37,6 +37,7 @@ class LocalUserRecord {
     required this.email,
     required this.displayName,
     required this.passwordHash,
+    required this.passwordSalt,
     required this.role,
     required this.createdAt,
   });
@@ -46,6 +47,7 @@ class LocalUserRecord {
   final String? email;
   final String displayName;
   final String? passwordHash;
+  final String? passwordSalt;
   final String role;
   final int createdAt;
 
@@ -56,6 +58,7 @@ class LocalUserRecord {
       'email': email,
       'display_name': displayName,
       'password_hash': passwordHash,
+      'password_salt': passwordSalt,
       'role': role,
       'created_at': createdAt,
     };
@@ -68,6 +71,7 @@ class LocalUserRecord {
       email: map['email'] as String?,
       displayName: map['display_name']! as String,
       passwordHash: map['password_hash'] as String?,
+      passwordSalt: map['password_salt'] as String?,
       role: map['role']! as String,
       createdAt: (map['created_at']! as num).toInt(),
     );

@@ -127,13 +127,24 @@ class Rbac {
     final normalizedRole = role.trim().toLowerCase();
     switch (normalizedRole) {
       case 'admin':
+      case 'administrator':
         return Permission.all;
       case 'manager':
+      case 'asset_manager':
         return _managerPermissions;
       case 'analyst':
+      case 'buchhaltung':
         return _analystPermissions;
       case 'operations':
+      case 'hausmeister':
+      case 'bauleiter':
+      case 'bauarbeiter':
+      case 'housekeeping':
+      case 'externer_dienstleister':
         return _operationsPermissions;
+      case 'vermietung':
+      case 'buerokraft':
+        return _lettingPermissions;
       case 'viewer':
         return _viewerPermissions;
       default:
@@ -212,6 +223,23 @@ class Rbac {
   };
 
   static const Set<String> _operationsPermissions = <String>{
+    Permission.propertyRead,
+    Permission.propertyUpdate,
+    Permission.scenarioRead,
+    Permission.documentRead,
+    Permission.documentCreate,
+    Permission.documentUpdate,
+    Permission.taskRead,
+    Permission.taskCreate,
+    Permission.taskAssign,
+    Permission.taskResolve,
+    Permission.auditRead,
+    Permission.exportExecute,
+    Permission.operationsManage,
+    Permission.reportingGenerate,
+  };
+
+  static const Set<String> _lettingPermissions = <String>{
     Permission.propertyRead,
     Permission.propertyUpdate,
     Permission.scenarioRead,

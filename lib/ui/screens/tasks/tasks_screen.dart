@@ -24,6 +24,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   String _entityTypeFilter = 'all';
   String _priorityFilter = 'all';
   String _dueFilter = 'all';
+  String _categoryFilter = 'all';
+  String _assigneeFilter = 'all';
+  String _viewMode = 'list';
   TaskWorkflowRecord? _selectedTask;
   List<TaskChecklistItemRecord> _checklist = const [];
   String? _status;
@@ -58,6 +61,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       });
     }
     final filteredTasks = _filteredTasks();
+    final dashboardTasks = _filteredTasks(ignoreStatus: true);
+    final categoryOptions = _categoryOptions;
+    final assigneeOptions = _assigneeOptions;
     final criticalTasks = filteredTasks
         .where((task) => _isOverdue(task.task) || _isCritical(task.task))
         .toList(growable: false);
@@ -76,6 +82,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         label: const Text('New Task'),
       ),
       secondaryActions: [
+        OutlinedButton.icon(
+          onPressed:
+              () => ref.read(globalPageProvider.notifier).state =
+                  GlobalPage.taskTemplates,
+          icon: const Icon(Icons.rule_folder_outlined),
+          label: const Text('Templates'),
+        ),
         OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
       ],
       contextBar: ListFilterBar(
@@ -163,6 +176,35 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             },
           ),
           _filterField(
+            width: 170,
+            value: _categoryFilter,
+            label: 'Category',
+            items: [
+              const DropdownMenuItem(value: 'all', child: Text('All categories')),
+              for (final category in categoryOptions)
+                DropdownMenuItem(value: category, child: Text(category)),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _categoryFilter = value);
+            },
+          ),
+          _filterField(
+            width: 190,
+            value: _assigneeFilter,
+            label: 'Assigned',
+            items: [
+              const DropdownMenuItem(value: 'all', child: Text('All assignees')),
+              const DropdownMenuItem(value: 'unassigned', child: Text('Unassigned')),
+              for (final assignee in assigneeOptions)
+                DropdownMenuItem(value: assignee, child: Text(assignee)),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _assigneeFilter = value);
+            },
+          ),
+          _filterField(
             width: 190,
             value: _entityTypeFilter,
             label: 'Context',
@@ -187,6 +229,25 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               _reload();
             },
           ),
+          _filterField(
+            width: 150,
+            value: _viewMode,
+            label: 'View',
+            items: const [
+              DropdownMenuItem(value: 'list', child: Text('List')),
+              DropdownMenuItem(value: 'board', child: Text('Board')),
+              DropdownMenuItem(value: 'calendar', child: Text('Due plan')),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _viewMode = value);
+            },
+          ),
+          TextButton.icon(
+            onPressed: _resetFilters,
+            icon: const Icon(Icons.restart_alt, size: 16),
+            label: const Text('Reset'),
+          ),
         ],
       ),
       content:
@@ -201,10 +262,77 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               )
               : LayoutBuilder(
                 builder: (context, constraints) {
+                  if (_viewMode == 'board') {
+                    return Column(
+                      children: [
+                        _TasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() {
+                              _statusFilter = status;
+                              _viewMode = 'list';
+                            });
+                            _reload();
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _dueFilter = filter;
+                              _statusFilter = 'all';
+                              _viewMode = 'list';
+                            });
+                            _reload();
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        Expanded(child: _buildTaskBoard(dashboardTasks)),
+                      ],
+                    );
+                  }
+                  if (_viewMode == 'calendar') {
+                    return Column(
+                      children: [
+                        _TasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() {
+                              _statusFilter = status;
+                              _viewMode = 'list';
+                            });
+                            _reload();
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _dueFilter = filter;
+                              _statusFilter = 'all';
+                              _viewMode = 'list';
+                            });
+                            _reload();
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        Expanded(child: _buildDuePlan(dashboardTasks)),
+                      ],
+                    );
+                  }
                   final stacked = constraints.maxWidth < 1080;
                   if (stacked) {
                     return Column(
                       children: [
+                        _TasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() => _statusFilter = status);
+                            _reload();
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _dueFilter = filter;
+                              _statusFilter = 'all';
+                            });
+                            _reload();
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
                         Expanded(
                           flex: 3,
                           child: _buildTaskList(
@@ -220,9 +348,30 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   return Row(
                     children: [
                       Expanded(
-                        child: _buildTaskList(
-                          criticalTasks: criticalTasks,
-                          queueTasks: queueTasks,
+                        child: Column(
+                          children: [
+                            _TasksDashboard(
+                              tasks: dashboardTasks,
+                              onStatusFilter: (status) {
+                                setState(() => _statusFilter = status);
+                                _reload();
+                              },
+                              onDueFilter: (filter) {
+                                setState(() {
+                                  _dueFilter = filter;
+                                  _statusFilter = 'all';
+                                });
+                                _reload();
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.component),
+                            Expanded(
+                              child: _buildTaskList(
+                                criticalTasks: criticalTasks,
+                                queueTasks: queueTasks,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: AppSpacing.component),
@@ -263,6 +412,87 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             ...queueTasks.map(_buildTaskTile),
         ],
       ),
+    );
+  }
+
+  Widget _buildTaskBoard(List<TaskWorkflowRecord> tasks) {
+    const columns = <String>['todo', 'in_progress', 'done'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final status in columns)
+            _TaskBoardColumn(
+              title: _statusLabel(status),
+              tasks: tasks
+                  .where((workflow) => workflow.task.status == status)
+                  .toList(growable: false),
+              selectedId: _selectedTask?.task.id,
+              onOpen: (workflow) {
+                _selectTask(workflow);
+                setState(() => _viewMode = 'list');
+              },
+              onEdit: (workflow) => _editTaskDialog(workflow.task),
+              onAdvance: (workflow) {
+                if (workflow.task.status == 'done') {
+                  return;
+                }
+                final nextStatus =
+                    workflow.task.status == 'todo'
+                        ? 'in_progress'
+                        : 'done';
+                _updateTaskStatus(workflow.task.id, nextStatus);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDuePlan(List<TaskWorkflowRecord> tasks) {
+    final buckets = const <_TaskDueBucket>[
+      _TaskDueBucket('Überfällig', 'overdue'),
+      _TaskDueBucket('Heute', 'today'),
+      _TaskDueBucket('Nächste 7 Tage', 'next_7_days'),
+      _TaskDueBucket('Ohne Termin', 'no_due_date'),
+      _TaskDueBucket('Später', 'later'),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < 760 ? constraints.maxWidth : 260.0;
+        return SingleChildScrollView(
+          child: Wrap(
+            spacing: AppSpacing.component,
+            runSpacing: AppSpacing.component,
+            children: [
+              for (final bucket in buckets)
+                _TaskDuePanel(
+                  width: width,
+                  title: bucket.label,
+                  tasks: tasks
+                      .where((workflow) => _matchesTaskDueBucket(workflow.task, bucket.key))
+                      .toList(growable: false),
+                  onOpen: (workflow) {
+                    _selectTask(workflow);
+                    setState(() => _viewMode = 'list');
+                  },
+                  onEdit: (workflow) => _editTaskDialog(workflow.task),
+                  onAdvance: (workflow) {
+                    if (workflow.task.status == 'done') {
+                      return;
+                    }
+                    final nextStatus =
+                        workflow.task.status == 'todo'
+                            ? 'in_progress'
+                            : 'done';
+                    _updateTaskStatus(workflow.task.id, nextStatus);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -538,7 +768,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     );
   }
 
-  List<TaskWorkflowRecord> _filteredTasks() {
+  List<TaskWorkflowRecord> _filteredTasks({bool ignoreStatus = false}) {
     final query = _searchController.text.trim().toLowerCase();
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
@@ -548,8 +778,18 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     return _tasks
         .where((workflow) {
           final task = workflow.task;
+          final matchesStatus =
+              ignoreStatus || _statusFilter == 'all' || task.status == _statusFilter;
           final matchesPriority =
               _priorityFilter == 'all' || task.priority == _priorityFilter;
+          final matchesCategory =
+              _categoryFilter == 'all' || task.category == _categoryFilter;
+          final assignee = task.assignedTo?.trim();
+          final matchesAssignee =
+              _assigneeFilter == 'all' ||
+              (_assigneeFilter == 'unassigned' &&
+                  (assignee == null || assignee.isEmpty)) ||
+              assignee == _assigneeFilter;
           final dueAt =
               task.dueAt == null
                   ? null
@@ -573,9 +813,81 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               workflow.contextSubtitle.toLowerCase().contains(query) ||
               workflow.contextTitle.toLowerCase().contains(query) ||
               (workflow.propertyName?.toLowerCase().contains(query) ?? false);
-          return matchesPriority && matchesDue && matchesQuery;
+          return matchesStatus &&
+              matchesPriority &&
+              matchesCategory &&
+              matchesAssignee &&
+              matchesDue &&
+              matchesQuery;
         })
         .toList(growable: false);
+  }
+
+  List<String> get _categoryOptions {
+    final values = _tasks
+        .map((workflow) => workflow.task.category?.trim())
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return values;
+  }
+
+  List<String> get _assigneeOptions {
+    final values = _tasks
+        .map((workflow) => workflow.task.assignedTo?.trim())
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return values;
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    setState(() {
+      _statusFilter = 'todo';
+      _entityTypeFilter = 'all';
+      _priorityFilter = 'all';
+      _dueFilter = 'all';
+      _categoryFilter = 'all';
+      _assigneeFilter = 'all';
+      _viewMode = 'list';
+      _selectedTask = null;
+      _checklist = const [];
+    });
+    _reload();
+  }
+
+  bool _matchesTaskDueBucket(TaskRecord task, String bucket) {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+    final next7Days = endOfToday.add(const Duration(days: 6));
+    final dueAt =
+        task.dueAt == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(task.dueAt!);
+    switch (bucket) {
+      case 'overdue':
+        return _isOverdue(task);
+      case 'today':
+        return dueAt != null &&
+            !dueAt.isBefore(startOfToday) &&
+            dueAt.isBefore(endOfToday);
+      case 'next_7_days':
+        return dueAt != null &&
+            !dueAt.isBefore(startOfToday) &&
+            dueAt.isBefore(next7Days);
+      case 'no_due_date':
+        return task.dueAt == null;
+      case 'later':
+        return dueAt != null && !dueAt.isBefore(next7Days);
+      default:
+        return false;
+    }
   }
 
   bool _isOverdue(TaskRecord task) {
@@ -596,7 +908,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final tasks = await ref
         .read(tasksRepositoryProvider)
         .listWorkflowTasks(
-          status: _statusFilter == 'all' ? null : _statusFilter,
           entityType: _entityTypeFilter == 'all' ? null : _entityTypeFilter,
         );
     if (!mounted) return;
@@ -1086,4 +1397,489 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       value,
     ).toIso8601String().substring(0, 10);
   }
+}
+
+class _TasksDashboard extends StatelessWidget {
+  const _TasksDashboard({
+    required this.tasks,
+    required this.onStatusFilter,
+    required this.onDueFilter,
+  });
+
+  final List<TaskWorkflowRecord> tasks;
+  final ValueChanged<String> onStatusFilter;
+  final ValueChanged<String> onDueFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final endOfToday = startOfToday.add(const Duration(days: 1));
+    final next7Days = endOfToday.add(const Duration(days: 6));
+    final overdue = tasks.where((item) {
+      final dueAt = item.task.dueAt;
+      return dueAt != null &&
+          dueAt < DateTime.now().millisecondsSinceEpoch &&
+          item.task.status != 'done';
+    }).length;
+    final today = tasks.where((item) {
+      final dueAt = item.task.dueAt;
+      if (dueAt == null) return false;
+      final date = DateTime.fromMillisecondsSinceEpoch(dueAt);
+      return !date.isBefore(startOfToday) && date.isBefore(endOfToday);
+    }).length;
+    final next = tasks.where((item) {
+      final dueAt = item.task.dueAt;
+      if (dueAt == null) return false;
+      final date = DateTime.fromMillisecondsSinceEpoch(dueAt);
+      return !date.isBefore(endOfToday) && date.isBefore(next7Days);
+    }).length;
+    final inProgress =
+        tasks.where((item) => item.task.status == 'in_progress').length;
+    final done = tasks.where((item) => item.task.status == 'done').length;
+    final cost = tasks.fold<double>(
+      0,
+      (sum, item) => sum + (item.task.estimatedCost ?? 0),
+    );
+    final byStatus = <String, int>{};
+    for (final item in tasks) {
+      byStatus[item.task.status] = (byStatus[item.task.status] ?? 0) + 1;
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 760;
+        final tileWidth = narrow ? constraints.maxWidth : 170.0;
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            _TaskSignalTile(
+              width: tileWidth,
+              label: 'Überfällig',
+              value: overdue.toString(),
+              icon: Icons.warning_amber_outlined,
+              tone:
+                  overdue == 0
+                      ? context.semanticColors.success
+                      : Theme.of(context).colorScheme.error,
+              onTap: () => onDueFilter('overdue'),
+            ),
+            _TaskSignalTile(
+              width: tileWidth,
+              label: 'Heute',
+              value: today.toString(),
+              icon: Icons.today_outlined,
+              onTap: () => onDueFilter('today'),
+            ),
+            _TaskSignalTile(
+              width: tileWidth,
+              label: 'Nächste 7 Tage',
+              value: next.toString(),
+              icon: Icons.event_available_outlined,
+              onTap: () => onDueFilter('next_7_days'),
+            ),
+            _TaskSignalTile(
+              width: tileWidth,
+              label: 'In Arbeit',
+              value: inProgress.toString(),
+              icon: Icons.timelapse_outlined,
+              onTap: () => onStatusFilter('in_progress'),
+            ),
+            _TaskSignalTile(
+              width: tileWidth,
+              label: 'Erledigt',
+              value: done.toString(),
+              icon: Icons.done_all_outlined,
+              onTap: () => onStatusFilter('done'),
+            ),
+            _TaskSignalTile(
+              width: narrow ? constraints.maxWidth : 210,
+              label: 'Kostenrahmen',
+              value: _taskCurrency(cost),
+              icon: Icons.payments_outlined,
+            ),
+            _TaskStatusBars(
+              width: narrow ? constraints.maxWidth : 320,
+              values: byStatus,
+              onStatusFilter: onStatusFilter,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TaskSignalTile extends StatelessWidget {
+  const _TaskSignalTile({
+    required this.width,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.tone,
+    this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? tone;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tone ?? Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.all(AppSpacing.component),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border.all(color: context.semanticColors.border),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.labelSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskStatusBars extends StatelessWidget {
+  const _TaskStatusBars({
+    required this.width,
+    required this.values,
+    required this.onStatusFilter,
+  });
+
+  final double width;
+  final Map<String, int> values;
+  final ValueChanged<String> onStatusFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = values.values.fold<int>(
+      0,
+      (max, value) => value > max ? value : max,
+    );
+    final denominator = maxValue == 0 ? 1.0 : maxValue.toDouble();
+    final entries = values.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Statusverteilung', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 10),
+          if (entries.isEmpty)
+            Text('Keine Daten', style: Theme.of(context).textTheme.bodySmall)
+          else
+            for (final entry in entries) ...[
+              InkWell(
+                onTap: () => onStatusFilter(entry.key),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      child: Text(
+                        entry.key.replaceAll('_', ' '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    Expanded(
+                      child: LinearProgressIndicator(
+                        value: entry.value / denominator,
+                        minHeight: 8,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(entry.value.toString()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskBoardColumn extends StatelessWidget {
+  const _TaskBoardColumn({
+    required this.title,
+    required this.tasks,
+    required this.selectedId,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onAdvance,
+  });
+
+  final String title;
+  final List<TaskWorkflowRecord> tasks;
+  final String? selectedId;
+  final ValueChanged<TaskWorkflowRecord> onOpen;
+  final ValueChanged<TaskWorkflowRecord> onEdit;
+  final ValueChanged<TaskWorkflowRecord> onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      margin: const EdgeInsets.only(right: AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.component),
+            child: Row(
+              children: [
+                Expanded(child: Text(title, style: Theme.of(context).textTheme.titleSmall)),
+                NxStatusBadge(label: tasks.length.toString(), kind: NxBadgeKind.info),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: context.semanticColors.border),
+          Expanded(
+            child:
+                tasks.isEmpty
+                    ? Center(
+                      child: Text(
+                        'Keine Aufgaben',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    )
+                    : ListView.builder(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      itemCount: tasks.length,
+                      itemBuilder: (context, index) {
+                        final workflow = tasks[index];
+                        return _TaskMiniCard(
+                          workflow: workflow,
+                          selected: workflow.task.id == selectedId,
+                          onOpen: () => onOpen(workflow),
+                          onEdit: () => onEdit(workflow),
+                          onAdvance: () => onAdvance(workflow),
+                        );
+                      },
+                    ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskDuePanel extends StatelessWidget {
+  const _TaskDuePanel({
+    required this.width,
+    required this.title,
+    required this.tasks,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onAdvance,
+  });
+
+  final double width;
+  final String title;
+  final List<TaskWorkflowRecord> tasks;
+  final ValueChanged<TaskWorkflowRecord> onOpen;
+  final ValueChanged<TaskWorkflowRecord> onEdit;
+  final ValueChanged<TaskWorkflowRecord> onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      constraints: const BoxConstraints(minHeight: 220),
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleSmall)),
+              NxStatusBadge(label: tasks.length.toString(), kind: NxBadgeKind.info),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (tasks.isEmpty)
+            Text('Keine Aufgaben', style: Theme.of(context).textTheme.bodySmall)
+          else
+            for (final workflow in tasks.take(5)) ...[
+              _TaskMiniCard(
+                workflow: workflow,
+                selected: false,
+                onOpen: () => onOpen(workflow),
+                onEdit: () => onEdit(workflow),
+                onAdvance: () => onAdvance(workflow),
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskMiniCard extends StatelessWidget {
+  const _TaskMiniCard({
+    required this.workflow,
+    required this.selected,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onAdvance,
+  });
+
+  final TaskWorkflowRecord workflow;
+  final bool selected;
+  final VoidCallback onOpen;
+  final VoidCallback onEdit;
+  final VoidCallback onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = workflow.task;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onOpen,
+        onLongPress: onEdit,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color:
+                selected
+                    ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            border: Border.all(
+              color:
+                  selected
+                      ? Theme.of(context).colorScheme.primary
+                      : context.semanticColors.border,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      task.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Bearbeiten',
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${workflow.contextTitle} · ${task.priority}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      task.dueAt == null
+                          ? 'Ohne Termin'
+                          : _taskShortDate(task.dueAt!),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Status weiter',
+                    onPressed: onAdvance,
+                    icon: const Icon(Icons.arrow_forward_outlined, size: 18),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskDueBucket {
+  const _TaskDueBucket(this.label, this.key);
+
+  final String label;
+  final String key;
+}
+
+String _taskShortDate(int value) {
+  return DateTime.fromMillisecondsSinceEpoch(
+    value,
+  ).toIso8601String().substring(0, 10);
+}
+
+String _taskCurrency(double value) {
+  final sign = value < 0 ? '-' : '';
+  final absValue = value.abs();
+  if (absValue >= 1000000) {
+    return '$sign€ ${(absValue / 1000000).toStringAsFixed(1)} Mio.';
+  }
+  if (absValue >= 1000) {
+    return '$sign€ ${(absValue / 1000).toStringAsFixed(1)} Tsd.';
+  }
+  return '$sign€ ${absValue.toStringAsFixed(0)}';
 }

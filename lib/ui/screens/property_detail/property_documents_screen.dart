@@ -50,6 +50,21 @@ class _PropertyDocumentsScreenState
                 icon: const Icon(Icons.add),
                 label: const Text('Add Document'),
               ),
+              OutlinedButton.icon(
+                onPressed: () => _openImageDialog(imageRole: 'title'),
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Titelbild'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openImageDialog(imageRole: 'gallery'),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Bild hinzufügen'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openImageDialog(imageRole: 'damage'),
+                icon: const Icon(Icons.report_problem_outlined),
+                label: const Text('Schadensbild'),
+              ),
               OutlinedButton(onPressed: _load, child: const Text('Refresh')),
             ],
           ),
@@ -102,6 +117,12 @@ class _PropertyDocumentsScreenState
   }
 
   Widget _buildDocumentsCard(BuildContext context) {
+    final imageDocuments = _documents
+        .where(_isImageDocument)
+        .toList(growable: false);
+    final fileDocuments = _documents
+        .where((document) => !_isImageDocument(document))
+        .toList(growable: false);
     return Card(
       child:
           _documents.isEmpty
@@ -111,43 +132,166 @@ class _PropertyDocumentsScreenState
                   child: Text('No property documents found.'),
                 ),
               )
-              : ListView.separated(
+              : ListView(
                 padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                itemCount: _documents.length,
-                separatorBuilder: (_, __) => const Divider(height: 16),
-                itemBuilder: (context, index) {
-                  final document = _documents[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.description_outlined),
-                    title: Text(document.fileName),
-                    subtitle: Text(
-                      '${_typeName(document.typeId)} · ${document.filePath}',
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        TextButton.icon(
-                          onPressed: () => _showDocumentDetails(document),
-                          icon: const Icon(Icons.info_outline),
-                          label: const Text('Details'),
+                children: [
+                  if (imageDocuments.isNotEmpty) ...[
+                    _buildImageGallery(context, imageDocuments),
+                    const SizedBox(height: AppSpacing.component),
+                    const Divider(height: 1),
+                    const SizedBox(height: AppSpacing.component),
+                  ],
+                  if (fileDocuments.isEmpty)
+                    const Text('Keine weiteren Dokumente vorhanden.')
+                  else
+                    for (final document in fileDocuments) ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(document.fileName),
+                        subtitle: Text(
+                          '${_typeName(document.typeId)} · ${document.filePath}',
                         ),
-                        TextButton.icon(
-                          onPressed: () async {
-                            await ref
-                                .read(documentsRepositoryProvider)
-                                .deleteDocument(document.id);
-                            await _load();
-                          },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete'),
+                        trailing: Wrap(
+                          spacing: 8,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _showDocumentDetails(document),
+                              icon: const Icon(Icons.info_outline),
+                              label: const Text('Details'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () async {
+                                await ref
+                                    .read(documentsRepositoryProvider)
+                                    .deleteDocument(document.id);
+                                await _load();
+                              },
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete'),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                      const Divider(height: 16),
+                    ],
+                ],
               ),
     );
+  }
+
+  Widget _buildImageGallery(
+    BuildContext context,
+    List<DocumentRecord> imageDocuments,
+  ) {
+    final titleImages =
+        imageDocuments.where((document) => _imageRole(document) == 'title');
+    final titleImage = titleImages.isEmpty ? imageDocuments.first : titleImages.first;
+    final galleryImages = imageDocuments
+        .where((document) => document.id != titleImage.id)
+        .toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Objektbilder', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+          child: SizedBox(
+            height: 240,
+            width: double.infinity,
+            child: _imagePreview(titleImage, fit: BoxFit.cover),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            _ImageActionChip(
+              icon: Icons.star_outlined,
+              label: 'Titelbild',
+              value: titleImage.fileName,
+            ),
+            if (galleryImages.isNotEmpty)
+              _ImageActionChip(
+                icon: Icons.photo_library_outlined,
+                label: 'Galerie',
+                value: '${galleryImages.length} Bild(er)',
+              ),
+            _ImageActionChip(
+              icon: Icons.report_problem_outlined,
+              label: 'Schäden',
+              value:
+                  '${imageDocuments.where((document) => _imageRole(document) == 'damage').length}',
+            ),
+          ],
+        ),
+        if (galleryImages.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.component),
+          SizedBox(
+            height: 116,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: galleryImages.length,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (context, index) {
+                final document = galleryImages[index];
+                return InkWell(
+                  onTap: () => _showDocumentDetails(document),
+                  child: SizedBox(
+                    width: 150,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _imagePreview(document, fit: BoxFit.cover),
+                          Positioned(
+                            left: 6,
+                            right: 6,
+                            bottom: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 4,
+                              ),
+                              color: Colors.black.withValues(alpha: 0.56),
+                              child: Text(
+                                _imageRole(document) == 'damage'
+                                    ? 'Schaden'
+                                    : document.fileName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _imagePreview(DocumentRecord document, {required BoxFit fit}) {
+    final file = File(document.filePath);
+    if (!file.existsSync()) {
+      return Container(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: const Center(child: Icon(Icons.broken_image_outlined)),
+      );
+    }
+    return Image.file(file, fit: fit);
   }
 
   Widget _buildComplianceCard(BuildContext context) {
@@ -437,6 +581,127 @@ class _PropertyDocumentsScreenState
     expiryController.dispose();
   }
 
+  Future<void> _openImageDialog({required String imageRole}) async {
+    final captionController = TextEditingController();
+    XFile? selectedFile;
+    String? errorText;
+    final roleLabel = _imageRoleLabel(imageRole);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('$roleLabel hinzufügen'),
+              content: SizedBox(
+                width: 460,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final file = await openFile(
+                            acceptedTypeGroups: const [
+                              XTypeGroup(
+                                label: 'Images',
+                                extensions: <String>[
+                                  'jpg',
+                                  'jpeg',
+                                  'png',
+                                  'webp',
+                                ],
+                              ),
+                            ],
+                          );
+                          if (file == null) {
+                            return;
+                          }
+                          setDialogState(() {
+                            selectedFile = file;
+                            errorText = null;
+                          });
+                        },
+                        icon: const Icon(Icons.image_outlined),
+                        label: const Text('Bild auswählen'),
+                      ),
+                    ),
+                    if (selectedFile != null) ...[
+                      const SizedBox(height: 8),
+                      Text(path.basename(selectedFile!.path)),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: captionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Notiz optional',
+                      ),
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        errorText!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final file = selectedFile;
+                    if (file == null) {
+                      setDialogState(() {
+                        errorText = 'Bitte zuerst ein Bild auswählen.';
+                      });
+                      return;
+                    }
+                    final storedPath = await _storeSelectedFile(
+                      selectedFile: file,
+                      fallbackPath: file.path,
+                      fileName: path.basename(file.path),
+                    );
+                    await ref.read(documentsRepositoryProvider).createDocument(
+                      entityType: 'property',
+                      entityId: widget.propertyId,
+                      filePath: storedPath,
+                      fileName: '$roleLabel - ${path.basename(file.path)}',
+                      mimeType: _mimeTypeForImage(file.path),
+                      sizeBytes: await File(storedPath).length(),
+                      metadata: <String, String>{
+                        'category': 'property_image',
+                        'image_role': imageRole,
+                        if (captionController.text.trim().isNotEmpty)
+                          'caption': captionController.text.trim(),
+                      },
+                    );
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                    await _load();
+                  },
+                  child: const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    captionController.dispose();
+  }
+
   Future<String> _storeSelectedFile({
     required XFile? selectedFile,
     required String fallbackPath,
@@ -513,5 +778,68 @@ class _PropertyDocumentsScreenState
     final month = value.month.toString().padLeft(2, '0');
     final day = value.day.toString().padLeft(2, '0');
     return '${value.year}-$month-$day';
+  }
+
+  bool _isImageDocument(DocumentRecord document) {
+    final mime = document.mimeType?.toLowerCase() ?? '';
+    if (mime.startsWith('image/')) {
+      return true;
+    }
+    final extension = path.extension(document.fileName).toLowerCase();
+    return const {'.jpg', '.jpeg', '.png', '.webp'}.contains(extension);
+  }
+
+  String _imageRole(DocumentRecord document) {
+    final name = document.fileName.toLowerCase();
+    if (name.startsWith('titelbild')) {
+      return 'title';
+    }
+    if (name.startsWith('schadensbild')) {
+      return 'damage';
+    }
+    return 'gallery';
+  }
+
+  String _imageRoleLabel(String role) {
+    switch (role) {
+      case 'title':
+        return 'Titelbild';
+      case 'damage':
+        return 'Schadensbild';
+      default:
+        return 'Objektbild';
+    }
+  }
+
+  String _mimeTypeForImage(String filePath) {
+    switch (path.extension(filePath).toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+}
+
+class _ImageActionChip extends StatelessWidget {
+  const _ImageActionChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16),
+      label: Text('$label: $value'),
+      visualDensity: VisualDensity.compact,
+    );
   }
 }

@@ -111,6 +111,9 @@ class TaskTemplateRecord {
     required this.id,
     required this.name,
     required this.entityType,
+    required this.category,
+    required this.assigneeGroup,
+    required this.propertyType,
     required this.defaultTitle,
     required this.defaultPriority,
     required this.defaultDueDaysOffset,
@@ -123,6 +126,9 @@ class TaskTemplateRecord {
   final String id;
   final String name;
   final String entityType;
+  final String category;
+  final String assigneeGroup;
+  final String propertyType;
   final String defaultTitle;
   final String defaultPriority;
   final int? defaultDueDaysOffset;
@@ -136,6 +142,9 @@ class TaskTemplateRecord {
       'id': id,
       'name': name,
       'entity_type': entityType,
+      'category': category,
+      'assignee_group': assigneeGroup,
+      'property_type': propertyType,
       'default_title': defaultTitle,
       'default_priority': defaultPriority,
       'default_due_days_offset': defaultDueDaysOffset,
@@ -151,6 +160,9 @@ class TaskTemplateRecord {
       id: map['id']! as String,
       name: map['name']! as String,
       entityType: map['entity_type']! as String,
+      category: map['category'] as String? ?? 'general',
+      assigneeGroup: map['assignee_group'] as String? ?? 'asset_management',
+      propertyType: map['property_type'] as String? ?? 'all',
       defaultTitle: map['default_title']! as String,
       defaultPriority: map['default_priority']! as String,
       defaultDueDaysOffset: (map['default_due_days_offset'] as num?)?.toInt(),

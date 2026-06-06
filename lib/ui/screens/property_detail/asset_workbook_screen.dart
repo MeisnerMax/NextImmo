@@ -854,7 +854,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
         else
           _settlementUnitDetail(context, bundle, selectedSummary),
         const SizedBox(height: AppSpacing.component),
-        _settlementCostCards(context, bundle),
+        _settlementCostCards(context, bundle, selectedSummary),
         if (_exportStatus != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(_exportStatus!),
@@ -1008,6 +1008,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   Widget _settlementCostCards(
     BuildContext context,
     AssetWorkbookBundle bundle,
+    ServiceChargeSettlementSummary? selectedSummary,
   ) {
     return Card(
       child: Padding(
@@ -1034,7 +1035,11 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                     runSpacing: AppSpacing.sm,
                     children: [
                       for (final line in bundle.settlementLines)
-                        _settlementCostCard(line, width: cardWidth),
+                        _settlementCostCard(
+                          line,
+                          selectedSummary: selectedSummary,
+                          width: cardWidth,
+                        ),
                     ],
                   );
                 },
@@ -1047,8 +1052,11 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
 
   Widget _settlementCostCard(
     ServiceChargeSettlementLine line, {
+    required ServiceChargeSettlementSummary? selectedSummary,
     required double width,
   }) {
+    final selectedShare = _lineShareForSummary(line, selectedSummary);
+    final selectedAmount = line.totalYearlyCost * selectedShare;
     return SizedBox(
       width: width,
       child: DecoratedBox(
@@ -1070,14 +1078,27 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               const SizedBox(height: 6),
               Text('Gesamt p.a.: ${_formatCurrency(line.totalYearlyCost)}'),
               Text('Schlüssel: ${line.allocationKey}'),
-              Text('Objektanteil: ${(line.allocationShare * 100).toStringAsFixed(1)}%'),
+              Text('Umlageanteil: ${(selectedShare * 100).toStringAsFixed(1)}%'),
               Text('Zeitanteil: ${(line.timeShare * 100).toStringAsFixed(0)}%'),
-              Text('Abrechnung: ${_formatCurrency(line.tenantShare)}'),
+              Text('Abrechnung: ${_formatCurrency(selectedAmount)}'),
             ],
           ),
         ),
       ),
     );
+  }
+
+  double _lineShareForSummary(
+    ServiceChargeSettlementLine line,
+    ServiceChargeSettlementSummary? summary,
+  ) {
+    if (summary == null) {
+      return line.allocationShare;
+    }
+    if (line.allocationKey == 'Direkt') {
+      return line.costType.contains('(${summary.unitCode})') ? 1 : 0;
+    }
+    return summary.allocationShare;
   }
 
   Future<void> _exportSettlementPdf(
@@ -1136,13 +1157,16 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               ],
               data: bundle.settlementLines
                   .map(
-                    (line) => [
-                      line.costType,
-                      _formatCurrency(line.totalYearlyCost),
-                      line.allocationKey,
-                      '${(line.allocationShare * 100).toStringAsFixed(1)} %',
-                      '${(line.timeShare * 100).toStringAsFixed(0)} %',
-                    ],
+                    (line) {
+                      final share = _lineShareForSummary(line, summary);
+                      return [
+                        line.costType,
+                        _formatCurrency(line.totalYearlyCost),
+                        line.allocationKey,
+                        '${(share * 100).toStringAsFixed(1)} %',
+                        '${(line.timeShare * 100).toStringAsFixed(0)} %',
+                      ];
+                    },
                   )
                   .toList(),
             ),

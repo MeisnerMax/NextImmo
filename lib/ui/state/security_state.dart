@@ -122,10 +122,30 @@ class SecurityController extends AsyncNotifier<SecurityState> {
     );
   }
 
-  Future<void> switchUser(String userId) async {
+  Future<void> switchUser(String userId, {String? password}) async {
     final current = state.valueOrNull;
     if (current == null) {
       return;
+    }
+    final users = await _securityRepo.listUsers(current.context.workspace.id);
+    LocalUserRecord? target;
+    for (final user in users) {
+      if (user.id == userId) {
+        target = user;
+        break;
+      }
+    }
+    if (target != null &&
+        target.passwordHash != null &&
+        target.passwordSalt != null) {
+      final ok = _hasher.verify(
+        password: (password ?? '').trim(),
+        salt: target.passwordSalt!,
+        expectedHash: target.passwordHash!,
+      );
+      if (!ok) {
+        throw StateError('Invalid user password.');
+      }
     }
     await _securityRepo.setActiveUser(userId);
     final settings = await _inputsRepo.getSettings();
@@ -209,10 +229,34 @@ class SecurityController extends AsyncNotifier<SecurityState> {
     String? email,
     required String role,
   }) {
+    return createUserWithPassword(
+      workspaceId: workspaceId,
+      displayName: displayName,
+      email: email,
+      role: role,
+    );
+  }
+
+  Future<LocalUserRecord> createUserWithPassword({
+    required String workspaceId,
+    required String displayName,
+    String? email,
+    required String role,
+    String? password,
+  }) {
+    String? hash;
+    String? salt;
+    final trimmed = password?.trim() ?? '';
+    if (trimmed.isNotEmpty) {
+      salt = _hasher.generateSalt();
+      hash = _hasher.hashPassword(password: trimmed, salt: salt);
+    }
     return _securityRepo.createUser(
       workspaceId: workspaceId,
       displayName: displayName,
       email: email,
+      passwordHash: hash,
+      passwordSalt: salt,
       role: role,
     );
   }
@@ -222,6 +266,24 @@ class SecurityController extends AsyncNotifier<SecurityState> {
     required String role,
   }) async {
     await _securityRepo.updateUserRole(userId: userId, role: role);
+    await refresh();
+  }
+
+  Future<void> setUserPassword({
+    required String userId,
+    required String password,
+  }) async {
+    final trimmed = password.trim();
+    if (trimmed.isEmpty) {
+      throw StateError('Password must not be empty.');
+    }
+    final salt = _hasher.generateSalt();
+    final hash = _hasher.hashPassword(password: trimmed, salt: salt);
+    await _securityRepo.setUserPassword(
+      userId: userId,
+      passwordHash: hash,
+      passwordSalt: salt,
+    );
     await refresh();
   }
 

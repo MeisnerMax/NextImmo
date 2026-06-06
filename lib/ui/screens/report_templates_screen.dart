@@ -209,7 +209,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                 description: 'Eine Vorlage erstellen oder auswählen.',
                 icon: Icons.preview_outlined,
               )
-              : _preview(selected),
+              : SingleChildScrollView(child: _preview(selected)),
     );
   }
 

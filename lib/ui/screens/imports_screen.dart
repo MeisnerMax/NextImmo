@@ -40,6 +40,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       builder: (context, portfolioSnapshot) {
         final portfolios = portfolioSnapshot.data ?? const <PortfolioRecord>[];
         final fieldSpec = _fieldSpec(_targetTable);
+        final validationIssues = _validationIssues(fieldSpec);
 
         return ListFilterTemplate(
           title: 'Datenimporte',
@@ -54,9 +55,18 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           secondaryActions: [
             FilledButton.icon(
               onPressed:
-                  (_csvPath == null || _headers.isEmpty) ? null : _runImport,
+                  (_csvPath == null ||
+                          _headers.isEmpty ||
+                          validationIssues.isNotEmpty)
+                      ? null
+                      : _runImport,
               icon: const Icon(Icons.play_arrow_outlined),
               label: const Text('Import starten'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _downloadCsvTemplate(fieldSpec),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('CSV-Vorlage'),
             ),
             OutlinedButton.icon(
               onPressed: () => setState(() {}),
@@ -74,6 +84,26 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                         DropdownMenuItem(
                           value: 'properties',
                           child: Text('Objekte'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'units',
+                          child: Text('Einheiten'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'tenants',
+                          child: Text('Mieter'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'asset_operating_costs',
+                          child: Text('Betriebskosten'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'tasks',
+                          child: Text('Aufgaben'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'budgets',
+                          child: Text('Budgets'),
                         ),
                         DropdownMenuItem(
                           value: 'esg_profiles',
@@ -147,6 +177,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
             status: _status,
             headerCount: _headers.length,
             previewCount: _previewRows.length,
+            validationIssues: validationIssues,
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -425,6 +456,71 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           ('year_built', false),
           ('notes', false),
         ];
+      case 'units':
+        return const <(String, bool)>[
+          ('id', false),
+          ('asset_property_id', true),
+          ('unit_code', true),
+          ('unit_type', false),
+          ('beds', false),
+          ('baths', false),
+          ('sqft', false),
+          ('floor', false),
+          ('status', true),
+          ('market_rent_monthly', false),
+          ('notes', false),
+        ];
+      case 'tenants':
+        return const <(String, bool)>[
+          ('id', false),
+          ('display_name', true),
+          ('legal_name', false),
+          ('email', false),
+          ('phone', false),
+          ('notes', false),
+        ];
+      case 'asset_operating_costs':
+        return const <(String, bool)>[
+          ('id', false),
+          ('property_id', true),
+          ('scope', true),
+          ('unit_code', false),
+          ('cost_type', true),
+          ('provider', false),
+          ('contract_number', false),
+          ('allocation_key', false),
+          ('monthly_amount', false),
+          ('yearly_amount', false),
+          ('canceled', false),
+          ('start_date', false),
+          ('end_date', false),
+          ('next_due_date', false),
+          ('notes', false),
+        ];
+      case 'tasks':
+        return const <(String, bool)>[
+          ('id', false),
+          ('entity_type', true),
+          ('entity_id', false),
+          ('title', true),
+          ('description', false),
+          ('category', false),
+          ('assigned_to', false),
+          ('estimated_cost', false),
+          ('status', true),
+          ('priority', true),
+          ('due_at', false),
+          ('created_by', false),
+        ];
+      case 'budgets':
+        return const <(String, bool)>[
+          ('id', false),
+          ('entity_type', true),
+          ('entity_id', true),
+          ('fiscal_year', true),
+          ('version_name', false),
+          ('status', false),
+        ];
       case 'esg_profiles':
         return const <(String, bool)>[
           ('property_id', true),
@@ -475,10 +571,22 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       return;
     }
 
-    final content = await File(file.path).readAsString();
-    final rows = const CsvToListConverter(
-      shouldParseNumbers: false,
-    ).convert(content);
+    late final List<List<dynamic>> rows;
+    try {
+      final content = await File(file.path).readAsString();
+      rows = const CsvToListConverter(
+        shouldParseNumbers: false,
+      ).convert(content);
+    } catch (error) {
+      setState(() {
+        _csvPath = file.path;
+        _headers = const [];
+        _previewRows = const [];
+        _mapping.clear();
+        _status = 'CSV konnte nicht gelesen werden: $error';
+      });
+      return;
+    }
     if (rows.isEmpty) {
       setState(() {
         _status = 'Die CSV-Datei ist leer.';
@@ -490,6 +598,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       _csvPath = file.path;
       _headers = rows.first.map((e) => e.toString()).toList();
       _previewRows = rows.skip(1).take(10).toList();
+      _mapping.clear();
       _status = '${rows.length - 1} Datenzeile(n) geladen.';
     });
   }
@@ -497,6 +606,13 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
   Future<void> _runImport() async {
     final path = _csvPath;
     if (path == null) {
+      return;
+    }
+    final validationIssues = _validationIssues(_fieldSpec(_targetTable));
+    if (validationIssues.isNotEmpty) {
+      setState(() {
+        _status = 'Importvorschau enthält Fehler: ${validationIssues.first}';
+      });
       return;
     }
 
@@ -544,6 +660,127 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
         .read(dataQualityServiceProvider)
         .evaluate(properties: properties, esgProfiles: profiles);
   }
+
+  List<String> _validationIssues(List<(String, bool)> fieldSpec) {
+    if (_headers.isEmpty) {
+      return const <String>[];
+    }
+    final issues = <String>[];
+    for (final field in fieldSpec.where((field) => field.$2)) {
+      final mappedHeader = _mapping[field.$1];
+      if (mappedHeader == null || mappedHeader.trim().isEmpty) {
+        issues.add('Pflichtfeld "${field.$1}" ist nicht zugeordnet.');
+        continue;
+      }
+      final headerIndex = _headers.indexOf(mappedHeader);
+      if (headerIndex < 0) {
+        issues.add('Spalte "$mappedHeader" wurde in der CSV nicht gefunden.');
+        continue;
+      }
+      for (var index = 0; index < _previewRows.length; index++) {
+        final row = _previewRows[index];
+        final value =
+            headerIndex < row.length ? row[headerIndex].toString().trim() : '';
+        if (value.isEmpty) {
+          issues.add(
+            'Zeile ${index + 2}: Pflichtfeld "${field.$1}" ist leer.',
+          );
+          break;
+        }
+      }
+    }
+    return issues;
+  }
+
+  Future<void> _downloadCsvTemplate(List<(String, bool)> fieldSpec) async {
+    final location = await getSaveLocation(
+      suggestedName: 'neximmo_${_targetTable}_template.csv',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'CSV', extensions: <String>['csv']),
+      ],
+    );
+    if (location == null) {
+      return;
+    }
+    final headers = fieldSpec.map((field) => field.$1).toList();
+    final example = fieldSpec.map((field) {
+      switch (field.$1) {
+        case 'name':
+          return 'Musterobjekt';
+        case 'address_line1':
+          return 'Musterstrasse 1';
+        case 'zip':
+          return '10115';
+        case 'city':
+          return 'Berlin';
+        case 'country':
+          return 'DE';
+        case 'property_type':
+          return 'residential';
+        case 'units':
+          return '12';
+        case 'property_id':
+        case 'asset_property_id':
+          return 'A001';
+        case 'unit_code':
+          return '1. OG links';
+        case 'unit_type':
+          return 'Wohnung';
+        case 'status':
+          if (_targetTable == 'budgets') {
+            return 'draft';
+          }
+          if (_targetTable == 'tasks') {
+            return 'todo';
+          }
+          return 'active';
+        case 'display_name':
+          return 'Max Mustermann';
+        case 'email':
+          return 'max@example.com';
+        case 'scope':
+          return 'building';
+        case 'cost_type':
+          return 'Grundsteuer';
+        case 'allocation_key':
+          return 'Wohnfläche';
+        case 'yearly_amount':
+          return '1200.00';
+        case 'entity_type':
+          return 'property';
+        case 'entity_id':
+          return 'A001';
+        case 'title':
+          return 'Rauchwarnmelderprüfung';
+        case 'priority':
+          return 'normal';
+        case 'fiscal_year':
+          return '2026';
+        case 'version_name':
+          return 'Plan';
+        case 'period_date':
+          return '2026-01';
+        case 'account_name':
+          return 'Mieteinnahmen';
+        case 'posted_at':
+          return '2026-01-31';
+        case 'direction':
+          return 'in';
+        case 'amount':
+          return '1250.00';
+        default:
+          return field.$2 ? 'required' : '';
+      }
+    }).toList();
+    final csv = const ListToCsvConverter().convert([headers, example]);
+    await File(location.path).writeAsString(csv);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _status = 'CSV-Vorlage gespeichert: ${location.path}';
+    });
+  }
 }
 
 class _ImportStatusBar extends StatelessWidget {
@@ -552,12 +789,14 @@ class _ImportStatusBar extends StatelessWidget {
     required this.status,
     required this.headerCount,
     required this.previewCount,
+    required this.validationIssues,
   });
 
   final String? csvPath;
   final String? status;
   final int headerCount;
   final int previewCount;
+  final List<String> validationIssues;
 
   @override
   Widget build(BuildContext context) {
@@ -582,6 +821,13 @@ class _ImportStatusBar extends StatelessWidget {
           ),
           if (status != null)
             _StatusPill(icon: Icons.info_outline, label: status!),
+          if (validationIssues.isNotEmpty)
+            _StatusPill(
+              icon: Icons.error_outline,
+              label:
+                  '${validationIssues.length} Validierungsfehler: ${validationIssues.first}',
+              warning: true,
+            ),
         ],
       ),
     );
@@ -589,10 +835,15 @@ class _ImportStatusBar extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.icon, required this.label});
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    this.warning = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool warning;
 
   @override
   Widget build(BuildContext context) {
@@ -602,7 +853,12 @@ class _StatusPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-        border: Border.all(color: context.semanticColors.border),
+        border: Border.all(
+          color:
+              warning
+                  ? Theme.of(context).colorScheme.error
+                  : context.semanticColors.border,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

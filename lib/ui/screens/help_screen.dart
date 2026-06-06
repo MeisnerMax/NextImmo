@@ -254,6 +254,30 @@ const _helpSections = <_HelpSection>[
     keywords: ['Tasks', 'Priorität', 'Vorlagen'],
   ),
   _HelpSection(
+    title: 'Portfolio Analyse',
+    description:
+        'Asset KPIs, Wertentwicklung, Best/Worst Performer, Leerstand, Kostenquote und Datenabdeckung prüfen.',
+    icon: Icons.account_tree_outlined,
+    target: GlobalPage.portfolios,
+    keywords: ['Portfolio', 'NOI', 'Performance'],
+  ),
+  _HelpSection(
+    title: 'Instandhaltung',
+    description:
+        'Schäden, Mängel, Reparaturen, Wartungen und Sanierungen als Tickets mit Priorität, Fälligkeit, Kosten und Dokumenten steuern.',
+    icon: Icons.build_outlined,
+    target: GlobalPage.maintenance,
+    keywords: ['Tickets', 'Schaden', 'Sanierung'],
+  ),
+  _HelpSection(
+    title: 'Budget & Ist',
+    description:
+        'Budgets je Objekt, Einheit, Projekt oder Instandhaltung mit Plan, Ist, Abweichung und Forecast kontrollieren.',
+    icon: Icons.grid_view_outlined,
+    target: GlobalPage.budgets,
+    keywords: ['Budget', 'Ist', 'Forecast'],
+  ),
+  _HelpSection(
     title: 'Dokumente',
     description:
         'Dateien ablegen, Typen zuordnen, Pflichtunterlagen prüfen und objektbezogene Dokumente auffindbar halten.',
@@ -270,12 +294,44 @@ const _helpSections = <_HelpSection>[
     keywords: ['CSV', 'Mapping', 'Qualität'],
   ),
   _HelpSection(
+    title: 'Bewertung',
+    description:
+        'Bewertungsdaten, Marktwerte, Erträge, Kosten, Vergleichswerte und Ergebnisse im Property-Workflow pflegen.',
+    icon: Icons.calculate_outlined,
+    target: GlobalPage.properties,
+    keywords: ['Bewertung', 'Marktwert', 'Vergleich'],
+  ),
+  _HelpSection(
     title: 'ESG',
     description:
         'EPC-Ratings, Ablaufdaten, Emissionen und Zielwerte je Objekt pflegen und exportieren.',
     icon: Icons.energy_savings_leaf_outlined,
     target: GlobalPage.esg,
     keywords: ['EPC', 'Emissionen', 'Export'],
+  ),
+  _HelpSection(
+    title: 'Report-Vorlagen',
+    description:
+        'Standardvorlagen, Branding, Abschnitte und Vorschau für wiederverwendbare Management-Berichte konfigurieren.',
+    icon: Icons.description_outlined,
+    target: GlobalPage.reportTemplates,
+    keywords: ['Reports', 'Vorlagen', 'Branding'],
+  ),
+  _HelpSection(
+    title: 'Benutzer & Rollen',
+    description:
+        'Benutzerverwaltung, Rollen, Sichtbarkeit und Rechte für Administration, Asset Management und operative Teams prüfen.',
+    icon: Icons.manage_accounts_outlined,
+    target: GlobalPage.adminUsers,
+    keywords: ['Rollen', 'Rechte', 'Login'],
+  ),
+  _HelpSection(
+    title: 'Audit-Protokoll',
+    description:
+        'Aktionen, Quellen, Benutzer, Workspace-Wechsel und Datenänderungen nachvollziehen und exportieren.',
+    icon: Icons.fact_check_outlined,
+    target: GlobalPage.audit,
+    keywords: ['Audit', 'Quelle', 'Export'],
   ),
   _HelpSection(
     title: 'Administration',

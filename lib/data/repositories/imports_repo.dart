@@ -152,6 +152,41 @@ class ImportsRepository {
               headerIndex: headerIndex,
               fieldToCsv: fieldToCsv,
             );
+          case 'units':
+            return _importUnits(
+              txn: txn,
+              dataRows: dataRows,
+              headerIndex: headerIndex,
+              fieldToCsv: fieldToCsv,
+            );
+          case 'tenants':
+            return _importTenants(
+              txn: txn,
+              dataRows: dataRows,
+              headerIndex: headerIndex,
+              fieldToCsv: fieldToCsv,
+            );
+          case 'asset_operating_costs':
+            return _importAssetOperatingCosts(
+              txn: txn,
+              dataRows: dataRows,
+              headerIndex: headerIndex,
+              fieldToCsv: fieldToCsv,
+            );
+          case 'tasks':
+            return _importTasks(
+              txn: txn,
+              dataRows: dataRows,
+              headerIndex: headerIndex,
+              fieldToCsv: fieldToCsv,
+            );
+          case 'budgets':
+            return _importBudgets(
+              txn: txn,
+              dataRows: dataRows,
+              headerIndex: headerIndex,
+              fieldToCsv: fieldToCsv,
+            );
           case 'esg_profiles':
             return _importEsgProfiles(
               txn: txn,
@@ -329,6 +364,198 @@ class ImportsRepository {
         ),
         'target_rating': _get(row, headerIndex, fieldToCsv['target_rating']),
         'notes': _get(row, headerIndex, fieldToCsv['notes']),
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _importUnits({
+    required Transaction txn,
+    required List<List<dynamic>> dataRows,
+    required Map<String, int> headerIndex,
+    required Map<String, String> fieldToCsv,
+  }) async {
+    _assertRequiredMappings(const <String>[
+      'asset_property_id',
+      'unit_code',
+      'status',
+    ], fieldToCsv);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var count = 0;
+    for (final row in dataRows) {
+      await txn.insert('units', <String, Object?>{
+        'id': _get(row, headerIndex, fieldToCsv['id']) ?? const Uuid().v4(),
+        'asset_property_id': _requiredValue(
+          row,
+          headerIndex,
+          fieldToCsv['asset_property_id'],
+        ),
+        'unit_code': _requiredValue(row, headerIndex, fieldToCsv['unit_code']),
+        'unit_type': _get(row, headerIndex, fieldToCsv['unit_type']),
+        'beds': double.tryParse(_get(row, headerIndex, fieldToCsv['beds']) ?? ''),
+        'baths': double.tryParse(_get(row, headerIndex, fieldToCsv['baths']) ?? ''),
+        'sqft': double.tryParse(_get(row, headerIndex, fieldToCsv['sqft']) ?? ''),
+        'floor': _get(row, headerIndex, fieldToCsv['floor']),
+        'status': _requiredValue(row, headerIndex, fieldToCsv['status']),
+        'market_rent_monthly': double.tryParse(
+          _get(row, headerIndex, fieldToCsv['market_rent_monthly']) ?? '',
+        ),
+        'notes': _get(row, headerIndex, fieldToCsv['notes']),
+        'created_at': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _importTenants({
+    required Transaction txn,
+    required List<List<dynamic>> dataRows,
+    required Map<String, int> headerIndex,
+    required Map<String, String> fieldToCsv,
+  }) async {
+    _assertRequiredMappings(const <String>['display_name'], fieldToCsv);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var count = 0;
+    for (final row in dataRows) {
+      await txn.insert('tenants', <String, Object?>{
+        'id': _get(row, headerIndex, fieldToCsv['id']) ?? const Uuid().v4(),
+        'display_name': _requiredValue(
+          row,
+          headerIndex,
+          fieldToCsv['display_name'],
+        ),
+        'legal_name': _get(row, headerIndex, fieldToCsv['legal_name']),
+        'email': _get(row, headerIndex, fieldToCsv['email']),
+        'phone': _get(row, headerIndex, fieldToCsv['phone']),
+        'notes': _get(row, headerIndex, fieldToCsv['notes']),
+        'created_at': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _importAssetOperatingCosts({
+    required Transaction txn,
+    required List<List<dynamic>> dataRows,
+    required Map<String, int> headerIndex,
+    required Map<String, String> fieldToCsv,
+  }) async {
+    _assertRequiredMappings(const <String>[
+      'property_id',
+      'scope',
+      'cost_type',
+    ], fieldToCsv);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var count = 0;
+    for (final row in dataRows) {
+      await txn.insert('asset_operating_costs', <String, Object?>{
+        'id': _get(row, headerIndex, fieldToCsv['id']) ?? const Uuid().v4(),
+        'property_id': _requiredValue(row, headerIndex, fieldToCsv['property_id']),
+        'scope': _requiredValue(row, headerIndex, fieldToCsv['scope']),
+        'unit_code': _get(row, headerIndex, fieldToCsv['unit_code']),
+        'cost_type': _requiredValue(row, headerIndex, fieldToCsv['cost_type']),
+        'provider': _get(row, headerIndex, fieldToCsv['provider']),
+        'contract_number': _get(row, headerIndex, fieldToCsv['contract_number']),
+        'allocation_key': _get(row, headerIndex, fieldToCsv['allocation_key']),
+        'monthly_amount': double.tryParse(
+          _get(row, headerIndex, fieldToCsv['monthly_amount']) ?? '',
+        ),
+        'yearly_amount': double.tryParse(
+          _get(row, headerIndex, fieldToCsv['yearly_amount']) ?? '',
+        ),
+        'canceled': _parseBool(_get(row, headerIndex, fieldToCsv['canceled'])) ? 1 : 0,
+        'start_date': _parseDateToEpochMs(
+          _get(row, headerIndex, fieldToCsv['start_date']) ?? '',
+        ),
+        'end_date': _parseDateToEpochMs(
+          _get(row, headerIndex, fieldToCsv['end_date']) ?? '',
+        ),
+        'next_due_date': _parseDateToEpochMs(
+          _get(row, headerIndex, fieldToCsv['next_due_date']) ?? '',
+        ),
+        'notes': _get(row, headerIndex, fieldToCsv['notes']),
+        'created_at': now,
+        'updated_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _importTasks({
+    required Transaction txn,
+    required List<List<dynamic>> dataRows,
+    required Map<String, int> headerIndex,
+    required Map<String, String> fieldToCsv,
+  }) async {
+    _assertRequiredMappings(const <String>[
+      'entity_type',
+      'title',
+      'status',
+      'priority',
+    ], fieldToCsv);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var count = 0;
+    for (final row in dataRows) {
+      await txn.insert('tasks', <String, Object?>{
+        'id': _get(row, headerIndex, fieldToCsv['id']) ?? const Uuid().v4(),
+        'entity_type': _requiredValue(row, headerIndex, fieldToCsv['entity_type']),
+        'entity_id': _get(row, headerIndex, fieldToCsv['entity_id']),
+        'title': _requiredValue(row, headerIndex, fieldToCsv['title']),
+        'description': _get(row, headerIndex, fieldToCsv['description']),
+        'category': _get(row, headerIndex, fieldToCsv['category']),
+        'assigned_to': _get(row, headerIndex, fieldToCsv['assigned_to']),
+        'estimated_cost': double.tryParse(
+          _get(row, headerIndex, fieldToCsv['estimated_cost']) ?? '',
+        ),
+        'status': _requiredValue(row, headerIndex, fieldToCsv['status']),
+        'priority': _requiredValue(row, headerIndex, fieldToCsv['priority']),
+        'due_at': _parseDateToEpochMs(
+          _get(row, headerIndex, fieldToCsv['due_at']) ?? '',
+        ),
+        'created_at': now,
+        'updated_at': now,
+        'created_by': _get(row, headerIndex, fieldToCsv['created_by']),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      count++;
+    }
+    return count;
+  }
+
+  Future<int> _importBudgets({
+    required Transaction txn,
+    required List<List<dynamic>> dataRows,
+    required Map<String, int> headerIndex,
+    required Map<String, String> fieldToCsv,
+  }) async {
+    _assertRequiredMappings(const <String>[
+      'entity_type',
+      'entity_id',
+      'fiscal_year',
+    ], fieldToCsv);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var count = 0;
+    for (final row in dataRows) {
+      final fiscalYear = int.tryParse(
+        _requiredValue(row, headerIndex, fieldToCsv['fiscal_year']),
+      );
+      if (fiscalYear == null) {
+        throw StateError('Invalid fiscal_year value in CSV.');
+      }
+      await txn.insert('budgets', <String, Object?>{
+        'id': _get(row, headerIndex, fieldToCsv['id']) ?? const Uuid().v4(),
+        'entity_type': _requiredValue(row, headerIndex, fieldToCsv['entity_type']),
+        'entity_id': _requiredValue(row, headerIndex, fieldToCsv['entity_id']),
+        'fiscal_year': fiscalYear,
+        'version_name': _get(row, headerIndex, fieldToCsv['version_name']) ?? 'Plan',
+        'status': _get(row, headerIndex, fieldToCsv['status']) ?? 'draft',
+        'created_at': now,
         'updated_at': now,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       count++;
@@ -524,6 +751,15 @@ class ImportsRepository {
     }
     final parsed = DateTime.tryParse(raw.trim());
     return parsed?.millisecondsSinceEpoch;
+  }
+
+  bool _parseBool(String? raw) {
+    final value = raw?.trim().toLowerCase();
+    return value == '1' ||
+        value == 'true' ||
+        value == 'yes' ||
+        value == 'ja' ||
+        value == 'y';
   }
 
   Future<void> _recordAudit({

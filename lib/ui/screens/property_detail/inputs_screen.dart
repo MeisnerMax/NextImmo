@@ -7,6 +7,7 @@ import '../../components/responsive_constraints.dart';
 import '../../components/nx_section_header.dart';
 import '../../components/save_status_indicator.dart';
 import '../../state/analysis_state.dart';
+import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/number_parse.dart';
 import '../../widgets/info_tooltip.dart';
@@ -55,6 +56,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildValuationWorkflowCard(context),
+              const SizedBox(height: AppSpacing.component),
               _buildModeCard(context, state, controller),
               const SizedBox(height: AppSpacing.component),
               ...(_mode == _InputsMode.basic
@@ -870,6 +873,170 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         ],
       ),
     ];
+  }
+
+  Widget _buildValuationWorkflowCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final steps = <_ValuationWorkflowStep>[
+      const _ValuationWorkflowStep(
+        icon: Icons.badge_outlined,
+        title: 'Stammdaten',
+        detail: 'Objektprofil und Flaechen',
+        page: PropertyDetailPage.overview,
+      ),
+      const _ValuationWorkflowStep(
+        icon: Icons.home_work_outlined,
+        title: 'Marktwerte',
+        detail: 'Kaufpreis, Exit, Cap Rate',
+        active: true,
+      ),
+      const _ValuationWorkflowStep(
+        icon: Icons.payments_outlined,
+        title: 'Ertraege',
+        detail: 'Miete und Nebenerloese',
+        active: true,
+      ),
+      const _ValuationWorkflowStep(
+        icon: Icons.receipt_long_outlined,
+        title: 'Kosten',
+        detail: 'Opex, Capex, Finanzierung',
+        active: true,
+      ),
+      const _ValuationWorkflowStep(
+        icon: Icons.compare_arrows_outlined,
+        title: 'Vergleichswerte',
+        detail: 'Sales und Rental Comps',
+        page: PropertyDetailPage.comps,
+      ),
+      const _ValuationWorkflowStep(
+        icon: Icons.analytics_outlined,
+        title: 'Ergebnis',
+        detail: 'Kennzahlen und Sensitivitaet',
+        page: PropertyDetailPage.analysis,
+      ),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.route_outlined, color: colorScheme.primary),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Bewertungsprozess',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.component),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth =
+                    constraints.maxWidth < 720
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - AppSpacing.md * 2) / 3;
+                return Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children:
+                      steps.map((step) {
+                        final isCurrent = step.active;
+                        final isNavigation = step.page != null;
+                        return SizedBox(
+                          width: tileWidth.clamp(220.0, 360.0).toDouble(),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap:
+                                isNavigation
+                                    ? () {
+                                      ref
+                                          .read(
+                                            propertyDetailPageProvider.notifier,
+                                          )
+                                          .state = step.page!;
+                                    }
+                                    : null,
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color:
+                                      isCurrent
+                                          ? colorScheme.primary
+                                          : colorScheme.outlineVariant,
+                                ),
+                                color:
+                                    isCurrent
+                                        ? colorScheme.primaryContainer
+                                            .withValues(alpha: 0.32)
+                                        : colorScheme.surface,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    step.icon,
+                                    color:
+                                        isCurrent
+                                            ? colorScheme.primary
+                                            : colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          step.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          step.detail,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: textTheme.bodySmall?.copyWith(
+                                            color:
+                                                colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isNavigation) ...[
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildModeCard(
@@ -2010,6 +2177,22 @@ class _SavePresentation {
   final String label;
   final String? detail;
   final SaveStatusTone tone;
+}
+
+class _ValuationWorkflowStep {
+  const _ValuationWorkflowStep({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    this.page,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final PropertyDetailPage? page;
+  final bool active;
 }
 
 class _SectionStatus {

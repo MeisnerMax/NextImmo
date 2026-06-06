@@ -260,13 +260,10 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
                         ),
                         subtitle: Text(
                           '${_formatDate(row.occurredAt)}\n'
-                          '${row.summary ?? '-'}',
+                          '${row.summary ?? '-'}\n'
+                          'Quelle: ${row.source}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: NxStatusBadge(
-                          label: row.source,
-                          kind: NxBadgeKind.neutral,
                         ),
                         onTap: () => setState(() => _selected = row),
                       );
@@ -630,11 +627,16 @@ class _JsonBlock extends StatelessWidget {
         children: [
           Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 6),
-          Text(
-            value == null ? '-' : const JsonEncoder.withIndent('  ').convert(value),
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Text(
+              value == null
+                  ? '-'
+                  : const JsonEncoder.withIndent('  ').convert(value),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+            ),
           ),
         ],
       ),

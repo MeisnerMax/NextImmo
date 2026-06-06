@@ -20,6 +20,7 @@ class BudgetVsActualScreen extends ConsumerStatefulWidget {
 class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
   List<BudgetRecord> _budgets = const [];
   BudgetRecord? _selected;
+  List<BudgetLineRecord> _lines = const [];
   List<BudgetVarianceRecord> _variance = const [];
   List<LedgerAccountRecord> _accounts = const [];
   String _fromPeriod = '';
@@ -90,6 +91,12 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
           if (_selected != null) ...[
             _VarianceSummary(rows: _variance),
             const SizedBox(height: AppSpacing.component),
+            _ObjectBudgetDashboard(
+              lines: _lines,
+              rows: _variance,
+              accountName: _accountName,
+            ),
+            const SizedBox(height: AppSpacing.component),
           ],
           Expanded(
             child: LayoutBuilder(
@@ -110,7 +117,11 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                 ),
                                 subtitle: Text(budget.status),
                                 onTap: () {
-                                  setState(() => _selected = budget);
+                                  setState(() {
+                                    _selected = budget;
+                                    _lines = const [];
+                                    _variance = const [];
+                                  });
                                   _compute();
                                 },
                               );
@@ -437,9 +448,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
     if (selected == null) {
       return;
     }
-    final values = await ref
-        .read(budgetRepositoryProvider)
-        .computeBudgetVsActual(
+    final budgetRepo = ref.read(budgetRepositoryProvider);
+    final detail = await budgetRepo.getBudgetDetail(selected.id);
+    final values = await budgetRepo.computeBudgetVsActual(
           entityType: 'asset_property',
           entityId: widget.propertyId,
           budgetId: selected.id,
@@ -450,9 +461,263 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
       return;
     }
     setState(() {
+      _lines = detail?.lines ?? const [];
       _variance = values;
     });
   }
+}
+
+class _ObjectBudgetDashboard extends StatelessWidget {
+  const _ObjectBudgetDashboard({
+    required this.lines,
+    required this.rows,
+    required this.accountName,
+  });
+
+  final List<BudgetLineRecord> lines;
+  final List<BudgetVarianceRecord> rows;
+  final String Function(String accountId) accountName;
+
+  @override
+  Widget build(BuildContext context) {
+    final planned = lines.fold<double>(
+      0,
+      (sum, line) => sum + (line.direction == 'in' ? line.amount : -line.amount),
+    );
+    final actual = rows.fold<double>(0, (sum, row) => sum + row.actualAmount);
+    final matchedPlan =
+        rows.fold<double>(0, (sum, row) => sum + row.budgetAmount);
+    final forecast = rows.isEmpty ? planned : actual + (planned - matchedPlan);
+    final variance = rows.fold<double>(
+      0,
+      (sum, row) => sum + row.varianceAmount,
+    );
+    final varianceRate = matchedPlan == 0 ? null : variance / matchedPlan;
+    final topRows = [...rows]
+      ..sort((a, b) => b.varianceAmount.abs().compareTo(a.varianceAmount.abs()));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 760;
+        final panelWidth =
+            stacked ? constraints.maxWidth : (constraints.maxWidth - 8) / 2;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ObjectBudgetPanel(
+              width: panelWidth,
+              title: 'Objekt-Budgetsteuerung',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ObjectBudgetSignal(rate: varianceRate, amount: variance),
+                  const SizedBox(height: 8),
+                  _ObjectBudgetBars(
+                    data: [
+                      _ObjectBudgetDatum('Plan', planned),
+                      _ObjectBudgetDatum('Ist', actual),
+                      _ObjectBudgetDatum('Forecast', forecast),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            _ObjectBudgetPanel(
+              width: panelWidth,
+              title: 'Größte Abweichungen',
+              child: _ObjectBudgetBars(
+                data: topRows
+                    .take(4)
+                    .map(
+                      (row) => _ObjectBudgetDatum(
+                        accountName(row.accountId),
+                        row.varianceAmount,
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ObjectBudgetPanel extends StatelessWidget {
+  const _ObjectBudgetPanel({
+    required this.width,
+    required this.title,
+    required this.child,
+  });
+
+  final double width;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _ObjectBudgetSignal extends StatelessWidget {
+  const _ObjectBudgetSignal({required this.rate, required this.amount});
+
+  final double? rate;
+  final double amount;
+
+  @override
+  Widget build(BuildContext context) {
+    final absRate = rate?.abs() ?? 0;
+    final color = rate == null
+        ? Theme.of(context).colorScheme.primary
+        : absRate <= 0.05
+        ? context.semanticColors.success
+        : absRate <= 0.15
+            ? context.semanticColors.warning
+            : Theme.of(context).colorScheme.error;
+    final label = rate == null
+        ? 'Ist-Abgleich offen'
+        : absRate <= 0.05
+        ? 'Im Rahmen'
+        : absRate <= 0.15
+            ? 'Beobachten'
+            : 'Eskalieren';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.insights_outlined, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Text(
+            rate == null
+                ? _formatObjectBudgetCurrency(amount)
+                : '${(rate! * 100).toStringAsFixed(1)}%',
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ObjectBudgetBars extends StatelessWidget {
+  const _ObjectBudgetBars({required this.data});
+
+  final List<_ObjectBudgetDatum> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return SizedBox(
+        height: 96,
+        child: Center(
+          child: Text('Keine Daten', style: Theme.of(context).textTheme.bodySmall),
+        ),
+      );
+    }
+    final maxValue = data.fold<double>(
+      0,
+      (max, item) => item.value.abs() > max ? item.value.abs() : max,
+    );
+    final denominator = maxValue == 0 ? 1.0 : maxValue;
+    return Column(
+      children: [
+        for (final item in data) ...[
+          Row(
+            children: [
+              SizedBox(
+                width: 92,
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value:
+                        (item.value.abs() / denominator).clamp(0.0, 1.0).toDouble(),
+                    minHeight: 9,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: item.value < 0
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 72,
+                child: Text(
+                  _formatObjectBudgetCurrency(item.value),
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _ObjectBudgetDatum {
+  const _ObjectBudgetDatum(this.label, this.value);
+
+  final String label;
+  final double value;
+}
+
+String _formatObjectBudgetCurrency(double value) {
+  final sign = value < 0 ? '-' : '';
+  final absolute = value.abs();
+  if (absolute >= 1000000) {
+    return '$sign${(absolute / 1000000).toStringAsFixed(1)} Mio.';
+  }
+  if (absolute >= 1000) {
+    return '$sign${(absolute / 1000).toStringAsFixed(1)} Tsd.';
+  }
+  return '$sign${absolute.toStringAsFixed(0)}';
 }
 
 class _VarianceSummary extends StatelessWidget {

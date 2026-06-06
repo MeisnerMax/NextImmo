@@ -42,6 +42,11 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
       ),
       secondaryActions: [
         OutlinedButton.icon(
+          onPressed: _installStandardTemplates,
+          icon: const Icon(Icons.library_add_outlined),
+          label: const Text('Standardvorlagen laden'),
+        ),
+        OutlinedButton.icon(
           onPressed: _generateNow,
           icon: const Icon(Icons.play_circle_outline),
           label: const Text('Jetzt erzeugen'),
@@ -123,6 +128,7 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                               Theme.of(context).colorScheme.surfaceContainerHighest,
                           title: Text(template.name),
                           subtitle: Text(
+                            '${_templateCategoryLabel(template.category)} | '
                             '${_entityTypeLabel(template.entityType)} | '
                             '${_recurrenceLabel(template.recurrenceRule)} '
                             'x${template.recurrenceInterval}',
@@ -183,6 +189,18 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                       _TemplateFact(
                         label: 'Bereich',
                         value: _entityTypeLabel(selected.entityType),
+                      ),
+                      _TemplateFact(
+                        label: 'Kategorie',
+                        value: _templateCategoryLabel(selected.category),
+                      ),
+                      _TemplateFact(
+                        label: 'Bearbeitergruppe',
+                        value: _assigneeGroupLabel(selected.assigneeGroup),
+                      ),
+                      _TemplateFact(
+                        label: 'Objektart',
+                        value: _propertyTypeLabel(selected.propertyType),
                       ),
                       _TemplateFact(
                         label: 'Rhythmus',
@@ -288,6 +306,9 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
       text: (existing?.recurrenceInterval ?? 1).toString(),
     );
     var entityType = existing?.entityType ?? 'none';
+    var category = existing?.category ?? 'general';
+    var assigneeGroup = existing?.assigneeGroup ?? 'asset_management';
+    var propertyType = existing?.propertyType ?? 'all';
     var priority = existing?.defaultPriority ?? 'normal';
     var recurrence = existing?.recurrenceRule ?? 'monthly';
 
@@ -321,6 +342,44 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
+                        value: category,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'general',
+                            child: Text('Allgemein'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'letting',
+                            child: Text('Vermietung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'maintenance',
+                            child: Text('Instandhaltung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'renovation',
+                            child: Text('Sanierung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'finance',
+                            child: Text('Buchhaltung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'document',
+                            child: Text('Dokumente'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => category = value);
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Kategorie',
+                          prefixIcon: Icon(Icons.sell_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
                         value: entityType,
                         items: const [
                           DropdownMenuItem(
@@ -347,6 +406,86 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Bereich',
                           prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: assigneeGroup,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'asset_management',
+                            child: Text('Asset Management'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'hausmeister',
+                            child: Text('Hausmeister'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'bauleitung',
+                            child: Text('Bauleitung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'bauarbeiter',
+                            child: Text('Bauarbeiter'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'buchhaltung',
+                            child: Text('Buchhaltung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'vermietung',
+                            child: Text('Vermietung'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'dienstleister',
+                            child: Text('Externer Dienstleister'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => assigneeGroup = value);
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Bearbeitergruppe',
+                          prefixIcon: Icon(Icons.groups_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: propertyType,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'all',
+                            child: Text('Alle Objektarten'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'residential',
+                            child: Text('Wohnen'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'commercial',
+                            child: Text('Gewerbe'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'mixed',
+                            child: Text('Gemischt'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'hotel',
+                            child: Text('Hotel'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'project',
+                            child: Text('Projekt'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => propertyType = value);
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Objektart',
+                          prefixIcon: Icon(Icons.apartment_outlined),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -460,6 +599,9 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                           id: existing.id,
                           name: name,
                           entityType: entityType,
+                          category: category,
+                          assigneeGroup: assigneeGroup,
+                          propertyType: propertyType,
                           defaultTitle: defaultTitle,
                           defaultPriority: priority,
                           defaultDueDaysOffset: dueOffset,
@@ -473,6 +615,9 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
                       await repo.createTemplate(
                         name: name,
                         entityType: entityType,
+                        category: category,
+                        assigneeGroup: assigneeGroup,
+                        propertyType: propertyType,
                         defaultTitle: defaultTitle,
                         defaultPriority: priority,
                         defaultDueDaysOffset: dueOffset,
@@ -609,7 +754,252 @@ class _TaskTemplatesScreenState extends ConsumerState<TaskTemplatesScreen> {
           '${summary.generatedTasks} Aufgabe(n) und ${summary.generatedNotifications} Benachrichtigung(en) erzeugt.';
     });
   }
+
+  Future<void> _installStandardTemplates() async {
+    final repo = ref.read(tasksRepositoryProvider);
+    final existing = await repo.listTemplates();
+    final existingNames = existing
+        .map((template) => template.name.trim().toLowerCase())
+        .toSet();
+    var created = 0;
+    for (final spec in _standardTemplateSpecs) {
+      if (existingNames.contains(spec.name.trim().toLowerCase())) {
+        continue;
+      }
+      final template = await repo.createTemplate(
+        name: spec.name,
+        entityType: spec.entityType,
+        category: spec.category,
+        assigneeGroup: spec.assigneeGroup,
+        propertyType: spec.propertyType,
+        defaultTitle: spec.defaultTitle,
+        defaultPriority: spec.priority,
+        defaultDueDaysOffset: spec.dueDays,
+        recurrenceRule: spec.recurrence,
+        recurrenceInterval: spec.interval,
+      );
+      for (var index = 0; index < spec.checklist.length; index++) {
+        await repo.addTemplateChecklistItem(
+          templateId: template.id,
+          text: spec.checklist[index],
+          position: index,
+        );
+      }
+      created++;
+    }
+    await _reload();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _status =
+          created == 0
+              ? 'Standardvorlagen sind bereits vorhanden.'
+              : '$created Standardvorlage(n) angelegt.';
+    });
+  }
 }
+
+class _StandardTemplateSpec {
+  const _StandardTemplateSpec({
+    required this.name,
+    required this.entityType,
+    required this.defaultTitle,
+    required this.priority,
+    required this.recurrence,
+    required this.interval,
+    required this.checklist,
+    this.category = 'general',
+    this.assigneeGroup = 'asset_management',
+    this.propertyType = 'all',
+    this.dueDays,
+  });
+
+  final String name;
+  final String entityType;
+  final String category;
+  final String assigneeGroup;
+  final String propertyType;
+  final String defaultTitle;
+  final String priority;
+  final String recurrence;
+  final int interval;
+  final int? dueDays;
+  final List<String> checklist;
+}
+
+const _standardTemplateSpecs = <_StandardTemplateSpec>[
+  _StandardTemplateSpec(
+    name: 'Vermietung - Wohnungsübergabe',
+    entityType: 'property',
+    category: 'letting',
+    assigneeGroup: 'vermietung',
+    propertyType: 'residential',
+    defaultTitle: 'Wohnungsübergabe vorbereiten',
+    priority: 'high',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 7,
+    checklist: [
+      'Übergabetermin abstimmen',
+      'Zählerstände erfassen',
+      'Schlüssel dokumentieren',
+      'Übergabeprotokoll ablegen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Vermietung - Mietvertrag erstellen',
+    entityType: 'property',
+    category: 'letting',
+    assigneeGroup: 'vermietung',
+    propertyType: 'residential',
+    defaultTitle: 'Mietvertrag erstellen',
+    priority: 'high',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 5,
+    checklist: [
+      'Mieterdaten prüfen',
+      'Mietbeginn und Konditionen bestätigen',
+      'Vertrag erzeugen',
+      'Unterschriften einholen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Vermietung - Schufa prüfen',
+    entityType: 'property',
+    category: 'letting',
+    assigneeGroup: 'vermietung',
+    propertyType: 'residential',
+    defaultTitle: 'Schufa prüfen',
+    priority: 'normal',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 3,
+    checklist: [
+      'Einwilligung prüfen',
+      'Nachweis anfordern',
+      'Ergebnis dokumentieren',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Vermietung - Kaution anlegen',
+    entityType: 'property',
+    category: 'letting',
+    assigneeGroup: 'buchhaltung',
+    propertyType: 'residential',
+    defaultTitle: 'Kaution anlegen',
+    priority: 'normal',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 10,
+    checklist: [
+      'Kautionsbetrag prüfen',
+      'Zahlungseingang überwachen',
+      'Status im Mietvertrag aktualisieren',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Instandhaltung - Heizungswartung',
+    entityType: 'asset_property',
+    category: 'maintenance',
+    assigneeGroup: 'dienstleister',
+    defaultTitle: 'Heizungswartung durchführen',
+    priority: 'high',
+    recurrence: 'yearly',
+    interval: 1,
+    dueDays: 30,
+    checklist: [
+      'Dienstleister beauftragen',
+      'Termin mit Mietern abstimmen',
+      'Wartungsprotokoll ablegen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Instandhaltung - Rauchwarnmelderprüfung',
+    entityType: 'asset_property',
+    category: 'maintenance',
+    assigneeGroup: 'hausmeister',
+    propertyType: 'residential',
+    defaultTitle: 'Rauchwarnmelderprüfung durchführen',
+    priority: 'high',
+    recurrence: 'yearly',
+    interval: 1,
+    dueDays: 30,
+    checklist: [
+      'Prüftermin planen',
+      'Zugang je Einheit klären',
+      'Prüfnachweise ablegen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Instandhaltung - Dachkontrolle',
+    entityType: 'asset_property',
+    category: 'maintenance',
+    assigneeGroup: 'hausmeister',
+    defaultTitle: 'Dachkontrolle durchführen',
+    priority: 'normal',
+    recurrence: 'yearly',
+    interval: 1,
+    dueDays: 30,
+    checklist: [
+      'Sichtprüfung beauftragen',
+      'Fotos dokumentieren',
+      'Mängel als Ticket erfassen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Sanierung - Angebot einholen',
+    entityType: 'asset_property',
+    category: 'renovation',
+    assigneeGroup: 'bauleitung',
+    propertyType: 'project',
+    defaultTitle: 'Sanierungsangebot einholen',
+    priority: 'high',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 14,
+    checklist: [
+      'Leistungsumfang beschreiben',
+      'Mindestens zwei Anbieter anfragen',
+      'Budgetrahmen dokumentieren',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Sanierung - Beauftragung',
+    entityType: 'asset_property',
+    category: 'renovation',
+    assigneeGroup: 'bauleitung',
+    propertyType: 'project',
+    defaultTitle: 'Sanierung beauftragen',
+    priority: 'high',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 7,
+    checklist: [
+      'Angebot freigeben',
+      'Auftrag dokumentieren',
+      'Starttermin abstimmen',
+    ],
+  ),
+  _StandardTemplateSpec(
+    name: 'Sanierung - Abnahme',
+    entityType: 'asset_property',
+    category: 'renovation',
+    assigneeGroup: 'bauleitung',
+    propertyType: 'project',
+    defaultTitle: 'Sanierung abnehmen',
+    priority: 'high',
+    recurrence: 'none',
+    interval: 1,
+    dueDays: 3,
+    checklist: [
+      'Leistung prüfen',
+      'Mängel dokumentieren',
+      'Schlussrechnung freigeben',
+    ],
+  ),
+];
 
 class _PaneHeader extends StatelessWidget {
   const _PaneHeader({
@@ -722,6 +1112,59 @@ String _entityTypeLabel(String value) {
       return 'Dokument';
     default:
       return 'Ohne festen Bereich';
+  }
+}
+
+String _templateCategoryLabel(String value) {
+  switch (value) {
+    case 'letting':
+      return 'Vermietung';
+    case 'maintenance':
+      return 'Instandhaltung';
+    case 'renovation':
+      return 'Sanierung';
+    case 'finance':
+      return 'Buchhaltung';
+    case 'document':
+      return 'Dokumente';
+    default:
+      return 'Allgemein';
+  }
+}
+
+String _assigneeGroupLabel(String value) {
+  switch (value) {
+    case 'hausmeister':
+      return 'Hausmeister';
+    case 'bauleitung':
+      return 'Bauleitung';
+    case 'bauarbeiter':
+      return 'Bauarbeiter';
+    case 'buchhaltung':
+      return 'Buchhaltung';
+    case 'vermietung':
+      return 'Vermietung';
+    case 'dienstleister':
+      return 'Externer Dienstleister';
+    default:
+      return 'Asset Management';
+  }
+}
+
+String _propertyTypeLabel(String value) {
+  switch (value) {
+    case 'residential':
+      return 'Wohnen';
+    case 'commercial':
+      return 'Gewerbe';
+    case 'mixed':
+      return 'Gemischt';
+    case 'hotel':
+      return 'Hotel';
+    case 'project':
+      return 'Projekt';
+    default:
+      return 'Alle Objektarten';
   }
 }
 

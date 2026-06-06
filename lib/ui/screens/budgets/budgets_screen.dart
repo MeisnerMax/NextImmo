@@ -30,6 +30,51 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
   String _toPeriod = '';
   String? _status;
 
+  bool get _usesEntityDropdown =>
+      _entityType == 'asset_property' || _entityType == 'portfolio';
+
+  String get _entityInputLabel {
+    switch (_entityType) {
+      case 'unit':
+        return 'Einheit / Wohnungs-ID';
+      case 'maintenance':
+        return 'Instandhaltungs- oder Ticket-ID';
+      case 'renovation':
+        return 'Sanierungs-ID';
+      case 'project':
+        return 'Projekt-ID';
+      default:
+        return 'Zuordnung';
+    }
+  }
+
+  double get _plannedTotal => _lines.fold<double>(
+    0,
+    (sum, line) => sum + (line.direction == 'in' ? line.amount : -line.amount),
+  );
+
+  double get _actualTotal => _variance.fold<double>(
+    0,
+    (sum, line) => sum + line.actualAmount,
+  );
+
+  double get _varianceTotal => _variance.fold<double>(
+    0,
+    (sum, line) => sum + line.varianceAmount,
+  );
+
+  double get _forecastTotal {
+    if (_variance.isEmpty) {
+      return _plannedTotal;
+    }
+    final plannedMatched = _variance.fold<double>(
+      0,
+      (sum, line) => sum + line.budgetAmount,
+    );
+    final remainingPlan = _plannedTotal - plannedMatched;
+    return _actualTotal + remainingPlan;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -57,11 +102,27 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   items: const [
                     DropdownMenuItem(
                       value: 'asset_property',
-                      child: Text('Property budget'),
+                      child: Text('Objekt'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'unit',
+                      child: Text('Einheit'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'maintenance',
+                      child: Text('Instandhaltung'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'renovation',
+                      child: Text('Sanierung'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'project',
+                      child: Text('Projekt'),
                     ),
                     DropdownMenuItem(
                       value: 'portfolio',
-                      child: Text('Portfolio budget'),
+                      child: Text('Portfolio'),
                     ),
                   ],
                   onChanged: (value) {
@@ -85,34 +146,56 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   context,
                   idealWidth: 280,
                 ),
-                child: DropdownButtonFormField<String>(
-                  value: _entityId.isEmpty ? null : _entityId,
-                  isExpanded: true,
-                  items: _entityItems(),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _entityId = value;
-                      _selected = null;
-                      _lines = const [];
-                      _variance = const [];
-                    });
-                    _reload();
-                  },
-                  decoration: InputDecoration(
-                    labelText:
-                        _entityType == 'portfolio' ? 'Portfolio' : 'Property',
-                  ),
-                ),
+                child:
+                    _usesEntityDropdown
+                        ? DropdownButtonFormField<String>(
+                          value: _entityId.isEmpty ? null : _entityId,
+                          isExpanded: true,
+                          items: _entityItems(),
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _entityId = value;
+                              _selected = null;
+                              _lines = const [];
+                              _variance = const [];
+                            });
+                            _reload();
+                          },
+                          decoration: InputDecoration(
+                            labelText:
+                                _entityType == 'portfolio'
+                                    ? 'Portfolio'
+                                    : 'Objekt',
+                          ),
+                        )
+                        : TextFormField(
+                          initialValue: _entityId,
+                          decoration: InputDecoration(
+                            labelText: _entityInputLabel,
+                            prefixIcon: const Icon(Icons.tag_outlined),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _entityId = value.trim();
+                              _selected = null;
+                              _lines = const [];
+                              _variance = const [];
+                            });
+                          },
+                        ),
               ),
               ElevatedButton.icon(
                 onPressed: _createBudgetDialog,
                 icon: const Icon(Icons.add),
-                label: const Text('New Budget'),
+                label: const Text('Neues Budget'),
               ),
-              OutlinedButton(onPressed: _reload, child: const Text('Refresh')),
+              OutlinedButton(
+                onPressed: _reload,
+                child: const Text('Aktualisieren'),
+              ),
             ],
           ),
           if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
@@ -172,7 +255,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                                 Row(
                                   children: [
                                     Text(
-                                      'Lines - ${_selected!.versionName}',
+                                  'Budgetplanung - ${_selected!.versionName}',
                                       style:
                                           Theme.of(
                                             context,
@@ -181,14 +264,30 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                                     const Spacer(),
                                     OutlinedButton(
                                       onPressed: _addLineDialog,
-                                      child: const Text('Add / Update Line'),
+                                      child: const Text('Position erfassen'),
                                     ),
                                     const SizedBox(width: 8),
                                     OutlinedButton(
                                       onPressed: _computeVariance,
-                                      child: const Text('Compute Variance'),
+                                      child: const Text('Ist-Abgleich'),
                                     ),
                                   ],
+                                ),
+                                const SizedBox(height: 8),
+                                _BudgetManagementSummary(
+                                  planned: _plannedTotal,
+                                  actual: _actualTotal,
+                                  variance: _varianceTotal,
+                                  forecast: _forecastTotal,
+                                ),
+                                const SizedBox(height: 8),
+                                _BudgetVisualDashboard(
+                                  lines: _lines,
+                                  variance: _variance,
+                                  accounts: _accounts,
+                                  plannedTotal: _plannedTotal,
+                                  actualTotal: _actualTotal,
+                                  forecastTotal: _forecastTotal,
                                 ),
                                 const SizedBox(height: 8),
                                 Wrap(
@@ -359,7 +458,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     if (entityId.isEmpty) {
       if (_entityType == 'portfolio' && portfolios.isNotEmpty) {
         entityId = portfolios.first.id;
-      } else if (_entityType != 'portfolio' && properties.isNotEmpty) {
+      } else if (_entityType == 'asset_property' && properties.isNotEmpty) {
         entityId = properties.first.id;
       }
     }
@@ -751,6 +850,9 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
       }
       return _entityId.isEmpty ? 'No portfolio selected' : _entityId;
     }
+    if (_entityType != 'asset_property') {
+      return _entityId.isEmpty ? _entityInputLabel : _entityId;
+    }
     for (final property in _properties) {
       if (property.id == _entityId) {
         return property.name;
@@ -758,4 +860,446 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     }
     return _entityId.isEmpty ? 'No property selected' : _entityId;
   }
+}
+
+class _BudgetManagementSummary extends StatelessWidget {
+  const _BudgetManagementSummary({
+    required this.planned,
+    required this.actual,
+    required this.variance,
+    required this.forecast,
+  });
+
+  final double planned;
+  final double actual;
+  final double variance;
+  final double forecast;
+
+  @override
+  Widget build(BuildContext context) {
+    final varianceTone =
+        variance.abs() < 0.01
+            ? context.semanticColors.success
+            : variance < 0
+                ? context.semanticColors.warning
+                : Theme.of(context).colorScheme.primary;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        _BudgetSummaryTile(
+          label: 'Geplant',
+          value: _formatBudgetCurrency(planned),
+          icon: Icons.account_balance_wallet_outlined,
+        ),
+        _BudgetSummaryTile(
+          label: 'Ist',
+          value: _formatBudgetCurrency(actual),
+          icon: Icons.receipt_long_outlined,
+        ),
+        _BudgetSummaryTile(
+          label: 'Abweichung',
+          value: _formatBudgetCurrency(variance),
+          icon: Icons.compare_arrows_outlined,
+          tone: varianceTone,
+        ),
+        _BudgetSummaryTile(
+          label: 'Forecast',
+          value: _formatBudgetCurrency(forecast),
+          icon: Icons.trending_up_outlined,
+        ),
+      ],
+    );
+  }
+}
+
+class _BudgetSummaryTile extends StatelessWidget {
+  const _BudgetSummaryTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.tone,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tone ?? Theme.of(context).colorScheme.onSurface;
+    return Container(
+      width: context.viewport == AppViewport.mobile ? double.infinity : 180,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetVisualDashboard extends StatelessWidget {
+  const _BudgetVisualDashboard({
+    required this.lines,
+    required this.variance,
+    required this.accounts,
+    required this.plannedTotal,
+    required this.actualTotal,
+    required this.forecastTotal,
+  });
+
+  final List<BudgetLineRecord> lines;
+  final List<BudgetVarianceRecord> variance;
+  final List<LedgerAccountRecord> accounts;
+  final double plannedTotal;
+  final double actualTotal;
+  final double forecastTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final varianceTotal = variance.isEmpty ? 0.0 : actualTotal - plannedTotal;
+    final varianceRate =
+        variance.isEmpty || plannedTotal == 0 ? null : varianceTotal / plannedTotal;
+    final periodData = variance.isNotEmpty
+        ? _periodDataFromVariance(variance)
+        : _periodDataFromLines(lines);
+    final topVariance = [...variance]
+      ..sort(
+        (a, b) => b.varianceAmount.abs().compareTo(a.varianceAmount.abs()),
+      );
+    final overviewData = <_BudgetBarDatum>[
+      _BudgetBarDatum('Plan', plannedTotal),
+      _BudgetBarDatum('Ist', actualTotal),
+      _BudgetBarDatum('Forecast', forecastTotal),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 820;
+        final panelWidth =
+            stacked ? constraints.maxWidth : (constraints.maxWidth - 8) / 2;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _BudgetMiniPanel(
+              width: panelWidth,
+              title: 'Budgetsteuerung',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _BudgetStatusStrip(
+                    varianceTotal: varianceTotal,
+                    varianceRate: varianceRate,
+                  ),
+                  const SizedBox(height: 10),
+                  _BudgetBarList(data: overviewData),
+                ],
+              ),
+            ),
+            _BudgetMiniPanel(
+              width: panelWidth,
+              title: 'Top-Abweichungen',
+              child: _BudgetBarList(
+                data: topVariance
+                    .take(4)
+                    .map(
+                      (item) => _BudgetBarDatum(
+                        _budgetAccountName(accounts, item.accountId),
+                        item.varianceAmount,
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+            _BudgetMiniPanel(
+              width: panelWidth,
+              title: 'Periodentrend',
+              child: _BudgetBarList(data: periodData.take(6).toList()),
+            ),
+            _BudgetMiniPanel(
+              width: panelWidth,
+              title: 'Planstruktur',
+              child: _BudgetBarList(
+                data: _budgetPlanByAccount(lines, accounts).take(6).toList(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BudgetMiniPanel extends StatelessWidget {
+  const _BudgetMiniPanel({
+    required this.width,
+    required this.title,
+    required this.child,
+  });
+
+  final double width;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetStatusStrip extends StatelessWidget {
+  const _BudgetStatusStrip({
+    required this.varianceTotal,
+    required this.varianceRate,
+  });
+
+  final double varianceTotal;
+  final double? varianceRate;
+
+  @override
+  Widget build(BuildContext context) {
+    final absRate = varianceRate?.abs() ?? 0;
+    final color = varianceRate == null
+        ? Theme.of(context).colorScheme.primary
+        : absRate <= 0.05
+        ? context.semanticColors.success
+        : absRate <= 0.15
+            ? context.semanticColors.warning
+            : Theme.of(context).colorScheme.error;
+    final label = varianceRate == null
+        ? 'Ist-Abgleich offen'
+        : absRate <= 0.05
+        ? 'Im Rahmen'
+        : absRate <= 0.15
+            ? 'Beobachten'
+            : 'Eskalieren';
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.insights_outlined, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          Text(
+            varianceRate == null
+                ? _formatBudgetCurrency(varianceTotal)
+                : '${(varianceRate! * 100).toStringAsFixed(1)}%',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetBarList extends StatelessWidget {
+  const _BudgetBarList({required this.data});
+
+  final List<_BudgetBarDatum> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return SizedBox(
+        height: 128,
+        child: Center(
+          child: Text(
+            'Keine Daten',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      );
+    }
+    final maxValue = data.fold<double>(
+      0,
+      (max, item) => item.value.abs() > max ? item.value.abs() : max,
+    );
+    final denominator = maxValue == 0 ? 1.0 : maxValue;
+    return Column(
+      children: [
+        for (final item in data) ...[
+          Row(
+            children: [
+              SizedBox(
+                width: 96,
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 9,
+                    value:
+                        (item.value.abs() / denominator).clamp(0.0, 1.0).toDouble(),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: item.value < 0
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 78,
+                child: Text(
+                  _formatBudgetCurrency(item.value),
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _BudgetBarDatum {
+  const _BudgetBarDatum(this.label, this.value);
+
+  final String label;
+  final double value;
+}
+
+List<_BudgetBarDatum> _periodDataFromVariance(
+  List<BudgetVarianceRecord> variance,
+) {
+  final totals = <String, double>{};
+  for (final row in variance) {
+    totals[row.periodKey] = (totals[row.periodKey] ?? 0) + row.varianceAmount;
+  }
+  return _budgetDataFromTotals(totals);
+}
+
+List<_BudgetBarDatum> _periodDataFromLines(List<BudgetLineRecord> lines) {
+  final totals = <String, double>{};
+  for (final line in lines) {
+    final signed = line.direction == 'in' ? line.amount : -line.amount;
+    totals[line.periodKey] = (totals[line.periodKey] ?? 0) + signed;
+  }
+  return _budgetDataFromTotals(totals);
+}
+
+List<_BudgetBarDatum> _budgetPlanByAccount(
+  List<BudgetLineRecord> lines,
+  List<LedgerAccountRecord> accounts,
+) {
+  final totals = <String, double>{};
+  for (final line in lines) {
+    final signed = line.direction == 'in' ? line.amount : -line.amount;
+    final label = _budgetAccountName(accounts, line.accountId);
+    totals[label] = (totals[label] ?? 0) + signed;
+  }
+  return _budgetDataFromTotals(totals, sortByAbsolute: true);
+}
+
+List<_BudgetBarDatum> _budgetDataFromTotals(
+  Map<String, double> totals, {
+  bool sortByAbsolute = false,
+}) {
+  final data = totals.entries
+      .map((entry) => _BudgetBarDatum(entry.key, entry.value))
+      .toList();
+  data.sort((a, b) {
+    if (sortByAbsolute) {
+      return b.value.abs().compareTo(a.value.abs());
+    }
+    return a.label.compareTo(b.label);
+  });
+  return data;
+}
+
+String _budgetAccountName(List<LedgerAccountRecord> accounts, String accountId) {
+  return accounts
+          .where((account) => account.id == accountId)
+          .map((account) => account.name)
+          .firstOrNull ??
+      accountId;
+}
+
+String _formatBudgetCurrency(double value) {
+  final negative = value < 0;
+  final absolute = value.abs();
+  final formatted =
+      absolute >= 1000000
+          ? '${(absolute / 1000000).toStringAsFixed(1)} Mio. EUR'
+          : absolute >= 1000
+              ? '${(absolute / 1000).toStringAsFixed(1)} Tsd. EUR'
+              : '${absolute.toStringAsFixed(0)} EUR';
+  return negative ? '-$formatted' : formatted;
 }

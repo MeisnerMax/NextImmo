@@ -50,14 +50,16 @@ class _OperationsOverviewScreenState
               spacing: AppSpacing.component,
               runSpacing: AppSpacing.component,
               children: [
-                _metricCard('Units Total', '${bundle.unitsTotal}'),
-                _metricCard('Occupied', '${bundle.occupiedUnits}'),
-                _metricCard('Vacant', '${bundle.vacantUnits}'),
+                _metricCard('Einheiten', '${bundle.unitsTotal}'),
+                _metricCard('Vermietet', '${bundle.occupiedUnits}'),
+                _metricCard('Leerstand', '${bundle.vacantUnits}'),
                 _metricCard('Offline', '${bundle.offlineUnits}'),
-                _metricCard('Active Leases', '${bundle.activeLeases}'),
-                _metricCard('Alerts', '${bundle.openOperationalAlerts}'),
+                _metricCard('Aktive Verträge', '${bundle.activeLeases}'),
+                _metricCard('Hinweise', '${bundle.openOperationalAlerts}'),
               ],
             ),
+            const SizedBox(height: AppSpacing.component),
+            _lettingWorkflowCard(),
             const SizedBox(height: AppSpacing.component),
             Card(
               child: Padding(
@@ -66,7 +68,7 @@ class _OperationsOverviewScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Quick Actions',
+                      'Schnellaktionen',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
@@ -74,13 +76,13 @@ class _OperationsOverviewScreenState
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _actionButton('New Unit', PropertyDetailPage.units),
-                        _actionButton('New Tenant', PropertyDetailPage.tenants),
-                        _actionButton('New Lease', PropertyDetailPage.leases),
-                        _actionButton('Generate Rent Roll', PropertyDetailPage.rentRoll),
-                        _actionButton('Review Expiring Leases', PropertyDetailPage.alerts),
-                        _actionButton('Review Vacancies', PropertyDetailPage.units),
-                        _actionButton('Review Data Issues', PropertyDetailPage.alerts),
+                        _actionButton('Einheit anlegen', PropertyDetailPage.units),
+                        _actionButton('Mieter anlegen', PropertyDetailPage.tenants),
+                        _actionButton('Vertrag anlegen', PropertyDetailPage.leases),
+                        _actionButton('Rent Roll erzeugen', PropertyDetailPage.rentRoll),
+                        _actionButton('Mietenden prüfen', PropertyDetailPage.alerts),
+                        _actionButton('Leerstand prüfen', PropertyDetailPage.units),
+                        _actionButton('Datenqualität prüfen', PropertyDetailPage.alerts),
                       ],
                     ),
                   ],
@@ -221,6 +223,126 @@ class _OperationsOverviewScreenState
     );
   }
 
+  Widget _lettingWorkflowCard() {
+    final steps = <_LettingWorkflowStep>[
+      const _LettingWorkflowStep(
+        number: '1',
+        title: 'Einheit',
+        detail: 'Fläche und Status',
+        icon: Icons.apartment_outlined,
+        targetPage: PropertyDetailPage.units,
+      ),
+      const _LettingWorkflowStep(
+        number: '2',
+        title: 'Interessent',
+        detail: 'Mieterprofil',
+        icon: Icons.person_add_alt_outlined,
+        targetPage: PropertyDetailPage.tenants,
+      ),
+      const _LettingWorkflowStep(
+        number: '3',
+        title: 'Dokumente',
+        detail: 'Nachweise und Vertrag',
+        icon: Icons.folder_open_outlined,
+        targetPage: PropertyDetailPage.documents,
+      ),
+      const _LettingWorkflowStep(
+        number: '4',
+        title: 'Vertrag',
+        detail: 'Konditionen',
+        icon: Icons.description_outlined,
+        targetPage: PropertyDetailPage.leases,
+      ),
+      const _LettingWorkflowStep(
+        number: '5',
+        title: 'Mietbeginn',
+        detail: 'Start und Übergabe',
+        icon: Icons.event_available_outlined,
+        targetPage: PropertyDetailPage.leases,
+      ),
+      const _LettingWorkflowStep(
+        number: '6',
+        title: 'Kaution',
+        detail: 'Soll und Zahlung',
+        icon: Icons.savings_outlined,
+        targetPage: PropertyDetailPage.leases,
+      ),
+      const _LettingWorkflowStep(
+        number: '7',
+        title: 'Laufende Miete',
+        detail: 'Rent Roll',
+        icon: Icons.payments_outlined,
+        targetPage: PropertyDetailPage.rentRoll,
+      ),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Vermietungsworkflow',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.component),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children:
+                  steps.map((step) {
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                      onTap: () {
+                        ref.read(propertyDetailPageProvider.notifier).state =
+                            step.targetPage;
+                      },
+                      child: Container(
+                        width: context.viewport == AppViewport.mobile ? double.infinity : 220,
+                        padding: const EdgeInsets.all(AppSpacing.component),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                          border: Border.all(color: context.semanticColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(radius: 15, child: Text(step.number)),
+                            const SizedBox(width: AppSpacing.sm),
+                            Icon(step.icon, size: 20),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    step.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                  Text(
+                                    step.detail,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _actionButton(String label, PropertyDetailPage targetPage) {
     return FilledButton.tonal(
       onPressed: () {
@@ -256,4 +378,20 @@ class _OperationsOverviewScreenState
       });
     }
   }
+}
+
+class _LettingWorkflowStep {
+  const _LettingWorkflowStep({
+    required this.number,
+    required this.title,
+    required this.detail,
+    required this.icon,
+    required this.targetPage,
+  });
+
+  final String number;
+  final String title;
+  final String detail;
+  final IconData icon;
+  final PropertyDetailPage targetPage;
 }

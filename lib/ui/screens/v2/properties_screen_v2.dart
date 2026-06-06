@@ -130,6 +130,8 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _PropertyCover(property: property),
+                      const SizedBox(height: 12),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -165,32 +167,12 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          TextButton(
-                            onPressed: () => _openProperty(property, ref),
-                            child: const Text('Open'),
-                          ),
-                          TextButton(
-                            onPressed:
-                                () => controller.archive(property.id, true),
-                            child: const Text('Archive'),
-                          ),
-                          TextButton(
-                            onPressed:
-                                () => _confirmPermanentDelete(
-                                  context,
-                                  property,
-                                ),
-                            style: TextButton.styleFrom(
-                              foregroundColor:
-                                  Theme.of(context).colorScheme.error,
-                            ),
-                            child: const Text('Endgültig löschen'),
-                          ),
-                        ],
+                      _PropertyActions(
+                        onOpen: () => _openProperty(property, ref),
+                        onImages: () => _openPropertyImages(property, ref),
+                        onArchive: () => controller.archive(property.id, true),
+                        onDelete:
+                            () => _confirmPermanentDelete(context, property),
                       ),
                     ],
                   ),
@@ -211,7 +193,28 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                   .map(
                     (property) => DataRow(
                       cells: [
-                        DataCell(Text(property.name)),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 72,
+                                child: _PropertyCover(
+                                  property: property,
+                                  compact: true,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 220,
+                                child: Text(
+                                  property.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         DataCell(
                           Text('${property.addressLine1}, ${property.city}'),
                         ),
@@ -225,31 +228,15 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                         ),
                         DataCell(Text(_formatDate(property.updatedAt))),
                         DataCell(
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              TextButton(
-                                onPressed: () => _openProperty(property, ref),
-                                child: const Text('Open'),
-                              ),
-                              TextButton(
-                                onPressed:
-                                    () => controller.archive(property.id, true),
-                                child: const Text('Archive'),
-                              ),
-                              TextButton(
-                                onPressed:
-                                    () => _confirmPermanentDelete(
-                                      context,
-                                      property,
-                                    ),
-                                style: TextButton.styleFrom(
-                                  foregroundColor:
-                                      Theme.of(context).colorScheme.error,
-                                ),
-                                child: const Text('Endgültig löschen'),
-                              ),
-                            ],
+                          _PropertyActions(
+                            dense: true,
+                            onOpen: () => _openProperty(property, ref),
+                            onImages: () => _openPropertyImages(property, ref),
+                            onArchive:
+                                () => controller.archive(property.id, true),
+                            onDelete:
+                                () =>
+                                    _confirmPermanentDelete(context, property),
                           ),
                         ),
                       ],
@@ -302,6 +289,13 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
         PropertyDetailPage.overview;
   }
 
+  void _openPropertyImages(PropertyRecord property, WidgetRef ref) {
+    ref.read(selectedScenarioIdProvider.notifier).state = null;
+    ref.read(selectedPropertyIdProvider.notifier).state = property.id;
+    ref.read(propertyDetailPageProvider.notifier).state =
+        PropertyDetailPage.documents;
+  }
+
   Future<void> _confirmPermanentDelete(
     BuildContext context,
     PropertyRecord property,
@@ -346,5 +340,160 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     return DateTime.fromMillisecondsSinceEpoch(
       millis,
     ).toIso8601String().substring(0, 10);
+  }
+}
+
+class _PropertyCover extends StatelessWidget {
+  const _PropertyCover({required this.property, this.compact = false});
+
+  final PropertyRecord property;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _coverColors(property.propertyType);
+    return AspectRatio(
+      aspectRatio: compact ? 1.45 : 2.8,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: context.semanticColors.border),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 8 : AppSpacing.component),
+          child: Align(
+            alignment: Alignment.bottomLeft,
+            child: Icon(
+              _coverIcon(property.propertyType),
+              color: Colors.white,
+              size: compact ? 20 : 34,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Color> _coverColors(String propertyType) {
+    switch (propertyType.toLowerCase()) {
+      case 'commercial':
+      case 'office':
+        return const [Color(0xFF0F766E), Color(0xFF164E63)];
+      case 'mixed_use':
+      case 'mixed-use':
+        return const [Color(0xFF7C3AED), Color(0xFF0F766E)];
+      case 'hotel':
+        return const [Color(0xFFB45309), Color(0xFF7F1D1D)];
+      default:
+        return const [Color(0xFF1D4ED8), Color(0xFF334155)];
+    }
+  }
+
+  IconData _coverIcon(String propertyType) {
+    switch (propertyType.toLowerCase()) {
+      case 'commercial':
+      case 'office':
+        return Icons.business_outlined;
+      case 'hotel':
+        return Icons.hotel_outlined;
+      default:
+        return Icons.apartment_outlined;
+    }
+  }
+}
+
+class _PropertyActions extends StatelessWidget {
+  const _PropertyActions({
+    required this.onOpen,
+    required this.onImages,
+    required this.onArchive,
+    required this.onDelete,
+    this.dense = false,
+  });
+
+  final VoidCallback onOpen;
+  final VoidCallback onImages;
+  final VoidCallback onArchive;
+  final VoidCallback onDelete;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!dense) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          FilledButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(Icons.open_in_new_outlined, size: 16),
+            label: const Text('Öffnen'),
+          ),
+          OutlinedButton.icon(
+            onPressed: onImages,
+            icon: const Icon(Icons.photo_library_outlined, size: 16),
+            label: const Text('Bilder'),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Weitere Aktionen',
+            onSelected: (value) {
+              if (value == 'archive') {
+                onArchive();
+              }
+              if (value == 'delete') {
+                onDelete();
+              }
+            },
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem(value: 'archive', child: Text('Archivieren')),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Endgültig löschen'),
+                  ),
+                ],
+          ),
+        ],
+      );
+    }
+    return Wrap(
+      spacing: 4,
+      children: [
+        IconButton(
+          tooltip: 'Öffnen',
+          onPressed: onOpen,
+          icon: const Icon(Icons.open_in_new_outlined),
+        ),
+        IconButton(
+          tooltip: 'Bilder und Dokumente',
+          onPressed: onImages,
+          icon: const Icon(Icons.photo_library_outlined),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Weitere Aktionen',
+          onSelected: (value) {
+            if (value == 'archive') {
+              onArchive();
+            }
+            if (value == 'delete') {
+              onDelete();
+            }
+          },
+          itemBuilder:
+              (context) => const [
+                PopupMenuItem(value: 'archive', child: Text('Archivieren')),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Endgültig löschen'),
+                ),
+              ],
+        ),
+      ],
+    );
   }
 }

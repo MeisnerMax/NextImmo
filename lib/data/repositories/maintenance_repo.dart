@@ -66,6 +66,10 @@ class MaintenanceRepo {
     double? costEstimate,
     String? vendorName,
     String? documentId,
+    String? damageLocation,
+    bool insuranceCase = false,
+    String? insuranceStatus,
+    String? insuranceClaimNumber,
     bool createTask = false,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -85,6 +89,10 @@ class MaintenanceRepo {
       costActual: null,
       vendorName: vendorName,
       documentId: documentId,
+      damageLocation: damageLocation,
+      insuranceCase: insuranceCase,
+      insuranceStatus: insuranceStatus,
+      insuranceClaimNumber: insuranceClaimNumber,
       createdAt: now,
       updatedAt: now,
     );
@@ -95,6 +103,13 @@ class MaintenanceRepo {
         ticket.toMap(),
         conflictAlgorithm: ConflictAlgorithm.abort,
       );
+      await txn.insert('maintenance_ticket_history', <String, Object?>{
+        'id': const Uuid().v4(),
+        'ticket_id': ticket.id,
+        'action': 'created',
+        'note': 'Ticket angelegt',
+        'created_at': now,
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
 
       if (createTask) {
         await txn.insert('tasks', <String, Object?>{
@@ -126,6 +141,37 @@ class MaintenanceRepo {
       where: 'id = ?',
       whereArgs: <Object?>[ticket.id],
     );
+    await addTicketHistory(
+      ticketId: ticket.id,
+      action: 'updated',
+      note: 'Ticket aktualisiert',
+    );
+  }
+
+  Future<List<MaintenanceTicketHistoryRecord>> listTicketHistory(
+    String ticketId,
+  ) async {
+    final rows = await _db.query(
+      'maintenance_ticket_history',
+      where: 'ticket_id = ?',
+      whereArgs: <Object?>[ticketId],
+      orderBy: 'created_at DESC',
+    );
+    return rows.map(MaintenanceTicketHistoryRecord.fromMap).toList();
+  }
+
+  Future<void> addTicketHistory({
+    required String ticketId,
+    required String action,
+    String? note,
+  }) async {
+    await _db.insert('maintenance_ticket_history', <String, Object?>{
+      'id': const Uuid().v4(),
+      'ticket_id': ticketId,
+      'action': action,
+      'note': note,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
   Future<void> deleteTicket(String id) async {
@@ -144,7 +190,15 @@ class MaintenanceRepo {
 
     final openRows = await _db.rawQuery('''
       SELECT * FROM maintenance_tickets
-      WHERE status IN ('open', 'in_progress', 'waiting')
+      WHERE status IN (
+        'open',
+        'planned',
+        'commissioned',
+        'in_progress',
+        'waiting',
+        'waiting_material',
+        'waiting_reply'
+      )
         AND due_at IS NOT NULL
       ''');
 

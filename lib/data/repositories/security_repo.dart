@@ -35,6 +35,7 @@ class SecurityRepo {
       'email': null,
       'display_name': 'Owner',
       'password_hash': null,
+      'password_salt': null,
       'role': 'admin',
       'created_at': now,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -95,6 +96,7 @@ class SecurityRepo {
     String? email,
     required String displayName,
     String? passwordHash,
+    String? passwordSalt,
     required String role,
   }) async {
     final user = LocalUserRecord(
@@ -103,6 +105,7 @@ class SecurityRepo {
       email: email?.trim(),
       displayName: displayName.trim(),
       passwordHash: passwordHash,
+      passwordSalt: passwordSalt,
       role: role.trim().toLowerCase(),
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
@@ -156,6 +159,51 @@ class SecurityRepo {
         oldValues: before.first,
         newValues: after.first,
         reason: 'role change',
+      );
+    }
+  }
+
+  Future<void> setUserPassword({
+    required String userId,
+    required String passwordHash,
+    required String passwordSalt,
+  }) async {
+    final before = await _db.query(
+      'local_users',
+      where: 'id = ?',
+      whereArgs: <Object?>[userId],
+      limit: 1,
+    );
+    await _db.update(
+      'local_users',
+      <String, Object?>{
+        'password_hash': passwordHash,
+        'password_salt': passwordSalt,
+      },
+      where: 'id = ?',
+      whereArgs: <Object?>[userId],
+    );
+    final after = await _db.query(
+      'local_users',
+      where: 'id = ?',
+      whereArgs: <Object?>[userId],
+      limit: 1,
+    );
+    if (before.isNotEmpty && after.isNotEmpty) {
+      await _recordAudit(
+        entityType: 'user',
+        entityId: userId,
+        action: 'set_password',
+        summary: 'User password updated',
+        parentEntityType: 'workspace',
+        parentEntityId: before.first['workspace_id'] as String?,
+        oldValues: <String, Object?>{
+          'password_configured':
+              before.first['password_hash'] != null &&
+              before.first['password_salt'] != null,
+        },
+        newValues: const <String, Object?>{'password_configured': true},
+        reason: 'password management',
       );
     }
   }
