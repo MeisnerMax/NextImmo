@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/nx_card.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'tenant_detail_screen.dart';
@@ -145,74 +146,71 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
     required List<TenantRecord> tenants,
     required String? selectedTenantId,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mieter', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            if (tenants.isEmpty)
-              const Text('Keine Mieter fuer diese Filter.')
-            else
-              Column(
-                children: [
-                  for (final tenant in tenants)
-                    ListTile(
-                      selected: tenant.id == selectedTenantId,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tenant.displayName),
-                      subtitle: Text(
-                        '${_tenantStatusLabel(tenant.status ?? 'active')}${tenant.email == null ? '' : ' · ${tenant.email}'}${tenant.phone == null ? '' : ' · ${tenant.phone}'}',
-                      ),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          if (!_hasContact(tenant))
-                            const Tooltip(
-                              message: 'Kontaktdaten fehlen',
-                              child: Icon(
-                                Icons.warning_amber_outlined,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          TextButton(
-                            onPressed: () => _tenantDialog(existing: tenant),
-                            child: const Text('Bearbeiten'),
-                          ),
-                        ],
-                      ),
-                      onTap:
-                          () =>
-                              ref
-                                  .read(
-                                    selectedOperationsTenantIdProvider.notifier,
-                                  )
-                                  .state = tenant.id,
+    return NxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Mieter', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          if (tenants.isEmpty)
+            const Text('Keine Mieter fuer diese Filter.')
+          else
+            Column(
+              children: [
+                for (final tenant in tenants)
+                  ListTile(
+                    selected: tenant.id == selectedTenantId,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(tenant.displayName),
+                    subtitle: Text(
+                      '${_tenantStatusLabel(tenant.status ?? 'active')}${tenant.email == null ? '' : ' · ${tenant.email}'}${tenant.phone == null ? '' : ' · ${tenant.phone}'}',
                     ),
-                ],
-              ),
-          ],
-        ),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        if (!_hasContact(tenant))
+                          const Tooltip(
+                            message: 'Kontaktdaten fehlen',
+                            child: Icon(
+                              Icons.warning_amber_outlined,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        TextButton(
+                          onPressed: () => _tenantDialog(existing: tenant),
+                          child: const Text('Bearbeiten'),
+                        ),
+                      ],
+                    ),
+                    onTap:
+                        () =>
+                            ref
+                                .read(
+                                  selectedOperationsTenantIdProvider.notifier,
+                                )
+                                .state = tenant.id,
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
 
   Widget _tenantDetailCard(TenantRecord? selectedTenant) {
-    return Card(
-      child:
-          selectedTenant == null
-              ? const Padding(
-                padding: EdgeInsets.all(AppSpacing.cardPadding),
-                child: Text('Mieter auswaehlen, um Details zu oeffnen.'),
-              )
-              : TenantDetailScreen(
-                propertyId: widget.propertyId,
-                tenantId: selectedTenant.id,
-                onEdit: () => _tenantDialog(existing: selectedTenant),
-                onChanged: _reload,
-              ),
+    if (selectedTenant == null) {
+      return const NxCard(
+        child: Text('Mieter auswaehlen, um Details zu oeffnen.'),
+      );
+    }
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: TenantDetailScreen(
+        propertyId: widget.propertyId,
+        tenantId: selectedTenant.id,
+        onEdit: () => _tenantDialog(existing: selectedTenant),
+        onChanged: _reload,
+      ),
     );
   }
 

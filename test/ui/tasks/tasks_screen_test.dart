@@ -12,6 +12,11 @@ void main() {
   testWidgets('renders list template with filters and detail panel', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -61,6 +66,36 @@ class _FakeTasksRepo extends TasksRepo {
         createdAt: 1,
         updatedAt: 1,
         createdBy: null,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<TaskWorkflowRecord>> listWorkflowTasks({
+    String? status,
+    int? dueFrom,
+    int? dueTo,
+    String? entityType,
+    String? entityId,
+  }) async {
+    return const <TaskWorkflowRecord>[
+      TaskWorkflowRecord(
+        task: TaskRecord(
+          id: 't1',
+          entityType: 'property',
+          entityId: 'p1',
+          title: 'Review lease rollover',
+          status: 'todo',
+          priority: 'high',
+          dueAt: 1735603200000,
+          createdAt: 1,
+          updatedAt: 1,
+          createdBy: null,
+        ),
+        propertyId: 'p1',
+        propertyName: 'Test Property',
+        contextTitle: 'Context',
+        contextSubtitle: 'Test Property',
       ),
     ];
   }

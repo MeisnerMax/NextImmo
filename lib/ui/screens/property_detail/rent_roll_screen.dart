@@ -196,9 +196,13 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       selected: _selected?.snapshot.id == snapshot.id,
-                      title: Text(snapshot.periodKey),
+                      title: Text(
+                        snapshot.periodKey,
+                        style: context.tabularNumericStyle,
+                      ),
                       subtitle: Text(
                         'Occ ${(snapshot.occupancyRate * 100).toStringAsFixed(1)}% · In Place ${snapshot.inPlaceRentMonthly.toStringAsFixed(2)}',
+                        style: context.tabularNumericStyle,
                       ),
                       onTap: () => _loadSnapshot(snapshot.id),
                       trailing: TextButton(
@@ -253,6 +257,7 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
                                     Text(
                                       row.line.inPlaceRentMonthly
                                           .toStringAsFixed(2),
+                                      style: context.tabularNumericStyle,
                                     ),
                                   ),
                                   DataCell(
@@ -260,16 +265,28 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
                                       row.line.marketRentMonthly
                                               ?.toStringAsFixed(2) ??
                                           '-',
+                                      style: context.tabularNumericStyle,
                                     ),
                                   ),
-                                  DataCell(Text(row.varianceText)),
+                                  DataCell(
+                                    Text(
+                                      row.varianceText,
+                                      style: context.tabularNumericStyle,
+                                    ),
+                                  ),
                                   DataCell(Text(row.depositStatus)),
                                   DataCell(
                                     Text(
                                       formatDateMillis(row.line.leaseEndDate),
+                                      style: context.tabularNumericStyle,
                                     ),
                                   ),
-                                  DataCell(Text(row.daysToExpiryText)),
+                                  DataCell(
+                                    Text(
+                                      row.daysToExpiryText,
+                                      style: context.tabularNumericStyle,
+                                    ),
+                                  ),
                                   DataCell(
                                     SizedBox(
                                       width: 220,
@@ -321,17 +338,21 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
   Widget _kpiTile(String label, String value) {
     return Container(
       width: 180,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: const Color(0xFFEAF1F8),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: context.semanticColors.border),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700).merge(context.tabularNumericStyle),
+          ),
         ],
       ),
     );

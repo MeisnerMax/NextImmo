@@ -135,10 +135,17 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                     Text('Typ: ${bundle.unit.unitType ?? '-'}'),
                     Text('Status: ${_unitStatusLabel(bundle.unit.status)}'),
                     Text('Etage: ${bundle.unit.floor ?? '-'}'),
-                    Text('Zimmer / Baeder: ${bundle.unit.beds ?? '-'} / ${bundle.unit.baths ?? '-'}'),
-                    Text('Flaeche: ${bundle.unit.sqft?.toStringAsFixed(1) ?? '-'}'),
+                    Text(
+                      'Zimmer / Baeder: ${bundle.unit.beds ?? '-'} / ${bundle.unit.baths ?? '-'}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Flaeche: ${bundle.unit.sqft?.toStringAsFixed(1) ?? '-'}',
+                      style: context.tabularNumericStyle,
+                    ),
                     Text(
                       'Soll- / Marktmiete: ${bundle.unit.targetRentMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.unit.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
+                      style: context.tabularNumericStyle,
                     ),
                   ],
                 ),
@@ -152,11 +159,17 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Offline-Grund: ${bundle.unit.offlineReason ?? '-'}'),
-                    Text('Leer seit: ${formatDateMillis(bundle.unit.vacancySince)}'),
+                    Text(
+                      'Leer seit: ${formatDateMillis(bundle.unit.vacancySince)}',
+                      style: context.tabularNumericStyle,
+                    ),
                     Text('Leerstandsgrund: ${bundle.unit.vacancyReason ?? '-'}'),
                     Text('Vermarktung: ${bundle.unit.marketingStatus ?? '-'}'),
                     Text('Renovierung: ${bundle.unit.renovationStatus ?? '-'}'),
-                    Text('Bereit ab: ${formatDateMillis(bundle.unit.expectedReadyDate)}'),
+                    Text(
+                      'Bereit ab: ${formatDateMillis(bundle.unit.expectedReadyDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
                     Text('Naechster Schritt: ${bundle.unit.nextAction ?? '-'}'),
                   ],
                 ),
@@ -173,9 +186,11 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                     Text('Mieter: ${bundle.activeTenant?.displayName ?? '-'}'),
                     Text(
                       'Grundmiete: ${bundle.activeLease?.baseRentMonthly.toStringAsFixed(2) ?? '-'}',
+                      style: context.tabularNumericStyle,
                     ),
                     Text(
                       'Vertragsende: ${formatDateMillis(bundle.activeLease?.endDate)}',
+                      style: context.tabularNumericStyle,
                     ),
                   ],
                 ),
@@ -197,6 +212,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                           title: Text(lease.leaseName),
                           subtitle: Text(
                             '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
+                            style: context.tabularNumericStyle,
                           ),
                           trailing: TextButton(
                             onPressed: () {
@@ -228,9 +244,11 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                           Text('Status: ${bundle.latestRentRollLine!.status}'),
                           Text(
                             'Ist / Markt: ${bundle.latestRentRollLine!.inPlaceRentMonthly.toStringAsFixed(2)} / ${bundle.latestRentRollLine!.marketRentMonthly?.toStringAsFixed(2) ?? '-'}',
+                            style: context.tabularNumericStyle,
                           ),
                           Text(
                             'Vertragsende: ${formatDateMillis(bundle.latestRentRollLine!.leaseEndDate)}',
+                            style: context.tabularNumericStyle,
                           ),
                         ],
                       ),

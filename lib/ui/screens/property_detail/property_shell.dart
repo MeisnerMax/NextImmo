@@ -37,23 +37,30 @@ final _autoScenarioCreationInFlightProvider = StateProvider<Set<String>>(
   (ref) => <String>{},
 );
 
-class PropertyShell extends ConsumerWidget {
+class PropertyShell extends ConsumerStatefulWidget {
   const PropertyShell({super.key});
 
-  static const Color _assetCanvas = Color(0xFFFFFFFF);
-  static const Color _assetSidebar = Color(0xFF030C28);
-  static const Color _assetPanel = Color(0xFFF8FBFF);
-  static const Color _assetPanelHigh = Color(0xFFEFF6FF);
+  static const Color _assetCanvas = Color(0xFFF8FAFC);
+  static const Color _assetSidebar = Color(0xFF0F172A);
+  static const Color _assetPanel = Color(0xFFFFFFFF);
+  static const Color _assetPanelHigh = Color(0xFFF1F5F9);
   static const Color _assetBorder = Color(0xFFE2E8F0);
   static const Color _assetText = Color(0xFF0F172A);
   static const Color _assetMuted = Color(0xFF64748B);
   static const Color _assetAccent = Color(0xFF2563EB);
   static const Color _assetMenuText = Color(0xFFEAF2FF);
   static const Color _assetMenuMuted = Color(0xFFBFD0EA);
-  static const Color _assetMenuSelected = Color(0xFF17417D);
+  static const Color _assetMenuSelected = Color(0xFF1E293B);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PropertyShell> createState() => _PropertyShellState();
+}
+
+class _PropertyShellState extends ConsumerState<PropertyShell> {
+  final Map<String, bool> _expanded = <String, bool>{};
+
+  @override
+  Widget build(BuildContext context) {
     final s = context.strings;
     final propertyId = ref.watch(selectedPropertyIdProvider);
     if (propertyId == null) {
@@ -78,13 +85,15 @@ class PropertyShell extends ConsumerWidget {
     final section = propertySectionForPage(selectedPage);
     final destination = propertyDestinationForPage(selectedPage);
 
+    // Auto-expand active section
+    _expanded[section.title] = true;
+
     return scenariosAsync.when(
       data: (scenarios) {
         if (scenarios.isEmpty) {
-          _ensureBaseScenario(ref: ref, propertyId: propertyId);
+          _ensureBaseScenario(propertyId: propertyId);
         }
         final activeScenarioId = _resolveScenarioSelection(
-          ref: ref,
           scenarios: scenarios,
           selectedScenarioId: selectedScenarioId,
         );
@@ -99,7 +108,7 @@ class PropertyShell extends ConsumerWidget {
         return Theme(
           data: _propertyWorkspaceTheme(context),
           child: Container(
-            color: _assetCanvas,
+            color: PropertyShell._assetCanvas,
             child: DetailTemplate(
               title: propertyName,
               breadcrumbs: propertyBreadcrumbs(
@@ -111,7 +120,6 @@ class PropertyShell extends ConsumerWidget {
                 constraints: const BoxConstraints(maxWidth: 360),
                 child: _scenarioSelector(
                   context: context,
-                  ref: ref,
                   scenarios: scenarios,
                   selectedScenarioId: activeScenarioId,
                 ),
@@ -121,7 +129,6 @@ class PropertyShell extends ConsumerWidget {
               pagePadding: AppSpacing.xl,
               navigation: _propertyNavigation(
                 context: context,
-                ref: ref,
                 selectedPage: selectedPage,
               ),
               content: detailContent,
@@ -140,13 +147,13 @@ class PropertyShell extends ConsumerWidget {
     final base = Theme.of(context);
     final colors = base.colorScheme.copyWith(
       brightness: Brightness.light,
-      primary: _assetAccent,
+      primary: PropertyShell._assetAccent,
       secondary: const Color(0xFF0F172A),
-      surface: _assetPanel,
-      surfaceContainerHighest: _assetPanelHigh,
-      onSurface: _assetText,
+      surface: PropertyShell._assetPanel,
+      surfaceContainerHighest: PropertyShell._assetPanelHigh,
+      onSurface: PropertyShell._assetText,
       onPrimary: Colors.white,
-      outline: _assetBorder,
+      outline: PropertyShell._assetBorder,
       error: const Color(0xFFDC2626),
     );
     final densityConfig = base.extension<AppDensityConfig>();
@@ -156,67 +163,67 @@ class PropertyShell extends ConsumerWidget {
         success: Color(0xFF16A34A),
         warning: Color(0xFFD97706),
         error: Color(0xFFDC2626),
-        info: _assetAccent,
-        border: _assetBorder,
-        surfaceAlt: _assetPanelHigh,
-        textSecondary: _assetMuted,
+        info: PropertyShell._assetAccent,
+        border: PropertyShell._assetBorder,
+        surfaceAlt: PropertyShell._assetPanelHigh,
+        textSecondary: PropertyShell._assetMuted,
       ),
     ];
     return base.copyWith(
       colorScheme: colors,
-      scaffoldBackgroundColor: _assetCanvas,
-      dividerColor: _assetBorder,
+      scaffoldBackgroundColor: PropertyShell._assetCanvas,
+      dividerColor: PropertyShell._assetBorder,
       textTheme: base.textTheme.apply(
-        bodyColor: _assetText,
-        displayColor: _assetText,
+        bodyColor: PropertyShell._assetText,
+        displayColor: PropertyShell._assetText,
       ),
       cardTheme: base.cardTheme.copyWith(
-        color: _assetPanel,
+        color: PropertyShell._assetPanel,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-          side: const BorderSide(color: _assetBorder),
+          side: const BorderSide(color: PropertyShell._assetBorder),
         ),
       ),
       inputDecorationTheme: base.inputDecorationTheme.copyWith(
         fillColor: Colors.white,
-        labelStyle: const TextStyle(color: _assetMuted),
-        helperStyle: const TextStyle(color: _assetMuted),
+        labelStyle: const TextStyle(color: PropertyShell._assetMuted),
+        helperStyle: const TextStyle(color: PropertyShell._assetMuted),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          borderSide: const BorderSide(color: _assetBorder),
+          borderSide: const BorderSide(color: PropertyShell._assetBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          borderSide: const BorderSide(color: _assetBorder),
+          borderSide: const BorderSide(color: PropertyShell._assetBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          borderSide: const BorderSide(color: _assetAccent),
+          borderSide: const BorderSide(color: PropertyShell._assetAccent),
         ),
       ),
       dataTableTheme: base.dataTableTheme.copyWith(
         headingTextStyle: const TextStyle(
-          color: _assetMuted,
+          color: PropertyShell._assetMuted,
           fontWeight: FontWeight.w700,
         ),
         dataTextStyle: const TextStyle(
-          color: _assetText,
+          color: PropertyShell._assetText,
           fontWeight: FontWeight.w500,
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: _assetPanelHigh,
-        side: const BorderSide(color: _assetBorder),
+        backgroundColor: PropertyShell._assetPanelHigh,
+        side: const BorderSide(color: PropertyShell._assetBorder),
         labelStyle: const TextStyle(
-          color: _assetText,
+          color: PropertyShell._assetText,
           fontWeight: FontWeight.w600,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: _assetText,
-          side: const BorderSide(color: _assetBorder),
+          foregroundColor: PropertyShell._assetText,
+          side: const BorderSide(color: PropertyShell._assetBorder),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           ),
@@ -224,16 +231,16 @@ class PropertyShell extends ConsumerWidget {
       ),
       popupMenuTheme: const PopupMenuThemeData(
         color: Colors.white,
-        textStyle: TextStyle(color: _assetText),
+        textStyle: TextStyle(color: PropertyShell._assetText),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(foregroundColor: _assetMuted),
+        style: IconButton.styleFrom(foregroundColor: PropertyShell._assetMuted),
       ),
       listTileTheme: base.listTileTheme.copyWith(
-        textColor: _assetText,
-        iconColor: _assetMuted,
-        selectedColor: _assetAccent,
-        selectedTileColor: _assetPanelHigh,
+        textColor: PropertyShell._assetText,
+        iconColor: PropertyShell._assetMuted,
+        selectedColor: PropertyShell._assetAccent,
+        selectedTileColor: PropertyShell._assetPanelHigh,
       ),
       extensions: extensions,
     );
@@ -250,7 +257,6 @@ class PropertyShell extends ConsumerWidget {
   }
 
   String? _resolveScenarioSelection({
-    required WidgetRef ref,
     required List<ScenarioRecord> scenarios,
     required String? selectedScenarioId,
   }) {
@@ -275,7 +281,6 @@ class PropertyShell extends ConsumerWidget {
   }
 
   void _ensureBaseScenario({
-    required WidgetRef ref,
     required String propertyId,
   }) {
     final inFlight = ref.read(_autoScenarioCreationInFlightProvider);
@@ -303,7 +308,6 @@ class PropertyShell extends ConsumerWidget {
 
   Widget _propertyNavigation({
     required BuildContext context,
-    required WidgetRef ref,
     required PropertyDetailPage selectedPage,
   }) {
     final zone = context.desktopLayoutZone;
@@ -311,69 +315,44 @@ class PropertyShell extends ConsumerWidget {
     if (zone == AppDesktopLayoutZone.narrow) {
       return _buildNarrowNavigation(
         context: context,
-        ref: ref,
         selectedPage: selectedPage,
         sections: sections,
       );
     }
-    final compact = zone == AppDesktopLayoutZone.medium;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _assetSidebar,
-        border: Border.all(color: _assetBorder),
+        color: PropertyShell._assetSidebar,
+        border: Border.all(color: PropertyShell._assetBorder),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.component),
-        children:
-            compact
-                ? sections
-                    .map(
-                      (section) => _buildCompactSection(
-                        context: context,
-                        ref: ref,
-                        section: section,
-                        selectedPage: selectedPage,
-                      ),
-                    )
-                    .toList(growable: false)
-                : sections
-                    .expand(
-                      (section) => <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
-                          child: Text(
-                            context.strings.text(section.title),
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(color: _assetMuted),
-                          ),
-                        ),
-                        ...section.items.map(
-                          (item) => _buildNavTile(
-                            context: context,
-                            ref: ref,
-                            item: item,
-                            selectedPage: selectedPage,
-                          ),
-                        ),
-                      ],
-                    )
-                    .toList(growable: false),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: AppSpacing.component,
+        ),
+        children: sections
+            .map(
+              (section) => _buildAccordionSection(
+                context: context,
+                section: section,
+                selectedPage: selectedPage,
+              ),
+            )
+            .toList(growable: false),
       ),
     );
   }
 
   Widget _buildNarrowNavigation({
     required BuildContext context,
-    required WidgetRef ref,
     required PropertyDetailPage selectedPage,
     required List<PropertyNavigationSection> sections,
   }) {
     final selectedSection = propertySectionForPage(selectedPage);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _assetSidebar,
-        border: Border.all(color: _assetBorder),
+        color: PropertyShell._assetSidebar,
+        border: Border.all(color: PropertyShell._assetBorder),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Padding(
@@ -384,14 +363,14 @@ class PropertyShell extends ConsumerWidget {
             Text(
               context.strings.text('Property Navigation'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _assetMenuText,
+                color: PropertyShell._assetMenuText,
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               '${context.strings.text(selectedSection.title)} / ${context.strings.text(propertyDestinationForPage(selectedPage).label)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: _assetMenuMuted,
+                color: PropertyShell._assetMenuMuted,
               ),
             ),
             const SizedBox(height: AppSpacing.component),
@@ -443,75 +422,118 @@ class PropertyShell extends ConsumerWidget {
     );
   }
 
-  Widget _buildCompactSection({
+  Widget _buildAccordionSection({
     required BuildContext context,
-    required WidgetRef ref,
     required PropertyNavigationSection section,
     required PropertyDetailPage selectedPage,
   }) {
-    final expanded = section.items.any((item) => item.page == selectedPage);
-    return ExpansionTile(
-      initiallyExpanded: expanded,
-      tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-      childrenPadding: const EdgeInsets.only(bottom: 8),
-      title: Text(
-        context.strings.text(section.title),
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: _assetMenuText,
-        ),
-      ),
-      children: section.items
-          .map(
-            (item) => _buildNavTile(
-              context: context,
-              ref: ref,
-              item: item,
-              selectedPage: selectedPage,
+    final title = section.title;
+    final expanded = _expanded[title] ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() {
+              _expanded[title] = !expanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.strings.text(title).toUpperCase(),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: PropertyShell._assetMenuMuted,
+                      letterSpacing: 1.6,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: PropertyShell._assetMenuMuted,
+                ),
+              ],
             ),
-          )
-          .toList(growable: false),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Column(
+            children: [
+              const SizedBox(height: 4),
+              for (final item in section.items)
+                _buildNavTile(
+                  context: context,
+                  item: item,
+                  selectedPage: selectedPage,
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+          crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 140),
+        ),
+      ],
     );
   }
 
   Widget _buildNavTile({
     required BuildContext context,
-    required WidgetRef ref,
     required PropertyNavigationDestination item,
     required PropertyDetailPage selectedPage,
   }) {
     final selected = item.page == selectedPage;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: selected ? _assetMenuSelected : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              color: selected ? Colors.white : Colors.transparent,
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: selected ? PropertyShell._assetMenuSelected : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              leading: Icon(
+                _iconForPropertyPage(item.page),
+                size: 20,
+                color: selected ? Colors.white : PropertyShell._assetMenuMuted,
+              ),
+              title: Text(
+                context.strings.text(item.label),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: selected ? Colors.white : PropertyShell._assetMenuMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                ref.read(propertyDetailPageProvider.notifier).state = item.page;
+              },
+            ),
+          ),
+          if (selected)
+            Positioned(
+              left: 0,
+              top: 8,
+              bottom: 8,
               width: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-          ),
-        ),
-        child: ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          leading: Icon(
-            _iconForPropertyPage(item.page),
-            size: 20,
-            color: selected ? Colors.white : _assetMenuMuted,
-          ),
-          title: Text(
-            context.strings.text(item.label),
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? Colors.white : _assetMenuMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          onTap:
-              () =>
-                  ref.read(propertyDetailPageProvider.notifier).state =
-                      item.page,
-        ),
+        ],
       ),
     );
   }
@@ -569,7 +591,6 @@ class PropertyShell extends ConsumerWidget {
 
   Widget _scenarioSelector({
     required BuildContext context,
-    required WidgetRef ref,
     required List<ScenarioRecord> scenarios,
     required String? selectedScenarioId,
   }) {
@@ -713,3 +734,4 @@ class PropertyShell extends ConsumerWidget {
     }
   }
 }
+

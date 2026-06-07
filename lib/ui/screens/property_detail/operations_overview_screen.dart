@@ -189,7 +189,7 @@ class _OperationsOverviewScreenState
               const SizedBox(height: 6),
               Text(
                 value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700).merge(context.tabularNumericStyle),
               ),
             ],
           ),
@@ -214,7 +214,7 @@ class _OperationsOverviewScreenState
               const SizedBox(height: 10),
               ...lines.map((line) => Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Text(line),
+                child: Text(line, style: context.tabularNumericStyle),
               )),
             ],
           ),
@@ -293,7 +293,7 @@ class _OperationsOverviewScreenState
               children:
                   steps.map((step) {
                     return InkWell(
-                      borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                      borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
                       onTap: () {
                         ref.read(propertyDetailPageProvider.notifier).state =
                             step.targetPage;
@@ -303,7 +303,7 @@ class _OperationsOverviewScreenState
                         padding: const EdgeInsets.all(AppSpacing.component),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
                           border: Border.all(color: context.semanticColors.border),
                         ),
                         child: Row(

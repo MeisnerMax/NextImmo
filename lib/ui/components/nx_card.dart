@@ -28,29 +28,47 @@ class NxCard extends StatelessWidget {
               ? (compact ? 12 : 16)
               : (compact ? 12 : AppSpacing.cardPadding),
         );
+    final borderRadius = BorderRadius.circular(
+      variant == NxCardVariant.kpi ? AppRadiusTokens.sm : AppRadiusTokens.lg,
+    );
+
+    if (variant != NxCardVariant.interactive || onTap == null) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: borderRadius,
+          border: Border.all(color: semantic.border),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: resolvedPadding,
+            child: child,
+          ),
+        ),
+      );
+    }
+
     final hoveredColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-    final card = AnimatedContainer(
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
-      padding: resolvedPadding,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(
-          variant == NxCardVariant.kpi ? AppRadiusTokens.sm : AppRadiusTokens.lg,
-        ),
+        borderRadius: borderRadius,
         border: Border.all(color: semantic.border),
       ),
-      child: child,
-    );
-    if (variant != NxCardVariant.interactive || onTap == null) {
-      return card;
-    }
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        hoverColor: hoveredColor.withValues(alpha: 0.18),
-        child: card,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: borderRadius,
+          hoverColor: hoveredColor.withValues(alpha: 0.12),
+          child: Padding(
+            padding: resolvedPadding,
+            child: child,
+          ),
+        ),
       ),
     );
   }

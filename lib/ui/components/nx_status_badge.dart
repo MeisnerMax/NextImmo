@@ -37,7 +37,9 @@ class NxStatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.$2),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.$2,
+            ).merge(context.tabularNumericStyle),
       ),
     );
   }

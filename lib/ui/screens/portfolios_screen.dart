@@ -1144,27 +1144,37 @@ class _PortfolioInsightCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: context.semanticColors.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20),
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 12),
-          Text(title, style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: context.semanticColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
           const SizedBox(height: 8),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ).merge(context.tabularNumericStyle),
           ),
           const SizedBox(height: 4),
           Text(
             detail,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.semanticColors.textSecondary,
+                ).merge(context.tabularNumericStyle),
           ),
         ],
       ),
@@ -1189,31 +1199,68 @@ class _PortfolioMetric extends StatelessWidget {
         MediaQuery.sizeOf(context).width <= AppBreakpoints.mobileMax
             ? double.infinity
             : 260.0;
-    return Container(
+    final accentColor = accent
+        ? Theme.of(context).colorScheme.primary
+        : context.semanticColors.textSecondary.withValues(alpha: 0.24);
+
+    return SizedBox(
       width: width,
       height: 132,
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border.all(color: context.semanticColors.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              fontSize: 34,
-              color:
-                  accent
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border.all(color: context.semanticColors.border),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                child: Container(color: accentColor),
+              ),
+              Positioned.fill(
+                left: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: context.semanticColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: accent
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.onSurface,
+                              ).merge(context.tabularNumericStyle),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1239,7 +1286,7 @@ class _PortfolioTable extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: semantic.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         children: [
@@ -1302,7 +1349,7 @@ class _SovereignEmptyPortfolio extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: context.semanticColors.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1907,18 +1954,31 @@ class _PortfolioDetailScreenState extends ConsumerState<PortfolioDetailScreen> {
     final semantic = context.semanticColors;
     return Container(
       width: ResponsiveConstraints.itemWidth(context, idealWidth: 180),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: semantic.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: semantic.textSecondary)),
+          Text(
+            label,
+            style: TextStyle(
+              color: semantic.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ).merge(context.tabularNumericStyle),
+          ),
         ],
       ),
     );

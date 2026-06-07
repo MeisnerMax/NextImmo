@@ -280,7 +280,7 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
     final repo = ref.read(ledgerRepositoryProvider);
     final accounts = await repo.listAccounts();
     final entries = await repo.listEntries(
-      entityType: _filterEntityType.trim().isEmpty ? null : _filterEntityType,
+      entityType: _filterEntityType.trim().isEmpty || _filterEntityType == 'none' ? null : _filterEntityType,
       periodFrom: _filterPeriodFrom.trim().isEmpty ? null : _filterPeriodFrom,
       periodTo: _filterPeriodTo.trim().isEmpty ? null : _filterPeriodTo,
     );

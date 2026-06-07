@@ -354,7 +354,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
             padding: const EdgeInsets.all(AppSpacing.cardPadding),
             decoration: BoxDecoration(
               color: context.semanticColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+              borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
               border: Border.all(color: context.semanticColors.border),
             ),
             child: Column(
@@ -456,7 +456,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     required bool nullable,
   }) {
     if (value == null && nullable) {
-      return Text('N/A', style: TextStyle(color: Colors.grey.shade600));
+      return Text(
+        'N/A',
+        style: TextStyle(color: Colors.grey.shade600).merge(context.tabularNumericStyle),
+      );
     }
 
     final resolved = value ?? 0;
@@ -467,13 +470,10 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     final isBest = maxValue != null && (resolved - maxValue).abs() < 1e-9;
     return Text(
       display,
-      style:
-          isBest
-              ? const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
-              )
-              : null,
+      style: TextStyle(
+        fontWeight: isBest ? FontWeight.bold : FontWeight.normal,
+        color: isBest ? Colors.green : null,
+      ).merge(context.tabularNumericStyle),
     );
   }
 

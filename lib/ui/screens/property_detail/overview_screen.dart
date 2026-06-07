@@ -32,12 +32,12 @@ class OverviewScreen extends ConsumerStatefulWidget {
 }
 
 class _OverviewScreenState extends ConsumerState<OverviewScreen> {
-  static const Color _panel = Color(0xFFF8FBFF);
-  static const Color _panelHigh = Color(0xFFEFF6FF);
+  static const Color _panel = Color(0xFFFFFFFF);
+  static const Color _panelHigh = Color(0xFFF1F5F9);
   static const Color _border = Color(0xFFE2E8F0);
   static const Color _text = Color(0xFF0F172A);
   static const Color _muted = Color(0xFF64748B);
-  static const Color _teal = Color(0xFF2563EB);
+  static const Color _teal = Color(0xFF10B981);
   static const Color _rose = Color(0xFFDC2626);
 
   _CashflowMode _cashflowMode = _CashflowMode.annual;
@@ -65,7 +65,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
               _buildOnboardingCard(context),
               const SizedBox(height: AppSpacing.component),
             ],
-            _buildWorkflowHub(context),
+            _buildWorkflowHub(context, property, summary, metrics),
             const SizedBox(height: AppSpacing.component),
             _buildMetricGrid(context, metrics),
             const SizedBox(height: AppSpacing.component),
@@ -89,44 +89,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _buildWorkflowHub(BuildContext context) {
-    final actions = <({IconData icon, String label, PropertyDetailPage page})>[
-      (
-        icon: Icons.edit_outlined,
-        label: 'Edit Master Data',
-        page: PropertyDetailPage.overview,
-      ),
-      (
-        icon: Icons.tune_outlined,
-        label: 'Edit Valuation',
-        page: PropertyDetailPage.inputs,
-      ),
-      (
-        icon: Icons.apartment_outlined,
-        label: 'Rent Management',
-        page: PropertyDetailPage.rentRoll,
-      ),
-      (
-        icon: Icons.request_quote_outlined,
-        label: 'Vermietung & BK',
-        page: PropertyDetailPage.assetWorkbook,
-      ),
-      (
-        icon: Icons.checklist_outlined,
-        label: 'Daily Business',
-        page: PropertyDetailPage.operationsOverview,
-      ),
-      (
-        icon: Icons.folder_open_outlined,
-        label: 'Documents & Reporting',
-        page: PropertyDetailPage.documents,
-      ),
-      (
-        icon: Icons.summarize_outlined,
-        label: 'Report',
-        page: PropertyDetailPage.reports,
-      ),
-    ];
+  Widget _buildWorkflowHub(
+    BuildContext context,
+    PropertyRecord? property,
+    _DealSummaryViewModel summary,
+    AnalysisMetrics metrics,
+  ) {
+    final activePage = ref.watch(propertyDetailPageProvider);
     return _assetPanel(
       context,
       child: Column(
@@ -142,37 +111,274 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           const SizedBox(height: AppSpacing.md),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns =
-                  constraints.maxWidth >= 1080
-                      ? 7
-                      : constraints.maxWidth >= 720
-                      ? 3
-                      : 2;
-              final tileWidth =
-                  (constraints.maxWidth -
-                      (AppSpacing.component * (columns - 1))) /
-                  columns;
-              return Wrap(
-                spacing: AppSpacing.component,
-                runSpacing: AppSpacing.component,
-                children: [
-                  for (final action in actions)
-                    SizedBox(
-                      width: tileWidth,
-                      child: _workflowTile(
-                        context,
-                        icon: action.icon,
-                        label: action.label,
-                        onTap:
-                            () =>
-                                ref
-                                    .read(propertyDetailPageProvider.notifier)
-                                    .state = action.page,
-                      ),
-                    ),
-                ],
-              );
+              if (constraints.maxWidth >= 760) {
+                return _buildHorizontalPipeline(
+                  context,
+                  property,
+                  summary,
+                  metrics,
+                  activePage,
+                );
+              } else {
+                return _buildVerticalPipeline(
+                  context,
+                  property,
+                  summary,
+                  metrics,
+                  activePage,
+                );
+              }
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _activeStepIndex(PropertyDetailPage page) {
+    switch (page) {
+      case PropertyDetailPage.overview:
+      case PropertyDetailPage.audit:
+        return 0;
+      case PropertyDetailPage.units:
+      case PropertyDetailPage.tenants:
+      case PropertyDetailPage.leases:
+      case PropertyDetailPage.rentRoll:
+        return 1;
+      case PropertyDetailPage.inputs:
+      case PropertyDetailPage.scenarios:
+      case PropertyDetailPage.versions:
+      case PropertyDetailPage.assetWorkbook:
+      case PropertyDetailPage.offer:
+        return 2;
+      case PropertyDetailPage.operationsOverview:
+      case PropertyDetailPage.tasks:
+      case PropertyDetailPage.maintenance:
+      case PropertyDetailPage.alerts:
+      case PropertyDetailPage.budgetVsActual:
+      case PropertyDetailPage.covenants:
+        return 3;
+      case PropertyDetailPage.analysis:
+      case PropertyDetailPage.comps:
+      case PropertyDetailPage.criteria:
+        return 4;
+      case PropertyDetailPage.reports:
+      case PropertyDetailPage.documents:
+        return 5;
+    }
+  }
+
+  List<_WorkflowStepData> _getWorkflowSteps(
+    BuildContext context,
+    PropertyRecord? property,
+    _DealSummaryViewModel summary,
+    AnalysisMetrics metrics,
+  ) {
+    final hasMasterData = property != null &&
+        property.addressLine1.isNotEmpty &&
+        property.city.isNotEmpty;
+    final hasRentRoll = property != null && property.units > 0;
+    final hasPlanung = summary.purchasePrice > 0;
+    final hasBetrieb = summary.rehabBudget > 0 || hasPlanung;
+    final hasAnalyse = metrics.irr != null || metrics.capRate > 0;
+    final hasReporting = hasAnalyse;
+
+    return [
+      _WorkflowStepData(
+        title: 'Stammdaten',
+        subtitle: hasMasterData ? 'Erfasst' : 'Ausstehend',
+        icon: Icons.edit_note_outlined,
+        page: PropertyDetailPage.overview,
+        isCompleted: hasMasterData,
+      ),
+      _WorkflowStepData(
+        title: 'Vermietung',
+        subtitle: hasRentRoll ? 'Mieter gepflegt' : 'Einheiten anlegen',
+        icon: Icons.apartment_outlined,
+        page: PropertyDetailPage.rentRoll,
+        isCompleted: hasRentRoll,
+      ),
+      _WorkflowStepData(
+        title: 'Planung',
+        subtitle: hasPlanung ? 'Kalkuliert' : 'Kaufpreis eintragen',
+        icon: Icons.tune_outlined,
+        page: PropertyDetailPage.inputs,
+        isCompleted: hasPlanung,
+      ),
+      _WorkflowStepData(
+        title: 'Betrieb',
+        subtitle: hasBetrieb ? 'Laufend' : 'Kosten erfassen',
+        icon: Icons.checklist_outlined,
+        page: PropertyDetailPage.operationsOverview,
+        isCompleted: hasBetrieb,
+      ),
+      _WorkflowStepData(
+        title: 'Analyse',
+        subtitle: hasAnalyse ? 'Rendite berechnet' : 'Berechnung läuft',
+        icon: Icons.analytics_outlined,
+        page: PropertyDetailPage.analysis,
+        isCompleted: hasAnalyse,
+      ),
+      _WorkflowStepData(
+        title: 'Reporting',
+        subtitle: hasReporting ? 'Bereit' : 'Wartet auf Analyse',
+        icon: Icons.summarize_outlined,
+        page: PropertyDetailPage.reports,
+        isCompleted: hasReporting,
+      ),
+    ];
+  }
+
+  Widget _buildHorizontalPipeline(
+    BuildContext context,
+    PropertyRecord? property,
+    _DealSummaryViewModel summary,
+    AnalysisMetrics metrics,
+    PropertyDetailPage activePage,
+  ) {
+    final activeIndex = _activeStepIndex(activePage);
+    final steps = _getWorkflowSteps(context, property, summary, metrics);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          Expanded(
+            child: _PipelineNode(
+              step: steps[i],
+              index: i,
+              isActive: i == activeIndex,
+              onTap: () => ref.read(propertyDetailPageProvider.notifier).state = steps[i].page,
+            ),
+          ),
+          if (i < steps.length - 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 22.0),
+              child: Container(
+                width: 24,
+                height: 2,
+                color: i < activeIndex
+                    ? const Color(0xFF10B981)
+                    : (i == activeIndex ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0)),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVerticalPipeline(
+    BuildContext context,
+    PropertyRecord? property,
+    _DealSummaryViewModel summary,
+    AnalysisMetrics metrics,
+    PropertyDetailPage activePage,
+  ) {
+    final activeIndex = _activeStepIndex(activePage);
+    final steps = _getWorkflowSteps(context, property, summary, metrics);
+
+    return Column(
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          _buildVerticalPipelineRow(
+            context: context,
+            step: steps[i],
+            index: i,
+            isActive: i == activeIndex,
+            isLast: i == steps.length - 1,
+            onTap: () => ref.read(propertyDetailPageProvider.notifier).state = steps[i].page,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVerticalPipelineRow({
+    required BuildContext context,
+    required _WorkflowStepData step,
+    required int index,
+    required bool isActive,
+    required bool isLast,
+    required VoidCallback onTap,
+  }) {
+    final statusColor = step.isCompleted
+        ? const Color(0xFF10B981)
+        : (isActive ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8));
+
+    final bgCircleColor = step.isCompleted
+        ? const Color(0xFFDCFCE7)
+        : (isActive ? const Color(0xFFDBEAFE) : const Color(0xFFF1F5F9));
+
+    final iconColor = step.isCompleted
+        ? const Color(0xFF15803D)
+        : (isActive ? const Color(0xFF1D4ED8) : const Color(0xFF64748B));
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: bgCircleColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: statusColor,
+                      width: isActive ? 2.5 : 1.5,
+                    ),
+                  ),
+                  child: Icon(
+                    step.isCompleted ? Icons.check : step.icon,
+                    color: iconColor,
+                    size: 18,
+                  ),
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: statusColor.withValues(alpha: 0.5),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Text(
+                      step.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: const Color(0xFF0F172A),
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      step.subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF64748B),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -265,43 +471,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     );
   }
 
-  Widget _workflowTile(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-      child: Container(
-        height: 108,
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: _panel,
-          border: Border.all(color: _border),
-          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: _muted, size: 28),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              context.strings.text(label),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: _text,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _metricCard(
     BuildContext context, {
@@ -316,64 +486,83 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       width: width,
       height: 132,
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: _panel,
           border: Border.all(color: _border),
           borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -4,
-              top: -4,
-              child: Icon(icon, size: 52, color: _muted.withValues(alpha: 0.14)),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  context.strings.text(label).toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _muted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineMedium?.copyWith(
-                          color: tone,
-                          fontWeight: FontWeight.w800,
-                        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                child: Container(color: tone),
+              ),
+              Positioned.fill(
+                left: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Icon(icon, size: 52, color: _muted.withValues(alpha: 0.14)),
                       ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(width: 6),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          subtitle,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: _muted),
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            context.strings.text(label).toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: _muted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  value,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.headlineMedium?.merge(
+                                    context.tabularNumericStyle.copyWith(
+                                      color: tone,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (subtitle != null) ...[
+                                const SizedBox(width: 6),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text(
+                                    subtitle,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: _muted),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -634,7 +823,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: _panel.withValues(alpha: 0.82),
+        color: _panel,
         border: Border.all(color: _border),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
@@ -649,7 +838,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _panelHigh.withValues(alpha: 0.46),
+        color: const Color(0xFFF8FAFC),
         border: Border.all(color: _border),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
@@ -826,11 +1015,37 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                   maxX: values.length.toDouble(),
                   minY: minY,
                   maxY: maxY,
-                  gridData: const FlGridData(
+                  gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: context.semanticColors.border.withValues(alpha: 0.4),
+                      strokeWidth: 1,
+                      dashArray: [4, 4],
+                    ),
                   ),
                   borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
+                      tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+                      tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      tooltipRoundedRadius: AppRadiusTokens.md,
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((touchedSpot) {
+                          return LineTooltipItem(
+                            '€ ${_formatNumber(touchedSpot.y)}',
+                            TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ).merge(context.tabularNumericStyle),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -841,9 +1056,17 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 52,
-                        getTitlesWidget:
-                            (value, _) => Text(value.toStringAsFixed(0)),
+                        reservedSize: 64,
+                        getTitlesWidget: (value, _) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            '€ ${value.toStringAsFixed(0)}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: context.semanticColors.textSecondary,
+                            ).merge(context.tabularNumericStyle),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -858,6 +1081,9 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
                               useMonthly ? 'M$period' : 'Y$period',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: context.semanticColors.textSecondary,
+                              ),
                             ),
                           );
                         },
@@ -869,12 +1095,25 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                       isCurved: true,
                       barWidth: 3,
                       color: Theme.of(context).colorScheme.primary,
-                      dotData: const FlDotData(show: true),
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                          radius: 4.5,
+                          color: Theme.of(context).colorScheme.primary,
+                          strokeWidth: 2,
+                          strokeColor: Theme.of(context).colorScheme.surface,
+                        ),
+                      ),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.16),
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+                            Theme.of(context).colorScheme.primary.withValues(alpha: 0.0),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
                       ),
                       spots: spots,
                     ),
@@ -935,11 +1174,37 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                   maxX: monthsCount.toDouble(),
                   minY: 0,
                   maxY: maxY,
-                  gridData: const FlGridData(
+                  gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: context.semanticColors.border.withValues(alpha: 0.4),
+                      strokeWidth: 1,
+                      dashArray: [4, 4],
+                    ),
                   ),
                   borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
+                      tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+                      tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      tooltipRoundedRadius: AppRadiusTokens.md,
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((touchedSpot) {
+                          return LineTooltipItem(
+                            '€ ${_formatNumber(touchedSpot.y)}',
+                            TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ).merge(context.tabularNumericStyle),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -950,9 +1215,17 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 52,
-                        getTitlesWidget:
-                            (value, _) => Text(value.toStringAsFixed(0)),
+                        reservedSize: 64,
+                        getTitlesWidget: (value, _) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            '€ ${value.toStringAsFixed(0)}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: context.semanticColors.textSecondary,
+                            ).merge(context.tabularNumericStyle),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -965,7 +1238,12 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                           }
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
-                            child: Text('M$month'),
+                            child: Text(
+                              'M$month',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: context.semanticColors.textSecondary,
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -976,12 +1254,25 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                       isCurved: true,
                       barWidth: 3,
                       color: Theme.of(context).colorScheme.secondary,
-                      dotData: const FlDotData(show: true),
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                          radius: 4.5,
+                          color: Theme.of(context).colorScheme.secondary,
+                          strokeWidth: 2,
+                          strokeColor: Theme.of(context).colorScheme.surface,
+                        ),
+                      ),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.secondary.withValues(alpha: 0.12),
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.24),
+                            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.0),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
                       ),
                       spots: spots,
                     ),
@@ -1167,6 +1458,113 @@ class _DealSummaryViewModel {
           state.valuation.valuationMode == 'exit_cap'
               ? 'Exit Cap'
               : 'Appreciation',
+    );
+  }
+}
+
+class _WorkflowStepData {
+  const _WorkflowStepData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.page,
+    required this.isCompleted,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final PropertyDetailPage page;
+  final bool isCompleted;
+}
+
+class _PipelineNode extends StatelessWidget {
+  const _PipelineNode({
+    required this.step,
+    required this.index,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final _WorkflowStepData step;
+  final int index;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = step.isCompleted
+        ? const Color(0xFF10B981)
+        : (isActive ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8));
+
+    final bgCircleColor = step.isCompleted
+        ? const Color(0xFFDCFCE7)
+        : (isActive ? const Color(0xFFDBEAFE) : const Color(0xFFF1F5F9));
+
+    final iconColor = step.isCompleted
+        ? const Color(0xFF15803D)
+        : (isActive ? const Color(0xFF1D4ED8) : const Color(0xFF64748B));
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: bgCircleColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: statusColor,
+                  width: isActive ? 2.5 : 1.5,
+                ),
+                boxShadow: isActive
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        )
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                step.isCompleted ? Icons.check_circle_outline : step.icon,
+                color: iconColor,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              step.title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              step.subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontSize: 10,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

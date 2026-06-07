@@ -10,6 +10,11 @@ void main() {
   testWidgets('viewer dashboard prioritizes lease actions and browse entry', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -27,7 +32,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Browse Properties'), findsOneWidget);
+    expect(find.text('Objekte'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('dashboard-action-0')),
@@ -40,6 +45,11 @@ void main() {
   testWidgets('admin dashboard prioritizes task actions and settings entry', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -57,7 +67,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Open Settings'), findsOneWidget);
+    expect(find.text('Vermietung & BK'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('dashboard-action-0')),
@@ -65,8 +75,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Action Center'), findsOneWidget);
-    expect(find.text('Recent Activity'), findsOneWidget);
+    expect(find.text('AKTUELLE HINWEISE'), findsOneWidget);
+    expect(find.text('Aktuelle Aktivität'), findsOneWidget);
   });
 }
 
@@ -74,6 +84,14 @@ DashboardOverviewData _sampleOverview() {
   return DashboardOverviewData(
     activeProperties: 4,
     totalUnits: 68,
+    occupiedUnits: 50,
+    vacantUnits: 18,
+    annualRent: 120000.0,
+    monthlyRentRunRate: 10000.0,
+    annualOperatingCosts: 30000.0,
+    openDepositAmount: 15000.0,
+    serviceChargeBalance: 2000.0,
+    sourceCoverageRate: 0.95,
     criticalActions: 3,
     atRiskAssets: 2,
     propertyTypeMix: const [

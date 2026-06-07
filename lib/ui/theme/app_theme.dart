@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 enum AppThemeModeSetting { system, light, dark }
@@ -278,15 +279,15 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFFE2E8F0),
+    background: Color(0xFFF8FAFC), // Soft premium slate canvas background
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFEFF6FF),
+    surfaceAlt: Color(0xFFF8FAFC),
     border: Color(0xFFE2E8F0),
     textPrimary: Color(0xFF0F172A),
     textSecondary: Color(0xFF64748B),
     primary: Color(0xFF2563EB),
     secondary: Color(0xFF0F172A),
-    accent: Color(0xFF0EA5A4),
+    accent: Color(0xFF0D9488), // Slate teal
     success: Color(0xFF16A34A),
     warning: Color(0xFFD97706),
     error: Color(0xFFDC2626),
@@ -294,19 +295,19 @@ class AppTheme {
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
-    background: Color(0xFF08122D),
-    surface: Color(0xFF030C28),
-    surfaceAlt: Color(0xFF151E3A),
-    border: Color(0x334B5E7A),
-    textPrimary: Color(0xFFDBE1FF),
-    textSecondary: Color(0xFFC6C6CE),
-    primary: Color(0xFF7DB4FF),
-    secondary: Color(0xFFBFD0EA),
-    accent: Color(0xFF5EEAD4),
-    success: Color(0xFF59DE9B),
+    background: Color(0xFF0A0F1D), // Dark midnight background
+    surface: Color(0xFF131A2E), // Card surface
+    surfaceAlt: Color(0xFF1E2640),
+    border: Color(0xFF2D3748),
+    textPrimary: Color(0xFFF1F5F9),
+    textSecondary: Color(0xFF94A3B8),
+    primary: Color(0xFF60A5FA), // High contrast premium primary blue
+    secondary: Color(0xFFCBD5E1),
+    accent: Color(0xFF2DD4BF), // Vibrant dark mode accent
+    success: Color(0xFF34D399),
     warning: Color(0xFFFBBF24),
-    error: Color(0xFFFFB4AB),
-    info: Color(0xFF7DB4FF),
+    error: Color(0xFFF87171),
+    info: Color(0xFF60A5FA),
   );
 
   static const AppTypographyTokens _comfortTypography = AppTypographyTokens(
@@ -461,7 +462,7 @@ class AppTheme {
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
           side: BorderSide(color: tokens.border),
         ),
       ),
@@ -668,6 +669,13 @@ extension AppThemeContext on BuildContext {
     return AppLayout.pagePaddingFor(
       width: MediaQuery.sizeOf(this).width,
       densityMode: densityMode,
+    );
+  }
+
+  TextStyle get tabularNumericStyle {
+    return TextStyle(
+      fontFamily: 'Geist',
+      fontFeatures: const [FontFeature.tabularFigures()],
     );
   }
 }

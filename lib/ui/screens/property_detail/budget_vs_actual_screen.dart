@@ -164,23 +164,31 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                             DataCell(
                                               Text(_accountName(row.accountId)),
                                             ),
-                                            DataCell(Text(row.periodKey)),
+                                            DataCell(
+                                              Text(
+                                                row.periodKey,
+                                                style: context.tabularNumericStyle,
+                                              ),
+                                            ),
                                             DataCell(
                                               Text(
                                                 row.budgetAmount
                                                     .toStringAsFixed(2),
+                                                style: context.tabularNumericStyle,
                                               ),
                                             ),
                                             DataCell(
                                               Text(
                                                 row.actualAmount
                                                     .toStringAsFixed(2),
+                                                style: context.tabularNumericStyle,
                                               ),
                                             ),
                                             DataCell(
                                               Text(
                                                 row.varianceAmount
                                                     .toStringAsFixed(2),
+                                                style: context.tabularNumericStyle,
                                               ),
                                             ),
                                             DataCell(
@@ -188,6 +196,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen> {
                                                 row.variancePercent == null
                                                     ? '-'
                                                     : '${(row.variancePercent! * 100).toStringAsFixed(1)}%',
+                                                style: context.tabularNumericStyle,
                                               ),
                                             ),
                                             DataCell(
@@ -563,7 +572,7 @@ class _ObjectBudgetPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: context.semanticColors.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -605,7 +614,7 @@ class _ObjectBudgetSignal extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
         border: Border.all(color: color.withOpacity(0.4)),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
       child: Row(
         children: [
@@ -621,7 +630,7 @@ class _ObjectBudgetSignal extends StatelessWidget {
             rate == null
                 ? _formatObjectBudgetCurrency(amount)
                 : '${(rate! * 100).toStringAsFixed(1)}%',
-            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            style: TextStyle(color: color, fontWeight: FontWeight.w700).merge(context.tabularNumericStyle),
           ),
         ],
       ),
@@ -689,7 +698,7 @@ class _ObjectBudgetBars extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                      ),
+                      ).merge(context.tabularNumericStyle),
                 ),
               ),
             ],
@@ -773,7 +782,8 @@ class _SummaryTile extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                    ?.copyWith(fontWeight: FontWeight.w700)
+                    .merge(context.tabularNumericStyle),
               ),
             ],
           ),

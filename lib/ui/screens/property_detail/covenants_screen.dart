@@ -108,6 +108,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                 title: Text(loan.lenderName ?? loan.id),
                                 subtitle: Text(
                                   'Principal ${loan.principal.toStringAsFixed(2)} | ${loan.interestRatePercent.toStringAsFixed(2)}%',
+                                  style: context.tabularNumericStyle,
                                 ),
                                 onTap: () => _selectLoan(loan),
                               );
@@ -156,6 +157,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                                               .toStringAsFixed(
                                                                 3,
                                                               ),
+                                                          style: context.tabularNumericStyle,
                                                         ),
                                                       ),
                                                       DataCell(
@@ -192,7 +194,10 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                                   (check) => DataRow(
                                                     cells: [
                                                       DataCell(
-                                                        Text(check.periodKey),
+                                                        Text(
+                                                          check.periodKey,
+                                                          style: context.tabularNumericStyle,
+                                                        ),
                                                       ),
                                                       DataCell(
                                                         Text(
@@ -201,6 +206,7 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                                                                     3,
                                                                   ) ??
                                                               'unknown',
+                                                          style: context.tabularNumericStyle,
                                                         ),
                                                       ),
                                                       DataCell(

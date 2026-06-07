@@ -626,12 +626,15 @@ class _SovereignDashboard extends StatelessWidget {
             onTap: onRefresh,
           )
         else
-          for (final item in actionItems.take(2)) ...[
-            _AlertCard(
-              color: _severityColor(context, item.severity),
-              title: item.title,
-              detail: item.detail,
-              onTap: () => onOpenTarget(item.target),
+          for (var index = 0; index < math.min(2, actionItems.length); index++) ...[
+            Container(
+              key: ValueKey<String>('dashboard-action-$index'),
+              child: _AlertCard(
+                color: _severityColor(context, actionItems[index].severity),
+                title: actionItems[index].title,
+                detail: actionItems[index].detail,
+                onTap: () => onOpenTarget(actionItems[index].target),
+              ),
             ),
             const SizedBox(height: 24),
           ],
@@ -702,9 +705,11 @@ class _SovereignKpiCard extends StatelessWidget {
                         child: Text(
                           spec.value,
                           maxLines: 1,
-                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontSize: valueSize,
-                            color: spec.tone,
+                          style: Theme.of(context).textTheme.displaySmall?.merge(
+                            context.tabularNumericStyle.copyWith(
+                              fontSize: valueSize,
+                              color: spec.tone,
+                            ),
                           ),
                         ),
                       ),
@@ -851,10 +856,38 @@ class _ValuationTrendChart extends StatelessWidget {
     return LineChart(
       LineChartData(
         minY: 0,
-        maxY: maxValue <= 0 ? 1 : maxValue * 1.1,
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        maxY: maxValue <= 0 ? 1 : maxValue * 1.05,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: context.semanticColors.border.withValues(alpha: 0.4),
+            strokeWidth: 1,
+            dashArray: [4, 4],
+          ),
+        ),
         borderData: FlBorderData(show: false),
-        lineTouchData: const LineTouchData(enabled: true),
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
+            tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            tooltipRoundedRadius: AppRadiusTokens.md,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((touchedSpot) {
+                return LineTooltipItem(
+                  _formatCurrency(touchedSpot.y),
+                  TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
@@ -865,11 +898,18 @@ class _ValuationTrendChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 48,
+              reservedSize: 64,
               getTitlesWidget:
-                  (value, _) => Text(
-                    _formatCurrency(value),
-                    style: Theme.of(context).textTheme.bodySmall,
+                  (value, _) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      _formatCurrency(value),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.semanticColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                 ),
           ),
@@ -883,10 +923,13 @@ class _ValuationTrendChart extends StatelessWidget {
                 }
                 final date = values[index].date;
                 return Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     '${date.month}/${date.year % 100}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.semanticColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 );
               },
@@ -897,13 +940,27 @@ class _ValuationTrendChart extends StatelessWidget {
           LineChartBarData(
             isCurved: true,
             color: Theme.of(context).colorScheme.primary,
-            barWidth: 3,
-            dotData: const FlDotData(show: true),
+            barWidth: 3.5,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                radius: 4.5,
+                color: Theme.of(context).colorScheme.primary,
+                strokeWidth: 2,
+                strokeColor: Theme.of(context).colorScheme.surface,
+              ),
+            ),
             belowBarData: BarAreaData(
               show: true,
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.14),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
             spots: spots,
           ),
@@ -1975,9 +2032,16 @@ class _TypeMixChart extends StatelessWidget {
               toY: values[index].value.toDouble(),
               width: 18,
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(5),
+                top: Radius.circular(6),
               ),
-              color: Theme.of(context).colorScheme.primary,
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
           ],
         ),
@@ -1989,6 +2053,26 @@ class _TypeMixChart extends StatelessWidget {
         maxY: math.max<double>(1, values.first.value.toDouble() + 1),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => Theme.of(context).colorScheme.surface,
+            tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            tooltipRoundedRadius: AppRadiusTokens.md,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final val = values[groupIndex];
+              return BarTooltipItem(
+                '${val.label}: ${val.value}',
+                TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              );
+            },
+          ),
+        ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
@@ -2046,9 +2130,37 @@ class _IntakeTrendChart extends StatelessWidget {
     return LineChart(
       LineChartData(
         minY: 0,
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: context.semanticColors.border.withValues(alpha: 0.4),
+            strokeWidth: 1,
+            dashArray: [4, 4],
+          ),
+        ),
         borderData: FlBorderData(show: false),
-        lineTouchData: const LineTouchData(enabled: true),
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
+            tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            tooltipRoundedRadius: AppRadiusTokens.md,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((touchedSpot) {
+                return LineTooltipItem(
+                  '${touchedSpot.y.toInt()} Objekte',
+                  TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
@@ -2085,12 +2197,25 @@ class _IntakeTrendChart extends StatelessWidget {
             isCurved: true,
             color: Theme.of(context).colorScheme.secondary,
             barWidth: 3,
-            dotData: const FlDotData(show: true),
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                radius: 4.5,
+                color: Theme.of(context).colorScheme.secondary,
+                strokeWidth: 2,
+                strokeColor: Theme.of(context).colorScheme.surface,
+              ),
+            ),
             belowBarData: BarAreaData(
               show: true,
-              color: Theme.of(
-                context,
-              ).colorScheme.secondary.withValues(alpha: 0.18),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.24),
+                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
             spots: spots,
           ),

@@ -163,6 +163,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                           title: Text(lease.leaseName),
                           subtitle: Text(
                             '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
+                            style: context.tabularNumericStyle,
                           ),
                           trailing: TextButton(
                             onPressed: () {

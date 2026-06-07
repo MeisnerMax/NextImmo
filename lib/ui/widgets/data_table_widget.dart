@@ -64,7 +64,7 @@ class DataTableWidget extends StatelessWidget {
                                   Text(
                                     cell,
                                     style:
-                                        Theme.of(context).textTheme.bodySmall,
+                                        Theme.of(context).textTheme.bodySmall?.merge(context.tabularNumericStyle),
                                   ),
                                 ),
                               )

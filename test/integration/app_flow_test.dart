@@ -26,20 +26,38 @@ void main() {
   testWidgets('app scaffold shows navigation and properties page', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [databaseProvider.overrideWithValue(db)],
-        child: const MaterialApp(home: AppScaffold()),
-      ),
-    );
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(home: AppScaffold()),
+        ),
+      );
+      // Yield to the real FFI isolate event loop to complete initialization queries
+      await Future.delayed(const Duration(milliseconds: 200));
+    });
+
+    await tester.pump();
 
     expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Properties'), findsWidgets);
+    expect(find.text('Objekte'), findsWidgets);
 
-    await tester.tap(find.text('Properties').last);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Objekte').last);
+
+    await tester.runAsync(() async {
+      // Yield to the event loop for screen transition and queries
+      await Future.delayed(const Duration(milliseconds: 200));
+    });
+
+    await tester.pump();
 
     expect(find.text('New Property'), findsOneWidget);
   });

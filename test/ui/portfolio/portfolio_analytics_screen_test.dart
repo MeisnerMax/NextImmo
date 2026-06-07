@@ -9,13 +9,14 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders analytics screen and computes baseline state', (
-    tester,
-  ) async {
+  late AppDatabase appDatabase;
+  late Database db;
+
+  setUp(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    final appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
-    final db = await appDatabase.instance;
+    appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
+    db = await appDatabase.instance;
 
     await db.insert('portfolios', <String, Object?>{
       'id': 'p1',
@@ -24,26 +25,51 @@ void main() {
       'created_at': 1,
       'updated_at': 1,
     });
+  });
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(
-          home: PortfolioAnalyticsScreen(
-            portfolioId: 'p1',
-            portfolioName: 'Fund',
+  tearDown(() async {
+    await appDatabase.close();
+  });
+
+  testWidgets('renders analytics screen and computes baseline state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: PortfolioAnalyticsScreen(
+                portfolioId: 'p1',
+                portfolioName: 'Fund',
+              ),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+
+      // Wait for data to load and chart elements/tabs to appear
+      for (int i = 0; i < 40; i++) {
+        await tester.pump();
+        if (find.text('Portfolio IRR').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    });
 
     expect(find.textContaining('Portfolio Analytics'), findsOneWidget);
     expect(find.text('Portfolio IRR'), findsOneWidget);
 
-    await appDatabase.close();
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
   });
 }

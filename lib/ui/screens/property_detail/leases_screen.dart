@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/nx_card.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'lease_detail_screen.dart';
@@ -157,77 +158,74 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     required List<LeaseRecord> leases,
     required String? selectedLeaseId,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mietverträge', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.sm),
-            if (leases.isEmpty)
-              const Text('Keine Mietvertraege fuer diese Filter.')
-            else
-              Column(
-                children: [
-                  for (final lease in leases)
-                    ListTile(
-                      selected: lease.id == selectedLeaseId,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(lease.leaseName),
-                      subtitle: Text(
-                        '${_leaseStatusLabel(lease.status)} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
-                      ),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          if (_hasMissingDeposit(lease))
-                            const Icon(
-                              Icons.warning_amber_outlined,
-                              color: Colors.orange,
-                            ),
-                          TextButton(
-                            onPressed: () => _leaseDialog(existing: lease),
-                            child: const Text('Bearbeiten'),
-                          ),
-                          TextButton(
-                            onPressed: () => _deleteLease(lease.id),
-                            child: const Text('Loeschen'),
-                          ),
-                        ],
-                      ),
-                      onTap:
-                          () =>
-                              ref
-                                  .read(
-                                    selectedOperationsLeaseIdProvider.notifier,
-                                  )
-                                  .state = lease.id,
+    return NxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Mietverträge', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          if (leases.isEmpty)
+            const Text('Keine Mietvertraege fuer diese Filter.')
+          else
+            Column(
+              children: [
+                for (final lease in leases)
+                  ListTile(
+                    selected: lease.id == selectedLeaseId,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(lease.leaseName),
+                    subtitle: Text(
+                      '${_leaseStatusLabel(lease.status)} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
                     ),
-                ],
-              ),
-          ],
-        ),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        if (_hasMissingDeposit(lease))
+                          const Icon(
+                            Icons.warning_amber_outlined,
+                            color: Colors.orange,
+                          ),
+                        TextButton(
+                          onPressed: () => _leaseDialog(existing: lease),
+                          child: const Text('Bearbeiten'),
+                        ),
+                        TextButton(
+                          onPressed: () => _deleteLease(lease.id),
+                          child: const Text('Loeschen'),
+                        ),
+                      ],
+                    ),
+                    onTap:
+                        () =>
+                            ref
+                                .read(
+                                  selectedOperationsLeaseIdProvider.notifier,
+                                )
+                                .state = lease.id,
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
 
   Widget _leaseDetailCard(LeaseRecord? selectedLease) {
-    return Card(
-      child:
-          selectedLease == null
-              ? const Padding(
-                padding: EdgeInsets.all(AppSpacing.cardPadding),
-                child: Text('Mietvertrag auswaehlen, um Details zu oeffnen.'),
-              )
-              : LeaseDetailScreen(
-                propertyId: widget.propertyId,
-                leaseId: selectedLease.id,
-                onEdit: () => _leaseDialog(existing: selectedLease),
-                onAddRule: _addRuleDialog,
-                onAddManualOverride: _manualOverrideDialog,
-                onChanged: _reload,
-              ),
+    if (selectedLease == null) {
+      return const NxCard(
+        child: Text('Mietvertrag auswaehlen, um Details zu oeffnen.'),
+      );
+    }
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: LeaseDetailScreen(
+        propertyId: widget.propertyId,
+        leaseId: selectedLease.id,
+        onEdit: () => _leaseDialog(existing: selectedLease),
+        onAddRule: _addRuleDialog,
+        onAddManualOverride: _manualOverrideDialog,
+        onChanged: _reload,
+      ),
     );
   }
 

@@ -843,6 +843,7 @@ class _MaintenanceFilterRow extends StatelessWidget {
         SizedBox(
           width: 180,
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: statusFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('Alle Status')),
@@ -880,6 +881,7 @@ class _MaintenanceFilterRow extends StatelessWidget {
         SizedBox(
           width: 180,
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: categoryFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('Alle Arten')),
@@ -908,6 +910,7 @@ class _MaintenanceFilterRow extends StatelessWidget {
         SizedBox(
           width: 170,
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: dueFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('Alle Termine')),

@@ -62,6 +62,7 @@ class _DataQualityDashboardScreenState
                 SizedBox(
                   width: 180,
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: _severityFilter,
                     items: const [
                       DropdownMenuItem(
@@ -86,6 +87,7 @@ class _DataQualityDashboardScreenState
                 SizedBox(
                   width: 180,
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: _moduleFilter,
                     items:
                         modules

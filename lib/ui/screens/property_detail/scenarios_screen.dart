@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/scenario.dart';
 import '../../../core/security/rbac.dart';
+import '../../components/nx_card.dart';
 import '../../state/app_state.dart';
 import '../../state/scenario_state.dart';
 import '../../state/security_state.dart';
@@ -103,174 +104,172 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final scenario = widget.scenarios[index];
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    scenario.name,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text('Strategy: ${scenario.strategyType}'),
-                                  if (scenario.reviewComment != null &&
-                                      scenario.reviewComment!.trim().isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        'Review: ${scenario.reviewComment!}',
-                                      ),
-                                    ),
-                                  if (scenario.approvedBy != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        'Approved by ${scenario.approvedBy} on ${_formatDateTime(scenario.approvedAt)}',
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
+                return NxCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (scenario.isBase)
-                                  const StatusBadge(
-                                    label: 'BASE',
-                                    color: AppColors.positive,
-                                  ),
-                                StatusBadge(
-                                  label: _statusLabel(scenario.workflowStatus),
-                                  color: _statusColor(scenario.workflowStatus),
+                                Text(
+                                  scenario.name,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
                                 ),
-                                if (scenario.changedSinceApproval)
-                                  const StatusBadge(
-                                    label: 'Changed Since Approval',
-                                    color: AppColors.warning,
+                                const SizedBox(height: 4),
+                                Text('Strategy: ${scenario.strategyType}'),
+                                if (scenario.reviewComment != null &&
+                                    scenario.reviewComment!.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Review: ${scenario.reviewComment!}',
+                                    ),
+                                  ),
+                                if (scenario.approvedBy != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Approved by ${scenario.approvedBy} on ${_formatDateTime(scenario.approvedAt)}',
+                                      style: context.tabularNumericStyle,
+                                    ),
                                   ),
                               ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            TextButton(
-                              onPressed: () => _openScenario(scenario.id),
-                              child: const Text('Open'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canCreate && !_isMutating
-                                      ? () => _runAction(
-                                        () => controller.duplicate(
-                                          source: scenario,
-                                          newName: '${scenario.name} Copy',
-                                        ),
-                                      )
-                                      : null,
-                              child: const Text('Duplicate'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canApprove &&
-                                          !_isMutating &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.inReview &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.archived
-                                      ? () => _reviewAction(
-                                        title: 'Move To Review',
-                                        onSubmit:
-                                            (comment) => controller
-                                                .submitForReview(
-                                                  scenarioId: scenario.id,
-                                                  reviewComment: comment,
-                                                ),
-                                      )
-                                      : null,
-                              child: const Text('Review'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canApprove &&
-                                          !_isMutating &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.approved &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.archived
-                                      ? () => _reviewAction(
-                                        title: 'Approve Scenario',
-                                        onSubmit:
-                                            (comment) => controller.approve(
-                                              scenarioId: scenario.id,
-                                              reviewComment: comment,
-                                            ),
-                                      )
-                                      : null,
-                              child: const Text('Approve'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canApprove &&
-                                          !_isMutating &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.rejected &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.archived
-                                      ? () => _reviewAction(
-                                        title: 'Reject Scenario',
-                                        onSubmit:
-                                            (comment) => controller.reject(
-                                              scenarioId: scenario.id,
-                                              reviewComment: comment,
-                                            ),
-                                      )
-                                      : null,
-                              child: const Text('Reject'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canDelete &&
-                                          !_isMutating &&
-                                          !scenario.isBase &&
-                                          scenario.workflowStatus !=
-                                              ScenarioWorkflowStatus.archived
-                                      ? () => _runAction(
-                                        () => controller.archive(scenario.id),
-                                      )
-                                      : null,
-                              child: const Text('Archive'),
-                            ),
-                            TextButton(
-                              onPressed:
-                                  canDelete &&
-                                          canUpdate &&
-                                          !_isMutating &&
-                                          !scenario.isBase
-                                      ? () => _runAction(
-                                        () => controller.delete(scenario.id),
-                                      )
-                                      : null,
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (scenario.isBase)
+                                const StatusBadge(
+                                  label: 'BASE',
+                                  color: AppColors.positive,
+                                ),
+                              StatusBadge(
+                                label: _statusLabel(scenario.workflowStatus),
+                                color: _statusColor(scenario.workflowStatus),
+                              ),
+                              if (scenario.changedSinceApproval)
+                                const StatusBadge(
+                                  label: 'Changed Since Approval',
+                                  color: AppColors.warning,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => _openScenario(scenario.id),
+                            child: const Text('Open'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canCreate && !_isMutating
+                                    ? () => _runAction(
+                                      () => controller.duplicate(
+                                        source: scenario,
+                                        newName: '${scenario.name} Copy',
+                                      ),
+                                    )
+                                    : null,
+                            child: const Text('Duplicate'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canApprove &&
+                                        !_isMutating &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.inReview &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.archived
+                                    ? () => _reviewAction(
+                                      title: 'Move To Review',
+                                      onSubmit:
+                                          (comment) => controller
+                                              .submitForReview(
+                                                scenarioId: scenario.id,
+                                                reviewComment: comment,
+                                              ),
+                                    )
+                                    : null,
+                            child: const Text('Review'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canApprove &&
+                                        !_isMutating &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.approved &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.archived
+                                    ? () => _reviewAction(
+                                      title: 'Approve Scenario',
+                                      onSubmit:
+                                          (comment) => controller.approve(
+                                            scenarioId: scenario.id,
+                                            reviewComment: comment,
+                                          ),
+                                    )
+                                    : null,
+                            child: const Text('Approve'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canApprove &&
+                                        !_isMutating &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.rejected &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.archived
+                                    ? () => _reviewAction(
+                                      title: 'Reject Scenario',
+                                      onSubmit:
+                                          (comment) => controller.reject(
+                                            scenarioId: scenario.id,
+                                            reviewComment: comment,
+                                          ),
+                                    )
+                                    : null,
+                            child: const Text('Reject'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canDelete &&
+                                        !_isMutating &&
+                                        !scenario.isBase &&
+                                        scenario.workflowStatus !=
+                                            ScenarioWorkflowStatus.archived
+                                    ? () => _runAction(
+                                      () => controller.archive(scenario.id),
+                                    )
+                                    : null,
+                            child: const Text('Archive'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                canDelete &&
+                                        canUpdate &&
+                                        !_isMutating &&
+                                        !scenario.isBase
+                                    ? () => _runAction(
+                                      () => controller.delete(scenario.id),
+                                    )
+                                    : null,
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 );
               },

@@ -162,6 +162,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> {
                       title: Text(unit.unitCode),
                       subtitle: Text(
                         '${_statusLabel(unit.status)}${unit.unitType == null ? '' : ' · ${unit.unitType}'}${unit.targetRentMonthly == null ? '' : ' · Soll ${unit.targetRentMonthly!.toStringAsFixed(2)}'}',
+                        style: context.tabularNumericStyle,
                       ),
                       trailing: Wrap(
                         spacing: 8,

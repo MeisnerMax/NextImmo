@@ -14,6 +14,7 @@ void main() {
       scenarioId: 's1',
       settings: settings,
     ).copyWith(purchasePrice: 123000, rentMonthlyTotal: 2000);
+    final valuation = ScenarioValuationRecord.defaults(scenarioId: 's1');
     final snapshotA = ScenarioSnapshot(
       scenarioId: 's1',
       inputs: inputs,
@@ -34,7 +35,7 @@ void main() {
         ),
       ],
       expenseLines: const [],
-      valuation: ScenarioValuationRecord.defaults(scenarioId: 's1'),
+      valuation: valuation,
     );
     final snapshotB = ScenarioSnapshot(
       scenarioId: 's1',
@@ -56,7 +57,7 @@ void main() {
         ),
       ],
       expenseLines: const [],
-      valuation: ScenarioValuationRecord.defaults(scenarioId: 's1'),
+      valuation: valuation,
     );
 
     expect(snapshotA.toCanonicalJson(), snapshotB.toCanonicalJson());

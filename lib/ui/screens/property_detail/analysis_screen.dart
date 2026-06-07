@@ -139,22 +139,28 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                                 children: [
                                   Text(
                                     'Exit Sale: ${m.exitSalePrice.toStringAsFixed(2)}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   Text(
                                     'Sale Costs: ${m.exitSaleCosts.toStringAsFixed(2)}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   Text(
                                     'Loan Payoff: ${m.exitLoanPayoff.toStringAsFixed(2)}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   Text(
                                     'Net Sale: ${m.exitNetSale.toStringAsFixed(2)}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   Text(
                                     'Exit Cashflow: ${m.exitCashflow.toStringAsFixed(2)}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   if (m.exitStabilizedNoi != null)
                                     Text(
                                       'Stabilized NOI: ${m.exitStabilizedNoi!.toStringAsFixed(2)}',
+                                      style: context.tabularNumericStyle,
                                     ),
                                 ],
                               ),
@@ -345,7 +351,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 ),
               ),
               ...grid.rentDeltas.map(
-                (delta) => DataColumn(label: Text(_formatDelta(delta))),
+                (delta) => DataColumn(
+                  label: Text(
+                    _formatDelta(delta),
+                    style: const TextStyle(fontWeight: FontWeight.w600).merge(context.tabularNumericStyle),
+                  ),
+                ),
               ),
             ],
             rows: List<DataRow>.generate(grid.purchasePriceDeltas.length, (
@@ -361,7 +372,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       style: TextStyle(
                         color: colors.onSurface,
                         fontWeight: FontWeight.w700,
-                      ),
+                      ).merge(context.tabularNumericStyle),
                     ),
                   ),
                   ...row.map((value) {
@@ -395,7 +406,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           style: TextStyle(
                             color: foreground,
                             fontWeight: FontWeight.w700,
-                          ),
+                          ).merge(context.tabularNumericStyle),
                         ),
                       ),
                     );

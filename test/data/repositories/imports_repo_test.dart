@@ -17,6 +17,9 @@ void main() {
     databaseFactory = databaseFactoryFfi;
     appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
     db = await appDatabase.instance;
+    await db.delete('properties');
+    await db.delete('portfolios');
+    await db.delete('tasks');
   });
 
   tearDown(() async {

@@ -18,6 +18,11 @@ void main() {
   testWidgets('shows grouped property navigation and breadcrumb context', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final container = ProviderContainer(
       overrides: [
         propertiesControllerProvider.overrideWith(
@@ -46,11 +51,11 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('View'), findsOneWidget);
-    expect(find.text('Daily Business'), findsOneWidget);
+    expect(find.text('Ansicht'), findsAtLeastNWidgets(1));
+    expect(find.text('Tagesgeschaeft'), findsAtLeastNWidgets(1));
     expect(
       find.text(
-        'Assets & Portfolio / Properties / Asset Alpha / Daily Business / Tasks',
+        'Asset Alpha / Tagesgeschaeft / Aufgaben',
       ),
       findsOneWidget,
     );

@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_selector/file_selector.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -128,6 +130,11 @@ class _PortfolioAnalyticsScreenState
                 ),
               ],
               const SizedBox(height: AppSpacing.component),
+              SizedBox(
+                height: 280,
+                child: _PortfolioCashflowChart(periodTable: result.periodTable),
+              ),
+              const SizedBox(height: AppSpacing.component),
               Expanded(
                 child: Card(
                   child: SingleChildScrollView(
@@ -176,18 +183,20 @@ class _PortfolioAnalyticsScreenState
       width: 200,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
         color: Theme.of(context).colorScheme.surface,
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700).merge(
+              context.tabularNumericStyle,
+            ),
           ),
         ],
       ),
@@ -265,5 +274,225 @@ class _PortfolioAnalyticsScreenState
       }
       await File(sourcePath).copy(targetPath);
     } catch (_) {}
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PortfolioCashflowChart extends StatelessWidget {
+  const _PortfolioCashflowChart({required this.periodTable});
+
+  final List<PortfolioCashflowPeriodAggregate> periodTable;
+
+  @override
+  Widget build(BuildContext context) {
+    if (periodTable.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final barGroups = <BarChartGroupData>[];
+    for (var index = 0; index < periodTable.length; index++) {
+      final row = periodTable[index];
+      barGroups.add(
+        BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: row.totalInflows,
+              width: 8,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+              ),
+            ),
+            BarChartRodData(
+              toY: row.totalOutflows.abs(),
+              width: 8,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEF4444), Color(0xFFF87171)],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+              ),
+            ),
+            BarChartRodData(
+              toY: row.netCashflow,
+              width: 8,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    double maxVal = 0;
+    double minVal = 0;
+    for (final row in periodTable) {
+      maxVal = math.max(maxVal, math.max(row.totalInflows, math.max(row.totalOutflows.abs(), row.netCashflow)));
+      minVal = math.min(minVal, math.min(row.totalInflows, math.min(-row.totalOutflows.abs(), row.netCashflow)));
+    }
+    final maxY = maxVal == 0 ? 1.0 : maxVal * 1.15;
+    final minY = minVal >= 0 ? 0.0 : minVal * 1.15;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Cashflow Verlauf',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                const Wrap(
+                  spacing: 16,
+                  children: [
+                    _LegendItem(color: Color(0xFF10B981), label: 'Zuflüsse'),
+                    _LegendItem(color: Color(0xFFEF4444), label: 'Abflüsse'),
+                    _LegendItem(color: Colors.blue, label: 'Netto-Cashflow'),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: BarChart(
+                BarChartData(
+                  maxY: maxY,
+                  minY: minY,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: context.semanticColors.border.withValues(alpha: 0.4),
+                      strokeWidth: 1,
+                      dashArray: [4, 4],
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (group) => Theme.of(context).colorScheme.surface,
+                      tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
+                      tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      tooltipRoundedRadius: AppRadiusTokens.md,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final row = periodTable[groupIndex];
+                        String label = '';
+                        double val = 0;
+                        if (rodIndex == 0) {
+                          label = 'Zuflüsse';
+                          val = row.totalInflows;
+                        } else if (rodIndex == 1) {
+                          label = 'Abflüsse';
+                          val = row.totalOutflows;
+                        } else {
+                          label = 'Netto-Cashflow';
+                          val = row.netCashflow;
+                        }
+                        return BarTooltipItem(
+                          '$label: € ${val.toStringAsFixed(2)}',
+                          TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ).merge(context.tabularNumericStyle),
+                        );
+                      },
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 64,
+                        getTitlesWidget: (value, _) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            '€ ${value.toStringAsFixed(0)}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: context.semanticColors.textSecondary,
+                            ).merge(context.tabularNumericStyle),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, _) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= periodTable.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              periodTable[index].periodKey,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: context.semanticColors.textSecondary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barGroups: barGroups,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

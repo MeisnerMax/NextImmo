@@ -815,9 +815,20 @@ class _CriteriaRuleTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: Text(
-                        '$metricLabel $operatorLabel ${rule.targetValue}',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      child: RichText(
+                        text: TextSpan(
+                          style: Theme.of(context).textTheme.titleMedium,
+                          children: [
+                            TextSpan(text: '$metricLabel $operatorLabel '),
+                            TextSpan(
+                              text: '${rule.targetValue}',
+                              style: context.tabularNumericStyle.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -868,15 +879,15 @@ class _OverviewPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: context.semanticColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: context.semanticColors.border),
       ),
       child: Text(
         '$label: $value',
-        style: Theme.of(context).textTheme.bodySmall,
+        style: Theme.of(context).textTheme.bodySmall?.merge(context.tabularNumericStyle),
       ),
     );
   }
@@ -895,7 +906,7 @@ class _MetricHelpBox extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.semanticColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: context.semanticColors.border),
       ),
       child: Row(

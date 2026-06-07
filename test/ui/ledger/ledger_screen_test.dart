@@ -12,53 +12,65 @@ void main() {
   late AppDatabase appDatabase;
   late Database db;
 
-  setUpAll(() async {
+  setUp(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
     appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
     db = await appDatabase.instance;
   });
 
-  tearDownAll(() async {
+  tearDown(() async {
     await appDatabase.close();
   });
 
   testWidgets('displays existing ledger entry', (tester) async {
     const longEntityType = 'entity_type_with_a_really_long_identifier_name';
-    await db.insert('ledger_accounts', <String, Object?>{
-      'id': 'acc-1',
-      'name': 'Rent',
-      'kind': 'income',
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    });
-    await db.insert('ledger_entries', <String, Object?>{
-      'id': 'entry-1',
-      'entity_type': longEntityType,
-      'entity_id': null,
-      'account_id': 'acc-1',
-      'posted_at': DateTime.now().millisecondsSinceEpoch,
-      'period_key': '2026-03',
-      'direction': 'in',
-      'amount': 123.45,
-      'currency_code': 'EUR',
-      'counterparty': null,
-      'memo': null,
-      'document_id': null,
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    });
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(home: Scaffold(body: LedgerScreen())),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await db.insert('ledger_accounts', <String, Object?>{
+        'id': 'acc-1',
+        'name': 'Rent',
+        'kind': 'income',
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await db.insert('ledger_entries', <String, Object?>{
+        'id': 'entry-1',
+        'entity_type': longEntityType,
+        'entity_id': null,
+        'account_id': 'acc-1',
+        'posted_at': DateTime.now().millisecondsSinceEpoch,
+        'period_key': '2026-03',
+        'direction': 'in',
+        'amount': 123.45,
+        'currency_code': 'EUR',
+        'counterparty': null,
+        'memo': null,
+        'document_id': null,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(home: Scaffold(body: LedgerScreen())),
+        ),
+      );
+
+      for (int i = 0; i < 40; i++) {
+        await tester.pump();
+        if (find.text('123.45').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    });
 
     expect(find.text('123.45'), findsOneWidget);
     expect(find.byTooltip(longEntityType), findsOneWidget);
+
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
   });
 }

@@ -668,8 +668,8 @@ class _EsgFactTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.component),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        color: context.semanticColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: context.semanticColors.border),
       ),
       child: Row(

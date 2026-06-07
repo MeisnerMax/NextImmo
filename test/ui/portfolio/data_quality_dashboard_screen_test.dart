@@ -9,11 +9,14 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('shows quality score and issues list container', (tester) async {
+  late AppDatabase appDatabase;
+  late Database db;
+
+  setUp(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    final appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
-    final db = await appDatabase.instance;
+    appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
+    db = await appDatabase.instance;
 
     await db.insert('portfolios', <String, Object?>{
       'id': 'p1',
@@ -44,26 +47,49 @@ void main() {
       'property_id': 'a1',
       'created_at': 1,
     });
+  });
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(
-          home: DataQualityDashboardScreen(
-            portfolioId: 'p1',
-            portfolioName: 'Fund',
+  tearDown(() async {
+    await appDatabase.close();
+  });
+
+  testWidgets('shows quality score and issues list container', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: DataQualityDashboardScreen(
+                portfolioId: 'p1',
+                portfolioName: 'Fund',
+              ),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+
+      // Wait for the data loading to complete and main dashboard tiles to appear
+      for (int i = 0; i < 40; i++) {
+        await tester.pump();
+        if (find.text('Portfolio Score').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    });
 
     expect(find.textContaining('Data Quality'), findsOneWidget);
     expect(find.text('Portfolio Score'), findsOneWidget);
 
-    await appDatabase.close();
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
   });
 }

@@ -189,9 +189,11 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
                                   ),
                                   Text(
                                     'Final gap: ${_result!.finalGap?.toStringAsFixed(6) ?? 'N/A'}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   Text(
                                     'Bounds gap: low=${_result!.lowBoundGap?.toStringAsFixed(6) ?? 'N/A'} high=${_result!.highBoundGap?.toStringAsFixed(6) ?? 'N/A'}',
+                                    style: context.tabularNumericStyle,
                                   ),
                                   if (_result!.warnings.isNotEmpty) ...[
                                     const SizedBox(height: 8),

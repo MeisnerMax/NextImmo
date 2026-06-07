@@ -63,7 +63,7 @@ class KpiTile extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
-                ),
+                ).merge(context.tabularNumericStyle),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),

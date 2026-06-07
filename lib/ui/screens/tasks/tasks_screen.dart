@@ -1445,67 +1445,69 @@ class _TasksDashboard extends StatelessWidget {
     for (final item in tasks) {
       byStatus[item.task.status] = (byStatus[item.task.status] ?? 0) + 1;
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 760;
-        final tileWidth = narrow ? constraints.maxWidth : 170.0;
-        return Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
-          children: [
-            _TaskSignalTile(
-              width: tileWidth,
-              label: 'Überfällig',
-              value: overdue.toString(),
-              icon: Icons.warning_amber_outlined,
-              tone:
-                  overdue == 0
-                      ? context.semanticColors.success
-                      : Theme.of(context).colorScheme.error,
-              onTap: () => onDueFilter('overdue'),
-            ),
-            _TaskSignalTile(
-              width: tileWidth,
-              label: 'Heute',
-              value: today.toString(),
-              icon: Icons.today_outlined,
-              onTap: () => onDueFilter('today'),
-            ),
-            _TaskSignalTile(
-              width: tileWidth,
-              label: 'Nächste 7 Tage',
-              value: next.toString(),
-              icon: Icons.event_available_outlined,
-              onTap: () => onDueFilter('next_7_days'),
-            ),
-            _TaskSignalTile(
-              width: tileWidth,
-              label: 'In Arbeit',
-              value: inProgress.toString(),
-              icon: Icons.timelapse_outlined,
-              onTap: () => onStatusFilter('in_progress'),
-            ),
-            _TaskSignalTile(
-              width: tileWidth,
-              label: 'Erledigt',
-              value: done.toString(),
-              icon: Icons.done_all_outlined,
-              onTap: () => onStatusFilter('done'),
-            ),
-            _TaskSignalTile(
-              width: narrow ? constraints.maxWidth : 210,
-              label: 'Kostenrahmen',
-              value: _taskCurrency(cost),
-              icon: Icons.payments_outlined,
-            ),
-            _TaskStatusBars(
-              width: narrow ? constraints.maxWidth : 320,
-              values: byStatus,
-              onStatusFilter: onStatusFilter,
-            ),
-          ],
-        );
-      },
+    final tileWidth = 170.0;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _TaskSignalTile(
+            width: tileWidth,
+            label: 'Überfällig',
+            value: overdue.toString(),
+            icon: Icons.warning_amber_outlined,
+            tone: overdue == 0
+                ? context.semanticColors.success
+                : Theme.of(context).colorScheme.error,
+            onTap: () => onDueFilter('overdue'),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskSignalTile(
+            width: tileWidth,
+            label: 'Heute',
+            value: today.toString(),
+            icon: Icons.today_outlined,
+            onTap: () => onDueFilter('today'),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskSignalTile(
+            width: tileWidth,
+            label: 'Nächste 7 Tage',
+            value: next.toString(),
+            icon: Icons.event_available_outlined,
+            onTap: () => onDueFilter('next_7_days'),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskSignalTile(
+            width: tileWidth,
+            label: 'In Arbeit',
+            value: inProgress.toString(),
+            icon: Icons.timelapse_outlined,
+            onTap: () => onStatusFilter('in_progress'),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskSignalTile(
+            width: tileWidth,
+            label: 'Erledigt',
+            value: done.toString(),
+            icon: Icons.done_all_outlined,
+            onTap: () => onStatusFilter('done'),
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskSignalTile(
+            width: 210,
+            label: 'Kostenrahmen',
+            value: _taskCurrency(cost),
+            icon: Icons.payments_outlined,
+          ),
+          const SizedBox(width: AppSpacing.component),
+          _TaskStatusBars(
+            width: 320,
+            values: byStatus,
+            onStatusFilter: onStatusFilter,
+          ),
+        ],
+      ),
     );
   }
 }

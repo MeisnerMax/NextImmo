@@ -8,6 +8,11 @@ import 'package:neximmo_app/ui/state/app_state.dart';
 
 void main() {
   testWidgets('renders alert severity and action hint', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     const fakeRepo = _FakeOperationsRepo();
 
     await tester.pumpWidget(
@@ -26,7 +31,7 @@ void main() {
     expect(find.textContaining('Unit A2 has overlapping leases.'), findsOneWidget);
     expect(find.textContaining('Lease L1 is missing tenant contact data.'), findsOneWidget);
     expect(find.textContaining('Resolve the overlap immediately.'), findsOneWidget);
-    expect(find.textContaining('open'), findsWidgets);
+    expect(find.textContaining('Open'), findsWidgets);
   });
 }
 

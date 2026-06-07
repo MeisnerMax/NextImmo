@@ -165,6 +165,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
             SizedBox(
               width: 170,
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _documentStatusFilter,
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('Alle Status')),
@@ -186,6 +187,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
             SizedBox(
               width: 170,
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _documentEntityFilter,
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('Alle Ebenen')),

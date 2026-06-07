@@ -26,7 +26,7 @@ void main() {
       expect(find.text('Value Override'), findsNothing);
       expect(find.text('Rent Override'), findsNothing);
 
-      await tester.tap(find.text('Advanced'));
+      await tester.tap(find.text('Erweitert'));
       await tester.pumpAndSettle();
 
       expect(find.text('Value Override'), findsOneWidget);
@@ -41,7 +41,7 @@ void main() {
       final store = _FakeScenarioAnalysisStore(scenarioId);
 
       await _pumpScreen(tester, scenarioId: scenarioId, store: store);
-      await tester.tap(find.text('Advanced'));
+      await tester.tap(find.text('Erweitert'));
       await tester.pumpAndSettle();
 
       Finder fieldByLabel(String label) {
@@ -64,7 +64,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       await _pumpScreen(tester, scenarioId: scenarioId, store: store);
-      await tester.tap(find.text('Advanced'));
+      await tester.tap(find.text('Erweitert'));
       await tester.pumpAndSettle();
 
       final reopenedValue = tester.widget<TextFormField>(valueOverrideField);
@@ -97,6 +97,11 @@ Future<void> _pumpScreen(
   required String scenarioId,
   required _FakeScenarioAnalysisStore store,
 }) async {
+  tester.view.physicalSize = const Size(1280, 800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

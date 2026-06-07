@@ -151,12 +151,30 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Start: ${formatDateMillis(bundle.lease.startDate)}'),
-                    Text('Ende: ${formatDateMillis(bundle.lease.endDate)}'),
-                    Text('Einzug: ${formatDateMillis(bundle.lease.moveInDate)}'),
-                    Text('Auszug: ${formatDateMillis(bundle.lease.moveOutDate)}'),
-                    Text('Unterschrieben: ${formatDateMillis(bundle.lease.leaseSignedDate)}'),
-                    Text('Kuendigung: ${formatDateMillis(bundle.lease.noticeDate)}'),
+                    Text(
+                      'Start: ${formatDateMillis(bundle.lease.startDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Ende: ${formatDateMillis(bundle.lease.endDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Einzug: ${formatDateMillis(bundle.lease.moveInDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Auszug: ${formatDateMillis(bundle.lease.moveOutDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Unterschrieben: ${formatDateMillis(bundle.lease.leaseSignedDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Kuendigung: ${formatDateMillis(bundle.lease.noticeDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
                   ],
                 ),
               ),
@@ -170,13 +188,19 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                   children: [
                     Text(
                       'Grundmiete: ${bundle.lease.baseRentMonthly.toStringAsFixed(2)} ${bundle.lease.currencyCode}',
+                      style: context.tabularNumericStyle,
                     ),
                     Text(
                       'Kaution: ${bundle.lease.securityDeposit?.toStringAsFixed(2) ?? '-'}',
+                      style: context.tabularNumericStyle,
                     ),
-                    Text('Kautionsstatus: ${_depositLabel(bundle.lease.depositStatus ?? 'unknown')}'),
+                    Text(
+                      'Kautionsstatus: ${_depositLabel(bundle.lease.depositStatus ?? 'unknown')}',
+                      style: context.tabularNumericStyle,
+                    ),
                     Text(
                       'Nebenkosten / Sonstiges: ${bundle.lease.ancillaryChargesMonthly?.toStringAsFixed(2) ?? '-'} / ${bundle.lease.parkingOtherChargesMonthly?.toStringAsFixed(2) ?? '-'}',
+                      style: context.tabularNumericStyle,
                     ),
                   ],
                 ),
@@ -190,11 +214,21 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Verlaengerungsoption: ${formatDateMillis(bundle.lease.renewalOptionDate)}'),
-              Text('Sonderkuendigung: ${formatDateMillis(bundle.lease.breakOptionDate)}'),
-              Text('Ausgefuehrt: ${formatDateMillis(bundle.lease.executedDate)}'),
+              Text(
+                'Verlaengerungsoption: ${formatDateMillis(bundle.lease.renewalOptionDate)}',
+                style: context.tabularNumericStyle,
+              ),
+              Text(
+                'Sonderkuendigung: ${formatDateMillis(bundle.lease.breakOptionDate)}',
+                style: context.tabularNumericStyle,
+              ),
+              Text(
+                'Ausgefuehrt: ${formatDateMillis(bundle.lease.executedDate)}',
+                style: context.tabularNumericStyle,
+              ),
               Text(
                 'Letztes Mietende: ${formatDateMillis(bundle.latestRentRollLine?.leaseEndDate)}',
+                style: context.tabularNumericStyle,
               ),
             ],
           ),
@@ -219,6 +253,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                                 title: Text('${_ruleKindLabel(rule.kind)} ab ${rule.effectiveFromPeriodKey}'),
                                 subtitle: Text(
                                   'jaehrlich ${rule.annualPercent?.toStringAsFixed(4) ?? '-'} · Schritt ${rule.fixedStepAmount?.toStringAsFixed(2) ?? '-'}',
+                                  style: context.tabularNumericStyle,
                                 ),
                               ),
                             )
@@ -239,7 +274,10 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
                                 title: Text(row.periodKey),
-                                subtitle: Text('${row.source} · ${row.rentMonthly.toStringAsFixed(2)}'),
+                                subtitle: Text(
+                                  '${row.source} · ${row.rentMonthly.toStringAsFixed(2)}',
+                                  style: context.tabularNumericStyle,
+                                ),
                               ),
                             )
                             .toList(growable: false),

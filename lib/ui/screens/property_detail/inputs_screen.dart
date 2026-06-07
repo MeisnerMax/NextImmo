@@ -51,32 +51,34 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         final inputs = state.inputs;
         final valuation = state.valuation;
 
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildValuationWorkflowCard(context),
-              const SizedBox(height: AppSpacing.component),
-              _buildModeCard(context, state, controller),
-              const SizedBox(height: AppSpacing.component),
-              ...(_mode == _InputsMode.basic
-                  ? _buildBasicSections(
-                    context: context,
-                    state: state,
-                    inputs: inputs,
-                    patchInput: patchInput,
-                    controller: controller,
-                  )
-                  : _buildAdvancedSections(
-                    context: context,
-                    state: state,
-                    inputs: inputs,
-                    valuation: valuation,
-                    patchInput: patchInput,
-                    patchValuation: patchValuation,
-                  )),
-            ],
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.page),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildValuationWorkflowCard(context),
+                const SizedBox(height: AppSpacing.component),
+                _buildModeCard(context, state, controller),
+                const SizedBox(height: AppSpacing.component),
+                ...(_mode == _InputsMode.basic
+                    ? _buildBasicSections(
+                      context: context,
+                      state: state,
+                      inputs: inputs,
+                      patchInput: patchInput,
+                      controller: controller,
+                    )
+                    : _buildAdvancedSections(
+                      context: context,
+                      state: state,
+                      inputs: inputs,
+                      valuation: valuation,
+                      patchInput: patchInput,
+                      patchValuation: patchValuation,
+                    )),
+              ],
+            ),
           ),
         );
       },

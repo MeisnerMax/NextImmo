@@ -12,7 +12,7 @@ void main() {
   late AppDatabase appDatabase;
   late Database db;
 
-  setUpAll(() async {
+  setUp(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
     appDatabase = AppDatabase(overridePath: inMemoryDatabasePath);
@@ -36,41 +36,58 @@ void main() {
     });
   });
 
-  tearDownAll(() async {
+  tearDown(() async {
     await appDatabase.close();
   });
 
   testWidgets('generate now shows generated status', (tester) async {
-    await db.insert('task_templates', <String, Object?>{
-      'id': 'tpl-1',
-      'name': 'Monthly',
-      'entity_type': 'property',
-      'default_title': 'Review',
-      'default_priority': 'normal',
-      'default_due_days_offset': null,
-      'recurrence_rule': 'monthly',
-      'recurrence_interval': 1,
-      'created_at': 1,
-      'updated_at': 1,
+    await tester.runAsync(() async {
+      await db.insert('task_templates', <String, Object?>{
+        'id': 'tpl-1',
+        'name': 'Monthly',
+        'entity_type': 'property',
+        'default_title': 'Review',
+        'default_priority': 'normal',
+        'default_due_days_offset': null,
+        'recurrence_rule': 'monthly',
+        'recurrence_interval': 1,
+        'created_at': 1,
+        'updated_at': 1,
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(home: Scaffold(body: TaskTemplatesScreen())),
+        ),
+      );
+
+      // Wait for template list to load and render "Monthly"
+      for (int i = 0; i < 40; i++) {
+        await tester.pump();
+        if (find.text('Monthly').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+
+      await tester.tap(find.text('Jetzt erzeugen'));
+
+      // Wait for status text containing "erzeugt" to appear
+      for (int i = 0; i < 40; i++) {
+        await tester.pump();
+        if (find.textContaining('erzeugt').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     });
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(home: Scaffold(body: TaskTemplatesScreen())),
-      ),
-    );
-    await tester.pumpAndSettle();
+    expect(find.textContaining('erzeugt'), findsOneWidget);
 
-    final generateButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Generate now'),
-    );
-    generateButton.onPressed!.call();
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('Generated'), findsOneWidget);
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
   });
 }

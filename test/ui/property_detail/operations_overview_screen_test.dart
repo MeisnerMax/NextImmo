@@ -23,10 +23,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Units Total'), findsOneWidget);
-    expect(find.text('Quick Actions'), findsOneWidget);
-    expect(find.text('New Unit'), findsOneWidget);
-    expect(find.text('Review Data Issues'), findsOneWidget);
+    expect(find.text('Einheiten'), findsOneWidget);
+    expect(find.text('Schnellaktionen'), findsOneWidget);
+    expect(find.text('Einheit anlegen'), findsOneWidget);
+    expect(find.text('Datenqualität prüfen'), findsOneWidget);
   });
 }
 

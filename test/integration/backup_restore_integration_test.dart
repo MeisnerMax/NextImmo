@@ -27,6 +27,7 @@ void main() {
 
     final appDatabase = AppDatabase(overridePath: dbPath);
     final db = await appDatabase.instance;
+    await db.delete('properties');
     await db.insert('properties', <String, Object?>{
       'id': 'p1',
       'name': 'Restore Asset',

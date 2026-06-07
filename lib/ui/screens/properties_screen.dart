@@ -25,7 +25,30 @@ class PropertiesScreen extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Objekt-Management',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Erfassen, bewirtschaften und analysieren Sie Ihre Liegenschaften.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: context.semanticColors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           Row(
             children: [
               ElevatedButton.icon(
@@ -33,10 +56,11 @@ class PropertiesScreen extends ConsumerWidget {
                 icon: const Icon(Icons.add),
                 label: const Text('New Property'),
               ),
-              const SizedBox(width: 8),
-              OutlinedButton(
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
                 onPressed: controller.reload,
-                child: const Text('Refresh'),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Refresh'),
               ),
             ],
           ),
@@ -45,8 +69,13 @@ class PropertiesScreen extends ConsumerWidget {
             child: propertiesAsync.when(
               data: (properties) {
                 if (properties.isEmpty) {
-                  return const Card(
-                    child: Center(
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      border: Border.all(color: context.semanticColors.border),
+                      borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+                    ),
+                    child: const Center(
                       child: Padding(
                         padding: EdgeInsets.all(AppSpacing.section),
                         child: Text('No properties yet.'),
@@ -55,122 +84,144 @@ class PropertiesScreen extends ConsumerWidget {
                   );
                 }
 
-                return Card(
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border.all(color: context.semanticColors.border),
+                    borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.component),
                     child: SingleChildScrollView(
-                      child: DataTable(
-                        sortAscending: false,
-                        sortColumnIndex: 3,
-                        columns: const [
-                          DataColumn(label: Text('Name')),
-                          DataColumn(label: Text('Address')),
-                          DataColumn(label: Text('Type')),
-                          DataColumn(label: Text('Updated ↓')),
-                          DataColumn(label: Text('Actions')),
-                        ],
-                        rows:
-                            properties
-                                .map(
-                                  (property) => DataRow(
-                                    cells: [
-                                      DataCell(Text(property.name)),
-                                      DataCell(
-                                        Text(
-                                          '${property.addressLine1}, ${property.city}',
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: DataTable(
+                          sortAscending: false,
+                          sortColumnIndex: 3,
+                          headingRowColor: WidgetStateProperty.all(
+                            context.semanticColors.surfaceAlt,
+                          ),
+                          columns: const [
+                            DataColumn(label: Text('Name')),
+                            DataColumn(label: Text('Address')),
+                            DataColumn(label: Text('Type')),
+                            DataColumn(label: Text('Updated ↓')),
+                            DataColumn(label: Text('Actions')),
+                          ],
+                          rows:
+                              properties
+                                  .map(
+                                    (property) => DataRow(
+                                      cells: [
+                                        DataCell(
+                                          Text(
+                                            property.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
+                                        DataCell(
+                                          Text(
+                                            '${property.addressLine1}, ${property.city}',
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFEFF4FA),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
+                                        ),
+                                        DataCell(
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
                                             ),
-                                            border: Border.all(
-                                              color: AppColors.border,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+                                              borderRadius: BorderRadius.circular(999),
+                                              border: Border.all(
+                                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                              ),
                                             ),
-                                          ),
-                                          child: Text(
-                                            context.strings.text(
-                                              propertyTypeDisplayLabel(
-                                                property.propertyType,
+                                            child: Text(
+                                              context.strings.text(
+                                                propertyTypeDisplayLabel(
+                                                  property.propertyType,
+                                                ),
+                                              ),
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.primary,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 11,
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          DateTime.fromMillisecondsSinceEpoch(
-                                            property.updatedAt,
-                                          ).toIso8601String(),
+                                        DataCell(
+                                          Text(
+                                            DateTime.fromMillisecondsSinceEpoch(
+                                              property.updatedAt,
+                                            ).toIso8601String(),
+                                            style: context.tabularNumericStyle,
+                                          ),
                                         ),
-                                      ),
-                                      DataCell(
-                                        Wrap(
-                                          spacing: 8,
-                                          children: [
-                                            TextButton(
-                                              onPressed: () {
-                                                ref
-                                                    .read(
-                                                      selectedScenarioIdProvider
-                                                          .notifier,
-                                                    )
-                                                    .state = null;
-                                                ref
-                                                    .read(
-                                                      selectedPropertyIdProvider
-                                                          .notifier,
-                                                    )
-                                                    .state = property.id;
-                                                ref
-                                                    .read(
-                                                      propertyDetailPageProvider
-                                                          .notifier,
-                                                    )
-                                                    .state = PropertyDetailPage
-                                                        .overview;
-                                              },
-                                              child: const Text('Open'),
-                                            ),
-                                            TextButton(
-                                              onPressed:
-                                                  () => controller.archive(
-                                                    property.id,
-                                                    true,
-                                                  ),
-                                              child: const Text('Archive'),
-                                            ),
-                                            TextButton(
-                                              onPressed:
-                                                  () => _confirmPermanentDelete(
-                                                    context,
-                                                    ref,
-                                                    property,
-                                                  ),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    Theme.of(
+                                        DataCell(
+                                          Wrap(
+                                            spacing: 8,
+                                            children: [
+                                              TextButton(
+                                                onPressed: () {
+                                                  ref
+                                                      .read(
+                                                        selectedScenarioIdProvider
+                                                            .notifier,
+                                                      )
+                                                      .state = null;
+                                                  ref
+                                                      .read(
+                                                        selectedPropertyIdProvider
+                                                            .notifier,
+                                                      )
+                                                      .state = property.id;
+                                                  ref
+                                                      .read(
+                                                        propertyDetailPageProvider
+                                                            .notifier,
+                                                      )
+                                                      .state = PropertyDetailPage
+                                                          .overview;
+                                                },
+                                                child: const Text('Open'),
+                                              ),
+                                              TextButton(
+                                                onPressed:
+                                                    () => controller.archive(
+                                                      property.id,
+                                                      true,
+                                                    ),
+                                                child: const Text('Archive'),
+                                              ),
+                                              TextButton(
+                                                onPressed:
+                                                    () => _confirmPermanentDelete(
                                                       context,
-                                                    ).colorScheme.error,
+                                                      ref,
+                                                      property,
+                                                    ),
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      Theme.of(
+                                                        context,
+                                                      ).colorScheme.error,
+                                                ),
+                                                child: const Text(
+                                                  'Endgültig löschen',
+                                                ),
                                               ),
-                                              child: const Text(
-                                                'Endgültig löschen',
-                                              ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
+                                      ],
+                                    ),
+                                  )
+                                  .toList(),
+                        ),
                       ),
                     ),
                   ),
