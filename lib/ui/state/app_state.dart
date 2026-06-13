@@ -19,6 +19,7 @@ import '../../core/reports/portfolio_pack_builder.dart';
 import '../../core/reports/report_builder.dart';
 import '../../core/reports/report_templates.dart';
 import '../../core/models/settings.dart';
+import '../../core/models/valuation.dart';
 import '../../core/security/password_hasher.dart';
 import '../../core/security/rbac.dart';
 import '../../core/services/backup_service.dart';
@@ -175,6 +176,13 @@ final scenarioRepositoryProvider = Provider<ScenarioRepository>((ref) {
 final valuationDataRepositoryProvider = Provider<ValuationDataRepo>((ref) {
   return ValuationDataRepo(ref.watch(databaseProvider));
 });
+
+final valuationPropertySnapshotProvider =
+    FutureProvider.family<ValuationPropertySnapshot?, String>((ref, scenarioId) {
+      return ref
+          .watch(valuationDataRepositoryProvider)
+          .getPropertySnapshot(scenarioId);
+    });
 
 final inputsRepositoryProvider = Provider<InputsRepository>((ref) {
   return InputsRepository(

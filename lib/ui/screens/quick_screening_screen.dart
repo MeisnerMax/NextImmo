@@ -253,11 +253,19 @@ class _QuickScreeningScreenState extends ConsumerState<QuickScreeningScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          _metric('NOI Jahr 1', _currency(metrics.noiYear1)),
-          _metric('Cap Rate', _percent(metrics.capRate)),
-          _metric('Cashflow mtl.', _currency(metrics.monthlyCashflowYear1)),
-          _metric('Cash on Cash', _percent(metrics.cashOnCash)),
-          _metric('IRR', metrics.irr == null ? 'N/A' : _percent(metrics.irr!)),
+          _metric(context, 'NOI Jahr 1', _currency(metrics.noiYear1)),
+          _metric(context, 'Cap Rate', _percent(metrics.capRate)),
+          _metric(
+            context,
+            'Cashflow mtl.',
+            _currency(metrics.monthlyCashflowYear1),
+          ),
+          _metric(context, 'Cash on Cash', _percent(metrics.cashOnCash)),
+          _metric(
+            context,
+            'IRR',
+            metrics.irr == null ? 'N/A' : _percent(metrics.irr!),
+          ),
           const SizedBox(height: AppSpacing.component),
           Divider(color: context.semanticColors.border),
           const SizedBox(height: AppSpacing.component),
@@ -402,7 +410,7 @@ class _QuickScreeningScreenState extends ConsumerState<QuickScreeningScreen> {
     );
   }
 
-  Widget _metric(String label, String value) {
+  Widget _metric(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(

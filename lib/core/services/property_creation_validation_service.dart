@@ -108,6 +108,7 @@ class PropertyCreationValidationService {
       criticalWarnings: critical,
       qualityItems: qualityItems,
       stepStates: _stepStates(draft, missing, recommended, critical),
+      criticalRisksConfirmed: draft.criticalRisksConfirmed,
     );
   }
 
@@ -334,7 +335,7 @@ class PropertyCreationCalculationsService {
     final achieved = items
         .where((item) => item.complete)
         .fold<int>(0, (sum, item) => sum + item.weight);
-    return ((achieved / totalWeight) * 100).round().clamp(0, 100);
+    return ((achieved / totalWeight) * 100).round().clamp(0, 100).toInt();
   }
 
   static String dataQualityStatus(int score) {
@@ -385,7 +386,7 @@ class PropertyCreationCalculationsService {
     if (count == 0) {
       return 0;
     }
-    return (total / count).round().clamp(0, 100);
+    return (total / count).round().clamp(0, 100).toInt();
   }
 
   static double? _sum(Iterable<double?> values) {

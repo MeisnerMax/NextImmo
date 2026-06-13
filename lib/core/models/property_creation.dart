@@ -310,6 +310,7 @@ class PropertyCreationAssessment {
     required this.criticalWarnings,
     required this.qualityItems,
     required this.stepStates,
+    required this.criticalRisksConfirmed,
   });
 
   final PropertyCreationMetrics metrics;
@@ -318,8 +319,11 @@ class PropertyCreationAssessment {
   final List<String> criticalWarnings;
   final List<PropertyCreationQualityItem> qualityItems;
   final Map<int, PropertyCreationStepState> stepStates;
+  final bool criticalRisksConfirmed;
 
-  bool get canSave => missingRequired.isEmpty && criticalWarnings.isEmpty;
+  bool get canSave =>
+      missingRequired.isEmpty &&
+      (criticalWarnings.isEmpty || criticalRisksConfirmed);
 }
 
 class PropertyCreationQualityItem {

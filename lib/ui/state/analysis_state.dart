@@ -126,6 +126,16 @@ class ScenarioAnalysisController
       inputs: inputs,
       analysis: analysis,
     );
+    if (scenario != null) {
+      final valuationDataRepo = ref.read(valuationDataRepositoryProvider);
+      final snapshot = await valuationDataRepo.getPropertySnapshot(scenarioId);
+      if (snapshot == null) {
+        await valuationDataRepo.createPropertySnapshot(
+          scenarioId: scenarioId,
+          propertyId: scenario.propertyId,
+        );
+      }
+    }
 
     return ScenarioAnalysisState(
       propertyId: scenario?.propertyId,

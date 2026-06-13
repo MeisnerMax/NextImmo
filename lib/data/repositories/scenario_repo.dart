@@ -210,6 +210,24 @@ class ScenarioRepository {
           conflictAlgorithm: ConflictAlgorithm.abort,
         );
       }
+
+      final snapshotRows = await txn.query(
+        'valuation_property_snapshots',
+        where: 'scenario_id = ?',
+        whereArgs: <Object?>[source.id],
+        limit: 1,
+      );
+      if (snapshotRows.isNotEmpty) {
+        final snapshotMap =
+            Map<String, Object?>.from(snapshotRows.first)
+              ..['scenario_id'] = copy.id
+              ..['updated_at'] = now;
+        await txn.insert(
+          'valuation_property_snapshots',
+          snapshotMap,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
     });
 
     await _recordAudit(

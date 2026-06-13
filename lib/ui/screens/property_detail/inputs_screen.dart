@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/inputs.dart';
 import '../../../core/models/scenario_valuation.dart';
 import '../../components/responsive_constraints.dart';
+import '../../components/nx_card.dart';
 import '../../components/nx_section_header.dart';
+import '../../components/nx_status_badge.dart';
 import '../../components/save_status_indicator.dart';
 import '../../state/analysis_state.dart';
 import '../../state/app_state.dart';
@@ -59,6 +61,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
               children: [
                 _buildValuationWorkflowCard(context),
                 const SizedBox(height: AppSpacing.component),
+                _buildValuationDataCopyCard(context, widget.scenarioId),
+                const SizedBox(height: AppSpacing.component),
                 _buildModeCard(context, state, controller),
                 const SizedBox(height: AppSpacing.component),
                 ...(_mode == _InputsMode.basic
@@ -84,6 +88,59 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(child: Text('Bewertungsdaten konnten nicht geladen werden: $error')),
+    );
+  }
+
+  Widget _buildValuationDataCopyCard(BuildContext context, String scenarioId) {
+    final snapshotAsync = ref.watch(valuationPropertySnapshotProvider(scenarioId));
+    return snapshotAsync.when(
+      data: (snapshot) {
+        if (snapshot == null) {
+          return const SizedBox.shrink();
+        }
+        final manual = snapshot.manualAdjustedFields;
+        return NxCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Bewertungs-Datenkopie',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  NxStatusBadge(
+                    label: '${snapshot.autoImportedFields.length} uebernommen',
+                    kind: NxBadgeKind.info,
+                  ),
+                  const SizedBox(width: 8),
+                  NxStatusBadge(
+                    label: '${manual.length} manuell',
+                    kind:
+                        manual.isEmpty ? NxBadgeKind.neutral : NxBadgeKind.warning,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${snapshot.propertyName}, ${snapshot.addressLine1}, ${snapshot.zip} ${snapshot.city}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                manual.isEmpty
+                    ? 'Diese Bewertung nutzt eine eigene Kopie der Property-Daten. Aenderungen hier schreiben nicht auf die Property-Stammdaten zurueck.'
+                    : 'Manuell angepasste Felder: ${manual.join(', ')}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 

@@ -12,7 +12,6 @@ import '../../core/models/property_creation.dart';
 import '../../core/models/scenario.dart';
 import '../../core/models/security.dart';
 import '../../core/models/settings.dart';
-import '../../core/services/property_creation_validation_service.dart';
 import '../../core/security/rbac.dart';
 import 'audit_log_repo.dart';
 import 'permission_guard.dart';
@@ -877,6 +876,16 @@ class PropertyRepository {
       );
       await txn.delete(
         'operations_alert_states',
+        where: 'property_id = ?',
+        whereArgs: <Object?>[id],
+      );
+      await txn.delete(
+        'property_document_checklist',
+        where: 'property_id = ?',
+        whereArgs: <Object?>[id],
+      );
+      await txn.delete(
+        'property_creation_profiles',
         where: 'property_id = ?',
         whereArgs: <Object?>[id],
       );
