@@ -28,6 +28,7 @@ import '../../core/services/task_generation_service.dart';
 import '../../data/repositories/audit_log_repo.dart';
 import '../../data/repositories/asset_workbook_repo.dart';
 import '../../data/repositories/budget_repo.dart';
+import '../../data/repositories/contractor_repo.dart';
 import '../../data/repositories/capital_events_repo.dart';
 import '../../data/repositories/comps_repo.dart';
 import '../../data/repositories/compare_repo.dart';
@@ -65,10 +66,10 @@ import '../../data/sqlite/db.dart';
 enum GlobalPage {
   dashboard,
   properties,
-  rentalOverview,
   ledger,
   budgets,
   maintenance,
+  contractors,
   tasks,
   taskTemplates,
   portfolios,
@@ -199,6 +200,9 @@ final notesRepositoryProvider = Provider<NotesRepository>((ref) {
     ref.watch(databaseProvider),
     searchRepo: ref.watch(searchRepositoryProvider),
   );
+});
+final contractorRepositoryProvider = Provider<ContractorRepository>((ref) {
+  return ContractorRepository(ref.watch(databaseProvider));
 });
 final notificationsRepositoryProvider = Provider<NotificationsRepository>((
   ref,
@@ -415,4 +419,15 @@ final portfolioAnalyticsRepositoryProvider = Provider<PortfolioAnalyticsRepo>((
 });
 final dataQualityRepositoryProvider = Provider<DataQualityRepo>((ref) {
   return DataQualityRepo(ref.watch(databaseProvider));
+});
+
+final propertyTitleImageProvider = FutureProvider.family<String?, String>((ref, propertyId) async {
+  final repo = ref.read(documentsRepositoryProvider);
+  final docs = await repo.listWorkflowDocuments(entityType: 'property', entityId: propertyId);
+  for (final doc in docs) {
+    if (doc.metadata['image_role'] == 'title') {
+      return doc.document.filePath;
+    }
+  }
+  return null;
 });

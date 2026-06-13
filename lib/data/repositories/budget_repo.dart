@@ -21,6 +21,10 @@ class BudgetRepo {
     required String entityId,
     required int fiscalYear,
     required String versionName,
+    String? unitId,
+    String? renovationId,
+    String? ticketId,
+    String? projectId,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final budget = BudgetRecord(
@@ -32,6 +36,10 @@ class BudgetRepo {
       status: 'draft',
       createdAt: now,
       updatedAt: now,
+      unitId: unitId,
+      renovationId: renovationId,
+      ticketId: ticketId,
+      projectId: projectId,
     );
     await _db.insert(
       'budgets',

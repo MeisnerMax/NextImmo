@@ -66,9 +66,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
                 items:
                     group.items
                         .where(
-                          (item) =>
-                              role == 'admin' ||
-                              item.page != GlobalPage.adminUsers,
+                          (item) => isPageAllowedForRole(item.page, role),
                         )
                         .map(
                           (item) => _SidebarItem(
@@ -168,40 +166,42 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
               padding: EdgeInsets.zero,
               children: [
                 for (final group in groups) ...[
-                  if (!collapsed)
-                    _buildGroupHeader(context, group.title, semantic),
-                  if (!collapsed)
-                    AnimatedCrossFade(
-                      firstChild: const SizedBox.shrink(),
-                      secondChild: Column(
-                        children: [
-                          for (final item in group.items)
-                            _buildItemTile(
-                              context,
-                              item,
-                              selected == item.page,
-                              semantic,
-                              collapsed: collapsed,
-                            ),
-                        ],
+                  if (group.items.isNotEmpty) ...[
+                    if (!collapsed)
+                      _buildGroupHeader(context, group.title, semantic),
+                    if (!collapsed)
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox.shrink(),
+                        secondChild: Column(
+                          children: [
+                            for (final item in group.items)
+                              _buildItemTile(
+                                context,
+                                item,
+                                selected == item.page,
+                                semantic,
+                                collapsed: collapsed,
+                              ),
+                          ],
+                        ),
+                        crossFadeState:
+                            (_expanded[group.title] ?? true)
+                                ? CrossFadeState.showSecond
+                                : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 140),
                       ),
-                      crossFadeState:
-                          (_expanded[group.title] ?? true)
-                              ? CrossFadeState.showSecond
-                              : CrossFadeState.showFirst,
-                      duration: const Duration(milliseconds: 140),
-                    ),
-                  if (collapsed)
-                    ...group.items.map(
-                      (item) => _buildItemTile(
-                        context,
-                        item,
-                        selected == item.page,
-                        semantic,
-                        collapsed: collapsed,
+                    if (collapsed)
+                      ...group.items.map(
+                        (item) => _buildItemTile(
+                          context,
+                          item,
+                          selected == item.page,
+                          semantic,
+                          collapsed: collapsed,
+                        ),
                       ),
-                    ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ],
             ),

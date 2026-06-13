@@ -223,6 +223,81 @@ class PropertyRepository {
     return PropertyCreateResult(property: property, scenario: scenario);
   }
 
+  Future<void> update(PropertyRecord record) async {
+    await _ensurePermission(
+      permission: Permission.propertyUpdate,
+      message: 'You do not have permission to update properties.',
+    );
+    final before = await _db.query(
+      'properties',
+      where: 'id = ?',
+      whereArgs: <Object?>[record.id],
+      limit: 1,
+    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final updatedRecord = PropertyRecord(
+      id: record.id,
+      name: record.name,
+      addressLine1: record.addressLine1,
+      addressLine2: record.addressLine2,
+      zip: record.zip,
+      city: record.city,
+      country: record.country,
+      propertyType: record.propertyType,
+      units: record.units,
+      sqft: record.sqft,
+      yearBuilt: record.yearBuilt,
+      notes: record.notes,
+      createdAt: record.createdAt,
+      updatedAt: now,
+      archived: record.archived,
+      landArea: record.landArea,
+      residentialArea: record.residentialArea,
+      commercialArea: record.commercialArea,
+      parkingSpots: record.parkingSpots,
+      ownerCompany: record.ownerCompany,
+      purchaseDate: record.purchaseDate,
+      purchasePrice: record.purchasePrice,
+      notary: record.notary,
+      seller: record.seller,
+      landRegistryDetails: record.landRegistryDetails,
+      parcel: record.parcel,
+      energyCertificate: record.energyCertificate,
+      insuranceDetails: record.insuranceDetails,
+      taxAssignment: record.taxAssignment,
+    );
+
+    await _db.update(
+      'properties',
+      updatedRecord.toMap(),
+      where: 'id = ?',
+      whereArgs: <Object?>[record.id],
+    );
+
+    final after = await _db.query(
+      'properties',
+      where: 'id = ?',
+      whereArgs: <Object?>[record.id],
+      limit: 1,
+    );
+
+    if (before.isNotEmpty && after.isNotEmpty) {
+      final searchRepo = _searchRepo;
+      if (searchRepo != null) {
+        await searchRepo.upsertIndexEntry(searchRepo.buildPropertyRecord(updatedRecord));
+      }
+      await _recordAudit(
+        entityType: 'property',
+        entityId: record.id,
+        action: 'update',
+        summary: 'Property updated: ${record.name}',
+        oldValues: before.first,
+        newValues: after.first,
+        diffItems: _auditService.buildDiff(before.first, after.first),
+      );
+    }
+  }
+
   Future<void> archive(String id, {required bool archived}) async {
     await _ensurePermission(
       permission: Permission.propertyUpdate,

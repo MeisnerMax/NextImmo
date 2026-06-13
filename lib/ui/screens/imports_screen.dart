@@ -182,6 +182,8 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           content: SingleChildScrollView(
             child: Column(
               children: [
+                _buildTemplatesSection(context),
+                const SizedBox(height: AppSpacing.component),
                 if (_headers.isNotEmpty) ...[
                   _mappingCard(context, fieldSpec),
                   const SizedBox(height: AppSpacing.component),
@@ -229,6 +231,191 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTemplatesSection(BuildContext context) {
+    final templates = [
+      (
+        'Objekte (properties)',
+        Icons.apartment_outlined,
+        'properties',
+        ['name', 'address_line1', 'zip', 'city', 'country', 'property_type', 'units'],
+        ['id', 'address_line2', 'sqft', 'year_built', 'notes'],
+        'Zinshaus, Musterstr. 10, 10115, Berlin, DE, residential, 12'
+      ),
+      (
+        'Einheiten (units)',
+        Icons.door_sliding_outlined,
+        'units',
+        ['asset_property_id', 'unit_code', 'status'],
+        ['id', 'unit_type', 'beds', 'baths', 'sqft', 'floor', 'market_rent_monthly', 'notes'],
+        'A001, 1. OG links, active'
+      ),
+      (
+        'Mieter (tenants)',
+        Icons.people_outline,
+        'tenants',
+        ['display_name'],
+        ['id', 'legal_name', 'email', 'phone', 'notes'],
+        'Max Mustermann'
+      ),
+      (
+        'Betriebskosten (asset_operating_costs)',
+        Icons.request_quote_outlined,
+        'asset_operating_costs',
+        ['property_id', 'scope', 'cost_type'],
+        ['id', 'unit_code', 'provider', 'contract_number', 'allocation_key', 'monthly_amount', 'yearly_amount', 'canceled', 'start_date', 'end_date', 'next_due_date', 'notes'],
+        'A001, building, Grundsteuer, Wohnfläche, 1200.00'
+      ),
+      (
+        'Aufgaben (tasks)',
+        Icons.task_alt_outlined,
+        'tasks',
+        ['entity_type', 'title', 'status', 'priority'],
+        ['id', 'entity_id', 'description', 'category', 'assigned_to', 'estimated_cost', 'due_at', 'created_by'],
+        'property, Rauchwarnmelderprüfung, todo, normal'
+      ),
+      (
+        'Budgets (budgets)',
+        Icons.account_balance_wallet_outlined,
+        'budgets',
+        ['entity_type', 'entity_id', 'fiscal_year'],
+        ['id', 'version_name', 'status'],
+        'property, A001, 2026'
+      ),
+    ];
+
+    return NxCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CSV Import-Struktur & Vorlagen',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Verwenden Sie standardmäßig UTF-8 codierte CSV-Dateien mit Komma (,) als Trennzeichen.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.component),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final crossAxisCount = width >= 1200 ? 3 : (width >= 800 ? 2 : 1);
+              final itemWidth = ((width - ((crossAxisCount - 1) * AppSpacing.component)) / crossAxisCount).floorToDouble();
+              return Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: AppSpacing.component,
+                children: [
+                  for (final t in templates)
+                    SizedBox(
+                      width: itemWidth,
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+                          border: Border.all(color: context.semanticColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(t.$2, size: 18, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    t.$1,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 16),
+                            const Text(
+                              'Pflichtfelder:',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              t.$4.join(', '),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Optionale Felder:',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              t.$5.join(', '),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: context.semanticColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Beispielzeile:',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              t.$6,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                                color: context.semanticColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () => _downloadCsvTemplate(_fieldSpec(t.$3)),
+                                icon: const Icon(Icons.download_outlined, size: 14),
+                                label: const Text('Vorlage herunterladen', style: TextStyle(fontSize: 12)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -304,34 +491,33 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       emptyTitle: 'Noch keine Vorschau',
       emptyDescription: 'CSV auswählen, dann erscheinen die ersten Zeilen hier.',
       emptyIcon: Icons.table_chart_outlined,
-      child: DataTable(
-        columns:
-            _headers
-                .map((header) => DataColumn(label: Text(header)))
-                .toList(growable: false),
-        rows:
-            _previewRows
-                .map(
-                  (row) => DataRow(
-                    cells:
-                        _headers
-                            .asMap()
-                            .entries
-                            .map(
-                              (entry) => DataCell(
-                                Text(
-                                  entry.key < row.length
-                                      ? row[entry.key].toString()
-                                      : '',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+      child: _headers.isEmpty
+          ? const SizedBox.shrink()
+          : DataTable(
+              columns: _headers
+                  .map((header) => DataColumn(label: Text(header)))
+                  .toList(growable: false),
+              rows: _previewRows
+                  .map(
+                    (row) => DataRow(
+                      cells: _headers
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => DataCell(
+                              Text(
+                                entry.key < row.length
+                                    ? row[entry.key].toString()
+                                    : '',
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            )
-                            .toList(growable: false),
-                  ),
-                )
-                .toList(growable: false),
-      ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
     );
   }
 

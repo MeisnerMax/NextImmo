@@ -13,6 +13,7 @@ import '../screens/help_screen.dart';
 import '../screens/imports_screen.dart';
 import '../screens/audit/audit_screen.dart';
 import '../screens/maintenance/maintenance_screen.dart';
+import '../screens/maintenance/contractors_screen.dart';
 import '../screens/budgets/budgets_screen.dart';
 import '../screens/docs/documents_screen.dart';
 import '../screens/ledger/ledger_screen.dart';
@@ -228,14 +229,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return propertiesV2Enabled
             ? const PropertiesScreenV2()
             : const PropertiesScreen();
-      case GlobalPage.rentalOverview:
-        return const RentalOverviewScreen();
       case GlobalPage.ledger:
         return const LedgerScreen();
       case GlobalPage.budgets:
         return const BudgetsScreen();
       case GlobalPage.maintenance:
         return const MaintenanceScreen();
+      case GlobalPage.contractors:
+        return const ContractorsScreen();
       case GlobalPage.tasks:
         return const TasksScreen();
       case GlobalPage.taskTemplates:

@@ -44,6 +44,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
           breadcrumbs: const ['Administration', 'Report-Vorlagen'],
           subtitle:
               'Berichtsaufbau, Standardvorlage, Branding und Abschnitte steuern.',
+          scrollable: true,
           primaryAction: ElevatedButton.icon(
             onPressed: () => _showTemplateDialog(existing: null),
             icon: const Icon(Icons.add_outlined),
@@ -94,7 +95,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                           final preview = _previewPane(context, templates, selected);
                           if (wide) {
                             return Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(flex: 2, child: list),
                                 const SizedBox(width: AppSpacing.component),
@@ -102,14 +103,12 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                               ],
                             );
                           }
-                          return SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                SizedBox(height: 430, child: list),
-                                const SizedBox(height: AppSpacing.component),
-                                SizedBox(height: 520, child: preview),
-                              ],
-                            ),
+                          return Column(
+                            children: [
+                              list,
+                              const SizedBox(height: AppSpacing.component),
+                              preview,
+                            ],
                           );
                         },
                       ),
@@ -131,68 +130,71 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                 description: 'Neue Report-Vorlage erstellen.',
                 icon: Icons.article_outlined,
               )
-              : ListView.separated(
-                itemCount: templates.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final template = templates[index];
-                  final isSelected =
-                      template.id == selected.id && selected.id != '__none__';
-                  return ListTile(
-                    selected: isSelected,
-                    selectedTileColor:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    onTap: () {
-                      setState(() {
-                        _selectedTemplateId = template.id;
-                      });
-                    },
-                    leading: Icon(
-                      template.isDefault
-                          ? Icons.star_outlined
-                          : Icons.article_outlined,
-                    ),
-                    title: Text(template.name),
-                    subtitle: Text(
-                      _sectionsSummary(template),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      tooltip: 'Aktionen',
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'edit':
-                            _showTemplateDialog(existing: template);
-                            break;
-                          case 'default':
-                            _setDefault(template.id);
-                            break;
-                          case 'delete':
-                            _confirmDelete(template);
-                            break;
-                        }
-                      },
-                      itemBuilder:
-                          (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Bearbeiten'),
-                            ),
-                            PopupMenuItem(
-                              value: 'default',
-                              enabled: !template.isDefault,
-                              child: const Text('Als Standard setzen'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Löschen'),
-                            ),
-                          ],
-                    ),
-                  );
-                },
-              ),
+              : Column(
+                  children: [
+                    for (int index = 0; index < templates.length; index++) ...[
+                      Builder(builder: (context) {
+                        final template = templates[index];
+                        final isSelected =
+                            template.id == selected.id && selected.id != '__none__';
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor:
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                          onTap: () {
+                            setState(() {
+                              _selectedTemplateId = template.id;
+                            });
+                          },
+                          leading: Icon(
+                            template.isDefault
+                                ? Icons.star_outlined
+                                : Icons.article_outlined,
+                          ),
+                          title: Text(template.name),
+                          subtitle: Text(
+                            _sectionsSummary(template),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            tooltip: 'Aktionen',
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'edit':
+                                  _showTemplateDialog(existing: template);
+                                  break;
+                                case 'default':
+                                  _setDefault(template.id);
+                                  break;
+                                case 'delete':
+                                  _confirmDelete(template);
+                                  break;
+                              }
+                            },
+                            itemBuilder:
+                                (context) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Text('Bearbeiten'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'default',
+                                    enabled: !template.isDefault,
+                                    child: const Text('Als Standard setzen'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Löschen'),
+                                  ),
+                                ],
+                          ),
+                        );
+                      }),
+                      if (index < templates.length - 1) const Divider(height: 1),
+                    ]
+                  ],
+                ),
     );
   }
 
@@ -209,7 +211,7 @@ class _ReportTemplatesScreenState extends ConsumerState<ReportTemplatesScreen> {
                 description: 'Eine Vorlage erstellen oder auswählen.',
                 icon: Icons.preview_outlined,
               )
-              : SingleChildScrollView(child: _preview(selected)),
+              : _preview(selected),
     );
   }
 

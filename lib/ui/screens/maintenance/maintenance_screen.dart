@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/maintenance.dart';
 import '../../../core/models/property.dart';
+import '../../../core/models/operations.dart';
+import '../../../core/models/task.dart';
+import '../../../core/models/documents.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
@@ -24,11 +27,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   String _categoryFilter = 'all';
   String _assigneeFilter = 'all';
   String _dueFilter = 'all';
+  String _unitFilter = 'all';
   String _viewMode = 'list';
   List<PropertyRecord> _properties = const [];
   List<MaintenanceWorkflowRecord> _tickets = const [];
   MaintenanceWorkflowRecord? _selectedTicket;
   String? _status;
+  List<UnitRecord> _units = const [];
 
   @override
   void initState() {
@@ -57,6 +62,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       breadcrumbs: const ['Daily Business', 'Maintenance'],
       subtitle:
           'Manage maintenance issues with visible asset context, linked documents and follow-up tasks.',
+      scrollable: true,
       primaryAction: ElevatedButton.icon(
         onPressed: _createTicketDialog,
         icon: const Icon(Icons.add),
@@ -89,6 +95,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             width: 220,
             child: DropdownButtonFormField<String>(
               value: _assetPropertyId.isEmpty ? 'all' : _assetPropertyId,
+              isExpanded: true,
               items: [
                 const DropdownMenuItem(value: 'all', child: Text('All properties')),
                 ..._properties.map(
@@ -111,10 +118,31 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
               decoration: const InputDecoration(labelText: 'Property'),
             ),
           ),
+          if (_assetPropertyId.isNotEmpty)
+            SizedBox(
+              width: 180,
+              child: DropdownButtonFormField<String>(
+                value: _unitFilter == 'all' ? 'all' : (_units.any((u) => u.id == _unitFilter) ? _unitFilter : 'all'),
+                isExpanded: true,
+                items: [
+                  const DropdownMenuItem(value: 'all', child: Text('Alle Einheiten')),
+                  ..._units.map((u) => DropdownMenuItem(value: u.id, child: Text(u.unitCode))),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _unitFilter = value;
+                    _selectedTicket = null;
+                  });
+                },
+                decoration: const InputDecoration(labelText: 'Einheit'),
+              ),
+            ),
           SizedBox(
             width: 180,
             child: DropdownButtonFormField<String>(
               value: _statusFilter,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All statuses')),
                 DropdownMenuItem(value: 'open', child: Text('Open')),
@@ -157,6 +185,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             width: 160,
             child: DropdownButtonFormField<String>(
               value: _priorityFilter,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All priorities')),
                 DropdownMenuItem(value: 'low', child: Text('Low')),
@@ -181,6 +210,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             width: 170,
             child: DropdownButtonFormField<String>(
               value: _categoryFilter,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('Alle Arten')),
                 DropdownMenuItem(value: 'damage', child: Text('Schaden')),
@@ -240,6 +270,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             width: 170,
             child: DropdownButtonFormField<String>(
               value: _dueFilter,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('Alle Termine')),
                 DropdownMenuItem(value: 'overdue', child: Text('Überfällig')),
@@ -264,6 +295,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             width: 160,
             child: DropdownButtonFormField<String>(
               value: _viewMode,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'list', child: Text('Liste')),
                 DropdownMenuItem(value: 'board', child: Text('Board')),
@@ -297,6 +329,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                 builder: (context, constraints) {
                   if (_viewMode == 'board') {
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _MaintenanceDashboard(
                           tickets: visibleTickets,
@@ -314,12 +347,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                           },
                         ),
                         const SizedBox(height: AppSpacing.component),
-                        Expanded(child: _buildBoard(visibleTickets)),
+                        _buildBoard(visibleTickets),
                       ],
                     );
                   }
                   if (_viewMode == 'calendar') {
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _MaintenanceDashboard(
                           tickets: visibleTickets,
@@ -337,13 +371,14 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                           },
                         ),
                         const SizedBox(height: AppSpacing.component),
-                        Expanded(child: _buildDuePlanner(visibleTickets)),
+                        _buildDuePlanner(visibleTickets),
                       ],
                     );
                   }
                   final stacked = constraints.maxWidth < 1060;
                   if (stacked) {
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _MaintenanceDashboard(
                           tickets: visibleTickets,
@@ -355,13 +390,14 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                           },
                         ),
                         const SizedBox(height: AppSpacing.component),
-                        Expanded(flex: 3, child: _buildTicketList(visibleTickets)),
+                        _buildTicketList(visibleTickets),
                         const SizedBox(height: AppSpacing.component),
-                        Expanded(flex: 2, child: _buildTicketDetail()),
+                        _buildTicketDetail(),
                       ],
                     );
                   }
                   return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _MaintenanceDashboard(
                         tickets: visibleTickets,
@@ -373,14 +409,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                         },
                       ),
                       const SizedBox(height: AppSpacing.component),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Expanded(child: _buildTicketList(visibleTickets)),
-                            const SizedBox(width: AppSpacing.component),
-                            Expanded(child: _buildTicketDetail()),
-                          ],
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _buildTicketList(visibleTickets)),
+                          const SizedBox(width: AppSpacing.component),
+                          Expanded(child: _buildTicketDetail()),
+                        ],
                       ),
                     ],
                   );
@@ -397,6 +432,9 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     return _tickets.where((workflow) {
       final ticket = workflow.ticket;
       if (_statusFilter != 'all' && ticket.status != _statusFilter) {
+        return false;
+      }
+      if (_unitFilter != 'all' && ticket.unitId != _unitFilter) {
         return false;
       }
       if (_priorityFilter != 'all' && ticket.priority != _priorityFilter) {
@@ -461,6 +499,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       _categoryFilter = 'all';
       _assigneeFilter = 'all';
       _dueFilter = 'all';
+      _unitFilter = 'all';
       _viewMode = 'list';
     });
     _reload();
@@ -470,6 +509,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     return NxCard(
       padding: EdgeInsets.zero,
       child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: tickets.length,
         separatorBuilder:
             (_, __) => Divider(height: 1, color: context.semanticColors.border),
@@ -545,7 +586,217 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     );
   }
 
+  String _calendarTab = 'timeline';
+
   Widget _buildDuePlanner(List<MaintenanceWorkflowRecord> tickets) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Text(
+                'Terminkalender & Zeitplanung',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const Spacer(),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'timeline',
+                    label: Text('Zeitplan'),
+                    icon: Icon(Icons.line_axis_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'buckets',
+                    label: Text('Fälligkeit'),
+                    icon: Icon(Icons.view_week_outlined),
+                  ),
+                ],
+                selected: {_calendarTab},
+                onSelectionChanged: (val) {
+                  setState(() {
+                    _calendarTab = val.first;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        _calendarTab == 'timeline'
+            ? _buildTimelineView(tickets)
+            : _buildBucketsView(tickets),
+      ],
+    );
+  }
+
+  Widget _buildTimelineView(List<MaintenanceWorkflowRecord> tickets) {
+    final datedTickets = tickets.where((w) => w.ticket.startDate != null || w.ticket.dueAt != null).toList()
+      ..sort((a, b) {
+        final valA = a.ticket.startDate ?? a.ticket.dueAt ?? 0;
+        final valB = b.ticket.startDate ?? b.ticket.dueAt ?? 0;
+        return valA.compareTo(valB);
+      });
+
+    final undatedTickets = tickets.where((w) => w.ticket.startDate == null && w.ticket.dueAt == null).toList();
+
+    return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        if (datedTickets.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(child: Text('Keine geplanten Termine vorhanden.')),
+            ),
+          )
+        else
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.cardPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Aktive Maßnahmen & Zeiträume',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...datedTickets.map((workflow) {
+                    final ticket = workflow.ticket;
+                    final start = ticket.startDate;
+                    final end = ticket.endDate ?? ticket.dueAt;
+                    final isRenovation = ticket.category == 'renovation';
+                    
+                    String rangeLabel = '';
+                    double visualProgress = 0.0;
+                    if (start != null && end != null) {
+                      rangeLabel = '${_formatDate(start)} - ${_formatDate(end)}';
+                      final nowMs = DateTime.now().millisecondsSinceEpoch;
+                      if (nowMs < start) {
+                        visualProgress = 0.0;
+                      } else if (nowMs > end) {
+                        visualProgress = 1.0;
+                      } else {
+                        final totalSpan = end - start;
+                        visualProgress = totalSpan == 0 ? 0.5 : (nowMs - start) / totalSpan;
+                      }
+                    } else if (ticket.dueAt != null) {
+                      rangeLabel = 'Fällig am ${_formatDate(ticket.dueAt)}';
+                      visualProgress = 0.5;
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedTicket = workflow),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: context.semanticColors.border),
+                            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+                            color: isRenovation 
+                                ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
+                                : Theme.of(context).colorScheme.surface,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      ticket.title,
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  NxStatusBadge(
+                                    label: ticket.status,
+                                    kind: _isClosedStatus(ticket.status) 
+                                        ? NxBadgeKind.success 
+                                        : NxBadgeKind.info,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${workflow.propertyName ?? ticket.assetPropertyId} · ${_categoryLabel(ticket.category)}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.date_range_outlined, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    rangeLabel,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  const Spacer(),
+                                  if (ticket.vendorName != null)
+                                    Text(
+                                      'Bearbeiter: ${ticket.vendorName}',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              LinearProgressIndicator(
+                                value: visualProgress,
+                                minHeight: 6,
+                                borderRadius: BorderRadius.circular(3),
+                                color: isRenovation 
+                                    ? Colors.orangeAccent 
+                                    : Theme.of(context).colorScheme.primary,
+                                backgroundColor: Theme.of(context).colorScheme.outlineVariant,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        if (undatedTickets.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.cardPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ohne zeitliche Zuordnung (${undatedTickets.length})',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...undatedTickets.map((workflow) => ListTile(
+                        title: Text(workflow.ticket.title),
+                        subtitle: Text(workflow.propertyName ?? workflow.ticket.assetPropertyId),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+                        onTap: () => setState(() => _selectedTicket = workflow),
+                      )),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBucketsView(List<MaintenanceWorkflowRecord> tickets) {
     final buckets = <_MaintenanceDueBucket>[
       _MaintenanceDueBucket('Überfällig', 'overdue'),
       _MaintenanceDueBucket('Heute', 'today'),
@@ -557,11 +808,10 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       builder: (context, constraints) {
         final cardWidth =
             constraints.maxWidth < 760 ? constraints.maxWidth : 240.0;
-        return SingleChildScrollView(
-          child: Wrap(
-            spacing: AppSpacing.component,
-            runSpacing: AppSpacing.component,
-            children: [
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
               for (final bucket in buckets)
                 _MaintenanceDueCard(
                   width: cardWidth,
@@ -578,10 +828,17 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                   onEdit: (workflow) => _editTicketDialog(workflow.ticket),
                 ),
             ],
-          ),
         );
       },
     );
+  }
+
+  final _newSubtaskCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _newSubtaskCtrl.dispose();
+    super.dispose();
   }
 
   Widget _buildTicketDetail() {
@@ -590,10 +847,25 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       return const NxCard(child: Center(child: Text('Select a ticket')));
     }
     final ticket = workflow.ticket;
+    
+    final unitFuture = ticket.unitId == null
+        ? Future<UnitRecord?>.value(null)
+        : ref.read(rentRollRepositoryProvider).listUnitsByAsset(ticket.assetPropertyId)
+            .then((units) {
+                for (final u in units) {
+                  if (u.id == ticket.unitId) return u;
+                }
+                return null;
+              });
+
+    final isRenovation = ticket.category == 'renovation';
+
     return NxCard(
       child: ListView(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
-          Text(ticket.title, style: Theme.of(context).textTheme.titleMedium),
+          Text(ticket.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -601,62 +873,260 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
             children: [
               NxStatusBadge(
                 label: ticket.status,
-                kind:
-                    _isClosedStatus(ticket.status)
-                        ? NxBadgeKind.success
-                        : NxBadgeKind.info,
+                kind: _isClosedStatus(ticket.status)
+                    ? NxBadgeKind.success
+                    : NxBadgeKind.info,
               ),
               NxStatusBadge(
                 label: ticket.priority,
-                kind:
-                    ticket.priority == 'urgent'
-                        ? NxBadgeKind.error
-                        : ticket.priority == 'high'
-                        ? NxBadgeKind.warning
-                        : NxBadgeKind.neutral,
+                kind: ticket.priority == 'urgent'
+                    ? NxBadgeKind.error
+                    : ticket.priority == 'high'
+                    ? NxBadgeKind.warning
+                    : NxBadgeKind.neutral,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-              Text('Asset: ${workflow.propertyName ?? ticket.assetPropertyId}'),
+          const SizedBox(height: 16),
+          Text('Asset / Objekt: ${workflow.propertyName ?? ticket.assetPropertyId}'),
+          
+          FutureBuilder<UnitRecord?>(
+            future: unitFuture,
+            builder: (context, snapshot) {
+              final unit = snapshot.data;
+              if (unit == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text('Einheit: ${unit.unitCode} (Typ: ${unit.unitType ?? "-"})'),
+              );
+            },
+          ),
           const SizedBox(height: 4),
           Text('Ticketart: ${_categoryLabel(ticket.category)}'),
-          if (ticket.damageLocation != null &&
-              ticket.damageLocation!.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text('Gebäude: ${ticket.building ?? "-"}'),
+          const SizedBox(height: 4),
+          Text('Bereich: ${ticket.area ?? "-"}'),
+          const SizedBox(height: 4),
+          Text('Technik: ${ticket.technical ?? "-"}'),
+          const SizedBox(height: 4),
+          Text('Außenanlage: ${ticket.outdoor ?? "-"}'),
+          
+          if (ticket.damageLocation != null && ticket.damageLocation!.trim().isNotEmpty) ...[
             const SizedBox(height: 4),
             Text('Schadenort: ${ticket.damageLocation}'),
           ],
-          if (ticket.description != null &&
-              ticket.description!.trim().isNotEmpty)
+          if (ticket.description != null && ticket.description!.trim().isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('Issue: ${ticket.description}'),
+              padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+              child: Text('Beschreibung: ${ticket.description}'),
             ),
+          
+          const Divider(height: 24),
+          Text('Terminplanung', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text('Startdatum: ${ticket.startDate == null ? "Nicht festgelegt" : _formatDate(ticket.startDate)}'),
           const SizedBox(height: 4),
-          Text(
-            'Deadline: ${ticket.dueAt == null ? 'Not set' : _formatDate(ticket.dueAt)}',
-          ),
+          Text('Enddatum: ${ticket.endDate == null ? "Nicht festgelegt" : _formatDate(ticket.endDate)}'),
           const SizedBox(height: 4),
-          Text(
-            'Budget impact: ${ticket.costActual != null
-                ? 'Actual ${ticket.costActual!.toStringAsFixed(2)}'
-                : ticket.costEstimate != null
-                ? 'Estimate ${ticket.costEstimate!.toStringAsFixed(2)}'
-                : 'Pending assessment'}',
-          ),
+          Text('Fälligkeit: ${ticket.dueAt == null ? "Nicht festgelegt" : _formatDate(ticket.dueAt)}'),
+          
+          const Divider(height: 24),
+          Text('Bearbeiter details', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text('Bearbeitergruppe: ${ticket.assigneeType ?? "-"}'),
           const SizedBox(height: 4),
-          Text(
-            'Budget classification: ${ticket.costActual != null || ticket.costEstimate != null ? 'Pending Capex / Opex review' : 'Not assessed yet'}',
-          ),
+          Text('Name des Bearbeiters: ${ticket.assigneeName ?? "-"}'),
           const SizedBox(height: 4),
-          Text('Bearbeiter/Firma: ${ticket.vendorName ?? 'Nicht zugewiesen'}'),
+          Text('Zugeordnete Firma: ${ticket.vendorName ?? "-"}'),
           const SizedBox(height: 4),
           Text('Versicherung: ${_insuranceLabel(ticket)}'),
+
+          const Divider(height: 24),
+          Text('Budget & Kosten', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text('Budget / Schätzung: ${ticket.costEstimate == null ? "N/A" : _formatCurrency(ticket.costEstimate!)}'),
           const SizedBox(height: 4),
-          Text('Document: ${workflow.documentName ?? 'No linked document'}'),
-          const SizedBox(height: 4),
-          Text('Follow-up task: ${workflow.linkedTaskCount} linked'),
-          const SizedBox(height: 12),
+          Text('Tatsächliche Kosten: ${ticket.costActual == null ? "N/A" : _formatCurrency(ticket.costActual!)}'),
+          if (ticket.costEstimate != null && ticket.costActual != null) ...[
+            const SizedBox(height: 4),
+            Builder(builder: (context) {
+              final dev = ticket.costActual! - ticket.costEstimate!;
+              return Text(
+                'Abweichung: ${_formatCurrency(dev)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: dev > 0 ? Colors.red : Colors.green,
+                ),
+              );
+            }),
+          ],
+
+          FutureBuilder<List<TaskRecord>>(
+            future: ref.read(tasksRepositoryProvider).listTasks(
+              entityType: 'maintenance_ticket',
+              entityId: ticket.id,
+            ),
+            builder: (context, taskSnapshot) {
+              final tasks = taskSnapshot.data ?? [];
+              final total = tasks.length;
+              final completed = tasks.where((t) => t.status == 'done').length;
+              final percent = total == 0 ? 0.0 : completed / total;
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 24),
+                  Row(
+                    children: [
+                      Text(
+                        isRenovation ? 'Sanierungsfortschritt: ${(percent * 100).toStringAsFixed(0)}%' : 'Fortschritt: ${(percent * 100).toStringAsFixed(0)}%',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: percent,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Checkliste / Aufgaben (${completed}/${total})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  if (tasks.isEmpty)
+                    const Text('Keine Aufgaben angelegt.')
+                  else
+                    ...tasks.map((task) => CheckboxListTile(
+                      value: task.status == 'done',
+                      onChanged: (val) async {
+                        final updatedTask = TaskRecord(
+                          id: task.id,
+                          entityType: task.entityType,
+                          entityId: task.entityId,
+                          title: task.title,
+                          description: task.description,
+                          category: task.category,
+                          assignedTo: task.assignedTo,
+                          estimatedCost: task.estimatedCost,
+                          status: (val ?? false) ? 'done' : 'todo',
+                          priority: task.priority,
+                          dueAt: task.dueAt,
+                          createdAt: task.createdAt,
+                          updatedAt: DateTime.now().millisecondsSinceEpoch,
+                          createdBy: task.createdBy,
+                        );
+                        await ref.read(tasksRepositoryProvider).updateTask(updatedTask);
+                        setState(() {});
+                      },
+                      title: Text(task.title),
+                      subtitle: task.description != null ? Text(task.description!) : null,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    )),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _newSubtaskCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'Neue Teilaufgabe...',
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () async {
+                          final text = _newSubtaskCtrl.text.trim();
+                          if (text.isEmpty) return;
+                          await ref.read(tasksRepositoryProvider).createTask(
+                            entityType: 'maintenance_ticket',
+                            entityId: ticket.id,
+                            title: text,
+                            priority: ticket.priority,
+                            dueAt: ticket.dueAt,
+                          );
+                          _newSubtaskCtrl.clear();
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+          ),
+
+          FutureBuilder<List<DocumentRecord>>(
+            future: ref.read(documentsRepositoryProvider).listDocuments(
+              entityType: 'maintenance_ticket',
+              entityId: ticket.id,
+            ),
+            builder: (context, docSnapshot) {
+              final docs = docSnapshot.data ?? [];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 24),
+                  Row(
+                    children: [
+                      Text('Dokumente & Bilder (${docs.length})', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      TextButton.icon(
+                        icon: const Icon(Icons.link, size: 16),
+                        label: const Text('Verknüpfen'),
+                        onPressed: () => _linkDocumentDialog(ticket),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (docs.isEmpty)
+                    const Text('Keine Dokumente verknüpft.')
+                  else
+                    Column(
+                      children: docs.map((doc) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          (doc.fileName.toLowerCase().endsWith('.png') ||
+                           doc.fileName.toLowerCase().endsWith('.jpg') ||
+                           doc.fileName.toLowerCase().endsWith('.jpeg'))
+                              ? Icons.image
+                              : Icons.picture_as_pdf,
+                        ),
+                        title: Text(doc.fileName),
+                        subtitle: Text(doc.filePath, overflow: TextOverflow.ellipsis),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.link_off),
+                          onPressed: () async {
+                            final updatedDoc = DocumentRecord(
+                              id: doc.id,
+                              entityType: '',
+                              entityId: '',
+                              typeId: doc.typeId,
+                              fileName: doc.fileName,
+                              filePath: doc.filePath,
+                              sizeBytes: doc.sizeBytes,
+                              sha256: doc.sha256,
+                              mimeType: doc.mimeType,
+                              createdBy: doc.createdBy,
+                              createdAt: doc.createdAt,
+                              updatedAt: DateTime.now().millisecondsSinceEpoch,
+                            );
+                            await ref.read(documentsRepositoryProvider).updateDocument(updatedDoc);
+                            setState(() {});
+                          },
+                        ),
+                      )).toList(),
+                    ),
+                ],
+              );
+            }
+          ),
+
+          const Divider(height: 24),
           FutureBuilder<List<MaintenanceTicketHistoryRecord>>(
             future: ref
                 .read(maintenanceRepositoryProvider)
@@ -671,7 +1141,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                 children: [
                   Text(
                     'Historie',
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   ...history.take(4).map(
@@ -686,7 +1156,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -714,16 +1184,78 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     );
   }
 
+  Future<void> _linkDocumentDialog(MaintenanceTicketRecord ticket) async {
+    final docs = await ref.read(documentsRepositoryProvider).listDocuments(
+      entityType: 'property',
+      entityId: ticket.assetPropertyId,
+    );
+    if (!mounted) return;
+    if (docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Dokumente beim Objekt vorhanden, die verknüpft werden könnten.')),
+      );
+      return;
+    }
+    
+    DocumentRecord? selectedDoc = docs.first;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Dokument verknüpfen'),
+          content: DropdownButtonFormField<DocumentRecord>(
+            value: selectedDoc,
+            items: docs.map((doc) => DropdownMenuItem(value: doc, child: Text(doc.fileName))).toList(),
+            onChanged: (val) {
+              setDialogState(() => selectedDoc = val);
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Abbrechen')),
+            ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Verknüpfen')),
+          ],
+        ),
+      ),
+    );
+    
+    if (ok == true && selectedDoc != null) {
+      final updated = DocumentRecord(
+        id: selectedDoc!.id,
+        entityType: 'maintenance_ticket',
+        entityId: ticket.id,
+        typeId: selectedDoc!.typeId,
+        fileName: selectedDoc!.fileName,
+        filePath: selectedDoc!.filePath,
+        sizeBytes: selectedDoc!.sizeBytes,
+        sha256: selectedDoc!.sha256,
+        mimeType: selectedDoc!.mimeType,
+        createdBy: selectedDoc!.createdBy,
+        createdAt: selectedDoc!.createdAt,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      await ref.read(documentsRepositoryProvider).updateDocument(updated);
+      setState(() {});
+    }
+  }
+
   Future<void> _reload() async {
     final properties = await ref.read(propertyRepositoryProvider).list();
+    if (!mounted) return;
     final tickets = await ref
         .read(maintenanceRepositoryProvider)
         .listWorkflowTickets(
           assetPropertyId: _assetPropertyId.isEmpty ? null : _assetPropertyId,
         );
-    if (!mounted) {
-      return;
+    if (!mounted) return;
+    
+    List<UnitRecord> units = const [];
+    if (_assetPropertyId.isNotEmpty) {
+      units = await ref
+          .read(rentRollRepositoryProvider)
+          .listUnitsByAsset(_assetPropertyId);
+      if (!mounted) return;
     }
+    
     MaintenanceWorkflowRecord? selectedTicket;
     if (_selectedTicket != null) {
       for (final ticket in tickets) {
@@ -736,6 +1268,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     setState(() {
       _properties = properties;
       _tickets = tickets;
+      _units = units;
       _selectedTicket =
           selectedTicket ?? (tickets.isEmpty ? null : tickets.first);
     });
@@ -749,6 +1282,16 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     final vendorCtrl = TextEditingController();
     final damageLocationCtrl = TextEditingController();
     final insuranceClaimCtrl = TextEditingController();
+
+    // V37 fields controllers
+    final startDateCtrl = TextEditingController();
+    final endDateCtrl = TextEditingController();
+    final assigneeNameCtrl = TextEditingController();
+    final buildingCtrl = TextEditingController();
+    final areaCtrl = TextEditingController();
+    final technicalCtrl = TextEditingController();
+    final outdoorCtrl = TextEditingController();
+
     String assetPropertyId =
         _assetPropertyId.isNotEmpty
             ? _assetPropertyId
@@ -760,289 +1303,407 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     bool insuranceCase = false;
     DateTime? dueDate;
 
+    // V37 fields states
+    DateTime? startDate;
+    DateTime? endDate;
+    String? assigneeType;
+    List<UnitRecord> dialogUnits = [];
+    String? selectedUnitId;
+    bool isLoadingUnits = false;
+
     await showDialog<void>(
       context: context,
       builder:
           (context) => StatefulBuilder(
             builder:
-                (context, setDialogState) => AlertDialog(
-                  title: const Text('Create Maintenance Ticket'),
-                  content: SizedBox(
-                    width: 460,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                        DropdownButtonFormField<String>(
-                          value: assetPropertyId.isEmpty ? null : assetPropertyId,
-                          items: _properties
-                              .map(
-                                (property) => DropdownMenuItem(
-                                  value: property.id,
-                                  child: Text(property.name),
+                (context, setDialogState) {
+                  if (dialogUnits.isEmpty && !isLoadingUnits && assetPropertyId.isNotEmpty) {
+                    Future.microtask(() async {
+                      setDialogState(() => isLoadingUnits = true);
+                      try {
+                        final units = await ref.read(rentRollRepositoryProvider).listUnitsByAsset(assetPropertyId);
+                        setDialogState(() {
+                          dialogUnits = units;
+                          isLoadingUnits = false;
+                        });
+                      } catch (_) {
+                        setDialogState(() => isLoadingUnits = false);
+                      }
+                    });
+                  }
+
+                  return AlertDialog(
+                    title: const Text('Neues Maintenance Ticket'),
+                    content: SizedBox(
+                      width: 520,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Allgemeine Daten', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: assetPropertyId.isEmpty ? null : assetPropertyId,
+                              items: _properties
+                                  .map(
+                                    (property) => DropdownMenuItem(
+                                      value: property.id,
+                                      child: Text(property.name),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() {
+                                    assetPropertyId = value;
+                                    dialogUnits = [];
+                                    selectedUnitId = null;
+                                  });
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Objekt *'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: selectedUnitId,
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Keine Einheit (Gesamtobjekt)')),
+                                ...dialogUnits.map(
+                                  (unit) => DropdownMenuItem(
+                                    value: unit.id,
+                                    child: Text(unit.unitCode),
+                                  ),
                                 ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setDialogState(() => assetPropertyId = value);
-                            }
-                          },
-                          decoration: const InputDecoration(labelText: 'Property'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: titleCtrl,
-                          decoration: const InputDecoration(labelText: 'Title'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: descCtrl,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'Description',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: damageLocationCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Schadenort / Bereich',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: category,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'damage',
-                              child: Text('Schaden'),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => selectedUnitId = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Einheit'),
                             ),
-                            DropdownMenuItem(
-                              value: 'defect',
-                              child: Text('Mangel'),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: titleCtrl,
+                              decoration: const InputDecoration(labelText: 'Titel *'),
                             ),
-                            DropdownMenuItem(
-                              value: 'repair',
-                              child: Text('Reparatur'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'maintenance',
-                              child: Text('Wartung'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'renovation',
-                              child: Text('Sanierung'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'modernization',
-                              child: Text('Renovierung'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'minor_repair',
-                              child: Text('Kleinreparatur'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setDialogState(() => category = value);
-                            }
-                          },
-                          decoration: const InputDecoration(labelText: 'Category'),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: priority,
-                          items: const [
-                            DropdownMenuItem(value: 'low', child: Text('low')),
-                            DropdownMenuItem(
-                              value: 'normal',
-                              child: Text('normal'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'high',
-                              child: Text('high'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'urgent',
-                              child: Text('urgent'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setDialogState(() => priority = value);
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Priority',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: dueCtrl,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Due date',
-                            suffixIcon: Icon(Icons.calendar_today),
-                          ),
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: dueDate ?? DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2100),
-                            );
-                            if (picked == null) {
-                              return;
-                            }
-                            setDialogState(() {
-                              dueDate = picked;
-                              dueCtrl.text = _formatDate(
-                                picked.millisecondsSinceEpoch,
-                              );
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: costEstimateCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Estimated cost',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: vendorCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Bearbeiter / Firma / Person',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SwitchListTile(
-                          value: insuranceCase,
-                          onChanged:
-                              (value) => setDialogState(
-                                () => insuranceCase = value,
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: descCtrl,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                labelText: 'Beschreibung',
                               ),
-                          title: const Text('Versicherungsfall'),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        if (insuranceCase) ...[
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: insuranceStatus,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'reported',
-                                child: Text('Gemeldet'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: category,
+                              items: const [
+                                DropdownMenuItem(value: 'damage', child: Text('Schaden')),
+                                DropdownMenuItem(value: 'defect', child: Text('Mangel')),
+                                DropdownMenuItem(value: 'repair', child: Text('Reparatur')),
+                                DropdownMenuItem(value: 'maintenance', child: Text('Wartung')),
+                                DropdownMenuItem(value: 'renovation', child: Text('Sanierung')),
+                                DropdownMenuItem(value: 'modernization', child: Text('Renovierung')),
+                                DropdownMenuItem(value: 'minor_repair', child: Text('Kleinreparatur')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() => category = value);
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Kategorie'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: priority,
+                              items: const [
+                                DropdownMenuItem(value: 'low', child: Text('Niedrig (low)')),
+                                DropdownMenuItem(value: 'normal', child: Text('Normal (normal)')),
+                                DropdownMenuItem(value: 'high', child: Text('Hoch (high)')),
+                                DropdownMenuItem(value: 'urgent', child: Text('Dringend (urgent)')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() => priority = value);
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Priorität'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Zeitplanung', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: startDateCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Startdatum',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (startDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            startDate = null;
+                                            startDateCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
                               ),
-                              DropdownMenuItem(
-                                value: 'in_review',
-                                child: Text('In Prüfung'),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: startDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    startDate = picked;
+                                    startDateCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: endDateCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Enddatum',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (endDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            endDate = null;
+                                            endDateCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
                               ),
-                              DropdownMenuItem(
-                                value: 'approved',
-                                child: Text('Freigegeben'),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: endDate ?? (startDate ?? DateTime.now()),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    endDate = picked;
+                                    endDateCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: dueCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Fälligkeitsdatum',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (dueDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            dueDate = null;
+                                            dueCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
                               ),
-                              DropdownMenuItem(
-                                value: 'declined',
-                                child: Text('Abgelehnt'),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: dueDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    dueDate = picked;
+                                    dueCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const Divider(height: 24),
+                            Text('Zuweisung & Bearbeiter', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: assigneeType,
+                              items: const [
+                                DropdownMenuItem(value: null, child: Text('Keine Bearbeitergruppe')),
+                                DropdownMenuItem(value: 'Hausmeister', child: Text('Hausmeister')),
+                                DropdownMenuItem(value: 'Bauleiter', child: Text('Bauleiter')),
+                                DropdownMenuItem(value: 'Bauarbeiter', child: Text('Bauarbeiter')),
+                                DropdownMenuItem(value: 'Housekeeping', child: Text('Housekeeping')),
+                                DropdownMenuItem(value: 'Externer Dienstleister', child: Text('Externer Dienstleister')),
+                                DropdownMenuItem(value: 'Mitarbeiter', child: Text('Mitarbeiter')),
+                                DropdownMenuItem(value: 'Dienstleister', child: Text('Dienstleister')),
+                                DropdownMenuItem(value: 'Externe Firmen', child: Text('Externe Firmen')),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => assigneeType = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Bearbeitergruppe'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: assigneeNameCtrl,
+                              decoration: const InputDecoration(labelText: 'Name des Bearbeiters'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: vendorCtrl,
+                              decoration: const InputDecoration(labelText: 'Zugeordnete Firma (Dienstleister)'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Ort / Bereich', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: buildingCtrl,
+                              decoration: const InputDecoration(labelText: 'Gebäude'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: areaCtrl,
+                              decoration: const InputDecoration(labelText: 'Bereich'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: technicalCtrl,
+                              decoration: const InputDecoration(labelText: 'Technik (z.B. Heizung)'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: outdoorCtrl,
+                              decoration: const InputDecoration(labelText: 'Außenanlage'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: damageLocationCtrl,
+                              decoration: const InputDecoration(labelText: 'Genauer Schadenort'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Kosten & Versicherung', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: costEstimateCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Kostenschätzung (€)'),
+                            ),
+                            const SizedBox(height: 8),
+                            SwitchListTile(
+                              value: insuranceCase,
+                              onChanged: (value) => setDialogState(() => insuranceCase = value),
+                              title: const Text('Versicherungsfall'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            if (insuranceCase) ...[
+                              DropdownButtonFormField<String>(
+                                value: insuranceStatus,
+                                items: const [
+                                  DropdownMenuItem(value: 'reported', child: Text('Gemeldet')),
+                                  DropdownMenuItem(value: 'in_review', child: Text('In Prüfung')),
+                                  DropdownMenuItem(value: 'approved', child: Text('Freigegeben')),
+                                  DropdownMenuItem(value: 'declined', child: Text('Abgelehnt')),
+                                  DropdownMenuItem(value: 'settled', child: Text('Reguliert')),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setDialogState(() => insuranceStatus = value);
+                                  }
+                                },
+                                decoration: const InputDecoration(labelText: 'Versicherungsstatus'),
                               ),
-                              DropdownMenuItem(
-                                value: 'settled',
-                                child: Text('Reguliert'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: insuranceClaimCtrl,
+                                decoration: const InputDecoration(labelText: 'Schadennummer'),
                               ),
                             ],
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setDialogState(() => insuranceStatus = value);
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Versicherungsstatus',
+                            const Divider(height: 24),
+                            SwitchListTile(
+                              value: createTask,
+                              onChanged: (value) => setDialogState(() => createTask = value),
+                              title: const Text('Verknüpfte Aufgabe erstellen'),
+                              contentPadding: EdgeInsets.zero,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: insuranceClaimCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Schadennummer optional',
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        SwitchListTile(
-                          value: createTask,
-                          onChanged:
-                              (value) =>
-                                  setDialogState(() => createTask = value),
-                          title: const Text('Create linked task'),
-                          contentPadding: EdgeInsets.zero,
+                          ],
                         ),
-                        ],
                       ),
                     ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final title = titleCtrl.text.trim();
-                        if (assetPropertyId.isEmpty || title.isEmpty) {
-                          return;
-                        }
-                        await ref
-                            .read(maintenanceRepositoryProvider)
-                            .createTicket(
-                              assetPropertyId: assetPropertyId,
-                              title: title,
-                              description:
-                                  descCtrl.text.trim().isEmpty
-                                      ? null
-                                      : descCtrl.text.trim(),
-                              category: category,
-                              priority: priority,
-                              dueAt: dueDate?.millisecondsSinceEpoch,
-                              costEstimate:
-                                  costEstimateCtrl.text.trim().isEmpty
-                                      ? null
-                                      : double.tryParse(
-                                        costEstimateCtrl.text.trim(),
-                                      ),
-                              vendorName:
-                                  vendorCtrl.text.trim().isEmpty
-                                      ? null
-                                      : vendorCtrl.text.trim(),
-                              damageLocation:
-                                  damageLocationCtrl.text.trim().isEmpty
-                                      ? null
-                                      : damageLocationCtrl.text.trim(),
-                              insuranceCase: insuranceCase,
-                              insuranceStatus:
-                                  insuranceCase ? insuranceStatus : null,
-                              insuranceClaimNumber:
-                                  insuranceClaimCtrl.text.trim().isEmpty
-                                      ? null
-                                      : insuranceClaimCtrl.text.trim(),
-                              createTask: createTask,
-                            );
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                        }
-                        await _reload();
-                      },
-                      child: const Text('Create'),
-                    ),
-                  ],
-                ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Abbrechen'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final title = titleCtrl.text.trim();
+                          if (assetPropertyId.isEmpty || title.isEmpty) {
+                            return;
+                          }
+                          await ref
+                              .read(maintenanceRepositoryProvider)
+                              .createTicket(
+                                assetPropertyId: assetPropertyId,
+                                unitId: selectedUnitId,
+                                title: title,
+                                description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                                category: category,
+                                priority: priority,
+                                dueAt: dueDate?.millisecondsSinceEpoch,
+                                costEstimate: costEstimateCtrl.text.trim().isEmpty
+                                    ? null
+                                    : double.tryParse(costEstimateCtrl.text.trim()),
+                                vendorName: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
+                                damageLocation: damageLocationCtrl.text.trim().isEmpty ? null : damageLocationCtrl.text.trim(),
+                                insuranceCase: insuranceCase,
+                                insuranceStatus: insuranceCase ? insuranceStatus : null,
+                                insuranceClaimNumber: insuranceClaimCtrl.text.trim().isEmpty ? null : insuranceClaimCtrl.text.trim(),
+                                createTask: createTask,
+                                startDate: startDate?.millisecondsSinceEpoch,
+                                endDate: endDate?.millisecondsSinceEpoch,
+                                assigneeType: assigneeType,
+                                assigneeName: assigneeNameCtrl.text.trim().isEmpty ? null : assigneeNameCtrl.text.trim(),
+                                building: buildingCtrl.text.trim().isEmpty ? null : buildingCtrl.text.trim(),
+                                area: areaCtrl.text.trim().isEmpty ? null : areaCtrl.text.trim(),
+                                technical: technicalCtrl.text.trim().isEmpty ? null : technicalCtrl.text.trim(),
+                                outdoor: outdoorCtrl.text.trim().isEmpty ? null : outdoorCtrl.text.trim(),
+                              );
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                          await _reload();
+                        },
+                        child: const Text('Erstellen'),
+                      ),
+                    ],
+                  );
+                },
           ),
     );
 
@@ -1053,6 +1714,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     vendorCtrl.dispose();
     damageLocationCtrl.dispose();
     insuranceClaimCtrl.dispose();
+    startDateCtrl.dispose();
+    endDateCtrl.dispose();
+    assigneeNameCtrl.dispose();
+    buildingCtrl.dispose();
+    areaCtrl.dispose();
+    technicalCtrl.dispose();
+    outdoorCtrl.dispose();
   }
 
   Future<void> _editTicketDialog(MaintenanceTicketRecord ticket) async {
@@ -1072,280 +1740,420 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     final insuranceClaimCtrl = TextEditingController(
       text: ticket.insuranceClaimNumber ?? '',
     );
+
+    // V37 controllers
+    final startDateCtrl = TextEditingController(text: _formatDate(ticket.startDate));
+    final endDateCtrl = TextEditingController(text: _formatDate(ticket.endDate));
+    final assigneeNameCtrl = TextEditingController(text: ticket.assigneeName ?? '');
+    final buildingCtrl = TextEditingController(text: ticket.building ?? '');
+    final areaCtrl = TextEditingController(text: ticket.area ?? '');
+    final technicalCtrl = TextEditingController(text: ticket.technical ?? '');
+    final outdoorCtrl = TextEditingController(text: ticket.outdoor ?? '');
+
     var category = ticket.category;
     var priority = ticket.priority;
     var status = ticket.status;
     var insuranceStatus = ticket.insuranceStatus ?? 'reported';
     var insuranceCase = ticket.insuranceCase;
+
     DateTime? dueDate =
         ticket.dueAt == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(ticket.dueAt!);
+    DateTime? startDate =
+        ticket.startDate == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(ticket.startDate!);
+    DateTime? endDate =
+        ticket.endDate == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(ticket.endDate!);
+    String? assigneeType = ticket.assigneeType;
+    List<UnitRecord> dialogUnits = [];
+    String? selectedUnitId = ticket.unitId;
+    bool isLoadingUnits = false;
 
     await showDialog<void>(
       context: context,
       builder:
           (context) => StatefulBuilder(
             builder:
-                (context, setDialogState) => AlertDialog(
-                  title: const Text('Ticket bearbeiten'),
-                  content: SizedBox(
-                    width: 500,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextField(
-                            controller: titleCtrl,
-                            decoration: const InputDecoration(labelText: 'Titel'),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: descCtrl,
-                            maxLines: 3,
-                            decoration: const InputDecoration(
-                              labelText: 'Beschreibung',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: status,
-                            items: _statusItems(status),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setDialogState(() => status = value);
-                            },
-                            decoration: const InputDecoration(labelText: 'Status'),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: category,
-                            items: _categoryItems(category),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setDialogState(() => category = value);
-                            },
-                            decoration: const InputDecoration(labelText: 'Ticketart'),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: priority,
-                            items: const [
-                              DropdownMenuItem(value: 'low', child: Text('low')),
-                              DropdownMenuItem(
-                                value: 'normal',
-                                child: Text('normal'),
-                              ),
-                              DropdownMenuItem(value: 'high', child: Text('high')),
-                              DropdownMenuItem(
-                                value: 'urgent',
-                                child: Text('urgent'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setDialogState(() => priority = value);
-                            },
-                            decoration: const InputDecoration(labelText: 'Priorität'),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: dueCtrl,
-                            readOnly: true,
-                            decoration: InputDecoration(
-                              labelText: 'Fälligkeit',
-                              suffixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Termin löschen',
-                                    onPressed: () {
-                                      setDialogState(() {
-                                        dueDate = null;
-                                        dueCtrl.clear();
-                                      });
-                                    },
-                                    icon: const Icon(Icons.clear),
+                (context, setDialogState) {
+                  if (dialogUnits.isEmpty && !isLoadingUnits && ticket.assetPropertyId.isNotEmpty) {
+                    Future.microtask(() async {
+                      setDialogState(() => isLoadingUnits = true);
+                      try {
+                        final units = await ref.read(rentRollRepositoryProvider).listUnitsByAsset(ticket.assetPropertyId);
+                        setDialogState(() {
+                          dialogUnits = units;
+                          isLoadingUnits = false;
+                        });
+                      } catch (_) {
+                        setDialogState(() => isLoadingUnits = false);
+                      }
+                    });
+                  }
+
+                  return AlertDialog(
+                    title: const Text('Ticket bearbeiten'),
+                    content: SizedBox(
+                      width: 520,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Allgemeine Daten', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: selectedUnitId,
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Keine Einheit (Gesamtobjekt)')),
+                                ...dialogUnits.map(
+                                  (unit) => DropdownMenuItem(
+                                    value: unit.id,
+                                    child: Text(unit.unitCode),
                                   ),
-                                  const Icon(Icons.calendar_today),
-                                  const SizedBox(width: 8),
-                                ],
-                              ),
-                            ),
-                            onTap: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate: dueDate ?? DateTime.now(),
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime(2100),
-                              );
-                              if (picked == null) {
-                                return;
-                              }
-                              setDialogState(() {
-                                dueDate = picked;
-                                dueCtrl.text =
-                                    _formatDate(picked.millisecondsSinceEpoch);
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: costEstimateCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Kostenschätzung',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: costActualCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(labelText: 'Ist-Kosten'),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: vendorCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Bearbeiter / Firma / Person',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: damageLocationCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Schadenort / Bereich',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SwitchListTile(
-                            value: insuranceCase,
-                            onChanged:
-                                (value) => setDialogState(
-                                  () => insuranceCase = value,
-                                ),
-                            title: const Text('Versicherungsfall'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          if (insuranceCase) ...[
-                            DropdownButtonFormField<String>(
-                              value: insuranceStatus,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'reported',
-                                  child: Text('Gemeldet'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'in_review',
-                                  child: Text('In Prüfung'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'approved',
-                                  child: Text('Freigegeben'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'declined',
-                                  child: Text('Abgelehnt'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'settled',
-                                  child: Text('Reguliert'),
                                 ),
                               ],
                               onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setDialogState(() => insuranceStatus = value);
+                                setDialogState(() => selectedUnitId = value);
                               },
-                              decoration: const InputDecoration(
-                                labelText: 'Versicherungsstatus',
-                              ),
+                              decoration: const InputDecoration(labelText: 'Einheit'),
                             ),
                             const SizedBox(height: 8),
                             TextField(
-                              controller: insuranceClaimCtrl,
+                              controller: titleCtrl,
+                              decoration: const InputDecoration(labelText: 'Titel *'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: descCtrl,
+                              maxLines: 3,
                               decoration: const InputDecoration(
-                                labelText: 'Schadennummer',
+                                labelText: 'Beschreibung',
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: status,
+                              items: _statusItems(status),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() => status = value);
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Status'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: category,
+                              items: _categoryItems(category),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() => category = value);
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Ticketart'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: priority,
+                              items: const [
+                                DropdownMenuItem(value: 'low', child: Text('low')),
+                                DropdownMenuItem(value: 'normal', child: Text('normal')),
+                                DropdownMenuItem(value: 'high', child: Text('high')),
+                                DropdownMenuItem(value: 'urgent', child: Text('urgent')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(() => priority = value);
+                                }
+                              },
+                              decoration: const InputDecoration(labelText: 'Priorität'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Zeitplanung', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: startDateCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Startdatum',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (startDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            startDate = null;
+                                            startDateCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
+                              ),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: startDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    startDate = picked;
+                                    startDateCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: endDateCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Enddatum',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (endDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            endDate = null;
+                                            endDateCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
+                              ),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: endDate ?? (startDate ?? DateTime.now()),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    endDate = picked;
+                                    endDateCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: dueCtrl,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Fälligkeit',
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (dueDate != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            dueDate = null;
+                                            dueCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
+                              ),
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: dueDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setDialogState(() {
+                                    dueDate = picked;
+                                    dueCtrl.text = _formatDate(picked.millisecondsSinceEpoch);
+                                  });
+                                }
+                              },
+                            ),
+                            const Divider(height: 24),
+                            Text('Zuweisung & Bearbeiter', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: assigneeType,
+                              items: const [
+                                DropdownMenuItem(value: null, child: Text('Keine Bearbeitergruppe')),
+                                DropdownMenuItem(value: 'Hausmeister', child: Text('Hausmeister')),
+                                DropdownMenuItem(value: 'Bauleiter', child: Text('Bauleiter')),
+                                DropdownMenuItem(value: 'Bauarbeiter', child: Text('Bauarbeiter')),
+                                DropdownMenuItem(value: 'Housekeeping', child: Text('Housekeeping')),
+                                DropdownMenuItem(value: 'Externer Dienstleister', child: Text('Externer Dienstleister')),
+                                DropdownMenuItem(value: 'Mitarbeiter', child: Text('Mitarbeiter')),
+                                DropdownMenuItem(value: 'Dienstleister', child: Text('Dienstleister')),
+                                DropdownMenuItem(value: 'Externe Firmen', child: Text('Externe Firmen')),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => assigneeType = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Bearbeitergruppe'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: assigneeNameCtrl,
+                              decoration: const InputDecoration(labelText: 'Name des Bearbeiters'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: vendorCtrl,
+                              decoration: const InputDecoration(labelText: 'Zugeordnete Firma (Dienstleister)'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Ort / Bereich', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: buildingCtrl,
+                              decoration: const InputDecoration(labelText: 'Gebäude'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: areaCtrl,
+                              decoration: const InputDecoration(labelText: 'Bereich'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: technicalCtrl,
+                              decoration: const InputDecoration(labelText: 'Technik (z.B. Heizung)'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: outdoorCtrl,
+                              decoration: const InputDecoration(labelText: 'Außenanlage'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: damageLocationCtrl,
+                              decoration: const InputDecoration(labelText: 'Genauer Schadenort'),
+                            ),
+                            const Divider(height: 24),
+                            Text('Kosten & Versicherung', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: costEstimateCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Kostenschätzung (€)'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: costActualCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Ist-Kosten (€)'),
+                            ),
+                            const SizedBox(height: 8),
+                            SwitchListTile(
+                              value: insuranceCase,
+                              onChanged: (value) => setDialogState(() => insuranceCase = value),
+                              title: const Text('Versicherungsfall'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            if (insuranceCase) ...[
+                              DropdownButtonFormField<String>(
+                                value: insuranceStatus,
+                                items: const [
+                                  DropdownMenuItem(value: 'reported', child: Text('Gemeldet')),
+                                  DropdownMenuItem(value: 'in_review', child: Text('In Prüfung')),
+                                  DropdownMenuItem(value: 'approved', child: Text('Freigegeben')),
+                                  DropdownMenuItem(value: 'declined', child: Text('Abgelehnt')),
+                                  DropdownMenuItem(value: 'settled', child: Text('Reguliert')),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setDialogState(() => insuranceStatus = value);
+                                  }
+                                },
+                                decoration: const InputDecoration(labelText: 'Versicherungsstatus'),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: insuranceClaimCtrl,
+                                decoration: const InputDecoration(labelText: 'Schadennummer'),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Abbrechen'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final title = titleCtrl.text.trim();
-                        if (title.isEmpty) {
-                          return;
-                        }
-                        final updated = MaintenanceTicketRecord(
-                          id: ticket.id,
-                          assetPropertyId: ticket.assetPropertyId,
-                          unitId: ticket.unitId,
-                          title: title,
-                          description:
-                              descCtrl.text.trim().isEmpty
-                                  ? null
-                                  : descCtrl.text.trim(),
-                          category: category,
-                          status: status,
-                          priority: priority,
-                          reportedAt: ticket.reportedAt,
-                          dueAt: dueDate?.millisecondsSinceEpoch,
-                          resolvedAt:
-                              _isClosedStatus(status)
-                                  ? (ticket.resolvedAt ??
-                                      DateTime.now().millisecondsSinceEpoch)
-                                  : null,
-                          costEstimate: _parseMoney(costEstimateCtrl.text),
-                          costActual: _parseMoney(costActualCtrl.text),
-                          vendorName:
-                              vendorCtrl.text.trim().isEmpty
-                                  ? null
-                                  : vendorCtrl.text.trim(),
-                          documentId: ticket.documentId,
-                          damageLocation:
-                              damageLocationCtrl.text.trim().isEmpty
-                                  ? null
-                                  : damageLocationCtrl.text.trim(),
-                          insuranceCase: insuranceCase,
-                          insuranceStatus: insuranceCase ? insuranceStatus : null,
-                          insuranceClaimNumber:
-                              insuranceClaimCtrl.text.trim().isEmpty
-                                  ? null
-                                  : insuranceClaimCtrl.text.trim(),
-                          createdAt: ticket.createdAt,
-                          updatedAt: DateTime.now().millisecondsSinceEpoch,
-                        );
-                        await ref
-                            .read(maintenanceRepositoryProvider)
-                            .updateTicket(updated);
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                        }
-                        await _reload();
-                      },
-                      child: const Text('Speichern'),
-                    ),
-                  ],
-                ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Abbrechen'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final title = titleCtrl.text.trim();
+                          if (title.isEmpty) {
+                            return;
+                          }
+                          final updated = MaintenanceTicketRecord(
+                            id: ticket.id,
+                            assetPropertyId: ticket.assetPropertyId,
+                            unitId: selectedUnitId,
+                            title: title,
+                            description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                            category: category,
+                            status: status,
+                            priority: priority,
+                            reportedAt: ticket.reportedAt,
+                            dueAt: dueDate?.millisecondsSinceEpoch,
+                            resolvedAt: _isClosedStatus(status)
+                                ? (ticket.resolvedAt ?? DateTime.now().millisecondsSinceEpoch)
+                                : null,
+                            costEstimate: _parseMoney(costEstimateCtrl.text),
+                            costActual: _parseMoney(costActualCtrl.text),
+                            vendorName: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
+                            documentId: ticket.documentId,
+                            damageLocation: damageLocationCtrl.text.trim().isEmpty ? null : damageLocationCtrl.text.trim(),
+                            insuranceCase: insuranceCase,
+                            insuranceStatus: insuranceCase ? insuranceStatus : null,
+                            insuranceClaimNumber: insuranceClaimCtrl.text.trim().isEmpty ? null : insuranceClaimCtrl.text.trim(),
+                            createdAt: ticket.createdAt,
+                            updatedAt: DateTime.now().millisecondsSinceEpoch,
+                            startDate: startDate?.millisecondsSinceEpoch,
+                            endDate: endDate?.millisecondsSinceEpoch,
+                            assigneeType: assigneeType,
+                            assigneeName: assigneeNameCtrl.text.trim().isEmpty ? null : assigneeNameCtrl.text.trim(),
+                            building: buildingCtrl.text.trim().isEmpty ? null : buildingCtrl.text.trim(),
+                            area: areaCtrl.text.trim().isEmpty ? null : areaCtrl.text.trim(),
+                            technical: technicalCtrl.text.trim().isEmpty ? null : technicalCtrl.text.trim(),
+                            outdoor: outdoorCtrl.text.trim().isEmpty ? null : outdoorCtrl.text.trim(),
+                          );
+                          await ref
+                              .read(maintenanceRepositoryProvider)
+                              .updateTicket(updated);
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                          await _reload();
+                        },
+                        child: const Text('Speichern'),
+                      ),
+                    ],
+                  );
+                },
           ),
     );
 
@@ -1357,6 +2165,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     vendorCtrl.dispose();
     damageLocationCtrl.dispose();
     insuranceClaimCtrl.dispose();
+    startDateCtrl.dispose();
+    endDateCtrl.dispose();
+    assigneeNameCtrl.dispose();
+    buildingCtrl.dispose();
+    areaCtrl.dispose();
+    technicalCtrl.dispose();
+    outdoorCtrl.dispose();
   }
 
   Future<void> _changeStatusDialog(MaintenanceTicketRecord ticket) async {
@@ -1883,19 +2698,22 @@ class _MaintenanceBoardColumn extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: context.semanticColors.border),
-          Expanded(
-            child:
-                tickets.isEmpty
-                    ? Center(
-                      child: Text(
-                        'Keine Tickets',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                    : ListView.builder(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      itemCount: tickets.length,
-                      itemBuilder: (context, index) {
+          tickets.isEmpty
+              ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.component),
+                  child: Text(
+                    'Keine Tickets',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              )
+              : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                itemCount: tickets.length,
+                itemBuilder: (context, index) {
                         final workflow = tickets[index];
                         final ticket = workflow.ticket;
                         return _MaintenanceMiniTicket(
@@ -1906,7 +2724,6 @@ class _MaintenanceBoardColumn extends StatelessWidget {
                         );
                       },
                     ),
-          ),
         ],
       ),
     );
@@ -2072,4 +2889,8 @@ String _formatMaintenanceCurrency(double value) {
     return '$sign€ ${(absValue / 1000).toStringAsFixed(1)} Tsd.';
   }
   return '$sign€ ${absValue.toStringAsFixed(0)}';
+}
+
+String _formatCurrency(double value) {
+  return '€ ${value.toStringAsFixed(2)}';
 }

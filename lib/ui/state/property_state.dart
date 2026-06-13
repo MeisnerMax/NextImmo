@@ -59,6 +59,11 @@ class PropertiesController
     }
   }
 
+  Future<void> updateProperty(PropertyRecord property) async {
+    await _repo.update(property);
+    await reload();
+  }
+
   Future<void> archive(String propertyId, bool archived) async {
     await _repo.archive(propertyId, archived: archived);
     await reload();

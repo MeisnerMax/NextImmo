@@ -57,11 +57,47 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
       }
     }
 
+    // KPI calculation
+    final activeCount = _tenants.where((t) => (t.status ?? 'active') == 'active').length;
+    final prospectCount = _tenants.where((t) => t.status == 'prospect').length;
+    final incompleteCount = _tenants.where((t) =>
+      (t.status ?? 'active') == 'active' &&
+      ((t.email == null || t.email!.trim().isEmpty) ||
+       (t.phone == null || t.phone!.trim().isEmpty))
+    ).length;
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // KPI Metric Row
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _KpiTile(
+                title: 'Aktive Mieter',
+                value: '$activeCount',
+                icon: Icons.people_outline,
+                color: context.semanticColors.success,
+              ),
+              _KpiTile(
+                title: 'Interessenten',
+                value: '$prospectCount',
+                icon: Icons.person_search_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              _KpiTile(
+                title: 'Profil unvollständig',
+                value: '$incompleteCount',
+                subtitle: 'E-Mail oder Telefon fehlt',
+                icon: Icons.assignment_late_outlined,
+                color: incompleteCount > 0 ? context.semanticColors.warning : context.semanticColors.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.component),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -141,6 +177,200 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
     );
   }
 
+  Widget _buildTenantListItem(BuildContext context, TenantRecord tenant, bool isSelected) {
+    final semantic = context.semanticColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color statusColor = switch (tenant.status ?? 'active') {
+      'active' => semantic.success,
+      'inactive' => semantic.error,
+      'prospect' => Theme.of(context).colorScheme.primary,
+      _ => semantic.border,
+    };
+
+    final bool hasContact = (tenant.email?.trim().isNotEmpty ?? false) &&
+        (tenant.phone?.trim().isNotEmpty ?? false);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF))
+            : Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+        border: Border.all(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : semantic.border,
+          width: isSelected ? 1.5 : 1.0,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md - 1),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                color: statusColor,
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    ref.read(selectedOperationsTenantIdProvider.notifier).state = tenant.id;
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              (tenant.status ?? 'active') == 'prospect'
+                                  ? Icons.person_search_outlined
+                                  : Icons.person_outline,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                tenant.displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            _buildTenantStatusTag(context, tenant.status ?? 'active'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (tenant.email != null && tenant.email!.isNotEmpty)
+                                    Text(
+                                      tenant.email!,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  if (tenant.phone != null && tenant.phone!.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      tenant.phone!,
+                                      style: context.tabularNumericStyle.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (!hasContact)
+                              const Tooltip(
+                                message: 'Kontaktdaten unvollständig',
+                                child: Icon(
+                                  Icons.warning_amber_outlined,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () => _tenantDialog(existing: tenant),
+                              child: const Text('Bearbeiten', style: TextStyle(fontSize: 11)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTenantStatusTag(BuildContext context, String status) {
+    final semantic = context.semanticColors;
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    switch (status) {
+      case 'active':
+        bgColor = semantic.success.withValues(alpha: 0.12);
+        textColor = semantic.success;
+        label = 'Aktiv';
+        break;
+      case 'inactive':
+        bgColor = semantic.error.withValues(alpha: 0.12);
+        textColor = semantic.error;
+        label = 'Inaktiv';
+        break;
+      case 'prospect':
+        bgColor = Theme.of(context).colorScheme.primary.withValues(alpha: 0.12);
+        textColor = Theme.of(context).colorScheme.primary;
+        label = 'Interessent';
+        break;
+      default:
+        bgColor = Theme.of(context).colorScheme.outlineVariant;
+        textColor = Theme.of(context).colorScheme.onSurface;
+        label = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   Widget _tenantListCard({
     required BuildContext context,
     required List<TenantRecord> tenants,
@@ -158,38 +388,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
             Column(
               children: [
                 for (final tenant in tenants)
-                  ListTile(
-                    selected: tenant.id == selectedTenantId,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(tenant.displayName),
-                    subtitle: Text(
-                      '${_tenantStatusLabel(tenant.status ?? 'active')}${tenant.email == null ? '' : ' · ${tenant.email}'}${tenant.phone == null ? '' : ' · ${tenant.phone}'}',
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        if (!_hasContact(tenant))
-                          const Tooltip(
-                            message: 'Kontaktdaten fehlen',
-                            child: Icon(
-                              Icons.warning_amber_outlined,
-                              color: Colors.orange,
-                            ),
-                          ),
-                        TextButton(
-                          onPressed: () => _tenantDialog(existing: tenant),
-                          child: const Text('Bearbeiten'),
-                        ),
-                      ],
-                    ),
-                    onTap:
-                        () =>
-                            ref
-                                .read(
-                                  selectedOperationsTenantIdProvider.notifier,
-                                )
-                                .state = tenant.id,
-                  ),
+                  _buildTenantListItem(context, tenant, tenant.id == selectedTenantId),
               ],
             ),
         ],
@@ -389,5 +588,74 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
       default:
         return status;
     }
+  }
+}
+
+class _KpiTile extends StatelessWidget {
+  const _KpiTile({
+    required this.title,
+    required this.value,
+    this.subtitle,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String? subtitle;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 190,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(icon, size: 16, color: color),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ).merge(context.tabularNumericStyle),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

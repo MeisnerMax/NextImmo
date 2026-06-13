@@ -169,7 +169,7 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
                                   DataCell(_entityTypeCell(entry.entityType)),
                                   DataCell(Text(entry.direction)),
                                   DataCell(
-                                    Text(entry.amount.toStringAsFixed(2)),
+                                    Text(entry.amount.toStringAsFixed(2), style: context.tabularNumericStyle),
                                   ),
                                   DataCell(Text(entry.currencyCode)),
                                   DataCell(Text(account ?? entry.accountId)),

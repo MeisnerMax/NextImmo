@@ -65,6 +65,11 @@ class ScenariosByPropertyController
     await reload();
   }
 
+  Future<void> changeStrategyType(String id, String strategyType) async {
+    await _repo.updateStrategyType(id, strategyType);
+    await reload();
+  }
+
   Future<void> submitForReview({
     required String scenarioId,
     String? reviewComment,

@@ -32,6 +32,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
   LeaseDetailBundle? _bundle;
   bool _loading = true;
   String? _error;
+  int _activeTab = 0;
 
   @override
   void initState() {
@@ -45,6 +46,216 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
     if (oldWidget.leaseId != widget.leaseId || oldWidget.propertyId != widget.propertyId) {
       _load();
     }
+  }
+
+  Widget _buildTabButton(int index, String label) {
+    final isSelected = _activeTab == index;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (selected) {
+          if (selected) {
+            setState(() => _activeTab = index);
+          }
+        },
+        showCheckmark: false,
+      ),
+    );
+  }
+
+  Widget _buildSourceBadge(BuildContext context, String source) {
+    Color color;
+    String label;
+    switch (source) {
+      case 'manual_override':
+        color = Colors.orange;
+        label = 'Manuell';
+        break;
+      case 'index':
+      case 'cpi':
+        color = Colors.blue;
+        label = 'Index';
+        break;
+      case 'fixed_step':
+        color = Colors.purple;
+        label = 'Staffel';
+        break;
+      case 'base_rent':
+      default:
+        color = Colors.green;
+        label = 'Vertrag';
+        break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteIndexRule(String ruleId) async {
+    final bundle = _bundle;
+    if (bundle == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Indexregel löschen'),
+        content: const Text('Möchten Sie diese Indexregel wirklich löschen und den Mietplan neu berechnen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final startYear = DateTime.fromMillisecondsSinceEpoch(bundle.lease.startDate).year;
+      final fromPeriod = '$startYear-01';
+      final toPeriod = '${startYear + 5}-12';
+      
+      await ref.read(leaseRepositoryProvider).deleteIndexationRule(ruleId);
+      await ref.read(leaseRepositoryProvider).rebuildRentSchedule(
+        leaseId: bundle.lease.id,
+        fromPeriod: fromPeriod,
+        toPeriod: toPeriod,
+      );
+      
+      widget.onChanged?.call();
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Löschen der Indexregel: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteManualOverride(String periodKey) async {
+    final bundle = _bundle;
+    if (bundle == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Manuelle Anpassung entfernen'),
+        content: Text('Möchten Sie die manuelle Anpassung für die Periode $periodKey entfernen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final startYear = DateTime.fromMillisecondsSinceEpoch(bundle.lease.startDate).year;
+      final fromPeriod = '$startYear-01';
+      final toPeriod = '${startYear + 5}-12';
+
+      await ref.read(leaseRepositoryProvider).deleteManualOverride(bundle.lease.id, periodKey);
+      await ref.read(leaseRepositoryProvider).rebuildRentSchedule(
+        leaseId: bundle.lease.id,
+        fromPeriod: fromPeriod,
+        toPeriod: toPeriod,
+      );
+
+      widget.onChanged?.call();
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Entfernen der Anpassung: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editManualOverrideForPeriod(String periodKey, double currentRent) async {
+    final bundle = _bundle;
+    if (bundle == null) return;
+    final rentCtrl = TextEditingController(text: currentRent.toStringAsFixed(2));
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Manuelle Miete für $periodKey'),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: rentCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Monatsmiete',
+                  suffixText: '€',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final rent = double.tryParse(rentCtrl.text.trim().replaceAll(',', '.'));
+              if (rent == null) return;
+
+              final startYear = DateTime.fromMillisecondsSinceEpoch(bundle.lease.startDate).year;
+              final fromPeriod = '$startYear-01';
+              final toPeriod = '${startYear + 5}-12';
+
+              await ref.read(leaseRepositoryProvider).upsertManualOverride(
+                leaseId: bundle.lease.id,
+                periodKey: periodKey,
+                rentMonthly: rent,
+              );
+              await ref.read(leaseRepositoryProvider).rebuildRentSchedule(
+                leaseId: bundle.lease.id,
+                fromPeriod: fromPeriod,
+                toPeriod: toPeriod,
+              );
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+              widget.onChanged?.call();
+              await _load();
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    rentCtrl.dispose();
   }
 
   @override
@@ -122,8 +333,31 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.md),
+        const Divider(),
+        const SizedBox(height: AppSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildTabButton(0, 'Vertragsdaten & Laufzeit'),
+              _buildTabButton(1, 'Finanzen & Kaution'),
+              _buildTabButton(2, 'Mietplan & Indexierung'),
+              _buildTabButton(3, 'Alerts & Aufgaben & Dokumente'),
+            ],
+          ),
+        ),
         const SizedBox(height: AppSpacing.component),
-        Wrap(
+        _buildActiveTabContent(bundle),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTabContent(LeaseDetailBundle bundle) {
+    switch (_activeTab) {
+      case 0:
+        return Wrap(
           spacing: AppSpacing.component,
           runSpacing: AppSpacing.component,
           children: [
@@ -179,6 +413,13 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 ),
               ),
             ),
+          ],
+        );
+      case 1:
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
             SizedBox(
               width: 360,
               child: OperationsSectionCard(
@@ -206,88 +447,124 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 ),
               ),
             ),
+            SizedBox(
+              width: 360,
+              child: OperationsSectionCard(
+                title: 'Naechste Ereignisse',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Verlaengerungsoption: ${formatDateMillis(bundle.lease.renewalOptionDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Sonderkuendigung: ${formatDateMillis(bundle.lease.breakOptionDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Ausgefuehrt: ${formatDateMillis(bundle.lease.executedDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                    Text(
+                      'Letztes Mietende: ${formatDateMillis(bundle.latestRentRollLine?.leaseEndDate)}',
+                      style: context.tabularNumericStyle,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.component),
-        OperationsSectionCard(
-          title: 'Naechste Ereignisse',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Verlaengerungsoption: ${formatDateMillis(bundle.lease.renewalOptionDate)}',
-                style: context.tabularNumericStyle,
-              ),
-              Text(
-                'Sonderkuendigung: ${formatDateMillis(bundle.lease.breakOptionDate)}',
-                style: context.tabularNumericStyle,
-              ),
-              Text(
-                'Ausgefuehrt: ${formatDateMillis(bundle.lease.executedDate)}',
-                style: context.tabularNumericStyle,
-              ),
-              Text(
-                'Letztes Mietende: ${formatDateMillis(bundle.latestRentRollLine?.leaseEndDate)}',
-                style: context.tabularNumericStyle,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
+        );
+      case 2:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 420,
-              child: OperationsSectionCard(
-                title: 'Indexregeln',
-                child: bundle.rules.isEmpty
-                    ? const Text('Keine Indexregeln hinterlegt.')
-                    : Column(
-                        children: bundle.rules
-                            .map(
-                              (rule) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text('${_ruleKindLabel(rule.kind)} ab ${rule.effectiveFromPeriodKey}'),
-                                subtitle: Text(
-                                  'jaehrlich ${rule.annualPercent?.toStringAsFixed(4) ?? '-'} · Schritt ${rule.fixedStepAmount?.toStringAsFixed(2) ?? '-'}',
-                                  style: context.tabularNumericStyle,
-                                ),
+            OperationsSectionCard(
+              title: 'Indexregeln',
+              child: bundle.rules.isEmpty
+                  ? const Text('Keine Indexregeln hinterlegt.')
+                  : Column(
+                      children: bundle.rules
+                          .map(
+                            (rule) => ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text('${_ruleKindLabel(rule.kind)} ab ${rule.effectiveFromPeriodKey}'),
+                              subtitle: Text(
+                                'jaehrlich ${rule.annualPercent?.toStringAsFixed(4) ?? '-'} · Schritt ${rule.fixedStepAmount?.toStringAsFixed(2) ?? '-'}',
+                                style: context.tabularNumericStyle,
                               ),
-                            )
-                            .toList(growable: false),
-                      ),
-              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                onPressed: () => _deleteIndexRule(rule.id),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
             ),
-            SizedBox(
-              width: 420,
-              child: OperationsSectionCard(
-                title: 'Mietplan',
-                child: bundle.schedule.isEmpty
-                    ? const Text('Noch keine Mietplanzeilen erzeugt.')
-                    : Column(
-                        children: bundle.schedule.take(24)
-                            .map(
-                              (row) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(row.periodKey),
-                                subtitle: Text(
-                                  '${row.source} · ${row.rentMonthly.toStringAsFixed(2)}',
+            const SizedBox(height: AppSpacing.component),
+            OperationsSectionCard(
+              title: 'Mietplan',
+              child: bundle.schedule.isEmpty
+                  ? const Text('Noch keine Mietplanzeilen erzeugt.')
+                  : SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 24,
+                        columns: const [
+                          DataColumn(label: Text('Monat / Periode')),
+                          DataColumn(label: Text('Miete')),
+                          DataColumn(label: Text('Quelle / Typ')),
+                          DataColumn(label: Text('Aktion')),
+                        ],
+                        rows: bundle.schedule.map((row) {
+                          final isOverride = row.source == 'manual_override';
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Text(
+                                  row.periodKey,
+                                  style: context.tabularNumericStyle.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              DataCell(
+                                Text(
+                                  '${row.rentMonthly.toStringAsFixed(2)} ${bundle.lease.currencyCode}',
                                   style: context.tabularNumericStyle,
                                 ),
                               ),
-                            )
-                            .toList(growable: false),
+                              DataCell(_buildSourceBadge(context, row.source)),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isOverride)
+                                      IconButton(
+                                        icon: const Icon(Icons.undo, color: Colors.orange, size: 18),
+                                        tooltip: 'Manuelle Miete aufheben',
+                                        onPressed: () => _deleteManualOverride(row.periodKey),
+                                      )
+                                    else
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 18),
+                                        tooltip: 'Manuell anpassen',
+                                        onPressed: () => _editManualOverrideForPeriod(row.periodKey, row.rentMonthly),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
                       ),
-              ),
+                    ),
             ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.component),
-        Wrap(
+        );
+      case 3:
+        return Wrap(
           spacing: AppSpacing.component,
           runSpacing: AppSpacing.component,
           children: [
@@ -321,32 +598,33 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                 ),
               ),
             ),
+            SizedBox(
+              width: 420,
+              child: OperationsSectionCard(
+                title: 'Dokumente',
+                action: TextButton(
+                  onPressed: () async {
+                    await showCreateDocumentHookDialog(
+                      context: context,
+                      ref: ref,
+                      entityType: 'lease',
+                      entityId: bundle.lease.id,
+                    );
+                    await _load();
+                  },
+                  child: const Text('Verknuepfung anlegen'),
+                ),
+                child: OperationsDocumentsPanel(
+                  documents: bundle.documents,
+                  emptyHint: 'Noch keine Vertragsdokumente verknuepft.',
+                ),
+              ),
+            ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.component),
-        OperationsSectionCard(
-          title: 'Dokumente',
-          action: TextButton(
-            onPressed: () async {
-              await showCreateDocumentHookDialog(
-                context: context,
-                ref: ref,
-                entityType: 'lease',
-                entityId: bundle.lease.id,
-              );
-              await _load();
-            },
-            child: const Text('Verknuepfung anlegen'),
-          ),
-          child: OperationsDocumentsPanel(
-            documents: bundle.documents,
-            emptyHint:
-                'Noch keine Vertragsdokumente verknuepft.',
-          ),
-        ),
-        ],
-      ),
-    );
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Future<void> _load() async {

@@ -49,8 +49,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
             title: group.title,
             items: group.items
                 .where(
-                  (item) =>
-                      role == 'admin' || item.page != GlobalPage.adminUsers,
+                  (item) => isPageAllowedForRole(item.page, role),
                 )
                 .map(
                   (item) => _SidebarItem(
@@ -103,41 +102,43 @@ class _SidebarState extends ConsumerState<Sidebar> {
           ),
           const SizedBox(height: 6),
           for (final group in groups) ...[
-            if (!collapsed) _buildGroupHeader(context, group.title, semantic),
-            if (collapsed)
-              const SizedBox(height: 10)
-            else
-              AnimatedCrossFade(
-                firstChild: const SizedBox.shrink(),
-                secondChild: Column(
-                  children: [
-                    for (final item in group.items)
-                      _buildItemTile(
-                        context,
-                        item,
-                        selected == item.page,
-                        semantic,
-                        collapsed: collapsed,
-                      ),
-                  ],
+            if (group.items.isNotEmpty) ...[
+              if (!collapsed) _buildGroupHeader(context, group.title, semantic),
+              if (collapsed)
+                const SizedBox(height: 10)
+              else
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Column(
+                    children: [
+                      for (final item in group.items)
+                        _buildItemTile(
+                          context,
+                          item,
+                          selected == item.page,
+                          semantic,
+                          collapsed: collapsed,
+                        ),
+                    ],
+                  ),
+                  crossFadeState:
+                      (_expanded[group.title] ?? true)
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 150),
                 ),
-                crossFadeState:
-                    (_expanded[group.title] ?? true)
-                        ? CrossFadeState.showSecond
-                        : CrossFadeState.showFirst,
-                duration: const Duration(milliseconds: 150),
-              ),
-            if (collapsed)
-              ...group.items.map(
-                (item) => _buildItemTile(
-                  context,
-                  item,
-                  selected == item.page,
-                  semantic,
-                  collapsed: collapsed,
+              if (collapsed)
+                ...group.items.map(
+                  (item) => _buildItemTile(
+                    context,
+                    item,
+                    selected == item.page,
+                    semantic,
+                    collapsed: collapsed,
+                  ),
                 ),
-              ),
-            const SizedBox(height: 6),
+              const SizedBox(height: 6),
+            ],
           ],
         ],
       ),

@@ -162,10 +162,10 @@ class PropertiesScreen extends ConsumerWidget {
                                           ),
                                         ),
                                         DataCell(
-                                          Wrap(
-                                            spacing: 8,
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              TextButton(
+                                              TextButton.icon(
                                                 onPressed: () {
                                                   ref
                                                       .read(
@@ -187,32 +187,61 @@ class PropertiesScreen extends ConsumerWidget {
                                                       .state = PropertyDetailPage
                                                           .overview;
                                                 },
-                                                child: const Text('Open'),
+                                                icon: const Icon(Icons.open_in_new, size: 16),
+                                                label: const Text('Öffnen'),
                                               ),
-                                              TextButton(
-                                                onPressed:
-                                                    () => controller.archive(
-                                                      property.id,
-                                                      true,
-                                                    ),
-                                                child: const Text('Archive'),
-                                              ),
-                                              TextButton(
-                                                onPressed:
-                                                    () => _confirmPermanentDelete(
+                                              PopupMenuButton<String>(
+                                                icon: const Icon(Icons.more_vert),
+                                                onSelected: (value) {
+                                                  if (value == 'archive') {
+                                                    ref
+                                                        .read(
+                                                          propertiesControllerProvider
+                                                              .notifier,
+                                                        )
+                                                        .archive(
+                                                          property.id,
+                                                          true,
+                                                        );
+                                                  } else if (value == 'delete') {
+                                                    _confirmPermanentDelete(
                                                       context,
                                                       ref,
                                                       property,
+                                                    );
+                                                  }
+                                                },
+                                                itemBuilder: (context) => [
+                                                  const PopupMenuItem(
+                                                    value: 'archive',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(Icons.archive_outlined, size: 18),
+                                                        SizedBox(width: 8),
+                                                        Text('Archivieren'),
+                                                      ],
                                                     ),
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor:
-                                                      Theme.of(
-                                                        context,
-                                                      ).colorScheme.error,
-                                                ),
-                                                child: const Text(
-                                                  'Endgültig löschen',
-                                                ),
+                                                  ),
+                                                  PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.delete_outline,
+                                                          color: Theme.of(context).colorScheme.error,
+                                                          size: 18,
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Text(
+                                                          'Endgültig löschen',
+                                                          style: TextStyle(
+                                                            color: Theme.of(context).colorScheme.error,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),

@@ -148,8 +148,6 @@ class _RentalOverviewContentState extends State<_RentalOverviewContent> {
         const SizedBox(height: AppSpacing.component),
         _workflowPanel(context),
         const SizedBox(height: AppSpacing.component),
-        _priorityPanel(context),
-        const SizedBox(height: AppSpacing.component),
         _objectOverviewCard(context, overview),
       ],
     );
@@ -398,46 +396,7 @@ class _RentalOverviewContentState extends State<_RentalOverviewContent> {
     return issues.isEmpty ? widget.overview.rows.first.propertyId : issues.first.propertyId;
   }
 
-  Widget _priorityPanel(BuildContext context) {
-    final issues = widget.overview.rows
-        .where((row) => _signalLabel(row) != 'OK')
-        .toList(growable: true)
-      ..sort((a, b) => _signalPriority(a).compareTo(_signalPriority(b)));
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Priorisierte Workflows',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            if (issues.isEmpty)
-              const Text('Keine offenen Vermietungs- oder BK-Signale.')
-            else
-              Column(
-                children: [
-                  for (final row in issues.take(8))
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(_signalIcon(row)),
-                      title: Text(row.propertyName),
-                      subtitle: Text(_signalDetail(row)),
-                      trailing: TextButton.icon(
-                        onPressed: () => widget.onOpenProperty(row.propertyId),
-                        icon: const Icon(Icons.open_in_new, size: 16),
-                        label: const Text('Öffnen'),
-                      ),
-                    ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _metricCard(String label, String value) {
     return SizedBox(

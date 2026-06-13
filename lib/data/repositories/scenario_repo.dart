@@ -292,6 +292,65 @@ class ScenarioRepository {
     }
   }
 
+  Future<void> updateStrategyType(String scenarioId, String strategyType) async {
+    final before = await _db.query(
+      'scenarios',
+      where: 'id = ?',
+      whereArgs: <Object?>[scenarioId],
+      limit: 1,
+    );
+    if (before.isEmpty) {
+      return;
+    }
+    final beforeRecord = ScenarioRecord.fromMap(before.first);
+    await _ensureScenarioPermission(
+      permission: Permission.scenarioUpdate,
+      propertyId: beforeRecord.propertyId,
+      message: 'You do not have permission to update scenarios.',
+    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final update = <String, Object?>{
+      'strategy_type': strategyType,
+      'updated_at': now,
+    };
+    if (beforeRecord.isApproved) {
+      update['workflow_status'] = ScenarioWorkflowStatus.draft;
+      update['changed_since_approval'] = 1;
+    }
+    await _db.update(
+      'scenarios',
+      update,
+      where: 'id = ?',
+      whereArgs: <Object?>[scenarioId],
+    );
+    final after = await _db.query(
+      'scenarios',
+      where: 'id = ?',
+      whereArgs: <Object?>[scenarioId],
+      limit: 1,
+    );
+    if (before.isNotEmpty && after.isNotEmpty) {
+      final updatedRecord = ScenarioRecord.fromMap(after.first);
+      final searchRepo = _searchRepo;
+      if (searchRepo != null) {
+        await searchRepo.upsertIndexEntry(
+          searchRepo.buildScenarioRecord(updatedRecord),
+        );
+      }
+      await _recordAudit(
+        entityType: 'scenario',
+        entityId: scenarioId,
+        action: 'update',
+        summary: 'Scenario strategy updated to $strategyType',
+        parentEntityType: 'property',
+        parentEntityId: updatedRecord.propertyId,
+        oldValues: before.first,
+        newValues: after.first,
+        diffItems: _auditService.buildDiff(before.first, after.first),
+      );
+    }
+  }
+
   Future<void> delete(String scenarioId) async {
     final before = await _db.query(
       'scenarios',

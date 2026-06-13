@@ -28,6 +28,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
   TenantDetailBundle? _bundle;
   bool _loading = true;
   String? _error;
+  int _activeTab = 0;
 
   @override
   void initState() {
@@ -43,6 +44,23 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
     }
   }
 
+  Widget _buildTabButton(int index, String label) {
+    final isSelected = _activeTab == index;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (selected) {
+          if (selected) {
+            setState(() => _activeTab = index);
+          }
+        },
+        showCheckmark: false,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -55,10 +73,6 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
     if (bundle == null) {
       return const Center(child: Text('Mieter auswaehlen.'));
     }
-
-    final contactOk =
-        (bundle.tenant.email?.trim().isNotEmpty ?? false) &&
-        (bundle.tenant.phone?.trim().isNotEmpty ?? false);
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
@@ -88,8 +102,35 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.md),
+        const Divider(),
+        const SizedBox(height: AppSpacing.sm),
+        // Tab Selection Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildTabButton(0, 'Mieterdaten & Kontakt'),
+              _buildTabButton(1, 'Verträge & Einheiten'),
+              _buildTabButton(2, 'Aufgaben & Dokumente'),
+            ],
+          ),
+        ),
         const SizedBox(height: AppSpacing.component),
-        Wrap(
+        _buildActiveTabContent(bundle),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTabContent(TenantDetailBundle bundle) {
+    final contactOk =
+        (bundle.tenant.email?.trim().isNotEmpty ?? false) &&
+        (bundle.tenant.phone?.trim().isNotEmpty ?? false);
+
+    switch (_activeTab) {
+      case 0:
+        return Wrap(
           spacing: AppSpacing.component,
           runSpacing: AppSpacing.component,
           children: [
@@ -119,130 +160,178 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                   children: [
                     Text('E-Mail: ${bundle.tenant.email ?? '-'}'),
                     Text('Telefon: ${bundle.tenant.phone ?? '-'}'),
-                    Text(contactOk ? 'Kontaktdaten: vollstaendig' : 'Kontaktdaten: unvollstaendig'),
-                    if ((bundle.tenant.legalName?.trim().isEmpty ?? true))
-                      const Text('Empfehlung: Rechtlichen Namen fuer formelle Schreiben ergaenzen.'),
-                    if (bundle.duplicateWarnings.isNotEmpty) ...bundle.duplicateWarnings.map(Text.new),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: contactOk ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: contactOk ? Colors.green.withValues(alpha: 0.3) : Colors.orange.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            contactOk ? Icons.check_circle_outline : Icons.warning_amber_outlined,
+                            color: contactOk ? Colors.green : Colors.orange,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              contactOk ? 'Kontaktdaten vollständig' : 'Kontaktdaten unvollständig',
+                              style: TextStyle(
+                                color: contactOk ? Colors.green : Colors.orange,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if ((bundle.tenant.legalName?.trim().isEmpty ?? true)) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Empfehlung: Rechtlichen Namen fuer formelle Schreiben ergaenzen.',
+                        style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                    if (bundle.duplicateWarnings.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      ...bundle.duplicateWarnings.map(
+                        (w) => Text(
+                          w,
+                          style: const TextStyle(fontSize: 11, color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
-            SizedBox(
-              width: 360,
-              child: OperationsSectionCard(
-                title: 'Hinweise',
-                child: bundle.alerts.isEmpty
-                    ? const Text('Keine offenen Hinweise fuer diesen Mieter.')
-                    : Column(
-                        children: bundle.alerts
-                            .map(
-                              (alert) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(alert.message),
-                                subtitle: Text(alert.recommendedAction ?? alert.type),
+          ],
+        );
+      case 1:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OperationsSectionCard(
+              title: 'Verknuepfte Einheiten',
+              child: bundle.relatedUnits.isEmpty
+                  ? const Text('Noch keine Einheiten verknuepft.')
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: bundle.relatedUnits
+                          .map(
+                            (unit) => ActionChip(
+                              label: Text(unit.unitCode),
+                              onPressed: () {
+                                ref.read(selectedOperationsUnitIdProvider.notifier).state = unit.id;
+                                ref.read(propertyDetailPageProvider.notifier).state =
+                                    PropertyDetailPage.units;
+                              },
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+            ),
+            const SizedBox(height: AppSpacing.component),
+            OperationsSectionCard(
+              title: 'Mietvertraege',
+              child: bundle.historicalLeases.isEmpty
+                  ? const Text('Keine Mietvertraege fuer diesen Mieter.')
+                  : Column(
+                      children: bundle.historicalLeases
+                          .map(
+                            (lease) => ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(lease.leaseName),
+                              subtitle: Text(
+                                '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
+                                style: context.tabularNumericStyle,
                               ),
-                            )
-                            .toList(growable: false),
-                      ),
-              ),
+                              trailing: TextButton(
+                                onPressed: () {
+                                  ref.read(selectedOperationsLeaseIdProvider.notifier).state = lease.id;
+                                  ref.read(propertyDetailPageProvider.notifier).state =
+                                      PropertyDetailPage.leases;
+                                },
+                                child: const Text('Oeffnen'),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
             ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.component),
-        OperationsSectionCard(
-          title: 'Mietvertraege',
-          child: bundle.historicalLeases.isEmpty
-              ? const Text('Keine Mietvertraege fuer diesen Mieter.')
-              : Column(
-                  children: bundle.historicalLeases
+        );
+      case 2:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (bundle.alerts.isNotEmpty) ...[
+              OperationsSectionCard(
+                title: 'Hinweise',
+                child: Column(
+                  children: bundle.alerts
                       .map(
-                        (lease) => ListTile(
+                        (alert) => ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: Text(lease.leaseName),
-                          subtitle: Text(
-                            '${_leaseStatusLabel(lease.status)} · ${formatDateMillis(lease.startDate)} bis ${formatDateMillis(lease.endDate)}',
-                            style: context.tabularNumericStyle,
-                          ),
-                          trailing: TextButton(
-                            onPressed: () {
-                              ref.read(selectedOperationsLeaseIdProvider.notifier).state = lease.id;
-                              ref.read(propertyDetailPageProvider.notifier).state =
-                                  PropertyDetailPage.leases;
-                            },
-                            child: const Text('Oeffnen'),
-                          ),
+                          title: Text(alert.message),
+                          subtitle: Text(alert.recommendedAction ?? alert.type),
                         ),
                       )
                       .toList(growable: false),
                 ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        OperationsSectionCard(
-          title: 'Verknuepfte Einheiten',
-          child: bundle.relatedUnits.isEmpty
-              ? const Text('Noch keine Einheiten verknuepft.')
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: bundle.relatedUnits
-                      .map(
-                        (unit) => ActionChip(
-                          label: Text(unit.unitCode),
-                          onPressed: () {
-                            ref.read(selectedOperationsUnitIdProvider.notifier).state = unit.id;
-                            ref.read(propertyDetailPageProvider.notifier).state =
-                                PropertyDetailPage.units;
-                          },
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
-          children: [
-            SizedBox(
-              width: 420,
-              child: OperationsSectionCard(
-                title: 'Aufgaben',
-                child: OperationsTasksPanel(
-                  tasks: bundle.tasks,
-                  emptyHint: 'Noch keine Aufgaben fuer diesen Mieter.',
-                ),
               ),
-            ),
-            SizedBox(
-              width: 420,
-              child: OperationsSectionCard(
-                title: 'Dokumente',
-                action: TextButton(
-                  onPressed: () async {
-                    await showCreateDocumentHookDialog(
-                      context: context,
-                      ref: ref,
-                      entityType: 'tenant',
-                      entityId: bundle.tenant.id,
-                    );
-                    await _load();
-                  },
-                  child: const Text('Verknuepfung anlegen'),
+              const SizedBox(height: AppSpacing.component),
+            ],
+            Wrap(
+              spacing: AppSpacing.component,
+              runSpacing: AppSpacing.component,
+              children: [
+                SizedBox(
+                  width: 420,
+                  child: OperationsSectionCard(
+                    title: 'Aufgaben',
+                    child: OperationsTasksPanel(
+                      tasks: bundle.tasks,
+                      emptyHint: 'Noch keine Aufgaben fuer diesen Mieter.',
+                    ),
+                  ),
                 ),
-                child: OperationsDocumentsPanel(
-                  documents: bundle.documents,
-                  emptyHint:
-                      'Noch keine Mieterdokumente verknuepft.',
+                SizedBox(
+                  width: 420,
+                  child: OperationsSectionCard(
+                    title: 'Dokumente',
+                    action: TextButton(
+                      onPressed: () async {
+                        await showCreateDocumentHookDialog(
+                          context: context,
+                          ref: ref,
+                          entityType: 'tenant',
+                          entityId: bundle.tenant.id,
+                        );
+                        await _load();
+                      },
+                      child: const Text('Verknuepfung anlegen'),
+                    ),
+                    child: OperationsDocumentsPanel(
+                      documents: bundle.documents,
+                      emptyHint: 'Noch keine Mieterdokumente verknuepft.',
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
-        ),
-        ],
-      ),
-    );
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Future<void> _load() async {

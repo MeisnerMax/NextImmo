@@ -42,6 +42,11 @@ void main() {
   });
 
   testWidgets('renders budget actions for property', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -53,8 +58,15 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
+    
+    // Wait for the real-time FFI database queries to complete
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 200)));
     await tester.pumpAndSettle();
 
-    expect(find.text('Create Budget'), findsOneWidget);
+    await tester.tap(find.text('Budget vs. Ist'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Budget erstellen'), findsOneWidget);
   });
 }

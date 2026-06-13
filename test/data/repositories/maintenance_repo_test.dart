@@ -45,6 +45,7 @@ void main() {
     final ticket = await repo.createTicket(
       assetPropertyId: 'p1',
       title: 'Fix HVAC',
+      category: 'damage',
       dueAt: DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch,
       createTask: true,
     );

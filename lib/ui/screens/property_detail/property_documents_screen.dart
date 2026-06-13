@@ -9,11 +9,20 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/models/documents.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import 'property_audit_screen.dart';
+import 'reports_screen.dart';
 
 class PropertyDocumentsScreen extends ConsumerStatefulWidget {
-  const PropertyDocumentsScreen({super.key, required this.propertyId});
+  const PropertyDocumentsScreen({
+    super.key,
+    required this.propertyId,
+    this.scenarioId,
+    this.initialIndex = 0,
+  });
 
   final String propertyId;
+  final String? scenarioId;
+  final int initialIndex;
 
   @override
   ConsumerState<PropertyDocumentsScreen> createState() =>
@@ -21,7 +30,10 @@ class PropertyDocumentsScreen extends ConsumerStatefulWidget {
 }
 
 class _PropertyDocumentsScreenState
-    extends ConsumerState<PropertyDocumentsScreen> {
+    extends ConsumerState<PropertyDocumentsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   List<DocumentRecord> _documents = const <DocumentRecord>[];
   List<DocumentTypeRecord> _types = const <DocumentTypeRecord>[];
   List<DocumentComplianceIssue> _issues = const <DocumentComplianceIssue>[];
@@ -31,15 +43,83 @@ class _PropertyDocumentsScreenState
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(
+      length: 3,
+      initialIndex: widget.initialIndex,
+      vsync: this,
+    );
     _load();
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.white,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: const [
+                Tab(text: 'Dokumentenarchiv'),
+                Tab(text: 'Historie'),
+                Tab(text: 'Berichte'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, _) {
+            switch (_tabController.index) {
+              case 0:
+                return _buildDocumentsTab();
+              case 1:
+                return SizedBox(
+                  height: 640,
+                  child: PropertyAuditScreen(propertyId: widget.propertyId),
+                );
+              case 2:
+                return widget.scenarioId != null
+                    ? ReportsScreen(
+                        propertyId: widget.propertyId,
+                        scenarioId: widget.scenarioId!,
+                      )
+                    : const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text(
+                            'Wählen Sie ein Szenario aus, um Berichte anzuzeigen.',
+                          ),
+                        ),
+                      );
+              default:
+                return const SizedBox.shrink();
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentsTab() {
     return Padding(
       padding: EdgeInsets.all(context.adaptivePagePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Wrap(
             spacing: 8,
@@ -76,41 +156,38 @@ class _PropertyDocumentsScreenState
             ),
           ],
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child:
-                _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final stacked = constraints.maxWidth < 980;
-                        final children = <Widget>[
-                          Expanded(child: _buildDocumentsCard(context)),
-                          const SizedBox(
-                            width: AppSpacing.component,
-                            height: AppSpacing.component,
-                          ),
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stacked = constraints.maxWidth < 980;
+                    if (stacked) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildDocumentsCard(context),
+                          const SizedBox(height: AppSpacing.component),
                           SizedBox(
-                            width: stacked ? double.infinity : 320,
+                            height: 260,
                             child: _buildComplianceCard(context),
                           ),
-                        ];
-                        if (stacked) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: _buildDocumentsCard(context)),
-                              const SizedBox(height: AppSpacing.component),
-                              SizedBox(
-                                height: 260,
-                                child: _buildComplianceCard(context),
-                              ),
-                            ],
-                          );
-                        }
-                        return Row(children: children);
-                      },
-                    ),
-          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildDocumentsCard(context)),
+                        const SizedBox(width: AppSpacing.component),
+                        SizedBox(
+                          width: 320,
+                          child: _buildComplianceCard(context),
+                        ),
+                      ],
+                    );
+                  },
+                ),
         ],
       ),
     );

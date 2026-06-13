@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -8,6 +9,7 @@ import '../../../core/engine/financing.dart';
 import '../../../core/engine/normalize.dart';
 import '../../../core/models/analysis_result.dart';
 import '../../../core/models/property.dart';
+import '../properties/create_property_dialog.dart';
 import '../../i18n/app_strings.dart';
 import '../../state/app_state.dart';
 import '../../state/analysis_state.dart';
@@ -58,9 +60,33 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           property: property,
         );
 
+        final titleImageAsync = ref.watch(propertyTitleImageProvider(widget.propertyId));
+        final coverImage = titleImageAsync.when(
+          data: (path) {
+            if (path == null) return const SizedBox.shrink();
+            final file = File(path);
+            if (!file.existsSync()) return const SizedBox.shrink();
+            return Container(
+              height: 220,
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: AppSpacing.component),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+                image: DecorationImage(
+                  image: FileImage(file),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        );
+
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            coverImage,
             if (_shouldShowOnboarding(summary, property)) ...[
               _buildOnboardingCard(context),
               const SizedBox(height: AppSpacing.component),
@@ -688,12 +714,23 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            context.strings.text('Property Snapshot'),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: _text,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Objekt-Stammdaten',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: _text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (property != null)
+                FilledButton.tonalIcon(
+                  onPressed: () => _editPropertyDialog(context, property),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Bearbeiten'),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           LayoutBuilder(
@@ -711,74 +748,44 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     width: width,
                     child: _snapshotGroup(
                       context,
-                      title: 'Object Profile',
+                      title: 'Objektprofil',
                       rows: [
                         _SnapshotRow(
-                          label: 'Address',
+                          label: 'Adresse',
                           value: _propertyAddress(property),
                         ),
                         _SnapshotRow(
-                          label: 'Property Type',
-                          value: property?.propertyType ?? 'N/A',
+                          label: 'Objektart',
+                          value: propertyTypeDisplayLabel(property?.propertyType ?? ''),
                         ),
                         _SnapshotRow(
-                          label: 'Units',
-                          value: property?.units.toString() ?? 'N/A',
-                        ),
-                        _SnapshotRow(
-                          label: 'Size m2',
-                          value: _formatOptional(summary.sizeM2),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _snapshotGroup(
-                      context,
-                      title: 'Valuation Snapshot',
-                      rows: [
-                        _SnapshotRow(
-                          label: 'Purchase Price',
-                          value: _formatNumber(summary.purchasePrice),
-                        ),
-                        _SnapshotRow(
-                          label: 'Price per m2',
-                          value: _formatOptional(summary.pricePerM2),
-                        ),
-                        _SnapshotRow(
-                          label: 'Hold Period',
-                          value: summary.holdPeriodLabel,
-                        ),
-                        _SnapshotRow(
-                          label: 'Exit Assumption',
-                          value: summary.exitAssumptionMode,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _snapshotGroup(
-                      context,
-                      title: 'Rent Snapshot',
-                      rows: [
-                        _SnapshotRow(
-                          label: 'Monthly Rent',
-                          value: _formatNumber(summary.monthlyRent),
-                        ),
-                        _SnapshotRow(
-                          label: 'Rent per m2',
-                          value: _formatOptional(summary.rentPerM2),
-                        ),
-                        _SnapshotRow(
-                          label: 'Units',
-                          value: property?.units.toString() ?? 'N/A',
-                        ),
-                        _SnapshotRow(
-                          label: 'Year Built',
+                          label: 'Baujahr',
                           value: property?.yearBuilt?.toString() ?? 'N/A',
                         ),
+                        _SnapshotRow(
+                          label: 'Eigentümergesellschaft',
+                          value: property?.ownerCompany ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Grundstücksfläche',
+                          value: property?.landArea != null ? '${property!.landArea!.toStringAsFixed(1)} m²' : 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Wohnfläche',
+                          value: property?.residentialArea != null ? '${property!.residentialArea!.toStringAsFixed(1)} m²' : (summary.sizeM2 != null ? '${summary.sizeM2!.toStringAsFixed(1)} m²' : 'N/A'),
+                        ),
+                        _SnapshotRow(
+                          label: 'Gewerbefläche',
+                          value: property?.commercialArea != null ? '${property!.commercialArea!.toStringAsFixed(1)} m²' : 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Stellplätze',
+                          value: property?.parkingSpots?.toString() ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Einheiten',
+                          value: property?.units.toString() ?? 'N/A',
+                        ),
                       ],
                     ),
                   ),
@@ -786,18 +793,76 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
                     width: width,
                     child: _snapshotGroup(
                       context,
-                      title: 'Financing Snapshot',
+                      title: 'Kauf & Rechtliches',
                       rows: [
                         _SnapshotRow(
-                          label: 'Rehab Budget',
+                          label: 'Kaufpreis',
+                          value: property?.purchasePrice != null ? '€ ${_formatNumber(property!.purchasePrice!)}' : '€ ${_formatNumber(summary.purchasePrice)}',
+                        ),
+                        _SnapshotRow(
+                          label: 'Kaufdatum',
+                          value: property?.purchaseDate != null ? _formatDate(property!.purchaseDate) : 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Verkäufer',
+                          value: property?.seller ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Notar',
+                          value: property?.notary ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Grundbuchdaten',
+                          value: property?.landRegistryDetails ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Flurstück',
+                          value: property?.parcel ?? 'N/A',
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Dokumente & Verwaltung',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Energieausweis',
+                          value: property?.energyCertificate ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Versicherungsdaten',
+                          value: property?.insuranceDetails ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Steuerliche Zuordnung',
+                          value: property?.taxAssignment ?? 'N/A',
+                        ),
+                        _SnapshotRow(
+                          label: 'Notizen',
+                          value: property?.notes ?? 'N/A',
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _snapshotGroup(
+                      context,
+                      title: 'Finanzierung & Kennzahlen',
+                      rows: [
+                        _SnapshotRow(
+                          label: 'Rehab-Budget',
                           value: _formatNumber(summary.rehabBudget),
                         ),
                         _SnapshotRow(
-                          label: 'Total Acquisition Cost',
+                          label: 'Gesamtanschaffungskosten',
                           value: _formatNumber(summary.totalAcquisitionCost),
                         ),
                         _SnapshotRow(
-                          label: 'Total Equity Invested',
+                          label: 'Eingebrachtes Eigenkapital',
                           value: _formatNumber(summary.totalEquityInvested),
                         ),
                         _SnapshotRow(
@@ -817,6 +882,394 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _editPropertyDialog(BuildContext context, PropertyRecord property) async {
+    final nameCtrl = TextEditingController(text: property.name);
+    final addr1Ctrl = TextEditingController(text: property.addressLine1);
+    final addr2Ctrl = TextEditingController(text: property.addressLine2 ?? '');
+    final zipCtrl = TextEditingController(text: property.zip);
+    final cityCtrl = TextEditingController(text: property.city);
+    final countryCtrl = TextEditingController(text: property.country);
+    final typeCtrl = TextEditingController(text: property.propertyType);
+    final unitsCtrl = TextEditingController(text: property.units.toString());
+    
+    final landAreaCtrl = TextEditingController(text: property.landArea?.toString() ?? '');
+    final resAreaCtrl = TextEditingController(text: property.residentialArea?.toString() ?? '');
+    final comAreaCtrl = TextEditingController(text: property.commercialArea?.toString() ?? '');
+    final parkingCtrl = TextEditingController(text: property.parkingSpots?.toString() ?? '');
+    final ownerCtrl = TextEditingController(text: property.ownerCompany ?? '');
+    final purchasePriceCtrl = TextEditingController(text: property.purchasePrice?.toString() ?? '');
+    final notaryCtrl = TextEditingController(text: property.notary ?? '');
+    final sellerCtrl = TextEditingController(text: property.seller ?? '');
+    final registryCtrl = TextEditingController(text: property.landRegistryDetails ?? '');
+    final parcelCtrl = TextEditingController(text: property.parcel ?? '');
+    final energyCtrl = TextEditingController(text: property.energyCertificate ?? '');
+    final insuranceCtrl = TextEditingController(text: property.insuranceDetails ?? '');
+    final taxCtrl = TextEditingController(text: property.taxAssignment ?? '');
+    final notesCtrl = TextEditingController(text: property.notes ?? '');
+
+    DateTime? purchaseDate = property.purchaseDate != null 
+        ? DateTime.fromMillisecondsSinceEpoch(property.purchaseDate!) 
+        : null;
+
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Stammdaten bearbeiten'),
+          content: SizedBox(
+            width: 700,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Passen Sie die Grunddaten und rechtlichen Angaben des Objekts an.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _muted,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionHeader(context, 'Allgemeine Informationen'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: nameCtrl,
+                            decoration: const InputDecoration(labelText: 'Name des Objekts *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Pflichtfeld' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: ownerCtrl,
+                            decoration: const InputDecoration(labelText: 'Eigentümergesellschaft'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: propertyTypeOptions.any((opt) => opt.value == typeCtrl.text)
+                                ? typeCtrl.text
+                                : propertyTypeOptions.first.value,
+                            items: propertyTypeOptions.map((opt) => DropdownMenuItem(
+                              value: opt.value,
+                              child: Text(opt.label),
+                            )).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                typeCtrl.text = val;
+                              }
+                            },
+                            decoration: const InputDecoration(labelText: 'Objektart'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: unitsCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Einheiten *'),
+                            validator: (v) => int.tryParse(v ?? '') == null ? 'Ungültige Zahl' : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionHeader(context, 'Adresse'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: addr1Ctrl,
+                            decoration: const InputDecoration(labelText: 'Straße & Hausnummer *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Pflichtfeld' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: addr2Ctrl,
+                            decoration: const InputDecoration(labelText: 'Zusatz'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: zipCtrl,
+                            decoration: const InputDecoration(labelText: 'PLZ *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Pflichtfeld' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: cityCtrl,
+                            decoration: const InputDecoration(labelText: 'Ort *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Pflichtfeld' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: countryCtrl,
+                            decoration: const InputDecoration(labelText: 'Land *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Pflichtfeld' : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionHeader(context, 'Flächen & Parken'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: resAreaCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(labelText: 'Wohnfläche (m²)', suffixText: 'm²'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: comAreaCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(labelText: 'Gewerbefläche (m²)', suffixText: 'm²'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: landAreaCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(labelText: 'Grundstücksfläche (m²)', suffixText: 'm²'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: parkingCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Stellplätze'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionHeader(context, 'Kauf & Rechtliches'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: purchasePriceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(labelText: 'Kaufpreis (€)', suffixText: '€'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: InputDecorator(
+                            decoration: const InputDecoration(labelText: 'Kaufdatum'),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    purchaseDate != null ? _formatDate(purchaseDate!.millisecondsSinceEpoch) : '-',
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.calendar_today, size: 18),
+                                  onPressed: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: purchaseDate ?? DateTime.now(),
+                                      firstDate: DateTime(1900),
+                                      lastDate: DateTime(2100),
+                                    );
+                                    if (picked != null) {
+                                      setDialogState(() => purchaseDate = picked);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: sellerCtrl,
+                            decoration: const InputDecoration(labelText: 'Verkäufer'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: notaryCtrl,
+                            decoration: const InputDecoration(labelText: 'Notar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: registryCtrl,
+                            decoration: const InputDecoration(labelText: 'Grundbuchdaten'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: parcelCtrl,
+                            decoration: const InputDecoration(labelText: 'Flurstück'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionHeader(context, 'Dokumentation & Steuern'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: energyCtrl,
+                            decoration: const InputDecoration(labelText: 'Energieausweis'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: insuranceCtrl,
+                            decoration: const InputDecoration(labelText: 'Versicherungsdaten'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: taxCtrl,
+                      decoration: const InputDecoration(labelText: 'Steuerliche Zuordnung'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Notizen'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState?.validate() ?? false) {
+                  final updatedProperty = PropertyRecord(
+                    id: property.id,
+                    name: nameCtrl.text.trim(),
+                    addressLine1: addr1Ctrl.text.trim(),
+                    addressLine2: addr2Ctrl.text.trim().isEmpty ? null : addr2Ctrl.text.trim(),
+                    zip: zipCtrl.text.trim(),
+                    city: cityCtrl.text.trim(),
+                    country: countryCtrl.text.trim(),
+                    propertyType: typeCtrl.text,
+                    units: int.parse(unitsCtrl.text.trim()),
+                    sqft: property.sqft,
+                    yearBuilt: property.yearBuilt,
+                    notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                    createdAt: property.createdAt,
+                    updatedAt: DateTime.now().millisecondsSinceEpoch,
+                    archived: property.archived,
+                    landArea: double.tryParse(landAreaCtrl.text.trim()),
+                    residentialArea: double.tryParse(resAreaCtrl.text.trim()),
+                    commercialArea: double.tryParse(comAreaCtrl.text.trim()),
+                    parkingSpots: int.tryParse(parkingCtrl.text.trim()),
+                    ownerCompany: ownerCtrl.text.trim().isEmpty ? null : ownerCtrl.text.trim(),
+                    purchaseDate: purchaseDate?.millisecondsSinceEpoch,
+                    purchasePrice: double.tryParse(purchasePriceCtrl.text.trim()),
+                    notary: notaryCtrl.text.trim().isEmpty ? null : notaryCtrl.text.trim(),
+                    seller: sellerCtrl.text.trim().isEmpty ? null : sellerCtrl.text.trim(),
+                    landRegistryDetails: registryCtrl.text.trim().isEmpty ? null : registryCtrl.text.trim(),
+                    parcel: parcelCtrl.text.trim().isEmpty ? null : parcelCtrl.text.trim(),
+                    energyCertificate: energyCtrl.text.trim().isEmpty ? null : energyCtrl.text.trim(),
+                    insuranceDetails: insuranceCtrl.text.trim().isEmpty ? null : insuranceCtrl.text.trim(),
+                    taxAssignment: taxCtrl.text.trim().isEmpty ? null : taxCtrl.text.trim(),
+                  );
+                  await ref.read(propertiesControllerProvider.notifier).updateProperty(updatedProperty);
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                }
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const Divider(),
+      ],
+    );
+  }
+
+  String _formatDate(int? millis) {
+    if (millis == null) return 'N/A';
+    final dt = DateTime.fromMillisecondsSinceEpoch(millis);
+    final day = dt.day.toString().padLeft(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final year = dt.year;
+    return '$day.$month.$year';
   }
 
   Widget _assetPanel(BuildContext context, {required Widget child}) {
@@ -863,6 +1316,53 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   }
 
   Widget _snapshotRow(BuildContext context, _SnapshotRow row) {
+    final isLtv = row.label == 'LTV';
+    Widget valueWidget = Text(
+      row.value,
+      textAlign: TextAlign.right,
+      style: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(
+        color: _text,
+        fontWeight: FontWeight.w700,
+      ).merge(context.tabularNumericStyle),
+    );
+
+    if (isLtv && row.value != 'N/A') {
+      final doubleVal = double.tryParse(row.value.replaceAll('%', '').trim());
+      if (doubleVal != null) {
+        final Color badgeColor;
+        final Color textColor;
+        if (doubleVal < 60) {
+          badgeColor = const Color(0xFFDCFCE7);
+          textColor = const Color(0xFF15803D);
+        } else if (doubleVal <= 75) {
+          badgeColor = const Color(0xFFFEF3C7);
+          textColor = const Color(0xFFB45309);
+        } else {
+          badgeColor = const Color(0xFFFEE2E2);
+          textColor = const Color(0xFFB91C1C);
+        }
+        valueWidget = Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            ),
+            child: Text(
+              row.value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+              ).merge(context.tabularNumericStyle),
+            ),
+          ),
+        );
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -878,21 +1378,13 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
           ),
           const SizedBox(width: AppSpacing.component),
           Expanded(
-            child: Text(
-              row.value,
-              textAlign: TextAlign.right,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(
-                color: _text,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: valueWidget,
           ),
         ],
       ),
     );
   }
+
 
   Widget _buildCharts(
     BuildContext context,

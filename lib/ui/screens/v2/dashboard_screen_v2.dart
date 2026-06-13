@@ -318,6 +318,11 @@ class _SovereignDashboard extends StatelessWidget {
                       const SizedBox(height: 32),
                       _performanceCard(context),
                       const SizedBox(height: 32),
+                      _SignalGrid(
+                        signalMetrics: overview.signalMetrics,
+                        onOpenTarget: onOpenTarget,
+                      ),
+                      const SizedBox(height: 32),
                       _recentActivity(context),
                       const SizedBox(height: 32),
                       _rightPanel(context),
@@ -335,6 +340,11 @@ class _SovereignDashboard extends StatelessWidget {
                             _kpiGrid(context, columns: 3),
                             const SizedBox(height: 48),
                             _performanceCard(context),
+                            const SizedBox(height: 48),
+                            _SignalGrid(
+                              signalMetrics: overview.signalMetrics,
+                              onOpenTarget: onOpenTarget,
+                            ),
                             const SizedBox(height: 48),
                             _recentActivity(context),
                           ],
@@ -369,7 +379,7 @@ class _SovereignDashboard extends StatelessWidget {
           onPressed:
               () => onOpenTarget(
                 const DashboardNavigationTarget(
-                  globalPage: GlobalPage.rentalOverview,
+                  globalPage: GlobalPage.properties,
                 ),
               ),
           icon: const Icon(Icons.table_chart_outlined),
@@ -432,7 +442,7 @@ class _SovereignDashboard extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackActions = compact || constraints.maxWidth < 760;
+        final stackActions = compact || constraints.maxWidth < 1100;
         if (stackActions) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,20 +536,10 @@ class _SovereignDashboard extends StatelessWidget {
     final valuationPoints = _buildValuationTrend();
     return _SovereignModule(
       padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ValuationTrendPanel(
-            values: valuationPoints,
-            description:
-                'Portfolio-Wert aus Jahresmiete abzüglich laufender Kosten.',
-          ),
-          const SizedBox(height: 24),
-          _SignalGrid(
-            signalMetrics: overview.signalMetrics,
-            onOpenTarget: onOpenTarget,
-          ),
-        ],
+      child: _ValuationTrendPanel(
+        values: valuationPoints,
+        description:
+            'Portfolio-Wert aus Jahresmiete abzüglich laufender Kosten.',
       ),
     );
   }
@@ -757,21 +757,39 @@ class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
   @override
   Widget build(BuildContext context) {
     final values = _filteredValues();
+    final theme = Theme.of(context);
+    
+    final currentVal = widget.values.isNotEmpty ? widget.values.last.value : 0.0;
+    final lastYearVal = widget.values.isNotEmpty ? widget.values.first.value : 0.0;
+    final changePercent = lastYearVal > 0 ? (currentVal - lastYearVal) / lastYearVal : 0.0;
+    final changeColor = changePercent >= 0 ? context.semanticColors.success : context.semanticColors.error;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Wertentwicklung',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            Text(
-              widget.description,
-              style: Theme.of(context).textTheme.bodySmall,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Wertentwicklung',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.semanticColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
             _ValuationPeriodSelector(
               selected: _selected,
@@ -779,7 +797,96 @@ class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        if (currentVal > 0)
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 24),
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white.withOpacity(0.02)
+                  : Colors.black.withOpacity(0.01),
+              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+              border: Border.all(
+                color: context.semanticColors.border,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'GESAMTPORTFOLIO-WERT',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: context.semanticColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _formatCurrency(currentVal),
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'TENDENZ (12M)',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: context.semanticColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              changePercent >= 0 ? Icons.trending_up : Icons.trending_down,
+                              color: changeColor,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${changePercent >= 0 ? '+' : ''}${(changePercent * 100).toStringAsFixed(1)}%',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: changeColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         SizedBox(
           height: 280,
           child:
@@ -2293,41 +2400,89 @@ class _SignalCard extends StatelessWidget {
   final DashboardSignalMetric metric;
   final VoidCallback onTap;
 
+  IconData _metricIcon(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('miet')) return Icons.key_outlined;
+    if (l.contains('dokument')) return Icons.description_outlined;
+    if (l.contains('budget')) return Icons.account_balance_wallet_outlined;
+    if (l.contains('wartung') || l.contains('instand')) return Icons.build_outlined;
+    if (l.contains('aufgabe') || l.contains('task')) return Icons.playlist_add_check_outlined;
+    return Icons.info_outline;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = _severityColor(context, metric.severity);
+    
     return SizedBox(
-      width: 220,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-            border: Border.all(color: context.semanticColors.border),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.cardPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      width: 230,
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          side: BorderSide(color: context.semanticColors.border, width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  metric.label,
-                  style: Theme.of(context).textTheme.labelMedium,
+                Container(
+                  width: 5,
+                  color: color,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '${metric.value}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                metric.label,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: context.semanticColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Icon(
+                              _metricIcon(metric.label),
+                              size: 16,
+                              color: color.withOpacity(0.8),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${metric.value}',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          metric.detail,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            color: context.semanticColors.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  metric.detail,
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),

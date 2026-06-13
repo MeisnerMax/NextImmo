@@ -349,6 +349,30 @@ class LeaseRepo {
     return rule;
   }
 
+  Future<void> deleteIndexationRule(String ruleId) async {
+    final before = await _db.query(
+      'lease_indexation_rules',
+      where: 'id = ?',
+      whereArgs: <Object?>[ruleId],
+      limit: 1,
+    );
+    await _db.delete('lease_indexation_rules', where: 'id = ?', whereArgs: <Object?>[ruleId]);
+    if (before.isNotEmpty) {
+      final leaseId = before.first['lease_id'] as String;
+      final propertyId = await _resolveLeasePropertyId(leaseId);
+      await _recordAudit(
+        entityType: 'lease_indexation_rule',
+        entityId: ruleId,
+        action: 'delete',
+        summary: 'Lease indexation rule deleted',
+        oldValues: before.first,
+        parentEntityType: propertyId == null ? null : 'property',
+        parentEntityId: propertyId,
+      );
+    }
+  }
+
+
   Future<List<LeaseRentScheduleRecord>> readSchedule({
     required String leaseId,
     String? fromPeriod,
@@ -466,6 +490,33 @@ class LeaseRepo {
     );
     return row;
   }
+
+  Future<void> deleteManualOverride(String leaseId, String periodKey) async {
+    final before = await _db.query(
+      'lease_rent_schedule',
+      where: 'lease_id = ? AND period_key = ? AND source = ?',
+      whereArgs: <Object?>[leaseId, periodKey, 'manual_override'],
+      limit: 1,
+    );
+    await _db.delete(
+      'lease_rent_schedule',
+      where: 'lease_id = ? AND period_key = ? AND source = ?',
+      whereArgs: <Object?>[leaseId, periodKey, 'manual_override'],
+    );
+    if (before.isNotEmpty) {
+      final propertyId = await _resolveLeasePropertyId(leaseId);
+      await _recordAudit(
+        entityType: 'lease_rent_schedule',
+        entityId: before.first['id'] as String,
+        action: 'delete',
+        summary: 'Manual rent override deleted',
+        oldValues: before.first,
+        parentEntityType: propertyId == null ? null : 'property',
+        parentEntityId: propertyId,
+      );
+    }
+  }
+
 
   Future<void> _validateLease({
     required String unitId,

@@ -1,0 +1,1190 @@
+1. Ziel der Software
+
+Die Software soll nicht nur Objekte verwalten, sondern als zentrales Steuerungssystem für Immobilienvermögen funktionieren.
+
+Ziel ist eine Plattform, mit der man:
+
+den Gesamtwert des Portfolios sieht
+Objektwerte und Finanzierung überwacht
+Mieten, Leerstände und Rückstände kontrolliert
+Sanierungen und Instandhaltung steuert
+Dokumente und Historie je Objekt sauber ablegt
+Investitionen, CapEx und Cashflow plant
+Entscheidungen datenbasiert trifft
+2. Hauptmodule der Software
+Modul 1: Portfolio Dashboard
+
+Das Portfolio Dashboard ist die oberste Management-Ebene. Hier sieht man die gesamte wirtschaftliche Lage aller Immobilien.
+
+Feature 1.1: Gesamtwert Portfolio
+Zweck
+
+Anzeige des aktuellen geschätzten Marktwerts aller Objekte.
+
+Unterfunktionen
+Summe aller Objektwerte
+Einzelwerte je Objekt
+Wertentwicklung über Zeit
+Vergleich Kaufpreis zu aktuellem Marktwert
+Automatische Berechnung stiller Reserven
+Manuelle Marktwertanpassung durch Asset Manager
+Historie aller Wertanpassungen
+Diagramm: Portfolio-Wertentwicklung monatlich/jährlich
+Filter nach:
+Standort
+Objektart
+Gesellschaft
+Nutzung
+Eigentümerstruktur
+Beispiel-KPIs
+Gesamtwert Portfolio: 12.500.000 €
+Kaufpreis gesamt: 9.800.000 €
+Wertsteigerung: 2.700.000 €
+Wertsteigerung in Prozent: 27,55 %
+Feature 1.2: Eigenkapital
+Zweck
+
+Darstellung, wie viel Eigenkapital im Portfolio gebunden ist.
+
+Unterfunktionen
+Eigenkapital je Objekt
+Eigenkapital gesamt
+Eigenkapitalquote
+Eigenkapital nach Gesellschaft
+Eingebrachte Eigenmittel
+Nachträgliche Eigenkapitalzuführungen
+Vergleich Eigenkapital zu Fremdkapital
+Anzeige Kapitalbindung je Objekt
+Auswertung, welches Objekt besonders viel Kapital bindet
+Beispiel-KPIs
+Eigenkapital gesamt
+Eigenkapitalquote
+Eigenkapitalrendite
+Eigenkapital je Objekt
+Eigenkapital je Quadratmeter
+Feature 1.3: Darlehen
+Zweck
+
+Übersicht aller laufenden Finanzierungen.
+
+Unterfunktionen
+Darlehensübersicht je Objekt
+Bank
+Darlehensnummer
+Anfangsdarlehen
+Restschuld
+Zinssatz
+Zinsbindung bis
+Tilgungssatz
+Monatliche Rate
+Annuität
+Sondertilgungen
+Fälligkeiten
+Warnung vor auslaufender Zinsbindung
+Darlehensdokumente hochladen
+Darlehenshistorie
+Verknüpfung mit Objekt
+Wichtige Ansichten
+Darlehen nach Bank
+Darlehen nach Objekt
+Darlehen nach Fälligkeit
+Darlehen nach Zinssatz
+Darlehen mit Risiko wegen baldiger Anschlussfinanzierung
+Feature 1.4: Loan-to-Value
+Zweck
+
+Berechnung des Verschuldungsgrades des Portfolios.
+
+Formel
+
+LTV = Restschuld / Marktwert × 100
+
+Unterfunktionen
+LTV je Objekt
+LTV gesamt
+LTV nach Gesellschaft
+LTV nach Bank
+Ampellogik:
+Grün: unter 60 %
+Gelb: 60 % bis 75 %
+Rot: über 75 %
+Simulation bei Marktwertänderung
+Simulation bei Tilgung
+Simulation bei Refinanzierung
+Verlauf über Zeit
+Risikoindikator für Banken und Management
+Beispiel
+
+Objektwert: 1.000.000 €
+Restschuld: 650.000 €
+LTV: 65 %
+
+Feature 1.5: Cashflow
+Zweck
+
+Anzeige, wie viel Geld nach Einnahmen und Ausgaben übrig bleibt.
+
+Unterfunktionen
+Monatlicher Cashflow
+Jährlicher Cashflow
+Cashflow je Objekt
+Cashflow je Einheit
+Cashflow nach Finanzierung
+Cashflow vor Tilgung
+Cashflow nach Tilgung
+Operativer Cashflow
+Netto-Cashflow
+Cashflow-Prognose
+Warnung bei negativem Cashflow
+Diagramm Cashflow Verlauf
+Export für Geschäftsführung oder Bank
+Bestandteile
+
+Einnahmen:
+
+Kaltmiete
+Nebenkosten
+Stellplätze
+Gewerbemieten
+Sonstige Einnahmen
+
+Ausgaben:
+
+Darlehensrate
+Verwaltungskosten
+Instandhaltung
+Versicherung
+Grundsteuer
+Hausgeld
+Betriebskosten
+Sonstige Kosten
+Feature 1.6: Mietrendite
+Zweck
+
+Bewertung der Ertragskraft des Portfolios.
+
+Unterfunktionen
+Bruttomietrendite
+Nettomietrendite
+Mietrendite je Objekt
+Mietrendite je Einheit
+Soll-Miete vs. Ist-Miete
+Rendite auf Kaufpreis
+Rendite auf aktuellen Marktwert
+Vergleich Wohnimmobilien vs. Gewerbe
+Renditeentwicklung über Zeit
+Anzeige unterperformender Objekte
+Benchmark nach Objektart
+Formeln
+
+Bruttomietrendite = Jahreskaltmiete / Kaufpreis × 100
+
+Nettomietrendite = Jahresnettoertrag / Kaufpreis × 100
+
+Feature 1.7: Leerstand
+Zweck
+
+Kontrolle nicht vermieteter Einheiten.
+
+Unterfunktionen
+Leerstandsquote gesamt
+Leerstand je Objekt
+Leerstand je Einheit
+Leerstand nach Dauer
+Leerstand nach Grund
+Wirtschaftlicher Verlust durch Leerstand
+Potenzielle Soll-Miete leerstehender Flächen
+Vermietungsstatus
+Renovierungsbedingter Leerstand
+Geplanter Leerstand
+Kritischer Leerstand
+Leerstandshistorie
+Leerstandsgründe
+Noch nicht vermietet
+Sanierung
+Renovierung
+Mieterauszug
+Schaden
+Nicht marktfähiger Zustand
+Strategischer Leerstand
+Verkaufsvorbereitung
+Feature 1.8: Offene Forderungen
+Zweck
+
+Überwachung von Mietrückständen und offenen Zahlungen.
+
+Unterfunktionen
+Offene Forderungen gesamt
+Forderungen je Mieter
+Forderungen je Objekt
+Forderungen je Einheit
+Fälligkeitsdatum
+Mahnstufe
+Zahlungsstatus
+Teilzahlung
+Kommentar zur Forderung
+Forderungshistorie
+Automatische Warnung bei Überfälligkeit
+Export für Buchhaltung
+Verbindung zu Mahnwesen
+Mahnstufen
+Zahlung offen
+Zahlung überfällig
+Mahnung
+Mahnung
+Letzte Mahnung
+Übergabe an Anwalt
+Gerichtliches Mahnverfahren
+Erledigt
+Feature 1.9: Investitionsvolumen
+Zweck
+
+Übersicht über geplante und getätigte Investitionen.
+
+Unterfunktionen
+Investitionen je Objekt
+Investitionen je Einheit
+Geplante Investitionen
+Bereits bezahlte Investitionen
+Budget vs. Ist
+CapEx-Kategorien
+Sanierungskosten
+Modernisierungskosten
+Reparaturkosten
+Wertsteigernde Investitionen
+Nicht wertsteigernde Kosten
+Investitionshistorie
+Genehmigungsworkflow
+Investitionsplanung nach Jahr
+Kategorien
+Ankaufskosten
+Kaufnebenkosten
+Sanierung
+Modernisierung
+Instandhaltung
+Möblierung
+Technik
+Außenanlage
+Brandschutz
+Energieeffizienz
+Sonstige Kosten
+Modul 2: Objekt Dashboard
+
+Das Objekt Dashboard ist die Detailansicht für jede einzelne Immobilie.
+
+Feature 2.1: Objekt-Stammdaten
+Zweck
+
+Zentrale Verwaltung aller Grunddaten eines Objekts.
+
+Unterfunktionen
+Objektname
+Adresse
+Objektart
+Baujahr
+Grundstücksfläche
+Wohnfläche
+Gewerbefläche
+Anzahl Einheiten
+Anzahl Stellplätze
+Eigentümergesellschaft
+Kaufdatum
+Kaufpreis
+Notar
+Verkäufer
+Grundbuchdaten
+Flurstück
+Energieausweis
+Versicherungsdaten
+Steuerliche Zuordnung
+Objektbild
+Standortkarte
+Feature 2.2: Marktwert
+Zweck
+
+Bewertung des aktuellen Objektwerts.
+
+Unterfunktionen
+Aktueller Marktwert
+Bewertungsmethode
+Bewertungsdatum
+Gutachterwert
+Interne Bewertung
+Vergleichswert
+Ertragswert
+Sachwert
+Marktwert-Historie
+Begründung der Bewertung
+Dokumentenupload Gutachten
+Wertänderung seit Kauf
+Wertänderung in Prozent
+Zielwert nach Sanierung
+Szenario-Bewertung
+Bewertungslogiken
+Manuelle Bewertung
+Mietmultiplikator
+Quadratmeterpreis
+Ertragswertverfahren
+Vergleichswertverfahren
+Feature 2.3: Kaufpreis
+Zweck
+
+Nachvollziehbare Darstellung der Anschaffungskosten.
+
+Unterfunktionen
+Kaufpreis Objekt
+Kaufnebenkosten
+Notarkosten
+Grunderwerbsteuer
+Maklerkosten
+Finanzierungskosten
+Gesamte Anschaffungskosten
+Kaufpreis je Quadratmeter
+Kaufpreis je Einheit
+Kaufpreisfaktor
+Verknüpfung zum Kaufvertrag
+Zahlungsstatus Kaufpreis
+Historie Kaufprozess
+Feature 2.4: Aktueller Gewinn
+Zweck
+
+Ermittlung der wirtschaftlichen Performance des Objekts.
+
+Unterfunktionen
+Monatlicher Gewinn
+Jährlicher Gewinn
+Einnahmen
+Ausgaben
+Finanzierungskosten
+Instandhaltungskosten
+Verwaltungskosten
+Nettoergebnis
+Gewinn vor Steuern
+Gewinn nach kalkulatorischer Tilgung
+Vergleich mit Vorjahr
+Vergleich mit Planwert
+Gewinnentwicklung
+Objekt-Ranking nach Gewinn
+Zusätzliche Auswertungen
+Gewinn je Quadratmeter
+Gewinn je Einheit
+Gewinn je eingesetztem Eigenkapital
+Gewinn nach Sanierungsmaßnahmen
+Gewinnprognose
+Feature 2.5: Mieterstruktur
+Zweck
+
+Analyse der Mieter und Einnahmequellen eines Objekts.
+
+Unterfunktionen
+Mieter je Einheit
+Mietvertragsbeginn
+Mietvertragsende
+Nettokaltmiete
+Nebenkostenvorauszahlung
+Kaution
+Zahlungsstatus
+Bonitätsstatus
+Wohnfläche je Mieter
+Gewerbefläche je Mieter
+Mietart
+Indexmiete
+Staffelmiete
+Mietanpassungshistorie
+Mieterwechsel
+Risikoeinstufung Mieter
+Anteil Hauptmieter am Gesamtumsatz
+Mieterarten
+Privatmieter
+Gewerbemieter
+Kurzzeitmiete
+Hotelbetrieb
+Interne Nutzung
+Leerstand
+Feature 2.6: Restlaufzeiten Mietverträge
+Zweck
+
+Frühzeitige Erkennung von Vertragsrisiken.
+
+Unterfunktionen
+Vertragslaufzeit je Mieter
+Kündigungsfrist
+Mindestlaufzeit
+Verlängerungsoption
+Vertragsende
+Automatische Erinnerung vor Vertragsende
+Kritische Verträge
+Gewerbemietverträge mit kurzer Restlaufzeit
+Wohnraummietverträge unbefristet
+Vertragsstatus
+Verlängerungshistorie
+Dokumentenverknüpfung Mietvertrag
+Ampellogik
+Grün: Vertrag langfristig stabil
+Gelb: Vertrag endet innerhalb von 12 Monaten
+Rot: Vertrag endet innerhalb von 3 Monaten oder gekündigt
+Feature 2.7: CapEx Planung
+Zweck
+
+Planung größerer Investitionen und Sanierungen.
+
+Unterfunktionen
+CapEx-Plan je Objekt
+CapEx-Plan je Einheit
+Maßnahme
+Kategorie
+Budget
+Erwartete Kosten
+Tatsächliche Kosten
+Zeitraum
+Verantwortlicher
+Status
+Priorität
+Genehmigungsstatus
+Erwartete Wertsteigerung
+Erwartete Mietsteigerung
+ROI der Maßnahme
+Dokumente und Angebote
+Vorher-Nachher-Bilder
+Status
+Idee
+Geplant
+Angebot angefragt
+Angebot erhalten
+Freigegeben
+In Umsetzung
+Abgeschlossen
+Abgerechnet
+Archiviert
+Feature 2.8: Instandhaltungsstatus
+Zweck
+
+Technischer Zustand des Objekts auf einen Blick.
+
+Unterfunktionen
+Gesamtzustand Objekt
+Zustand je Einheit
+Zustand je Bauteil
+Offene Mängel
+Aktive Tickets
+Kritische Schäden
+Sanierungsbedarf
+Wartungsintervalle
+Letzte Wartung
+Nächste Wartung
+Kosten der letzten 12 Monate
+Dokumentation mit Bildern
+Priorität je Problem
+Verantwortlicher Dienstleister
+Bauteile
+Dach
+Fassade
+Fenster
+Heizung
+Elektrik
+Sanitär
+Böden
+Türen
+Treppenhaus
+Außenanlage
+Brandschutz
+Aufzug
+Keller
+Wohnungen
+Gewerbeflächen
+Feature 2.9: Dokumente
+Zweck
+
+Zentrale digitale Objektakte.
+
+Unterfunktionen
+Dokumentenupload
+Dokumentenkategorien
+Suchfunktion
+Versionierung
+Ablaufdaten
+Erinnerungen
+Verknüpfung mit Objekt
+Verknüpfung mit Einheit
+Verknüpfung mit Mieter
+Verknüpfung mit Darlehen
+Verknüpfung mit Schaden
+Berechtigungen
+Download
+Vorschau
+Kommentar je Dokument
+Dokumentenkategorien
+Kaufvertrag
+Mietvertrag
+Grundbuch
+Energieausweis
+Versicherung
+Darlehensvertrag
+Nebenkostenabrechnung
+Rechnungen
+Angebote
+Gutachten
+Fotos
+Baupläne
+Abnahmen
+Übergabeprotokolle
+Schriftverkehr
+Feature 2.10: Historie
+Zweck
+
+Lückenlose Nachvollziehbarkeit aller Vorgänge.
+
+Unterfunktionen
+Änderungshistorie Objekt
+Eigentümerhistorie
+Miethistorie
+Sanierungshistorie
+Schadenshistorie
+Dokumentenhistorie
+Wertentwicklung
+Finanzhistorie
+Nutzeraktivitäten
+Kommentare und interne Notizen
+Zeitstrahl je Objekt
+Filter nach Ereignisart
+Export der Historie
+Historienereignisse
+Objekt angelegt
+Kaufpreis geändert
+Marktwert angepasst
+Mieter eingezogen
+Mieter ausgezogen
+Miete erhöht
+Schaden gemeldet
+Ticket erstellt
+Rechnung hochgeladen
+Darlehen aktualisiert
+Dokument hinzugefügt
+Sanierung abgeschlossen
+Modul 3: Vermietungs Dashboard
+
+Das Vermietungs Dashboard steuert alle leerstehenden oder bald freiwerdenden Einheiten.
+
+Feature 3.1: Leerstände
+Zweck
+
+Operative Übersicht aller freien Einheiten.
+
+Unterfunktionen
+Liste leerstehender Einheiten
+Objektzuordnung
+Einheit
+Fläche
+Soll-Miete
+Letzte Miete
+Markt-Miete
+Leerstand seit
+Leerstandsdauer
+Leerstandsgrund
+Vermarktungsstatus
+Zustand der Einheit
+Benötigte Renovierung
+Erwartetes Bezugsdatum
+Priorität
+Verantwortlicher Mitarbeiter
+Vermarktungsstatus
+Nicht inseriert
+Exposé in Vorbereitung
+Inseriert
+Besichtigungen laufen
+Bewerbungen eingegangen
+Mieter ausgewählt
+Vertrag in Vorbereitung
+Vermietet
+Feature 3.2: Besichtigungstermine
+Zweck
+
+Organisation von Besichtigungen.
+
+Unterfunktionen
+Termin anlegen
+Interessent zuordnen
+Objekt und Einheit zuordnen
+Datum und Uhrzeit
+Ansprechpartner
+Treffpunkt
+Status
+Kalenderansicht
+Erinnerungen
+Rückmeldung nach Besichtigung
+Bewertung Interessent
+Absagegrund
+Folgetermin
+Verknüpfung mit Bewerbungsakte
+Status
+Angefragt
+Geplant
+Bestätigt
+Durchgeführt
+Nicht erschienen
+Abgesagt
+Nachfassen erforderlich
+Feature 3.3: Pipeline
+Zweck
+
+Übersicht des gesamten Vermietungsprozesses.
+
+Unterfunktionen
+Kanban-Board
+Interessenten je Einheit
+Bewerbungsstatus
+Dokumentenstatus
+Bonitätsprüfung
+Vertragsstatus
+Entscheidungshistorie
+Verantwortlicher Mitarbeiter
+Automatische Erinnerungen
+Conversion Rate
+Dauer je Pipeline-Stufe
+Auswertung Absagegründe
+Pipeline-Stufen
+Anfrage erhalten
+Erstkontakt
+Besichtigung geplant
+Besichtigung durchgeführt
+Unterlagen angefordert
+Unterlagen vollständig
+Bonität geprüft
+Zusage vorbereitet
+Vertrag erstellt
+Vertrag unterschrieben
+Übergabe geplant
+Abgeschlossen
+Feature 3.4: Mietanfragen
+Zweck
+
+Erfassung und Bewertung aller Interessenten.
+
+Unterfunktionen
+Interessentendaten
+Kontaktinformationen
+Wunschobjekt
+Wunschmietbeginn
+Haushaltsgröße
+Einkommen
+Beruf
+Haustiere
+Gewerbenutzung
+Dokumente
+Nachrichtenverlauf
+Status
+Bewertung
+Dublettenprüfung
+DSGVO-konforme Löschung
+Export Bewerberübersicht
+Bewertungslogik
+Vollständigkeit Unterlagen
+Zahlungsfähigkeit
+Passung zur Einheit
+Einzugsdatum
+Risiko
+Priorität
+Feature 3.5: Bonitätsstatus
+Zweck
+
+Prüfung der Zahlungsfähigkeit und Risikoeinschätzung.
+
+Unterfunktionen
+Einkommensnachweise
+Schufa oder Bonitätsdokumente
+Selbstauskunft
+Gewerbeschein bei Gewerbemietern
+Mietschuldenfreiheitsbescheinigung
+Bürgschaft
+Kautionsfähigkeit
+Interne Bewertung
+Risikostufe
+Kommentar
+Entscheidungsfreigabe
+Dokumentenupload
+Status
+Nicht geprüft
+Unterlagen fehlen
+In Prüfung
+Positiv
+Eingeschränkt positiv
+Kritisch
+Abgelehnt
+Feature 3.6: Verträge in Vorbereitung
+Zweck
+
+Steuerung der Vertragserstellung.
+
+Unterfunktionen
+Vertragsentwurf erstellen
+Mietvertragsdaten übernehmen
+Einheit, Mieter und Konditionen verknüpfen
+Mietbeginn
+Kaltmiete
+Nebenkosten
+Kaution
+Indexmiete
+Staffelmiete
+Laufzeit
+Sondervereinbarungen
+Dokumentenvorschau
+Status Vertrag
+Unterschriftenstatus
+Übergabeprotokoll vorbereiten
+Automatische Erinnerung
+Status
+Entwurf
+Intern geprüft
+An Mieter gesendet
+Rückfragen offen
+Unterzeichnet durch Mieter
+Unterzeichnet durch Vermieter
+Abgeschlossen
+Abgebrochen
+Modul 4: Instandhaltung
+
+Dieses Modul sollte groß und eigenständig sein, weil hier im Immobilienalltag sehr viel gesteuert wird.
+
+Feature 4.1: Ticketsystem
+Zweck
+
+Erfassung, Priorisierung und Bearbeitung aller Schäden, Mängel und Aufgaben.
+
+Unterfunktionen
+Ticket erstellen
+Objekt zuordnen
+Einheit zuordnen
+Mieter zuordnen
+Kategorie
+Beschreibung
+Bilder hochladen
+Dokumente hochladen
+Priorität
+Dringlichkeit
+Status
+Verantwortlicher
+Handwerker zuordnen
+Frist setzen
+Kosten erfassen
+Kommentare
+interne Notizen
+Historie
+Abschlussbericht
+Vorher-Nachher-Bilder
+Ticketkategorien
+Heizung
+Wasser
+Strom
+Schimmel
+Fenster
+Türen
+Boden
+Dach
+Fassade
+Sanitär
+Allgemeinfläche
+Außenanlage
+Sicherheit
+Brandschutz
+Sonstiges
+Ticketstatus
+Neu
+In Prüfung
+Angebot angefragt
+Angebot erhalten
+Beauftragt
+Termin vereinbart
+In Arbeit
+Warten auf Mieter
+Warten auf Handwerker
+Erledigt
+Abgerechnet
+Archiviert
+Feature 4.2: Sanierungen
+Zweck
+
+Planung und Steuerung größerer Maßnahmen.
+
+Unterfunktionen
+Sanierungsprojekt anlegen
+Objekt oder Einheit zuordnen
+Projektbeschreibung
+Maßnahmenliste
+Budget
+Ist-Kosten
+Zeitplan
+Startdatum
+Enddatum
+Baufortschritt
+Verantwortlicher
+Gewerke
+Handwerker
+Angebote
+Rechnungen
+Bilder
+Abnahmen
+Mängelliste
+Zahlungsplan
+Budgetabweichung
+Fortschrittsanzeige
+Zusammenhang mit CapEx
+Sanierungsarten
+Wohnungssanierung
+Badsanierung
+Strangsanierung
+Dachsanierung
+Fassadensanierung
+Brandschutzmaßnahme
+Energetische Sanierung
+Gewerbeumbau
+Hotelumbau
+Komplettsanierung
+Feature 4.3: Gewährleistungen
+Zweck
+
+Überwachung von Gewährleistungsfristen und Mängelansprüchen.
+
+Unterfunktionen
+Gewährleistung je Auftrag
+Gewährleistung je Handwerker
+Startdatum
+Enddatum
+Fristüberwachung
+Zugehörige Rechnung
+Zugehöriges Angebot
+Zugehörige Abnahme
+Mangel melden
+Frist zur Nachbesserung
+Status
+Dokumente
+Erinnerungen vor Fristablauf
+Historie Nachbesserungen
+Status
+Aktiv
+Mangel gemeldet
+Nachbesserung angefordert
+Nachbesserung erfolgt
+Strittig
+Abgelaufen
+Archiviert
+Feature 4.4: Handwerker
+Zweck
+
+Verwaltung aller Dienstleister und deren Leistungshistorie.
+
+Unterfunktionen
+Handwerkerprofil
+Firma
+Ansprechpartner
+Kontaktdaten
+Gewerk
+Stundensatz
+Verfügbarkeit
+Einsatzgebiete
+Dokumente
+Versicherungsnachweise
+Bewertung
+Zuverlässigkeit
+Reaktionszeit
+Kostenhistorie
+Offene Aufträge
+Abgeschlossene Aufträge
+Gewährleistungsfälle
+Rechnungen
+Notizen
+Bewertungskriterien
+Preis
+Qualität
+Schnelligkeit
+Kommunikation
+Termintreue
+Nachbesserungsquote
+Dokumentationsqualität
+Feature 4.5: Kosten je Wohnung
+Zweck
+
+Auswertung der Kosten auf Einheitsebene.
+
+Unterfunktionen
+Kosten je Wohnung
+Kosten je Objekt
+Kosten je Quadratmeter
+Kosten je Kategorie
+Kosten je Zeitraum
+Sanierungskosten
+Reparaturkosten
+Modernisierungskosten
+Umlagefähige Kosten
+Nicht umlagefähige Kosten
+Budget vs. Ist
+Vergleich Wohnungen
+Kostenhistorie
+Export für Controlling
+Beispiele
+Wohnung 3: 4.200 € Sanierungskosten
+Wohnung 5: 850 € Reparaturkosten
+Wohnung 10: 12.000 € Komplettsanierung
+Allgemeinfläche: 3.500 € Malerarbeiten
+Feature 4.6: Priorisierung nach Dringlichkeit
+Zweck
+
+Klare Entscheidung, was zuerst bearbeitet werden muss.
+
+Unterfunktionen
+Priorität automatisch oder manuell setzen
+Dringlichkeitsmatrix
+Gefahrenbewertung
+Mietausfallrisiko
+Folgeschadenrisiko
+Rechtliches Risiko
+Kostenrisiko
+Mieterzufriedenheit
+Frist
+Eskalationslogik
+Management-Übersicht kritischer Fälle
+Prioritätsstufen
+Kritisch
+Hoch
+Mittel
+Niedrig
+Beobachten
+Beispiel Logik
+
+Kritisch:
+
+Wasserschaden
+Heizungsausfall im Winter
+Stromausfall
+Brandschutzproblem
+Sicherheitsmangel
+
+Hoch:
+
+Schimmel
+Undichtes Fenster
+Defekte Wohnungstür
+Mietausfall durch Schaden
+
+Mittel:
+
+Boden beschädigt
+Kleinere Reparatur
+Malerarbeiten
+
+Niedrig:
+
+Optische Mängel
+Wunsch des Mieters
+Komfortverbesserung
+Modul 5: Finanzdashboard
+
+Das Finanzdashboard verbindet Asset Management mit Controlling und Buchhaltung.
+
+Feature 5.1: Mieteingänge
+Zweck
+
+Überwachung der tatsächlichen Zahlungseingänge.
+
+Unterfunktionen
+Soll-Miete je Monat
+Ist-Zahlung je Monat
+Zahlungseingang je Mieter
+Zahlungseingang je Objekt
+Zahlungseingang je Einheit
+Zahlungsdatum
+Zahlungsart
+Teilzahlung
+Überzahlung
+Fehlbetrag
+Automatischer Abgleich mit Kontoimport
+Manuelle Zahlungserfassung
+Zahlungsübersicht
+Export für Buchhaltung
+Status
+Bezahlt
+Teilweise bezahlt
+Offen
+Überfällig
+Überzahlt
+In Klärung
+Feature 5.2: Rückstände
+Zweck
+
+Forderungsmanagement und Mahnwesen.
+
+Unterfunktionen
+Rückstände je Mieter
+Rückstände je Objekt
+Rückstände je Monat
+Alter der Forderung
+Mahnstufe
+Automatische Mahnvorschläge
+Zahlungsvereinbarung
+Ratenzahlung
+Kommentar
+Wiedervorlage
+Übergabe an Rechtsanwalt
+Forderungsausfall
+Historie
+Risikoanalyse
+Auswertungen
+Rückstände gesamt
+Rückstände älter als 30 Tage
+Rückstände älter als 60 Tage
+Rückstände älter als 90 Tage
+Top 10 Schuldner
+Rückstände nach Objekt
+Rückstände nach Mieterart
+Feature 5.3: Nebenkosten
+Zweck
+
+Verwaltung und Kontrolle der Betriebskosten.
+
+Unterfunktionen
+Nebenkostenvorauszahlungen
+Tatsächliche Nebenkosten
+Umlageschlüssel
+Kostenarten
+Abrechnungszeitraum
+Nachzahlung
+Guthaben
+Abrechnungsstatus
+Dokumentenupload Rechnungen
+Plausibilitätsprüfung
+Kostenvergleich Vorjahr
+Export für Abrechnung
+Warnung bei starken Abweichungen
+Kostenarten
+Wasser
+Abwasser
+Heizung
+Hausstrom
+Müll
+Versicherung
+Grundsteuer
+Reinigung
+Gartenpflege
+Hausmeister
+Wartung
+Sonstige Betriebskosten
+Feature 5.4: Forecast
+Zweck
+
+Vorausschauende Finanzplanung.
+
+Unterfunktionen
+Einnahmenprognose
+Ausgabenprognose
+Cashflow-Prognose
+Leerstandsannahmen
+Mietsteigerungen
+Indexmieten
+Staffelmieten
+Darlehensentwicklung
+Zinsänderung
+CapEx-Planung
+Szenarioanalyse
+Best Case
+Base Case
+Worst Case
+12-Monats-Forecast
+5-Jahres-Forecast
+Szenarien
+Kein Leerstand
+5 % Leerstand
+10 % Mietsteigerung
+Zinserhöhung bei Anschlussfinanzierung
+Sanierung mit höherer Zielmiete
+Verkauf eines Objekts
+Feature 5.5: Liquiditätsplanung
+Zweck
+
+Sicherstellen, dass ausreichend Geld für Zahlungen vorhanden ist.
+
+Unterfunktionen
+Monatliche Liquidität
+Bankkontostand
+Erwartete Einnahmen
+Erwartete Ausgaben
+Darlehensraten
+Geplante Investitionen
+Rücklagen
+Steuerzahlungen
+Zahlungsfälligkeiten
+Liquiditätslücke
+Warnung bei Unterdeckung
+Liquiditätsvorschau
+Zahlungsplan
+Gesellschaftsbezogene Liquidität
+Warnlogik
+Grün: ausreichende Liquidität
+Gelb: Liquidität kritisch in 30 Tagen
+Rot: Unterdeckung erwartet
+Feature 5.6: Budget vs. Ist
+Zweck
+
+Vergleich von geplanten und tatsächlichen Zahlen.
+
+Unterfunktionen
+Budget je Objekt
+Budget je Einheit
+Budget je Kostenstelle
+Ist-Kosten
+Abweichung absolut
+Abweichung in Prozent
+Kommentar zur Abweichung
+Freigabeprozess
+Monatsvergleich
+Jahresvergleich
+Kostenartenvergleich
+Export für Management
+Ampellogik bei Abweichungen
+Budgetbereiche
+Mieteinnahmen
+Nebenkosten
+Instandhaltung
+Sanierung
+Verwaltung
+Finanzierung
+Versicherung
+Steuern
+Sonstige Kosten
+6. Rollen und Berechtigungen
+Rolle 1: Administrator
+Nutzer verwalten
+Rechte vergeben
+Systemeinstellungen bearbeiten
+Stammdaten ändern
+Alle Daten sehen
+Rolle 2: Asset Manager
+Portfolio auswerten
+Objekte bearbeiten
+Marktwerte pflegen
+CapEx planen
+Reports erstellen
+Entscheidungen dokumentieren
+Rolle 3: Property Manager
+Mietverträge verwalten
+Mieter bearbeiten
+Leerstände steuern
+Besichtigungen organisieren
+Rückstände kommentieren
+Rolle 4: Instandhaltung / Bauleitung
+Tickets bearbeiten
+Sanierungen steuern
+Handwerker verwalten
+Kosten erfassen
+Bilder und Abnahmen hochladen
+Rolle 5: Buchhaltung
+Mieteingänge prüfen
+Rückstände bearbeiten
+Rechnungen erfassen
+Nebenkosten pflegen
+Exporte erstellen
+Rolle 6: Geschäftsführung
+Nur Management-Dashboard
+Portfolio-KPIs
+Liquidität
+Risiken
+Reports
+Keine operativen Bearbeitungen außer Freigaben

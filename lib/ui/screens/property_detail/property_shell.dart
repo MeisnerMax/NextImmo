@@ -23,11 +23,9 @@ import 'operations_alerts_screen.dart';
 import 'operations_overview_screen.dart';
 import 'offer_screen.dart';
 import 'overview_screen.dart';
-import 'property_audit_screen.dart';
 import 'property_documents_screen.dart';
 import 'property_tasks_screen.dart';
 import 'rent_roll_screen.dart';
-import 'reports_screen.dart';
 import 'scenario_versions_screen.dart';
 import 'scenarios_screen.dart';
 import 'tenants_screen.dart';
@@ -247,13 +245,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   }
 
   bool _usesFullPageScroll(PropertyDetailPage page) {
-    return page == PropertyDetailPage.overview ||
-        page == PropertyDetailPage.assetWorkbook ||
-        page == PropertyDetailPage.inputs ||
-        page == PropertyDetailPage.units ||
-        page == PropertyDetailPage.tenants ||
-        page == PropertyDetailPage.leases ||
-        page == PropertyDetailPage.rentRoll;
+    return true;
   }
 
   String? _resolveScenarioSelection({
@@ -704,11 +696,23 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
       case PropertyDetailPage.versions:
         return ScenarioVersionsScreen(scenarioId: scenarioId!);
       case PropertyDetailPage.audit:
-        return PropertyAuditScreen(propertyId: propertyId);
+        return PropertyDocumentsScreen(
+          propertyId: propertyId,
+          scenarioId: scenarioId,
+          initialIndex: 1,
+        );
       case PropertyDetailPage.documents:
-        return PropertyDocumentsScreen(propertyId: propertyId);
+        return PropertyDocumentsScreen(
+          propertyId: propertyId,
+          scenarioId: scenarioId,
+          initialIndex: 0,
+        );
       case PropertyDetailPage.reports:
-        return ReportsScreen(propertyId: propertyId, scenarioId: scenarioId!);
+        return PropertyDocumentsScreen(
+          propertyId: propertyId,
+          scenarioId: scenarioId,
+          initialIndex: 2,
+        );
       case PropertyDetailPage.operationsOverview:
         return OperationsOverviewScreen(propertyId: propertyId);
       case PropertyDetailPage.tasks:

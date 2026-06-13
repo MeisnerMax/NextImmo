@@ -8,6 +8,10 @@ class BudgetRecord {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.unitId,
+    this.renovationId,
+    this.ticketId,
+    this.projectId,
   });
 
   final String id;
@@ -18,6 +22,10 @@ class BudgetRecord {
   final String status;
   final int createdAt;
   final int updatedAt;
+  final String? unitId;
+  final String? renovationId;
+  final String? ticketId;
+  final String? projectId;
 
   Map<String, Object?> toMap() {
     return <String, Object?>{
@@ -29,6 +37,10 @@ class BudgetRecord {
       'status': status,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'unit_id': unitId,
+      'renovation_id': renovationId,
+      'ticket_id': ticketId,
+      'project_id': projectId,
     };
   }
 
@@ -42,6 +54,10 @@ class BudgetRecord {
       status: map['status']! as String,
       createdAt: (map['created_at']! as num).toInt(),
       updatedAt: (map['updated_at']! as num).toInt(),
+      unitId: map['unit_id'] as String?,
+      renovationId: map['renovation_id'] as String?,
+      ticketId: map['ticket_id'] as String?,
+      projectId: map['project_id'] as String?,
     );
   }
 }

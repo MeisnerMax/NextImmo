@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 36;
+  static const int currentVersion = 39;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -40,6 +40,9 @@ class DbMigrations {
     await _createV34(db);
     await _createV35(db);
     await _createV36(db);
+    await _createV37(db);
+    await _createV38(db);
+    await _createV39(db);
   }
 
   static Future<void> onUpgrade(
@@ -154,6 +157,15 @@ class DbMigrations {
     }
     if (oldVersion < 36) {
       await _createV36(db);
+    }
+    if (oldVersion < 37) {
+      await _createV37(db);
+    }
+    if (oldVersion < 38) {
+      await _createV38(db);
+    }
+    if (oldVersion < 39) {
+      await _createV39(db);
     }
   }
 
@@ -2194,6 +2206,81 @@ class DbMigrations {
     );
   }
 
+  static Future<void> _createV37(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'start_date',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN start_date INTEGER',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'end_date',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN end_date INTEGER',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'assignee_type',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN assignee_type TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'assignee_name',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN assignee_name TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'building',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN building TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'area',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN area TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'technical',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN technical TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'maintenance_tickets',
+      column: 'outdoor',
+      alterSql: 'ALTER TABLE maintenance_tickets ADD COLUMN outdoor TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'budgets',
+      column: 'unit_id',
+      alterSql: 'ALTER TABLE budgets ADD COLUMN unit_id TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'budgets',
+      column: 'renovation_id',
+      alterSql: 'ALTER TABLE budgets ADD COLUMN renovation_id TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'budgets',
+      column: 'ticket_id',
+      alterSql: 'ALTER TABLE budgets ADD COLUMN ticket_id TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'budgets',
+      column: 'project_id',
+      alterSql: 'ALTER TABLE budgets ADD COLUMN project_id TEXT',
+    );
+  }
+
   static Future<void> _seedAssetOverviewWorkbookData(Database db) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final assets = <Map<String, Object?>>[
@@ -3481,6 +3568,91 @@ class DbMigrations {
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
     }
+  }
+
+  static Future<void> _createV38(Database db) async {
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'land_area',
+        alterSql: 'ALTER TABLE properties ADD COLUMN land_area REAL');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'residential_area',
+        alterSql: 'ALTER TABLE properties ADD COLUMN residential_area REAL');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'commercial_area',
+        alterSql: 'ALTER TABLE properties ADD COLUMN commercial_area REAL');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'parking_spots',
+        alterSql: 'ALTER TABLE properties ADD COLUMN parking_spots INTEGER');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'owner_company',
+        alterSql: 'ALTER TABLE properties ADD COLUMN owner_company TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'purchase_date',
+        alterSql: 'ALTER TABLE properties ADD COLUMN purchase_date INTEGER');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'purchase_price',
+        alterSql: 'ALTER TABLE properties ADD COLUMN purchase_price REAL');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'notary',
+        alterSql: 'ALTER TABLE properties ADD COLUMN notary TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'seller',
+        alterSql: 'ALTER TABLE properties ADD COLUMN seller TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'land_registry_details',
+        alterSql: 'ALTER TABLE properties ADD COLUMN land_registry_details TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'parcel',
+        alterSql: 'ALTER TABLE properties ADD COLUMN parcel TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'energy_certificate',
+        alterSql: 'ALTER TABLE properties ADD COLUMN energy_certificate TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'insurance_details',
+        alterSql: 'ALTER TABLE properties ADD COLUMN insurance_details TEXT');
+    await _addColumnIfMissing(db,
+        table: 'properties',
+        column: 'tax_assignment',
+        alterSql: 'ALTER TABLE properties ADD COLUMN tax_assignment TEXT');
+  }
+
+  static Future<void> _createV39(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS contractors (
+        id TEXT PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        trade_category TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        email TEXT NOT NULL,
+        address TEXT NOT NULL,
+        hourly_rate REAL,
+        service_areas_json TEXT,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        rating_price REAL,
+        rating_quality REAL,
+        rating_speed REAL,
+        rating_communication REAL,
+        rating_punctuality REAL,
+        insurance_cert_expiry INTEGER,
+        is_active INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
   }
 
   static String _deriveSeedUnitCostType(String note) {

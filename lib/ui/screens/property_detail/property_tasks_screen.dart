@@ -191,120 +191,113 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child:
-                _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final stacked = constraints.maxWidth < 980;
-                        if (_viewMode == 'board') {
-                          return Column(
-                            children: [
-                              _PropertyTasksDashboard(
-                                tasks: dashboardTasks,
-                                onStatusFilter: (status) {
-                                  setState(() {
-                                    _statusFilter = status;
-                                    _viewMode = 'list';
-                                  });
-                                },
-                                onDueFilter: (filter) {
-                                  setState(() {
-                                    _statusFilter = 'all';
-                                    _dueFilter = filter;
-                                    _viewMode = 'list';
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: AppSpacing.component),
-                              Expanded(child: _buildTaskBoard(dashboardTasks)),
-                            ],
-                          );
-                        }
-                        if (_viewMode == 'calendar') {
-                          return Column(
-                            children: [
-                              _PropertyTasksDashboard(
-                                tasks: dashboardTasks,
-                                onStatusFilter: (status) {
-                                  setState(() {
-                                    _statusFilter = status;
-                                    _viewMode = 'list';
-                                  });
-                                },
-                                onDueFilter: (filter) {
-                                  setState(() {
-                                    _statusFilter = 'all';
-                                    _dueFilter = filter;
-                                    _viewMode = 'list';
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: AppSpacing.component),
-                              Expanded(child: _buildDuePlan(dashboardTasks)),
-                            ],
-                          );
-                        }
-                        if (stacked) {
-                          return ListView(
-                            children: [
-                              _PropertyTasksDashboard(
-                                tasks: dashboardTasks,
-                                onStatusFilter: (status) {
-                                  setState(() => _statusFilter = status);
-                                },
-                                onDueFilter: (filter) {
-                                  setState(() {
-                                    _statusFilter = 'all';
-                                    _dueFilter = filter;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: AppSpacing.component),
-                              SizedBox(
-                                height: 320,
-                                child: _buildTaskList(context, visibleTasks),
-                              ),
-                              const SizedBox(height: AppSpacing.component),
-                              SizedBox(
-                                height: 320,
-                                child: _buildTaskDetail(context),
-                              ),
-                            ],
-                          );
-                        }
-                        return Row(
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked = constraints.maxWidth < 980;
+                  if (_viewMode == 'board') {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _PropertyTasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() {
+                              _statusFilter = status;
+                              _viewMode = 'list';
+                            });
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _statusFilter = 'all';
+                              _dueFilter = filter;
+                              _viewMode = 'list';
+                            });
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        _buildTaskBoard(dashboardTasks),
+                      ],
+                    );
+                  }
+                  if (_viewMode == 'calendar') {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _PropertyTasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() {
+                              _statusFilter = status;
+                              _viewMode = 'list';
+                            });
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _statusFilter = 'all';
+                              _dueFilter = filter;
+                              _viewMode = 'list';
+                            });
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        _buildDuePlan(dashboardTasks),
+                      ],
+                    );
+                  }
+                  if (stacked) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _PropertyTasksDashboard(
+                          tasks: dashboardTasks,
+                          onStatusFilter: (status) {
+                            setState(() => _statusFilter = status);
+                          },
+                          onDueFilter: (filter) {
+                            setState(() {
+                              _statusFilter = 'all';
+                              _dueFilter = filter;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.component),
+                        _buildTaskList(context, visibleTasks),
+                        const SizedBox(height: AppSpacing.component),
+                        _buildTaskDetail(context),
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  _PropertyTasksDashboard(
-                                    tasks: dashboardTasks,
-                                    onStatusFilter: (status) {
-                                      setState(() => _statusFilter = status);
-                                    },
-                                    onDueFilter: (filter) {
-                                      setState(() {
-                                        _statusFilter = 'all';
-                                        _dueFilter = filter;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: AppSpacing.component),
-                                  Expanded(
-                                    child: _buildTaskList(context, visibleTasks),
-                                  ),
-                                ],
-                              ),
+                            _PropertyTasksDashboard(
+                              tasks: dashboardTasks,
+                              onStatusFilter: (status) {
+                                setState(() => _statusFilter = status);
+                              },
+                              onDueFilter: (filter) {
+                                setState(() {
+                                  _statusFilter = 'all';
+                                  _dueFilter = filter;
+                                });
+                              },
                             ),
-                            const SizedBox(width: AppSpacing.component),
-                            Expanded(child: _buildTaskDetail(context)),
+                            const SizedBox(height: AppSpacing.component),
+                            _buildTaskList(context, visibleTasks),
                           ],
-                        );
-                      },
-                    ),
-          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.component),
+                      Expanded(child: _buildTaskDetail(context)),
+                    ],
+                  );
+                },
+              ),
         ],
       ),
     );
@@ -419,6 +412,8 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
     }
     return Card(
       child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         itemCount: tasks.length,
         separatorBuilder: (_, __) => const Divider(height: 16),
@@ -496,27 +491,25 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth < 760 ? constraints.maxWidth : 260.0;
-        return SingleChildScrollView(
-          child: Wrap(
-            spacing: AppSpacing.component,
-            runSpacing: AppSpacing.component,
-            children: [
-              for (final bucket in buckets)
-                _PropertyTaskDuePanel(
-                  width: width,
-                  title: bucket.label,
-                  tasks: tasks
-                      .where((task) => _matchesTaskDueBucket(task, bucket.key))
-                      .toList(growable: false),
-                  onOpen: (task) {
-                    _selectTask(task);
-                    setState(() => _viewMode = 'list');
-                  },
-                  onEdit: (task) => _taskDialog(existing: task),
-                  onAdvance: _advanceTask,
-                ),
-            ],
-          ),
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            for (final bucket in buckets)
+              _PropertyTaskDuePanel(
+                width: width,
+                title: bucket.label,
+                tasks: tasks
+                    .where((task) => _matchesTaskDueBucket(task, bucket.key))
+                    .toList(growable: false),
+                onOpen: (task) {
+                  _selectTask(task);
+                  setState(() => _viewMode = 'list');
+                },
+                onEdit: (task) => _taskDialog(existing: task),
+                onAdvance: _advanceTask,
+              ),
+          ],
         );
       },
     );
@@ -591,35 +584,37 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Expanded(
-                      child:
-                          _checklist.isEmpty
-                              ? const Center(
-                                child: Text('No checklist items yet.'),
-                              )
-                              : ListView.builder(
-                                itemCount: _checklist.length,
-                                itemBuilder: (context, index) {
-                                  final item = _checklist[index];
-                                  return CheckboxListTile(
-                                    value: item.done,
-                                    contentPadding: EdgeInsets.zero,
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    onChanged: (value) async {
-                                      await ref
-                                          .read(tasksRepositoryProvider)
-                                          .toggleChecklistItem(
-                                            id: item.id,
-                                            done: value ?? false,
-                                          );
-                                      await _selectTask(selectedTask);
-                                    },
-                                    title: Text(item.text),
-                                  );
+                    _checklist.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: AppSpacing.component),
+                              child: Text('No checklist items yet.'),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _checklist.length,
+                            itemBuilder: (context, index) {
+                              final item = _checklist[index];
+                              return CheckboxListTile(
+                                value: item.done,
+                                contentPadding: EdgeInsets.zero,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                onChanged: (value) async {
+                                  await ref
+                                      .read(tasksRepositoryProvider)
+                                      .toggleChecklistItem(
+                                        id: item.id,
+                                        done: value ?? false,
+                                      );
+                                  await _selectTask(selectedTask);
                                 },
-                              ),
-                    ),
+                                title: Text(item.text),
+                              );
+                            },
+                          ),
                   ],
                 ),
       ),
@@ -1211,30 +1206,32 @@ class _PropertyTaskBoardColumn extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: context.semanticColors.border),
-          Expanded(
-            child:
-                tasks.isEmpty
-                    ? Center(
-                      child: Text(
-                        'Keine Aufgaben',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    )
-                    : ListView.builder(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      itemCount: tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return _PropertyTaskMiniCard(
-                          task: task,
-                          selected: task.id == selectedId,
-                          onOpen: () => onOpen(task),
-                          onEdit: () => onEdit(task),
-                          onAdvance: () => onAdvance(task),
-                        );
-                      },
-                    ),
-          ),
+          tasks.isEmpty
+              ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.component),
+                  child: Text(
+                    'Keine Aufgaben',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              )
+              : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  final task = tasks[index];
+                  return _PropertyTaskMiniCard(
+                    task: task,
+                    selected: task.id == selectedId,
+                    onOpen: () => onOpen(task),
+                    onEdit: () => onEdit(task),
+                    onAdvance: () => onAdvance(task),
+                  );
+                },
+              ),
         ],
       ),
     );

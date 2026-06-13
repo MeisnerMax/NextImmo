@@ -59,7 +59,7 @@ class MaintenanceRepo {
     String? unitId,
     required String title,
     String? description,
-    String category = 'general',
+    required String category,
     String status = 'open',
     String priority = 'normal',
     int? dueAt,
@@ -71,6 +71,14 @@ class MaintenanceRepo {
     String? insuranceStatus,
     String? insuranceClaimNumber,
     bool createTask = false,
+    int? startDate,
+    int? endDate,
+    String? assigneeType,
+    String? assigneeName,
+    String? building,
+    String? area,
+    String? technical,
+    String? outdoor,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final ticket = MaintenanceTicketRecord(
@@ -95,6 +103,14 @@ class MaintenanceRepo {
       insuranceClaimNumber: insuranceClaimNumber,
       createdAt: now,
       updatedAt: now,
+      startDate: startDate,
+      endDate: endDate,
+      assigneeType: assigneeType,
+      assigneeName: assigneeName,
+      building: building,
+      area: area,
+      technical: technical,
+      outdoor: outdoor,
     );
 
     await _db.transaction((txn) async {

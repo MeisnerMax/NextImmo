@@ -44,11 +44,61 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       }
     }
 
+    // KPI Calculation
+    final activeLeases = _leases.where((l) => l.status == 'active').toList();
+    double totalBaseRent = 0;
+    for (final l in activeLeases) {
+      totalBaseRent += l.baseRentMonthly;
+    }
+    final now = DateTime.now();
+    final ninetyDaysFromNow = now.add(const Duration(days: 90));
+    final expiringSoonCount = activeLeases.where((l) {
+      if (l.endDate == null) return false;
+      final end = DateTime.fromMillisecondsSinceEpoch(l.endDate!);
+      return end.isBefore(ninetyDaysFromNow) && end.isAfter(now);
+    }).length;
+    final missingDepositCount = activeLeases.where((l) {
+      return l.securityDeposit == null || l.securityDeposit == 0 || l.depositStatus == 'pending';
+    }).length;
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // KPI Metric Row
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _KpiTile(
+                title: 'Mieteinnahmen mtl.',
+                value: '${totalBaseRent.toStringAsFixed(2)} €',
+                subtitle: 'Aus aktiven Verträgen',
+                icon: Icons.monetization_on_outlined,
+                color: context.semanticColors.success,
+              ),
+              _KpiTile(
+                title: 'Aktive Verträge',
+                value: '${activeLeases.length}',
+                icon: Icons.assignment_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              _KpiTile(
+                title: 'Auslaufend (90 Tage)',
+                value: '$expiringSoonCount',
+                icon: Icons.running_with_errors_outlined,
+                color: expiringSoonCount > 0 ? context.semanticColors.warning : context.semanticColors.success,
+              ),
+              _KpiTile(
+                title: 'Kaution ausstehend',
+                value: '$missingDepositCount',
+                icon: Icons.lock_clock_outlined,
+                color: missingDepositCount > 0 ? context.semanticColors.error : context.semanticColors.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.component),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -153,6 +203,210 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     );
   }
 
+  Widget _buildLeaseListItem(BuildContext context, LeaseRecord lease, bool isSelected) {
+    final semantic = context.semanticColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color statusColor = switch (lease.status) {
+      'active' => semantic.success,
+      'draft' => Theme.of(context).colorScheme.outlineVariant,
+      'future' => Theme.of(context).colorScheme.primary,
+      'terminated' => semantic.warning,
+      'expired' => semantic.error,
+      _ => semantic.border,
+    };
+
+    final bool isMissingDeposit = _hasMissingDeposit(lease);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF))
+            : Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+        border: Border.all(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : semantic.border,
+          width: isSelected ? 1.5 : 1.0,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md - 1),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                color: statusColor,
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    ref.read(selectedOperationsLeaseIdProvider.notifier).state = lease.id;
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.description_outlined, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                lease.leaseName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            _buildLeaseStatusTag(context, lease.status),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Einheit: ${_unitName(lease.unitId)} · Mieter: ${_tenantName(lease.tenantId)}',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Miete: ${lease.baseRentMonthly.toStringAsFixed(2)} €',
+                                    style: context.tabularNumericStyle.copyWith(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isMissingDeposit)
+                              const Tooltip(
+                                message: 'Kaution ausstehend / fehlt',
+                                child: Icon(
+                                  Icons.warning_amber_outlined,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () => _leaseDialog(existing: lease),
+                              child: const Text('Bearbeiten', style: TextStyle(fontSize: 11)),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () => _deleteLease(lease.id),
+                              child: const Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaseStatusTag(BuildContext context, String status) {
+    final semantic = context.semanticColors;
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    switch (status) {
+      case 'active':
+        bgColor = semantic.success.withValues(alpha: 0.12);
+        textColor = semantic.success;
+        label = 'Aktiv';
+        break;
+      case 'draft':
+        bgColor = Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.2);
+        textColor = Theme.of(context).colorScheme.onSurfaceVariant;
+        label = 'Entwurf';
+        break;
+      case 'future':
+        bgColor = Theme.of(context).colorScheme.primary.withValues(alpha: 0.12);
+        textColor = Theme.of(context).colorScheme.primary;
+        label = 'Zukünftig';
+        break;
+      case 'terminated':
+        bgColor = semantic.warning.withValues(alpha: 0.12);
+        textColor = semantic.warning;
+        label = 'Gekündigt';
+        break;
+      case 'expired':
+        bgColor = semantic.error.withValues(alpha: 0.12);
+        textColor = semantic.error;
+        label = 'Abgelaufen';
+        break;
+      default:
+        bgColor = Theme.of(context).colorScheme.outlineVariant;
+        textColor = Theme.of(context).colorScheme.onSurface;
+        label = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   Widget _leaseListCard({
     required BuildContext context,
     required List<LeaseRecord> leases,
@@ -170,39 +424,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
             Column(
               children: [
                 for (final lease in leases)
-                  ListTile(
-                    selected: lease.id == selectedLeaseId,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(lease.leaseName),
-                    subtitle: Text(
-                      '${_leaseStatusLabel(lease.status)} · ${_unitName(lease.unitId)} · ${_tenantName(lease.tenantId)}',
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        if (_hasMissingDeposit(lease))
-                          const Icon(
-                            Icons.warning_amber_outlined,
-                            color: Colors.orange,
-                          ),
-                        TextButton(
-                          onPressed: () => _leaseDialog(existing: lease),
-                          child: const Text('Bearbeiten'),
-                        ),
-                        TextButton(
-                          onPressed: () => _deleteLease(lease.id),
-                          child: const Text('Loeschen'),
-                        ),
-                      ],
-                    ),
-                    onTap:
-                        () =>
-                            ref
-                                .read(
-                                  selectedOperationsLeaseIdProvider.notifier,
-                                )
-                                .state = lease.id,
-                  ),
+                  _buildLeaseListItem(context, lease, lease.id == selectedLeaseId),
               ],
             ),
         ],
@@ -593,6 +815,38 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                         );
                     ref.read(selectedOperationsLeaseIdProvider.notifier).state = existing.id;
                   }
+
+                  if (status == 'active') {
+                    final unitRecord = _units.where((u) => u.id == unitId).firstOrNull;
+                    if (unitRecord != null && unitRecord.status != 'occupied') {
+                      await ref.read(rentRollRepositoryProvider).updateUnit(
+                        UnitRecord(
+                          id: unitRecord.id,
+                          assetPropertyId: unitRecord.assetPropertyId,
+                          unitCode: unitRecord.unitCode,
+                          unitType: unitRecord.unitType,
+                          beds: unitRecord.beds,
+                          baths: unitRecord.baths,
+                          sqft: unitRecord.sqft,
+                          floor: unitRecord.floor,
+                          status: 'occupied',
+                          targetRentMonthly: unitRecord.targetRentMonthly,
+                          marketRentMonthly: unitRecord.marketRentMonthly,
+                          offlineReason: null,
+                          vacancySince: null,
+                          vacancyReason: null,
+                          marketingStatus: null,
+                          renovationStatus: null,
+                          expectedReadyDate: null,
+                          nextAction: null,
+                          notes: unitRecord.notes,
+                          createdAt: unitRecord.createdAt,
+                          updatedAt: DateTime.now().millisecondsSinceEpoch,
+                        ),
+                      );
+                    }
+                  }
+
                   if (context.mounted) {
                     Navigator.of(context).pop();
                   }
@@ -679,6 +933,11 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                       annualPercent: _parseDouble(annualCtrl.text),
                       fixedStepAmount: _parseDouble(stepCtrl.text),
                     );
+                await ref.read(leaseRepositoryProvider).rebuildRentSchedule(
+                      leaseId: leaseId,
+                      fromPeriod: _fromPeriod,
+                      toPeriod: _toPeriod,
+                    );
                 if (context.mounted) {
                   Navigator.of(context).pop();
                 }
@@ -736,6 +995,11 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                       leaseId: leaseId,
                       periodKey: period,
                       rentMonthly: rent,
+                    );
+                await ref.read(leaseRepositoryProvider).rebuildRentSchedule(
+                      leaseId: leaseId,
+                      fromPeriod: _fromPeriod,
+                      toPeriod: _toPeriod,
                     );
                 if (context.mounted) {
                   Navigator.of(context).pop();
@@ -983,5 +1247,74 @@ class _MonthField extends StatelessWidget {
       return null;
     }
     return DateTime(year, month);
+  }
+}
+
+class _KpiTile extends StatelessWidget {
+  const _KpiTile({
+    required this.title,
+    required this.value,
+    this.subtitle,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String? subtitle;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 190,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(icon, size: 16, color: color),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ).merge(context.tabularNumericStyle),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

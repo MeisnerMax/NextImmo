@@ -138,4 +138,67 @@ void main() {
       ),
     );
   });
+
+  test('deleteIndexationRule removes rule and audit log records it', () async {
+    final lease = await repo.createLease(
+      assetPropertyId: 'p1',
+      unitId: 'u1',
+      leaseName: 'Lease 1',
+      startDate: DateTime(2024, 1, 1).millisecondsSinceEpoch,
+      status: 'active',
+      baseRentMonthly: 1000,
+    );
+
+    final rule = await repo.upsertIndexationRule(
+      leaseId: lease.id,
+      kind: 'cpi',
+      effectiveFromPeriodKey: '2025-01',
+      annualPercent: 0.02,
+    );
+
+    final rulesBefore = await repo.listIndexationRules(lease.id);
+    expect(rulesBefore.length, 1);
+
+    await repo.deleteIndexationRule(rule.id);
+
+    final rulesAfter = await repo.listIndexationRules(lease.id);
+    expect(rulesAfter.isEmpty, isTrue);
+
+    final audits = await auditRepo.list(parentEntityId: 'p1');
+    expect(
+      audits.any((entry) => entry.entityType == 'lease_indexation_rule' && entry.action == 'delete'),
+      isTrue,
+    );
+  });
+
+  test('deleteManualOverride removes manual override and audit log records it', () async {
+    final lease = await repo.createLease(
+      assetPropertyId: 'p1',
+      unitId: 'u1',
+      leaseName: 'Lease 1',
+      startDate: DateTime(2024, 1, 1).millisecondsSinceEpoch,
+      status: 'active',
+      baseRentMonthly: 1000,
+    );
+
+    await repo.upsertManualOverride(
+      leaseId: lease.id,
+      periodKey: '2025-02',
+      rentMonthly: 2000,
+    );
+
+    final scheduleBefore = await repo.readSchedule(leaseId: lease.id);
+    expect(scheduleBefore.any((row) => row.source == 'manual_override'), isTrue);
+
+    await repo.deleteManualOverride(lease.id, '2025-02');
+
+    final scheduleAfter = await repo.readSchedule(leaseId: lease.id);
+    expect(scheduleAfter.any((row) => row.source == 'manual_override'), isFalse);
+
+    final audits = await auditRepo.list(parentEntityId: 'p1');
+    expect(
+      audits.any((entry) => entry.entityType == 'lease_rent_schedule' && entry.action == 'delete'),
+      isTrue,
+    );
+  });
 }

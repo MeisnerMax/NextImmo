@@ -89,13 +89,6 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         icon: Icons.home_work_outlined,
       ),
       GlobalNavigationDestination(
-        page: GlobalPage.rentalOverview,
-        label: 'Vermietung & BK',
-        title: 'Vermietung & BK',
-        routeKey: 'assets_portfolio.rental_overview',
-        icon: Icons.table_chart_outlined,
-      ),
-      GlobalNavigationDestination(
         page: GlobalPage.portfolios,
         label: 'Portfolios',
         title: 'Portfolios',
@@ -128,6 +121,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Instandhaltung',
         routeKey: 'daily_business.maintenance',
         icon: Icons.build_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.contractors,
+        label: 'Handwerker',
+        title: 'Handwerker-Stammdaten',
+        routeKey: 'daily_business.contractors',
+        icon: Icons.engineering_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.budgets,
@@ -243,15 +243,9 @@ const List<PropertyNavigationSection> propertyNavigationSections =
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
             page: PropertyDetailPage.overview,
-            label: 'Uebersicht',
+            label: 'Übersicht',
             routeKey: 'properties.view.overview',
             requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.audit,
-            label: 'Aktivitaet',
-            routeKey: 'properties.view.activity',
-            requiresScenario: false,
           ),
         ],
       ),
@@ -260,63 +254,21 @@ const List<PropertyNavigationSection> propertyNavigationSections =
         routeKey: 'properties.daily_business',
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
-            page: PropertyDetailPage.operationsOverview,
-            label: 'Tagesgeschaeft',
-            routeKey: 'properties.daily_business.center',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
             page: PropertyDetailPage.units,
-            label: 'Einheiten',
+            label: 'Einheiten & Mieter',
             routeKey: 'properties.daily_business.units',
             requiresScenario: false,
           ),
           PropertyNavigationDestination(
-            page: PropertyDetailPage.tenants,
-            label: 'Mieter',
-            routeKey: 'properties.daily_business.tenants',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.leases,
-            label: 'Mietvertraege',
-            routeKey: 'properties.daily_business.leases',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.rentRoll,
-            label: 'Mieten',
-            routeKey: 'properties.daily_business.rent_roll',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.assetWorkbook,
-            label: 'Vermietung & BK',
-            routeKey: 'properties.daily_business.asset_workbook',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.tasks,
-            label: 'Aufgaben',
-            routeKey: 'properties.daily_business.tasks',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
             page: PropertyDetailPage.maintenance,
-            label: 'Instandhaltung',
+            label: 'Instandhaltung & CapEx',
             routeKey: 'properties.daily_business.maintenance',
             requiresScenario: false,
           ),
           PropertyNavigationDestination(
             page: PropertyDetailPage.budgetVsActual,
-            label: 'Budget & Ist',
+            label: 'Finanzen & Budget',
             routeKey: 'properties.daily_business.budget_vs_actual',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.alerts,
-            label: 'Hinweise',
-            routeKey: 'properties.daily_business.alerts',
             requiresScenario: false,
           ),
         ],
@@ -327,73 +279,26 @@ const List<PropertyNavigationSection> propertyNavigationSections =
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
             page: PropertyDetailPage.scenarios,
-            label: 'Szenarien',
+            label: 'Szenarien & Bewertung',
             routeKey: 'properties.valuation_scenarios.scenarios',
-            requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.inputs,
-            label: 'Bewertungsdaten',
-            routeKey: 'properties.valuation_scenarios.inputs',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.analysis,
-            label: 'Analyse',
-            routeKey: 'properties.valuation_scenarios.analysis',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.comps,
-            label: 'Vergleichswerte',
-            routeKey: 'properties.valuation_scenarios.market_comps',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.offer,
-            label: 'Angebot',
-            routeKey: 'properties.valuation_scenarios.offer',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.criteria,
-            label: 'Kriterien',
-            routeKey: 'properties.valuation_scenarios.criteria',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.versions,
-            label: 'Versionen',
-            routeKey: 'properties.valuation_scenarios.versions',
-            requiresScenario: true,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.covenants,
-            label: 'Auflagen',
-            routeKey: 'properties.valuation_scenarios.covenants',
             requiresScenario: false,
           ),
         ],
       ),
       PropertyNavigationSection(
-        title: 'Dokumente & Berichte',
+        title: 'Dokumente & Historie',
         routeKey: 'properties.documents_reporting',
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
             page: PropertyDetailPage.documents,
-            label: 'Dokumente',
+            label: 'Dokumente & Historie',
             routeKey: 'properties.documents_reporting.documents',
             requiresScenario: false,
-          ),
-          PropertyNavigationDestination(
-            page: PropertyDetailPage.reports,
-            label: 'Berichte',
-            routeKey: 'properties.documents_reporting.reports',
-            requiresScenario: true,
           ),
         ],
       ),
     ];
+
 
 GlobalNavigationDestination navigationDestinationForPage(GlobalPage page) {
   for (final group in appNavigationGroups) {
@@ -417,10 +322,170 @@ AppNavigationGroup navigationGroupForPage(GlobalPage page) {
   throw ArgumentError.value(page, 'page', 'Unknown global page');
 }
 
+const List<PropertyNavigationSection> allPropertyNavigationSections =
+    <PropertyNavigationSection>[
+      PropertyNavigationSection(
+        title: 'Ansicht',
+        routeKey: 'properties.view',
+        items: <PropertyNavigationDestination>[
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.overview,
+            label: 'Übersicht',
+            routeKey: 'properties.view.overview',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.operationsOverview,
+            label: 'Betriebsübersicht',
+            routeKey: 'properties.view.operations_overview',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.alerts,
+            label: 'Warnungen',
+            routeKey: 'properties.view.alerts',
+            requiresScenario: false,
+          ),
+        ],
+      ),
+      PropertyNavigationSection(
+        title: 'Tagesgeschaeft',
+        routeKey: 'properties.daily_business',
+        items: <PropertyNavigationDestination>[
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.units,
+            label: 'Einheiten & Mieter',
+            routeKey: 'properties.daily_business.units',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.tenants,
+            label: 'Mieter',
+            routeKey: 'properties.daily_business.tenants',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.leases,
+            label: 'Mietverträge',
+            routeKey: 'properties.daily_business.leases',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.rentRoll,
+            label: 'Soll-Mieten',
+            routeKey: 'properties.daily_business.rent_roll',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.tasks,
+            label: 'Aufgaben',
+            routeKey: 'properties.daily_business.tasks',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.maintenance,
+            label: 'Instandhaltung & CapEx',
+            routeKey: 'properties.daily_business.maintenance',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.budgetVsActual,
+            label: 'Finanzen & Budget',
+            routeKey: 'properties.daily_business.budget_vs_actual',
+            requiresScenario: false,
+          ),
+        ],
+      ),
+      PropertyNavigationSection(
+        title: 'Bewertung & Szenarien',
+        routeKey: 'properties.valuation_scenarios',
+        items: <PropertyNavigationDestination>[
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.scenarios,
+            label: 'Szenarien & Bewertung',
+            routeKey: 'properties.valuation_scenarios.scenarios',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.inputs,
+            label: 'Eingaben',
+            routeKey: 'properties.valuation_scenarios.inputs',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.analysis,
+            label: 'Analyse',
+            routeKey: 'properties.valuation_scenarios.analysis',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.comps,
+            label: 'Vergleichsobjekte',
+            routeKey: 'properties.valuation_scenarios.comps',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.criteria,
+            label: 'Kriterienprüfung',
+            routeKey: 'properties.valuation_scenarios.criteria',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.offer,
+            label: 'Angebotsrechner',
+            routeKey: 'properties.valuation_scenarios.offer',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.versions,
+            label: 'Versionen',
+            routeKey: 'properties.valuation_scenarios.versions',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.assetWorkbook,
+            label: 'Asset Workbook',
+            routeKey: 'properties.valuation_scenarios.asset_workbook',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.covenants,
+            label: 'Covenants',
+            routeKey: 'properties.valuation_scenarios.covenants',
+            requiresScenario: false,
+          ),
+        ],
+      ),
+      PropertyNavigationSection(
+        title: 'Dokumente & Historie',
+        routeKey: 'properties.documents_reporting',
+        items: <PropertyNavigationDestination>[
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.documents,
+            label: 'Dokumente & Historie',
+            routeKey: 'properties.documents_reporting.documents',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.audit,
+            label: 'Historie',
+            routeKey: 'properties.documents_reporting.audit',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.reports,
+            label: 'Berichte',
+            routeKey: 'properties.documents_reporting.reports',
+            requiresScenario: false,
+          ),
+        ],
+      ),
+    ];
+
 PropertyNavigationDestination propertyDestinationForPage(
   PropertyDetailPage page,
 ) {
-  for (final section in propertyNavigationSections) {
+  for (final section in allPropertyNavigationSections) {
     for (final item in section.items) {
       if (item.page == page) {
         return item;
@@ -431,7 +496,7 @@ PropertyNavigationDestination propertyDestinationForPage(
 }
 
 PropertyNavigationSection propertySectionForPage(PropertyDetailPage page) {
-  for (final section in propertyNavigationSections) {
+  for (final section in allPropertyNavigationSections) {
     for (final item in section.items) {
       if (item.page == page) {
         return section;
@@ -456,4 +521,60 @@ List<String> propertyBreadcrumbs({
     section.title,
     destination.label,
   ];
+}
+
+bool isPageAllowedForRole(GlobalPage page, String role) {
+  final normalizedRole = role.trim().toLowerCase();
+  
+  if (normalizedRole == 'admin' ||
+      normalizedRole == 'administrator' ||
+      normalizedRole == 'asset_manager' ||
+      normalizedRole == 'manager') {
+    return true;
+  }
+
+  switch (normalizedRole) {
+    case 'hausmeister':
+    case 'bauleiter':
+    case 'bauarbeiter':
+    case 'housekeeping':
+    case 'externer_dienstleister':
+      return page == GlobalPage.dashboard ||
+          page == GlobalPage.notifications ||
+          page == GlobalPage.properties ||
+          page == GlobalPage.tasks ||
+          page == GlobalPage.maintenance ||
+          page == GlobalPage.help;
+
+    case 'vermietung':
+      return page == GlobalPage.dashboard ||
+          page == GlobalPage.notifications ||
+          page == GlobalPage.properties ||
+          page == GlobalPage.tasks ||
+          page == GlobalPage.help;
+
+    case 'buerokraft':
+      return page == GlobalPage.dashboard ||
+          page == GlobalPage.notifications ||
+          page == GlobalPage.properties ||
+          page == GlobalPage.tasks ||
+          page == GlobalPage.documents ||
+          page == GlobalPage.help;
+
+    case 'buchhaltung':
+      return page != GlobalPage.adminUsers &&
+          page != GlobalPage.settings &&
+          page != GlobalPage.audit &&
+          page != GlobalPage.criteriaSets &&
+          page != GlobalPage.compare;
+
+    case 'viewer':
+      return page != GlobalPage.adminUsers &&
+          page != GlobalPage.settings &&
+          page != GlobalPage.audit &&
+          page != GlobalPage.imports;
+
+    default:
+      return true;
+  }
 }

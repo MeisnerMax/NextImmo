@@ -16,6 +16,8 @@ class ListFilterTemplate extends StatelessWidget {
     this.contextBar,
     required this.content,
     this.footer,
+    this.scrollable = false,
+    this.expandContent = true,
   });
 
   final String title;
@@ -27,37 +29,47 @@ class ListFilterTemplate extends StatelessWidget {
   final Widget? contextBar;
   final Widget content;
   final Widget? footer;
+  final bool scrollable;
+  final bool expandContent;
 
   @override
   Widget build(BuildContext context) {
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NxPageHeader(
+          title: title,
+          breadcrumbs: breadcrumbs,
+          subtitle: subtitle,
+          primaryAction: primaryAction,
+          secondaryActions: secondaryActions,
+        ),
+        if (contextBar != null) ...[
+          const SizedBox(height: AppSpacing.component),
+          contextBar!,
+        ],
+        if (filters != null) ...[
+          const SizedBox(height: AppSpacing.component),
+          filters!,
+        ],
+        const SizedBox(height: AppSpacing.component),
+        if (scrollable)
+          content
+        else if (expandContent)
+          Expanded(child: content)
+        else
+          content,
+        if (footer != null) ...[
+          const SizedBox(height: AppSpacing.component),
+          footer!,
+        ],
+      ],
+    );
+
     return Padding(
       padding: EdgeInsets.all(context.adaptivePagePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          NxPageHeader(
-            title: title,
-            breadcrumbs: breadcrumbs,
-            subtitle: subtitle,
-            primaryAction: primaryAction,
-            secondaryActions: secondaryActions,
-          ),
-          if (contextBar != null) ...[
-            const SizedBox(height: AppSpacing.component),
-            contextBar!,
-          ],
-          if (filters != null) ...[
-            const SizedBox(height: AppSpacing.component),
-            filters!,
-          ],
-          const SizedBox(height: AppSpacing.component),
-          Expanded(child: content),
-          if (footer != null) ...[
-            const SizedBox(height: AppSpacing.component),
-            footer!,
-          ],
-        ],
-      ),
+      child: scrollable ? SingleChildScrollView(child: body) : body,
     );
   }
 }

@@ -79,6 +79,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Add Ticket'), findsOneWidget);
+    expect(find.text('Neues Ticket'), findsOneWidget);
   });
 }

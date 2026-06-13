@@ -111,7 +111,7 @@ class _WorkflowStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final steps = [
       _WorkflowStep('1', 'Objekt öffnen', GlobalPage.properties),
-      _WorkflowStep('2', 'Vermietung & BK prüfen', GlobalPage.rentalOverview),
+      _WorkflowStep('2', 'Vermietung & BK prüfen', GlobalPage.properties),
       _WorkflowStep('3', 'Aufgaben bearbeiten', GlobalPage.tasks),
       _WorkflowStep('4', 'Dokumente sichern', GlobalPage.documents),
       _WorkflowStep('5', 'Reports erstellen', GlobalPage.reportTemplates),
@@ -242,7 +242,7 @@ const _helpSections = <_HelpSection>[
     description:
         'Mieten, Nebenkosten, Gebäude- und Einheitskosten sowie Umlageschlüssel in einem Workflow prüfen.',
     icon: Icons.request_quote_outlined,
-    target: GlobalPage.rentalOverview,
+    target: GlobalPage.properties,
     keywords: ['Mieten', 'BK', 'Kosten'],
   ),
   _HelpSection(

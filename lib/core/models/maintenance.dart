@@ -21,6 +21,14 @@ class MaintenanceTicketRecord {
     required this.insuranceClaimNumber,
     required this.createdAt,
     required this.updatedAt,
+    this.startDate,
+    this.endDate,
+    this.assigneeType,
+    this.assigneeName,
+    this.building,
+    this.area,
+    this.technical,
+    this.outdoor,
   });
 
   final String id;
@@ -44,6 +52,14 @@ class MaintenanceTicketRecord {
   final String? insuranceClaimNumber;
   final int createdAt;
   final int updatedAt;
+  final int? startDate;
+  final int? endDate;
+  final String? assigneeType;
+  final String? assigneeName;
+  final String? building;
+  final String? area;
+  final String? technical;
+  final String? outdoor;
 
   Map<String, Object?> toMap() {
     return <String, Object?>{
@@ -68,6 +84,14 @@ class MaintenanceTicketRecord {
       'insurance_claim_number': insuranceClaimNumber,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'start_date': startDate,
+      'end_date': endDate,
+      'assignee_type': assigneeType,
+      'assignee_name': assigneeName,
+      'building': building,
+      'area': area,
+      'technical': technical,
+      'outdoor': outdoor,
     };
   }
 
@@ -94,6 +118,14 @@ class MaintenanceTicketRecord {
       insuranceClaimNumber: map['insurance_claim_number'] as String?,
       createdAt: (map['created_at']! as num).toInt(),
       updatedAt: (map['updated_at']! as num).toInt(),
+      startDate: (map['start_date'] as num?)?.toInt(),
+      endDate: (map['end_date'] as num?)?.toInt(),
+      assigneeType: map['assignee_type'] as String?,
+      assigneeName: map['assignee_name'] as String?,
+      building: map['building'] as String?,
+      area: map['area'] as String?,
+      technical: map['technical'] as String?,
+      outdoor: map['outdoor'] as String?,
     );
   }
 }

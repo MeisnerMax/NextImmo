@@ -114,7 +114,7 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
       openGlobalPage(ref, GlobalPage.properties);
       break;
     case 'open_rental_overview':
-      openGlobalPage(ref, GlobalPage.rentalOverview);
+      openGlobalPage(ref, GlobalPage.properties);
       break;
     case 'open_daily_business':
       openGlobalPage(ref, GlobalPage.tasks);

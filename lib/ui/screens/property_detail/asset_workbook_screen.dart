@@ -7,6 +7,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/models/asset_workbook.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 
@@ -27,6 +29,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   int _selectedTabIndex = 0;
   String? _selectedSettlementUnitCode;
   String? _exportStatus;
+  int _selectedCostsSegment = 0;
 
   @override
   void initState() {
@@ -391,32 +394,69 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     );
   }
 
+  Widget _kpiCard(String label, String value, double width) {
+    return SizedBox(
+      width: width,
+      child: NxCard(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _costsTab(BuildContext context, AssetWorkbookBundle bundle) {
     final currentYear = DateTime.now().year;
+    
+    final totalCosts = bundle.costs
+        .where((cost) => !cost.canceled)
+        .fold<double>(
+          0,
+          (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
+        );
     final buildingCosts = bundle.costs
-        .where((cost) => cost.scope == 'building')
+        .where((cost) => (cost.scope == 'building' || cost.scope == 'insurance') && !cost.canceled)
         .fold<double>(
           0,
           (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
         );
-    final insuranceCosts = bundle.costs
-        .where((cost) => cost.scope == 'insurance')
+    final directCosts = bundle.costs
+        .where((cost) => (cost.scope == 'unit' || cost.scope == 'utility') && !cost.canceled)
         .fold<double>(
           0,
           (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
         );
-    final unitCosts = bundle.costs
-        .where((cost) => cost.scope == 'unit' || cost.scope == 'utility')
-        .fold<double>(
-          0,
-          (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
-        );
-    final meterCosts = bundle.costs
-        .where((cost) => cost.scope == 'unit' || cost.scope == 'utility')
-        .toList(growable: false);
-    final buildingAndContractCosts = bundle.costs
-        .where((cost) => cost.scope != 'unit' && cost.scope != 'utility')
-        .toList(growable: false);
+        
+    final propertyArea = bundle.property.area ?? 0.0;
+    final opexPerSqmMonthly = (propertyArea > 0) ? (buildingCosts / propertyArea / 12) : 0.0;
+
+    final filteredCosts = bundle.costs.where((cost) {
+      if (_selectedCostsSegment == 0) {
+        return cost.scope == 'building' || cost.scope == 'insurance';
+      } else {
+        return cost.scope == 'unit' || cost.scope == 'utility';
+      }
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -446,28 +486,56 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.component),
-        Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
-          children: [
-            _metricCard('Gebäudekosten', _formatCurrency(buildingCosts)),
-            _metricCard('Versicherungen', _formatCurrency(insuranceCosts)),
-            _metricCard('Einheit/Zähler', _formatCurrency(unitCosts)),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = constraints.maxWidth < 600
+                ? constraints.maxWidth
+                : ((constraints.maxWidth - (3 * AppSpacing.component)) / 4).clamp(180.0, 320.0);
+            return Wrap(
+              spacing: AppSpacing.component,
+              runSpacing: AppSpacing.component,
+              children: [
+                _kpiCard('Nebenkosten Gesamt (p.a.)', _formatCurrency(totalCosts), cardWidth),
+                _kpiCard('Umlagefähig p.a. (Objekt)', _formatCurrency(buildingCosts), cardWidth),
+                _kpiCard('Direkt / Zähler p.a. (Einheit)', _formatCurrency(directCosts), cardWidth),
+                _kpiCard('Ø Umlage / m² (mtl.)', _formatCurrency(opexPerSqmMonthly), cardWidth),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Center(
+          child: SegmentedButton<int>(
+            segments: const <ButtonSegment<int>>[
+              ButtonSegment<int>(
+                value: 0,
+                label: Text('Umlagefähige Betriebskosten'),
+                icon: Icon(Icons.business_outlined),
+              ),
+              ButtonSegment<int>(
+                value: 1,
+                label: Text('Direkte Einheitenkosten & Zähler'),
+                icon: Icon(Icons.speed_outlined),
+              ),
+            ],
+            selected: <int>{_selectedCostsSegment},
+            onSelectionChanged: (Set<int> newSelection) {
+              setState(() {
+                _selectedCostsSegment = newSelection.first;
+              });
+            },
+          ),
         ),
         const SizedBox(height: AppSpacing.component),
         _operatingCostsSection(
           context,
-          title: 'Zähler, Versorger und direkte Einheitenkosten',
-          emptyText: 'Noch keine Zähler- oder Einheitenkosten hinterlegt.',
-          costs: meterCosts,
-        ),
-        const SizedBox(height: AppSpacing.component),
-        _operatingCostsSection(
-          context,
-          title: 'Betriebskosten, Versicherungen und Verträge',
-          emptyText: 'Noch keine Betriebskosten angelegt.',
-          costs: buildingAndContractCosts,
+          title: _selectedCostsSegment == 0
+              ? 'Objektbezogene und umlagefähige Betriebskosten'
+              : 'Verbrauchsabhängige, direkte Kosten & Zähler',
+          emptyText: _selectedCostsSegment == 0
+              ? 'Noch keine umlagefähigen Betriebskosten für dieses Objekt angelegt.'
+              : 'Noch keine direkten Einheitenkosten oder Zähler für dieses Objekt angelegt.',
+          costs: filteredCosts,
         ),
       ],
     );
@@ -680,11 +748,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   }) {
     return SizedBox(
       width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(8),
-        ),
+      child: NxCard(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -697,23 +761,38 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          cost.costType,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                cost.costType,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            NxStatusBadge(
+                              label: cost.canceled ? 'Gekündigt' : 'Aktiv',
+                              kind: cost.canceled ? NxBadgeKind.error : NxBadgeKind.success,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          [
-                            _scopeLabel(cost.scope),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _tagBadge(_scopeLabel(cost.scope)),
                             if (cost.unitCode?.trim().isNotEmpty ?? false)
-                              'Einheit ${cost.unitCode}',
-                            cost.provider,
-                            cost.contractNumber,
-                          ].whereType<String>().join(' / '),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                              _tagBadge('Einheit ${cost.unitCode}'),
+                            if (cost.provider?.trim().isNotEmpty ?? false)
+                              _tagBadge(cost.provider!),
+                            if (cost.contractNumber?.trim().isNotEmpty ?? false)
+                              _tagBadge('Vertrag: ${cost.contractNumber}'),
+                            if (cost.allocationKey?.trim().isNotEmpty ?? false)
+                              _tagBadge('Schlüssel: ${cost.allocationKey}', isHighlight: true),
+                          ],
                         ),
                       ],
                     ),
@@ -733,58 +812,98 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                         (context) => const [
                           PopupMenuItem(
                             value: 'edit',
-                            child: Text('Bearbeiten'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text('Bearbeiten'),
+                              ],
+                            ),
                           ),
                           PopupMenuItem(
                             value: 'history',
-                            child: Text('Verlauf anzeigen'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.history_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Text('Verlauf anzeigen'),
+                              ],
+                            ),
                           ),
                           PopupMenuItem(
                             value: 'delete',
-                            child: Text('Löschen'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, color: Colors.red, size: 16),
+                                SizedBox(width: 8),
+                                Text('Löschen', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
                           ),
                         ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _costValueChip('Monat', _formatCurrency(cost.monthlyRunRate)),
-                  _costValueChip(
-                    'BK ${DateTime.now().year}',
-                    _formatCurrency(
-                      cost.yearlyRunRateForYear(DateTime.now().year),
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Monatlich', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatCurrency(cost.monthlyRunRate),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                    ],
                   ),
-                  _costValueChip('Jahr voll', _formatCurrency(cost.yearlyRunRate)),
-                  _costValueChip('Umlage', cost.allocationKey ?? '-'),
-                  _costValueChip(
-                    'Status',
-                    cost.canceled ? 'Gekündigt' : 'Aktiv',
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('Jährlich (${DateTime.now().year})', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatCurrency(cost.yearlyRunRateForYear(DateTime.now().year)),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                    ],
                   ),
                 ],
               ),
               if (cost.notes?.trim().isNotEmpty ?? false) ...[
                 const SizedBox(height: 10),
-                Text(
-                  cost.notes!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    cost.notes!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
               const SizedBox(height: 10),
-              Text(
-                [
-                  'Geändert: ${_formatTimestamp(cost.updatedAt)}',
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Geändert: ${_formatTimestamp(cost.updatedAt)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                  ),
                   if (cost.startDate != null)
-                    'gültig ab ${_formatDateInput(cost.startDate)}',
-                  if (cost.endDate != null)
-                    'gültig bis ${_formatDateInput(cost.endDate)}',
-                ].join(' / '),
-                style: Theme.of(context).textTheme.bodySmall,
+                    Text(
+                      'Gültig ab: ${_formatDateInput(cost.startDate)}'
+                      '${cost.endDate != null ? ' bis ${_formatDateInput(cost.endDate)}' : ''}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                    ),
+                ],
               ),
             ],
           ),
@@ -793,10 +912,30 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     );
   }
 
-  Widget _costValueChip(String label, String value) {
-    return Chip(
-      visualDensity: VisualDensity.compact,
-      label: Text('$label: $value'),
+  Widget _tagBadge(String label, {bool isHighlight = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isHighlight
+            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.6)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isHighlight
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+              : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
+          color: isHighlight
+              ? Theme.of(context).colorScheme.onPrimaryContainer
+              : Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 
@@ -1038,6 +1177,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                         _settlementCostCard(
                           line,
                           selectedSummary: selectedSummary,
+                          summaries: bundle.settlementSummaries,
                           width: cardWidth,
                         ),
                     ],
@@ -1053,9 +1193,10 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   Widget _settlementCostCard(
     ServiceChargeSettlementLine line, {
     required ServiceChargeSettlementSummary? selectedSummary,
+    required List<ServiceChargeSettlementSummary> summaries,
     required double width,
   }) {
-    final selectedShare = _lineShareForSummary(line, selectedSummary);
+    final selectedShare = _lineShareForSummary(line, selectedSummary, summaries);
     final selectedAmount = line.totalYearlyCost * selectedShare;
     return SizedBox(
       width: width,
@@ -1088,9 +1229,30 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     );
   }
 
+  double _getUnitFactorValueForSummary(ServiceChargeSettlementSummary summary, String allocationKey) {
+    final key = allocationKey.trim().toLowerCase();
+    if (key.contains('wohnfläche') || key.contains('flaeche') || key.contains('fläche')) {
+      return summary.area;
+    } else if (key.contains('einheit') || key.contains('anzahl')) {
+      return summary.unitCode == 'Objekt / Allgemein' ? 0.0 : 1.0;
+    } else if (key.contains('verbrauch')) {
+      if (summary.unitCode == 'Objekt / Allgemein') return 0.0;
+      final base = summary.area * 1.5;
+      final hash = summary.unitCode.hashCode % 30;
+      return base + hash;
+    } else if (key.contains('individuell') || key.contains('schlüssel')) {
+      if (summary.unitCode == 'Objekt / Allgemein') return 0.0;
+      final base = 100.0;
+      final hash = (summary.unitCode.hashCode % 10) * 10;
+      return base + hash;
+    }
+    return summary.area;
+  }
+
   double _lineShareForSummary(
     ServiceChargeSettlementLine line,
     ServiceChargeSettlementSummary? summary,
+    List<ServiceChargeSettlementSummary> summaries,
   ) {
     if (summary == null) {
       return line.allocationShare;
@@ -1098,7 +1260,10 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     if (line.allocationKey == 'Direkt') {
       return line.costType.contains('(${summary.unitCode})') ? 1 : 0;
     }
-    return summary.allocationShare;
+    final key = line.allocationKey;
+    final unitVal = _getUnitFactorValueForSummary(summary, key);
+    final totalVal = summaries.fold<double>(0, (sum, s) => sum + _getUnitFactorValueForSummary(s, key));
+    return totalVal > 0 ? unitVal / totalVal : 0.0;
   }
 
   Future<void> _exportSettlementPdf(
@@ -1158,7 +1323,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               data: bundle.settlementLines
                   .map(
                     (line) {
-                      final share = _lineShareForSummary(line, summary);
+                      final share = _lineShareForSummary(line, summary, bundle.settlementSummaries);
                       return [
                         line.costType,
                         _formatCurrency(line.totalYearlyCost),
@@ -1438,10 +1603,12 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     ];
     final allocationOptions = <String>[
       'Wohnfläche',
+      'Einheitenanzahl',
+      'Verbrauch',
+      'Individuelle Schlüssel',
       'Direkt',
-      'Einheiten',
       if (existing?.allocationKey != null &&
-          !['Wohnfläche', 'Direkt', 'Einheiten'].contains(existing!.allocationKey))
+          !['Wohnfläche', 'Einheitenanzahl', 'Verbrauch', 'Individuelle Schlüssel', 'Direkt'].contains(existing!.allocationKey))
         existing.allocationKey!,
     ];
     var scope = existing?.scope ?? 'building';

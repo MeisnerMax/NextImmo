@@ -51,8 +51,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Ansicht'), findsAtLeastNWidgets(1));
-    expect(find.text('Tagesgeschaeft'), findsAtLeastNWidgets(1));
+    expect(find.text('ANSICHT'), findsAtLeastNWidgets(1));
+    expect(find.text('TAGESGESCHAEFT'), findsAtLeastNWidgets(1));
     expect(
       find.text(
         'Asset Alpha / Tagesgeschaeft / Aufgaben',

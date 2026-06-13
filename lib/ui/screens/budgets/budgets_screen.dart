@@ -5,6 +5,8 @@ import '../../../core/models/budget.dart';
 import '../../../core/models/ledger.dart';
 import '../../../core/models/portfolio.dart';
 import '../../../core/models/property.dart';
+import '../../../core/models/operations.dart';
+import '../../../core/models/maintenance.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -508,70 +510,160 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
   }
 
   Future<void> _createBudgetDialog() async {
+    if (_entityId.isEmpty) {
+      setState(() => _status = 'Select a property or portfolio first.');
+      return;
+    }
+
     final yearCtrl = TextEditingController(
       text: DateTime.now().year.toString(),
     );
     final versionCtrl = TextEditingController(text: 'Base');
+    final projectCtrl = TextEditingController();
+
+    List<UnitRecord> dialogUnits = [];
+    List<MaintenanceTicketRecord> dialogTickets = [];
+    List<MaintenanceTicketRecord> dialogRenovations = [];
+    String? selectedUnitId;
+    String? selectedTicketId;
+    String? selectedRenovationId;
+    bool isLoading = true;
+
+    if (_entityType == 'asset_property') {
+      try {
+        dialogUnits = await ref.read(rentRollRepositoryProvider).listUnitsByAsset(_entityId);
+        final tickets = await ref.read(maintenanceRepositoryProvider).listTickets(assetPropertyId: _entityId);
+        dialogTickets = tickets.where((t) => t.category != 'renovation').toList();
+        dialogRenovations = tickets.where((t) => t.category == 'renovation').toList();
+        isLoading = false;
+      } catch (_) {
+        isLoading = false;
+      }
+    }
+
+    if (!mounted) return;
+
     await showDialog<void>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Create Budget'),
-            content: SizedBox(
-              width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: yearCtrl,
-                    decoration: const InputDecoration(labelText: 'Fiscal Year'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: versionCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Version Name',
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: const Text('Create Budget'),
+                  content: SizedBox(
+                    width: ResponsiveConstraints.dialogWidth(context, maxWidth: 460),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: yearCtrl,
+                            decoration: const InputDecoration(labelText: 'Fiscal Year *'),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: versionCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Version Name *',
+                            ),
+                          ),
+                          if (_entityType == 'asset_property') ...[
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: selectedUnitId,
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Keine Einheit (Gesamtobjekt)')),
+                                ...dialogUnits.map(
+                                  (unit) => DropdownMenuItem(
+                                    value: unit.id,
+                                    child: Text(unit.unitCode),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => selectedUnitId = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Zugeordnete Einheit'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: selectedTicketId,
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Kein Ticket (Gesamtobjekt)')),
+                                ...dialogTickets.map(
+                                  (ticket) => DropdownMenuItem(
+                                    value: ticket.id,
+                                    child: Text(ticket.title),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => selectedTicketId = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Zugeordnetes Wartungsticket'),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String?>(
+                              value: selectedRenovationId,
+                              items: [
+                                const DropdownMenuItem(value: null, child: Text('Keine Sanierung (Gesamtobjekt)')),
+                                ...dialogRenovations.map(
+                                  (ticket) => DropdownMenuItem(
+                                    value: ticket.id,
+                                    child: Text(ticket.title),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setDialogState(() => selectedRenovationId = value);
+                              },
+                              decoration: const InputDecoration(labelText: 'Zugeordnete Sanierungsmaßnahme'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: projectCtrl,
+                              decoration: const InputDecoration(labelText: 'Projekt-ID / Name (optional)'),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (_entityId.isEmpty) {
-                    setState(() => _status = 'Select a property or portfolio.');
-                    return;
-                  }
-                  final fiscalYear =
-                      int.tryParse(yearCtrl.text.trim()) ?? DateTime.now().year;
-                  await ref
-                      .read(budgetRepositoryProvider)
-                      .createBudget(
-                        entityType: _entityType,
-                        entityId: _entityId,
-                        fiscalYear: fiscalYear,
-                        versionName:
-                            versionCtrl.text.trim().isEmpty
-                                ? 'Base'
-                                : versionCtrl.text.trim(),
-                      );
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                  }
-                  await _reload();
-                },
-                child: const Text('Create'),
-              ),
-            ],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final fiscalYear =
+                            int.tryParse(yearCtrl.text.trim()) ?? DateTime.now().year;
+                        await ref
+                            .read(budgetRepositoryProvider)
+                            .createBudget(
+                              entityType: _entityType,
+                              entityId: _entityId,
+                              fiscalYear: fiscalYear,
+                              versionName: versionCtrl.text.trim().isEmpty ? 'Base' : versionCtrl.text.trim(),
+                              unitId: selectedUnitId,
+                              ticketId: selectedTicketId,
+                              renovationId: selectedRenovationId,
+                              projectId: projectCtrl.text.trim().isEmpty ? null : projectCtrl.text.trim(),
+                            );
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                        await _reload();
+                      },
+                      child: const Text('Create'),
+                    ),
+                  ],
+                ),
           ),
     );
     yearCtrl.dispose();
     versionCtrl.dispose();
+    projectCtrl.dispose();
   }
 
   Future<void> _renameBudgetDialog(BudgetRecord budget) async {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -76,7 +78,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                       setState(() => _query = value.trim().toLowerCase()),
               decoration: const InputDecoration(
                 labelText: 'Search properties',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
               ),
             ),
           ),
@@ -95,161 +97,510 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 return haystack.contains(_query);
               })
               .toList(growable: false);
-          if (filtered.isEmpty) {
-            return NxEmptyState(
-              title: properties.isEmpty ? 'No properties yet' : 'No match',
-              description:
-                  properties.isEmpty
-                      ? 'Create your first property to start portfolio analysis.'
-                      : 'Try another filter or clear the current search.',
-              icon: Icons.home_work_outlined,
-              primaryAction:
-                  properties.isEmpty
-                      ? ElevatedButton.icon(
-                        onPressed: () => _openCreateDialog(context, ref),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create Property'),
-                      )
-                      : null,
-            );
-          }
 
-          return NxDataTableShell(
-            minTableWidth: 980,
-            mobileBreakpoint: 980,
-            mobileChild: ListView.separated(
-              padding: const EdgeInsets.all(AppSpacing.component),
-              itemCount: filtered.length,
-              separatorBuilder:
-                  (_, __) => const SizedBox(height: AppSpacing.component),
-              itemBuilder: (context, index) {
-                final property = filtered[index];
-                return NxCard(
-                  variant: NxCardVariant.interactive,
-                  onTap: () => _openProperty(property, ref),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PropertyCover(property: property),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  property.name,
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${property.addressLine1}, ${property.city}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+          return FutureBuilder<_PortfolioMetricsData>(
+            future: _loadPortfolioMetrics(),
+            builder: (context, snapshot) {
+              final metrics = snapshot.data;
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+              if (isLoading && metrics == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final safeMetrics = metrics ?? const _PortfolioMetricsData(
+                totalValue: 0,
+                totalAcquisitionCosts: 0,
+                netYield: 0,
+                vacancyRate: 0,
+                ltv: 0,
+                totalLoanPrincipal: 0,
+                propertyKpis: {},
+              );
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (filtered.isNotEmpty) ...[
+                    _buildKpisHeader(context, safeMetrics),
+                    const SizedBox(height: AppSpacing.component),
+                  ],
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? NxEmptyState(
+                            title: properties.isEmpty ? 'Keine Objekte vorhanden' : 'Keine Treffer',
+                            description: properties.isEmpty
+                                ? 'Erstellen Sie Ihr erstes Objekt, um mit der Analyse zu starten.'
+                                : 'Versuchen Sie es mit einem anderen Suchbegriff.',
+                            icon: Icons.home_work_outlined,
+                            primaryAction: properties.isEmpty
+                                ? ElevatedButton.icon(
+                                    onPressed: () => _openCreateDialog(context, ref),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Objekt erstellen'),
+                                  )
+                                : null,
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: MediaQuery.of(context).size.width < 640
+                                  ? 1
+                                  : (MediaQuery.of(context).size.width < 1100 ? 2 : 3),
+                              crossAxisSpacing: AppSpacing.component,
+                              mainAxisSpacing: AppSpacing.component,
+                              childAspectRatio: MediaQuery.of(context).size.width < 640
+                                  ? 0.95
+                                  : (MediaQuery.of(context).size.width < 1100 ? 0.78 : 0.75),
                             ),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final property = filtered[index];
+                              final kpis = safeMetrics.propertyKpis[property.id];
+                              return _buildPropertyCard(context, property, kpis);
+                            },
                           ),
-                          const SizedBox(width: 12),
-                          NxStatusBadge(
-                            label: context.strings.text(
-                              propertyTypeDisplayLabel(property.propertyType),
-                            ),
-                            kind: NxBadgeKind.info,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Updated ${_formatDate(property.updatedAt)}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 12),
-                      _PropertyActions(
-                        onOpen: () => _openProperty(property, ref),
-                        onImages: () => _openPropertyImages(property, ref),
-                        onArchive: () => controller.archive(property.id, true),
-                        onDelete:
-                            () => _confirmPermanentDelete(context, property),
-                      ),
-                    ],
                   ),
-                );
-              },
-            ),
-            child: DataTable(
-              sortAscending: false,
-              sortColumnIndex: 3,
-              columns: const [
-                DataColumn(label: Text('Name')),
-                DataColumn(label: Text('Address')),
-                DataColumn(label: Text('Type')),
-                DataColumn(label: Text('Updated ↓')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: filtered
-                  .map(
-                    (property) => DataRow(
-                      cells: [
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 72,
-                                child: _PropertyCover(
-                                  property: property,
-                                  compact: true,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 220,
-                                child: Text(
-                                  property.name,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        DataCell(
-                          Text('${property.addressLine1}, ${property.city}'),
-                        ),
-                        DataCell(
-                          NxStatusBadge(
-                            label: context.strings.text(
-                              propertyTypeDisplayLabel(property.propertyType),
-                            ),
-                            kind: NxBadgeKind.info,
-                          ),
-                        ),
-                        DataCell(Text(_formatDate(property.updatedAt))),
-                        DataCell(
-                          _PropertyActions(
-                            dense: true,
-                            onOpen: () => _openProperty(property, ref),
-                            onImages: () => _openPropertyImages(property, ref),
-                            onArchive:
-                                () => controller.archive(property.id, true),
-                            onDelete:
-                                () =>
-                                    _confirmPermanentDelete(context, property),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
+                ],
+              );
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('Error: $error')),
       ),
     );
+  }
+
+  Future<_PortfolioMetricsData> _loadPortfolioMetrics() async {
+    final db = ref.read(databaseProvider);
+    final rentalOverview = await ref.read(assetWorkbookRepositoryProvider).loadPortfolioOverview();
+
+    final purchasePriceRows = await db.rawQuery('''
+      SELECT s.property_id, si.purchase_price
+      FROM scenario_inputs si
+      INNER JOIN scenarios s ON s.id = si.scenario_id
+      WHERE s.is_base = 1
+    ''');
+    final purchasePrices = {
+      for (final row in purchasePriceRows)
+        row['property_id'] as String: ((row['purchase_price'] as num?) ?? 0).toDouble()
+    };
+
+    final loanRows = await db.rawQuery('''
+      SELECT asset_property_id, SUM(principal) AS loan_total
+      FROM loans
+      GROUP BY asset_property_id
+    ''');
+    final loanTotals = {
+      for (final row in loanRows)
+        row['asset_property_id'] as String: ((row['loan_total'] as num?) ?? 0).toDouble()
+    };
+
+    final rentableUnits = rentalOverview.rentedUnits + rentalOverview.emptyUnits;
+    final vacancyRate = rentableUnits == 0 ? 0.0 : rentalOverview.emptyUnits / rentableUnits;
+
+    final opex = rentalOverview.annualOperatingCosts;
+    final annualRent = rentalOverview.annualRent;
+    final noi = annualRent - opex;
+
+    final estimatedMarketValue = noi <= 0 ? 0.0 : noi / 0.055;
+
+    var totalAcquisitionCosts = 0.0;
+    for (final price in purchasePrices.values) {
+      totalAcquisitionCosts += price;
+    }
+
+    var totalLoanPrincipal = 0.0;
+    for (final loan in loanTotals.values) {
+      totalLoanPrincipal += loan;
+    }
+
+    final netYield = totalAcquisitionCosts <= 0 ? 0.0 : noi / totalAcquisitionCosts;
+    final portfolioLtv = estimatedMarketValue <= 0 ? 0.0 : totalLoanPrincipal / estimatedMarketValue;
+
+    final propertyKpis = <String, _PropertyKpis>{};
+    for (final row in rentalOverview.rows) {
+      final pId = row.propertyId;
+      final pPrice = purchasePrices[pId] ?? 0.0;
+      final pNoi = row.annualRent - row.annualOperatingCosts;
+      final pYield = pPrice > 0 ? pNoi / pPrice : 0.0;
+      final pCashflow = pNoi / 12;
+      final pMarketValue = pNoi <= 0 ? 0.0 : pNoi / 0.055;
+      final pBkQuote = row.annualRent > 0 ? row.annualOperatingCosts / row.annualRent : 0.0;
+      propertyKpis[pId] = _PropertyKpis(
+        propertyYield: pYield,
+        cashflowMonthly: pCashflow,
+        estimatedMarketValue: pMarketValue,
+        units: row.units,
+        occupiedUnits: row.occupiedUnits,
+        annualOperatingCosts: row.annualOperatingCosts,
+        bkQuote: pBkQuote,
+        serviceChargeBalance: row.serviceChargeBalance,
+      );
+    }
+
+    return _PortfolioMetricsData(
+      totalValue: estimatedMarketValue,
+      totalAcquisitionCosts: totalAcquisitionCosts,
+      netYield: netYield,
+      vacancyRate: vacancyRate,
+      ltv: portfolioLtv,
+      totalLoanPrincipal: totalLoanPrincipal,
+      propertyKpis: propertyKpis,
+    );
+  }
+
+  Widget _buildKpisHeader(BuildContext context, _PortfolioMetricsData metrics) {
+    final ltvColor = metrics.ltv < 0.60
+        ? context.semanticColors.success
+        : (metrics.ltv <= 0.75 ? context.semanticColors.warning : context.semanticColors.error);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth < 640
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 3 * AppSpacing.component) / 4;
+
+        final cardList = [
+          _KpiCardSpec(
+            title: 'PORTFOLIO-GESAMTWERT',
+            value: '${_formatCurrency(metrics.totalValue)} / ${_formatCurrency(metrics.totalAcquisitionCosts)}',
+            valueStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          _KpiCardSpec(
+            title: 'Ø MIETRENDITE',
+            value: _formatPercent(metrics.netYield),
+            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
+          _KpiCardSpec(
+            title: 'GESAMT-LEERSTAND',
+            value: _formatPercent(metrics.vacancyRate),
+            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: metrics.vacancyRate > 0.10
+                      ? context.semanticColors.warning
+                      : context.semanticColors.success,
+                ),
+          ),
+          _KpiCardSpec(
+            title: 'PORTFOLIO-LTV',
+            value: _formatPercent(metrics.ltv),
+            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ltvColor,
+                ),
+          ),
+        ];
+
+        return Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: cardList
+              .map((spec) => SizedBox(
+                    width: width,
+                    child: NxCard(
+                      variant: NxCardVariant.kpi,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            spec.title,
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: context.semanticColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              spec.value,
+                              style: (spec.valueStyle ?? Theme.of(context).textTheme.titleLarge ?? const TextStyle()).merge(context.tabularNumericStyle),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildPropertyCard(BuildContext context, PropertyRecord property, _PropertyKpis? kpis) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final marketValue = kpis?.estimatedMarketValue ?? 0.0;
+    final yieldVal = kpis?.propertyYield ?? 0.0;
+    final cashflow = kpis?.cashflowMonthly ?? 0.0;
+    final occupied = kpis?.occupiedUnits ?? 0;
+    final totalUnits = kpis?.units ?? 0;
+    final operatingCosts = kpis?.annualOperatingCosts ?? 0.0;
+    final bkQuote = kpis?.bkQuote ?? 0.0;
+    final bkSaldo = kpis?.serviceChargeBalance ?? 0.0;
+
+    return NxCard(
+      variant: NxCardVariant.interactive,
+      onTap: () => _openProperty(property, ref),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Stack(
+            children: [
+              _PropertyCover(property: property),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.65),
+                    borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+                    border: Border.all(color: Colors.white24, width: 0.5),
+                  ),
+                  child: Text(
+                    context.strings.text(propertyTypeDisplayLabel(property.propertyType)),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  property.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${property.addressLine1}, ${property.city}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.semanticColors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'Marktwert',
+                            _formatCurrency(marketValue),
+                            Icons.analytics_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'Rendite',
+                            _formatPercent(yieldVal),
+                            Icons.trending_up,
+                            valueColor: yieldVal > 0.05
+                                ? context.semanticColors.success
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'Cashflow',
+                            '${cashflow.toStringAsFixed(0)} €/M',
+                            Icons.euro_symbol,
+                            valueColor: cashflow > 0
+                                ? context.semanticColors.success
+                                : (cashflow < 0 ? context.semanticColors.error : null),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'Belegung',
+                            '$occupied / $totalUnits Einheiten',
+                            Icons.people_alt_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'Betriebskosten',
+                            '${_formatCurrency(operatingCosts)} (${_formatPercent(bkQuote)})',
+                            Icons.receipt_long_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricTile(
+                            context,
+                            'BK-Saldo',
+                            '${bkSaldo >= 0 ? '+' : ''}${bkSaldo.toStringAsFixed(0)} €',
+                            Icons.account_balance_wallet_outlined,
+                            valueColor: bkSaldo > 0
+                                ? context.semanticColors.success
+                                : (bkSaldo < 0 ? context.semanticColors.error : null),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Aktualisiert: ${_formatDate(property.updatedAt)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.semanticColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _PropertyActions(
+                  onOpen: () => _openProperty(property, ref),
+                  onImages: () => _openPropertyImages(property, ref),
+                  onArchive: () => ref.read(propertiesControllerProvider.notifier).archive(property.id, true),
+                  onDelete: () => _confirmPermanentDelete(context, property),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon, {
+    Color? valueColor,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: context.semanticColors.textSecondary.withOpacity(0.8),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: context.semanticColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color: valueColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCurrency(double value) {
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)} Mio. €';
+    }
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(0)}k €';
+    }
+    return '${value.toStringAsFixed(0)} €';
+  }
+
+  String _formatPercent(double value) {
+    return '${(value * 100).toStringAsFixed(1)}%';
   }
 
   Future<void> _openCreateDialog(BuildContext context, WidgetRef ref) async {
@@ -343,36 +694,114 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
   }
 }
 
-class _PropertyCover extends StatelessWidget {
-  const _PropertyCover({required this.property, this.compact = false});
+class _PropertyCover extends ConsumerWidget {
+  const _PropertyCover({required this.property, this.compact = false, this.kpis});
 
   final PropertyRecord property;
   final bool compact;
+  final _PropertyKpis? kpis;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final titleImageAsync = ref.watch(propertyTitleImageProvider(property.id));
     final colors = _coverColors(property.propertyType);
     return AspectRatio(
       aspectRatio: compact ? 1.45 : 2.8,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          gradient: LinearGradient(
-            colors: colors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: context.semanticColors.border),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(compact ? 8 : AppSpacing.component),
-          child: Align(
-            alignment: Alignment.bottomLeft,
-            child: Icon(
-              _coverIcon(property.propertyType),
-              color: Colors.white,
-              size: compact ? 20 : 34,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        child: titleImageAsync.when(
+          data: (path) => _buildWithBody(path, colors, context),
+          loading: () => const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
+          ),
+          error: (_, __) => _buildWithBody(null, colors, context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWithBody(String? path, List<Color> colors, BuildContext context) {
+    Widget base;
+    if (path != null) {
+      final file = File(path);
+      if (file.existsSync()) {
+        base = Image.file(file, fit: BoxFit.cover, width: double.infinity, height: double.infinity);
+      } else {
+        base = _fallbackBox(colors, context);
+      }
+    } else {
+      base = _fallbackBox(colors, context);
+    }
+
+    if (compact || kpis == null) {
+      return base;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        base,
+        Positioned(
+          bottom: 8,
+          left: 8,
+          right: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Rendite: ${(kpis!.propertyYield * 100).toStringAsFixed(1)}%',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Cashflow: ${kpis!.cashflowMonthly.toStringAsFixed(0)} €/M',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Leerstand: ${kpis!.units - kpis!.occupiedUnits}',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fallbackBox(List<Color> colors, BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: context.semanticColors.border),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 8 : AppSpacing.component),
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: Icon(
+            _coverIcon(property.propertyType),
+            color: Colors.white,
+            size: compact ? 20 : 34,
           ),
         ),
       ),
@@ -424,59 +853,26 @@ class _PropertyActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!dense) {
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          FilledButton.icon(
-            onPressed: onOpen,
-            icon: const Icon(Icons.open_in_new_outlined, size: 16),
-            label: const Text('Öffnen'),
-          ),
-          OutlinedButton.icon(
-            onPressed: onImages,
-            icon: const Icon(Icons.photo_library_outlined, size: 16),
-            label: const Text('Bilder'),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Weitere Aktionen',
-            onSelected: (value) {
-              if (value == 'archive') {
-                onArchive();
-              }
-              if (value == 'delete') {
-                onDelete();
-              }
-            },
-            itemBuilder:
-                (context) => const [
-                  PopupMenuItem(value: 'archive', child: Text('Archivieren')),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Text('Endgültig löschen'),
-                  ),
-                ],
-          ),
-        ],
-      );
-    }
-    return Wrap(
-      spacing: 4,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          tooltip: 'Öffnen',
+        FilledButton.icon(
           onPressed: onOpen,
-          icon: const Icon(Icons.open_in_new_outlined),
+          icon: const Icon(Icons.open_in_new_outlined, size: 14),
+          label: const Text('Öffnen'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            visualDensity: VisualDensity.compact,
+          ),
         ),
-        IconButton(
-          tooltip: 'Bilder und Dokumente',
-          onPressed: onImages,
-          icon: const Icon(Icons.photo_library_outlined),
-        ),
+        const SizedBox(width: 4),
         PopupMenuButton<String>(
           tooltip: 'Weitere Aktionen',
+          icon: const Icon(Icons.more_vert),
           onSelected: (value) {
+            if (value == 'images') {
+              onImages();
+            }
             if (value == 'archive') {
               onArchive();
             }
@@ -486,14 +882,92 @@ class _PropertyActions extends StatelessWidget {
           },
           itemBuilder:
               (context) => const [
-                PopupMenuItem(value: 'archive', child: Text('Archivieren')),
+                PopupMenuItem(
+                  value: 'images',
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo_library_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Bilder & Dokumente'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'archive',
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Archivieren'),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'delete',
-                  child: Text('Endgültig löschen'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                      SizedBox(width: 8),
+                      Text('Endgültig löschen', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
                 ),
               ],
         ),
       ],
     );
   }
+}
+
+class _PortfolioMetricsData {
+  const _PortfolioMetricsData({
+    required this.totalValue,
+    required this.totalAcquisitionCosts,
+    required this.netYield,
+    required this.vacancyRate,
+    required this.ltv,
+    required this.totalLoanPrincipal,
+    required this.propertyKpis,
+  });
+
+  final double totalValue;
+  final double totalAcquisitionCosts;
+  final double netYield;
+  final double vacancyRate;
+  final double ltv;
+  final double totalLoanPrincipal;
+  final Map<String, _PropertyKpis> propertyKpis;
+}
+
+class _PropertyKpis {
+  const _PropertyKpis({
+    required this.propertyYield,
+    required this.cashflowMonthly,
+    required this.estimatedMarketValue,
+    required this.units,
+    required this.occupiedUnits,
+    required this.annualOperatingCosts,
+    required this.bkQuote,
+    required this.serviceChargeBalance,
+  });
+  final double propertyYield;
+  final double cashflowMonthly;
+  final double estimatedMarketValue;
+  final int units;
+  final int occupiedUnits;
+  final double annualOperatingCosts;
+  final double bkQuote;
+  final double serviceChargeBalance;
+}
+
+class _KpiCardSpec {
+  const _KpiCardSpec({
+    required this.title,
+    required this.value,
+    this.valueStyle,
+  });
+
+  final String title;
+  final String value;
+  final TextStyle? valueStyle;
 }
