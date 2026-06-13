@@ -10,8 +10,13 @@ class AssetWorkbookRepo {
 
   final Database _db;
 
-  Future<PortfolioRentalOverview> loadPortfolioOverview() async {
-    final properties = await _loadProperties();
+  Future<PortfolioRentalOverview> loadPortfolioOverview({
+    bool includeArchived = false,
+  }) async {
+    final allProperties = await _loadProperties(includeArchived: true);
+    final properties = includeArchived
+        ? allProperties
+        : allProperties.where((property) => !property.archived).toList(growable: false);
     final rows = <PortfolioRentalOverviewRow>[];
     var rentedUnits = 0;
     var emptyUnits = 0;
@@ -102,8 +107,7 @@ class AssetWorkbookRepo {
     return PortfolioRentalOverview(
       rows: rows,
       assetsTotal: properties.length,
-      assetsNotActive:
-          properties.where((property) => property.archived).length,
+      assetsNotActive: allProperties.where((property) => property.archived).length,
       rentedUnits: rentedUnits,
       emptyUnits: emptyUnits,
       annualRent: annualRent,
@@ -696,9 +700,10 @@ class AssetWorkbookRepo {
     );
   }
 
-  Future<List<PropertyRecord>> _loadProperties() async {
+  Future<List<PropertyRecord>> _loadProperties({bool includeArchived = false}) async {
     final rows = await _db.query(
       'properties',
+      where: includeArchived ? null : 'archived = 0',
       orderBy: 'archived ASC, name COLLATE NOCASE',
     );
     return rows.map(PropertyRecord.fromMap).toList(growable: false);

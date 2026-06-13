@@ -36,11 +36,16 @@ class ScenariosByPropertyController
       );
 
       final settings = await _inputsRepo.getSettings();
-      final inputs = ScenarioInputs.defaults(
+      final inputs = await ref.read(valuationDataRepositoryProvider).inputsFromProperty(
+        propertyId: arg,
         scenarioId: scenario.id,
         settings: settings,
       );
       await _inputsRepo.upsertInputs(inputs);
+      await ref.read(valuationDataRepositoryProvider).createPropertySnapshot(
+        scenarioId: scenario.id,
+        propertyId: arg,
+      );
 
       final current = state.valueOrNull ?? <ScenarioRecord>[];
       state = AsyncValue.data(<ScenarioRecord>[scenario, ...current]);

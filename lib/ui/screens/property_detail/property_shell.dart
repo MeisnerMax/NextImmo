@@ -245,7 +245,33 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   }
 
   bool _usesFullPageScroll(PropertyDetailPage page) {
-    return true;
+    switch (page) {
+      case PropertyDetailPage.overview:
+        return true;
+      case PropertyDetailPage.documents:
+      case PropertyDetailPage.audit:
+      case PropertyDetailPage.reports:
+        return true;
+      case PropertyDetailPage.inputs:
+      case PropertyDetailPage.analysis:
+      case PropertyDetailPage.comps:
+      case PropertyDetailPage.criteria:
+      case PropertyDetailPage.offer:
+      case PropertyDetailPage.scenarios:
+      case PropertyDetailPage.versions:
+      case PropertyDetailPage.operationsOverview:
+      case PropertyDetailPage.tasks:
+      case PropertyDetailPage.units:
+      case PropertyDetailPage.tenants:
+      case PropertyDetailPage.leases:
+      case PropertyDetailPage.rentRoll:
+      case PropertyDetailPage.assetWorkbook:
+      case PropertyDetailPage.alerts:
+      case PropertyDetailPage.budgetVsActual:
+      case PropertyDetailPage.maintenance:
+      case PropertyDetailPage.covenants:
+        return false;
+    }
   }
 
   String? _resolveScenarioSelection({

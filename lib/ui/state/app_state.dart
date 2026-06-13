@@ -60,6 +60,7 @@ import '../../data/repositories/scenario_valuation_repo.dart';
 import '../../data/repositories/search_repo.dart';
 import '../../data/repositories/security_repo.dart';
 import '../../data/repositories/tasks_repo.dart';
+import '../../data/repositories/valuation_data_repo.dart';
 import '../../data/repositories/workspace_repo.dart';
 import '../../data/sqlite/db.dart';
 
@@ -79,6 +80,7 @@ enum GlobalPage {
   documents,
   audit,
   compare,
+  quickScreening,
   criteriaSets,
   reportTemplates,
   adminUsers,
@@ -168,6 +170,10 @@ final scenarioRepositoryProvider = Provider<ScenarioRepository>((ref) {
     securityContextResolver:
         () => ref.read(securityRepositoryProvider).getActiveContext(),
   );
+});
+
+final valuationDataRepositoryProvider = Provider<ValuationDataRepo>((ref) {
+  return ValuationDataRepo(ref.watch(databaseProvider));
 });
 
 final inputsRepositoryProvider = Provider<InputsRepository>((ref) {

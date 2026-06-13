@@ -336,6 +336,10 @@ class ScenarioAnalysisController
       state = AsyncValue.data(current.copyWith(isSaving: true));
       await _inputsRepo.upsertInputs(current.inputs);
       await _valuationRepo.upsert(current.valuation);
+      await ref.read(valuationDataRepositoryProvider).markManualAdjustments(
+        scenarioId: current.inputs.scenarioId,
+        fields: current.dirtyFields,
+      );
       await _maybeCreateAutoDailyVersion(current);
       final refreshedCriteria = await _evaluateCriteria(
         propertyId: current.propertyId,

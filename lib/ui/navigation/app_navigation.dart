@@ -164,6 +164,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
     routeKey: 'valuation_scenarios',
     items: <GlobalNavigationDestination>[
       GlobalNavigationDestination(
+        page: GlobalPage.quickScreening,
+        label: 'Schnellbewertung',
+        title: 'Schnellbewertung',
+        routeKey: 'valuation_scenarios.quick_screening',
+        icon: Icons.speed_outlined,
+      ),
+      GlobalNavigationDestination(
         page: GlobalPage.criteriaSets,
         label: 'Kriterien',
         title: 'Kriterien',
@@ -279,9 +286,27 @@ const List<PropertyNavigationSection> propertyNavigationSections =
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
             page: PropertyDetailPage.scenarios,
-            label: 'Szenarien & Bewertung',
+            label: 'Bewertungen',
             routeKey: 'properties.valuation_scenarios.scenarios',
             requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.inputs,
+            label: 'Ankauf Intensivbewertung',
+            routeKey: 'properties.valuation_scenarios.inputs',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.analysis,
+            label: 'Underwriting',
+            routeKey: 'properties.valuation_scenarios.analysis',
+            requiresScenario: true,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.offer,
+            label: 'Angebotsrechner',
+            routeKey: 'properties.valuation_scenarios.offer',
+            requiresScenario: true,
           ),
         ],
       ),
@@ -402,19 +427,19 @@ const List<PropertyNavigationSection> allPropertyNavigationSections =
         items: <PropertyNavigationDestination>[
           PropertyNavigationDestination(
             page: PropertyDetailPage.scenarios,
-            label: 'Szenarien & Bewertung',
+            label: 'Bewertungen',
             routeKey: 'properties.valuation_scenarios.scenarios',
             requiresScenario: false,
           ),
           PropertyNavigationDestination(
             page: PropertyDetailPage.inputs,
-            label: 'Eingaben',
+            label: 'Ankauf Intensivbewertung',
             routeKey: 'properties.valuation_scenarios.inputs',
             requiresScenario: true,
           ),
           PropertyNavigationDestination(
             page: PropertyDetailPage.analysis,
-            label: 'Analyse',
+            label: 'Underwriting',
             routeKey: 'properties.valuation_scenarios.analysis',
             requiresScenario: true,
           ),
@@ -566,7 +591,8 @@ bool isPageAllowedForRole(GlobalPage page, String role) {
           page != GlobalPage.settings &&
           page != GlobalPage.audit &&
           page != GlobalPage.criteriaSets &&
-          page != GlobalPage.compare;
+          page != GlobalPage.compare &&
+          page != GlobalPage.quickScreening;
 
     case 'viewer':
       return page != GlobalPage.adminUsers &&

@@ -10,6 +10,7 @@ import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
 import '../../i18n/app_strings.dart';
 import '../properties/create_property_dialog.dart';
+import '../properties/property_creation_workflow_screen.dart';
 import '../../state/app_state.dart';
 import '../../state/property_state.dart';
 import '../../state/ui_feature_flags.dart';
@@ -28,6 +29,7 @@ class PropertiesScreenV2 extends ConsumerStatefulWidget {
 class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
+  String _sortKey = 'updated_desc';
 
   @override
   void dispose() {
@@ -82,11 +84,65 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
               ),
             ),
           ),
+          SizedBox(
+            width: context.viewport == AppViewport.mobile ? 180 : 220,
+            child: DropdownButtonFormField<String>(
+              value: _sortKey,
+              decoration: const InputDecoration(
+                labelText: 'Sortierung',
+                prefixIcon: Icon(Icons.sort_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'updated_desc',
+                  child: Text('Neueste zuerst'),
+                ),
+                DropdownMenuItem(
+                  value: 'updated_asc',
+                  child: Text('Älteste zuerst'),
+                ),
+                DropdownMenuItem(
+                  value: 'name_asc',
+                  child: Text('Name A-Z'),
+                ),
+                DropdownMenuItem(
+                  value: 'name_desc',
+                  child: Text('Name Z-A'),
+                ),
+                DropdownMenuItem(
+                  value: 'city_asc',
+                  child: Text('Ort A-Z'),
+                ),
+                DropdownMenuItem(
+                  value: 'value_desc',
+                  child: Text('Marktwert'),
+                ),
+                DropdownMenuItem(
+                  value: 'yield_desc',
+                  child: Text('Rendite'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() => _sortKey = value);
+              },
+            ),
+          ),
         ],
       ),
+      scrollable: true,
+      expandContent: false,
       content: propertiesAsync.when(
         data: (properties) {
-          final filtered = properties
+          final activeProperties = properties
+              .where((property) => !property.archived)
+              .toList(growable: false);
+          final archivedProperties = properties
+              .where((property) => property.archived)
+              .toList(growable: false);
+          final filteredActive = activeProperties
               .where((property) {
                 if (_query.isEmpty) {
                   return true;
@@ -97,9 +153,24 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 return haystack.contains(_query);
               })
               .toList(growable: false);
+          final filteredArchived = archivedProperties
+              .where((property) {
+                if (_query.isEmpty) {
+                  return true;
+                }
+                final haystack =
+                    '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
+                        .toLowerCase();
+                return haystack.contains(_query);
+              })
+              .toList(growable: false);
+          final hasMatches = filteredActive.isNotEmpty || filteredArchived.isNotEmpty;
+          final hasAnyProperty = properties.isNotEmpty;
+          final activePropertyIds =
+              activeProperties.map((property) => property.id).toSet();
 
           return FutureBuilder<_PortfolioMetricsData>(
-            future: _loadPortfolioMetrics(),
+            future: _loadPortfolioMetrics(activePropertyIds),
             builder: (context, snapshot) {
               final metrics = snapshot.data;
               final isLoading = snapshot.connectionState == ConnectionState.waiting;
@@ -117,50 +188,54 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 totalLoanPrincipal: 0,
                 propertyKpis: {},
               );
+              final sortedActive = _sortProperties(filteredActive, safeMetrics);
+              final sortedArchived =
+                  _sortProperties(filteredArchived, safeMetrics);
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (filtered.isNotEmpty) ...[
+                  if (activeProperties.isNotEmpty) ...[
                     _buildKpisHeader(context, safeMetrics),
                     const SizedBox(height: AppSpacing.component),
                   ],
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? NxEmptyState(
-                            title: properties.isEmpty ? 'Keine Objekte vorhanden' : 'Keine Treffer',
-                            description: properties.isEmpty
-                                ? 'Erstellen Sie Ihr erstes Objekt, um mit der Analyse zu starten.'
-                                : 'Versuchen Sie es mit einem anderen Suchbegriff.',
-                            icon: Icons.home_work_outlined,
-                            primaryAction: properties.isEmpty
-                                ? ElevatedButton.icon(
-                                    onPressed: () => _openCreateDialog(context, ref),
-                                    icon: const Icon(Icons.add),
-                                    label: const Text('Objekt erstellen'),
-                                  )
-                                : null,
-                          )
-                        : GridView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: MediaQuery.of(context).size.width < 640
-                                  ? 1
-                                  : (MediaQuery.of(context).size.width < 1100 ? 2 : 3),
-                              crossAxisSpacing: AppSpacing.component,
-                              mainAxisSpacing: AppSpacing.component,
-                              childAspectRatio: MediaQuery.of(context).size.width < 640
-                                  ? 0.95
-                                  : (MediaQuery.of(context).size.width < 1100 ? 0.78 : 0.75),
+                  if (!hasMatches)
+                    NxEmptyState(
+                      title: hasAnyProperty ? 'Keine Treffer' : 'Keine Objekte vorhanden',
+                      description: hasAnyProperty
+                          ? 'Versuchen Sie es mit einem anderen Suchbegriff.'
+                          : 'Erstellen Sie Ihr erstes Objekt, um mit der Analyse zu starten.',
+                      icon: Icons.home_work_outlined,
+                      primaryAction: hasAnyProperty
+                          ? null
+                          : ElevatedButton.icon(
+                              onPressed: () => _openCreateDialog(context, ref),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Objekt erstellen'),
                             ),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final property = filtered[index];
-                              final kpis = safeMetrics.propertyKpis[property.id];
-                              return _buildPropertyCard(context, property, kpis);
-                            },
-                          ),
-                  ),
+                    )
+                  else ...[
+                    if (sortedActive.isNotEmpty) ...[
+                      if (sortedArchived.isNotEmpty)
+                        _buildSectionTitle(
+                          context,
+                          'Aktive Objekte',
+                          '${sortedActive.length}',
+                        ),
+                      _buildPropertyGrid(context, sortedActive, safeMetrics),
+                    ],
+                    if (sortedArchived.isNotEmpty) ...[
+                      if (sortedActive.isNotEmpty)
+                        const SizedBox(height: AppSpacing.section),
+                      _buildSectionTitle(
+                        context,
+                        'Archivierte Objekte',
+                        '${sortedArchived.length}',
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _buildPropertyGrid(context, sortedArchived, safeMetrics),
+                    ],
+                  ],
                 ],
               );
             },
@@ -172,9 +247,14 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     );
   }
 
-  Future<_PortfolioMetricsData> _loadPortfolioMetrics() async {
+  Future<_PortfolioMetricsData> _loadPortfolioMetrics(Set<String> activePropertyIds) async {
     final db = ref.read(databaseProvider);
-    final rentalOverview = await ref.read(assetWorkbookRepositoryProvider).loadPortfolioOverview();
+    final rentalOverview = await ref
+        .read(assetWorkbookRepositoryProvider)
+        .loadPortfolioOverview(includeArchived: true);
+    final activeRows = rentalOverview.rows
+        .where((row) => activePropertyIds.contains(row.propertyId))
+        .toList(growable: false);
 
     final purchasePriceRows = await db.rawQuery('''
       SELECT s.property_id, si.purchase_price
@@ -186,6 +266,10 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
       for (final row in purchasePriceRows)
         row['property_id'] as String: ((row['purchase_price'] as num?) ?? 0).toDouble()
     };
+    final activePurchasePrices = {
+      for (final entry in purchasePrices.entries)
+        if (activePropertyIds.contains(entry.key)) entry.key: entry.value,
+    };
 
     final loanRows = await db.rawQuery('''
       SELECT asset_property_id, SUM(principal) AS loan_total
@@ -194,20 +278,23 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     ''');
     final loanTotals = {
       for (final row in loanRows)
+        if (activePropertyIds.contains(row['asset_property_id']))
         row['asset_property_id'] as String: ((row['loan_total'] as num?) ?? 0).toDouble()
     };
 
-    final rentableUnits = rentalOverview.rentedUnits + rentalOverview.emptyUnits;
-    final vacancyRate = rentableUnits == 0 ? 0.0 : rentalOverview.emptyUnits / rentableUnits;
+    final rentedUnits = activeRows.fold<int>(0, (sum, row) => sum + row.occupiedUnits);
+    final emptyUnits = activeRows.fold<int>(0, (sum, row) => sum + row.vacantUnits);
+    final rentableUnits = rentedUnits + emptyUnits;
+    final vacancyRate = rentableUnits == 0 ? 0.0 : emptyUnits / rentableUnits;
 
-    final opex = rentalOverview.annualOperatingCosts;
-    final annualRent = rentalOverview.annualRent;
+    final opex = activeRows.fold<double>(0, (sum, row) => sum + row.annualOperatingCosts);
+    final annualRent = activeRows.fold<double>(0, (sum, row) => sum + row.annualRent);
     final noi = annualRent - opex;
 
     final estimatedMarketValue = noi <= 0 ? 0.0 : noi / 0.055;
 
     var totalAcquisitionCosts = 0.0;
-    for (final price in purchasePrices.values) {
+    for (final price in activePurchasePrices.values) {
       totalAcquisitionCosts += price;
     }
 
@@ -335,22 +422,114 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     );
   }
 
+  List<PropertyRecord> _sortProperties(
+    List<PropertyRecord> properties,
+    _PortfolioMetricsData metrics,
+  ) {
+    final sorted = [...properties];
+    int compareText(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
+    double marketValue(PropertyRecord property) =>
+        metrics.propertyKpis[property.id]?.estimatedMarketValue ?? 0;
+    double yieldValue(PropertyRecord property) =>
+        metrics.propertyKpis[property.id]?.propertyYield ?? 0;
+
+    switch (_sortKey) {
+      case 'updated_asc':
+        sorted.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+        break;
+      case 'name_asc':
+        sorted.sort((a, b) => compareText(a.name, b.name));
+        break;
+      case 'name_desc':
+        sorted.sort((a, b) => compareText(b.name, a.name));
+        break;
+      case 'city_asc':
+        sorted.sort((a, b) {
+          final cityCompare = compareText(a.city, b.city);
+          return cityCompare == 0 ? compareText(a.name, b.name) : cityCompare;
+        });
+        break;
+      case 'value_desc':
+        sorted.sort((a, b) {
+          final valueCompare = marketValue(b).compareTo(marketValue(a));
+          return valueCompare == 0 ? compareText(a.name, b.name) : valueCompare;
+        });
+        break;
+      case 'yield_desc':
+        sorted.sort((a, b) {
+          final yieldCompare = yieldValue(b).compareTo(yieldValue(a));
+          return yieldCompare == 0 ? compareText(a.name, b.name) : yieldCompare;
+        });
+        break;
+      case 'updated_desc':
+      default:
+        sorted.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        break;
+    }
+    return sorted;
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title, String count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(width: 8),
+        NxStatusBadge(label: count, kind: NxBadgeKind.neutral),
+      ],
+    );
+  }
+
+  Widget _buildPropertyGrid(
+    BuildContext context,
+    List<PropertyRecord> properties,
+    _PortfolioMetricsData metrics,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width < 640 ? 1 : (width < 900 ? 2 : 4);
+        final childAspectRatio =
+            width < 640 ? 0.78 : (width < 900 ? 0.68 : 0.62);
+
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: AppSpacing.component,
+            mainAxisSpacing: AppSpacing.component,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: properties.length,
+          itemBuilder: (context, index) {
+            final property = properties[index];
+            final kpis = metrics.propertyKpis[property.id];
+            return _buildPropertyCard(context, property, kpis);
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildPropertyCard(BuildContext context, PropertyRecord property, _PropertyKpis? kpis) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     
     final marketValue = kpis?.estimatedMarketValue ?? 0.0;
     final yieldVal = kpis?.propertyYield ?? 0.0;
     final cashflow = kpis?.cashflowMonthly ?? 0.0;
     final occupied = kpis?.occupiedUnits ?? 0;
     final totalUnits = kpis?.units ?? 0;
-    final operatingCosts = kpis?.annualOperatingCosts ?? 0.0;
-    final bkQuote = kpis?.bkQuote ?? 0.0;
-    final bkSaldo = kpis?.serviceChargeBalance ?? 0.0;
 
     return NxCard(
       variant: NxCardVariant.interactive,
       onTap: () => _openProperty(property, ref),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -361,7 +540,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 top: 10,
                 right: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.65),
                     borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
@@ -387,7 +566,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
               children: [
                 Text(
                   property.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
@@ -402,12 +581,19 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (property.archived) ...[
+                  const SizedBox(height: 6),
+                  const NxStatusBadge(
+                    label: 'Archiviert',
+                    kind: NxBadgeKind.neutral,
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -466,38 +652,11 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricTile(
-                            context,
-                            'Betriebskosten',
-                            '${_formatCurrency(operatingCosts)} (${_formatPercent(bkQuote)})',
-                            Icons.receipt_long_outlined,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildMetricTile(
-                            context,
-                            'BK-Saldo',
-                            '${bkSaldo >= 0 ? '+' : ''}${bkSaldo.toStringAsFixed(0)} €',
-                            Icons.account_balance_wallet_outlined,
-                            valueColor: bkSaldo > 0
-                                ? context.semanticColors.success
-                                : (bkSaldo < 0 ? context.semanticColors.error : null),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
@@ -518,7 +677,11 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 _PropertyActions(
                   onOpen: () => _openProperty(property, ref),
                   onImages: () => _openPropertyImages(property, ref),
-                  onArchive: () => ref.read(propertiesControllerProvider.notifier).archive(property.id, true),
+                  archived: property.archived,
+                  dense: true,
+                  onArchiveToggle: () => ref
+                      .read(propertiesControllerProvider.notifier)
+                      .archive(property.id, !property.archived),
                   onDelete: () => _confirmPermanentDelete(context, property),
                 ),
               ],
@@ -539,7 +702,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
         borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
@@ -552,10 +715,10 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
         children: [
           Icon(
             icon,
-            size: 16,
+            size: 14,
             color: context.semanticColors.textSecondary.withOpacity(0.8),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,10 +727,10 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 Text(
                   label.toUpperCase(),
                   style: theme.textTheme.labelMedium?.copyWith(
-                    fontSize: 8,
+                    fontSize: 7.5,
                     fontWeight: FontWeight.w600,
                     color: context.semanticColors.textSecondary,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -575,7 +738,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                   value,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 11,
+                    fontSize: 10.5,
                     color: valueColor,
                   ),
                   maxLines: 1,
@@ -604,28 +767,21 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
   }
 
   Future<void> _openCreateDialog(BuildContext context, WidgetRef ref) async {
+    final existingProperties =
+        ref.read(propertiesControllerProvider).valueOrNull ?? <PropertyRecord>[];
     final property = await showDialog<PropertyRecord>(
       context: context,
-      builder:
-          (dialogContext) => CreatePropertyDialog(
-            onCreateProperty:
-                (draft) => ref
-                    .read(propertiesControllerProvider.notifier)
-                    .createPropertyWithBaseScenario(
-                      name: draft.name,
-                      address: draft.address,
-                      city: draft.city,
-                      zip: draft.zip,
-                      country: draft.country,
-                      propertyType: draft.propertyType,
-                      units: draft.units,
-                      strategyType: 'rental',
-                      purchasePrice: 0,
-                      rentMonthly: 0,
-                      rehabBudget: 0,
-                      financingMode: 'cash',
-                    ),
-          ),
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: PropertyCreationWorkflowScreen(
+          existingProperties: existingProperties,
+          onCreateProperty: (draft, assessment) => ref
+              .read(propertiesControllerProvider.notifier)
+              .createPropertyFromDraft(
+                draft: draft,
+                assessment: assessment,
+              ),
+        ),
+      ),
     );
 
     if (property != null && context.mounted) {
@@ -706,7 +862,7 @@ class _PropertyCover extends ConsumerWidget {
     final titleImageAsync = ref.watch(propertyTitleImageProvider(property.id));
     final colors = _coverColors(property.propertyType);
     return AspectRatio(
-      aspectRatio: compact ? 1.45 : 2.8,
+      aspectRatio: 1,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
         child: titleImageAsync.when(
@@ -840,31 +996,42 @@ class _PropertyActions extends StatelessWidget {
   const _PropertyActions({
     required this.onOpen,
     required this.onImages,
-    required this.onArchive,
+    required this.archived,
+    required this.onArchiveToggle,
     required this.onDelete,
     this.dense = false,
   });
 
   final VoidCallback onOpen;
   final VoidCallback onImages;
-  final VoidCallback onArchive;
+  final bool archived;
+  final VoidCallback onArchiveToggle;
   final VoidCallback onDelete;
   final bool dense;
 
   @override
   Widget build(BuildContext context) {
+    final openAction = dense
+        ? IconButton.filledTonal(
+            tooltip: 'Öffnen',
+            onPressed: onOpen,
+            icon: const Icon(Icons.open_in_new_outlined, size: 18),
+            visualDensity: VisualDensity.compact,
+          )
+        : FilledButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(Icons.open_in_new_outlined, size: 14),
+            label: const Text('Öffnen'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          );
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FilledButton.icon(
-          onPressed: onOpen,
-          icon: const Icon(Icons.open_in_new_outlined, size: 14),
-          label: const Text('Öffnen'),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
+        openAction,
         const SizedBox(width: 4),
         PopupMenuButton<String>(
           tooltip: 'Weitere Aktionen',
@@ -873,16 +1040,16 @@ class _PropertyActions extends StatelessWidget {
             if (value == 'images') {
               onImages();
             }
-            if (value == 'archive') {
-              onArchive();
+            if (value == 'archiveToggle') {
+              onArchiveToggle();
             }
             if (value == 'delete') {
               onDelete();
             }
           },
           itemBuilder:
-              (context) => const [
-                PopupMenuItem(
+              (context) => [
+                const PopupMenuItem(
                   value: 'images',
                   child: Row(
                     children: [
@@ -893,16 +1060,21 @@ class _PropertyActions extends StatelessWidget {
                   ),
                 ),
                 PopupMenuItem(
-                  value: 'archive',
+                  value: 'archiveToggle',
                   child: Row(
                     children: [
-                      Icon(Icons.archive_outlined, size: 18),
-                      SizedBox(width: 8),
-                      Text('Archivieren'),
+                      Icon(
+                        archived
+                            ? Icons.unarchive_outlined
+                            : Icons.archive_outlined,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(archived ? 'Wiederherstellen' : 'Archivieren'),
                     ],
                   ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [

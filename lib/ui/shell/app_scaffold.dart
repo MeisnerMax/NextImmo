@@ -20,6 +20,7 @@ import '../screens/ledger/ledger_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
+import '../screens/quick_screening_screen.dart';
 import '../screens/rental_overview_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
@@ -255,6 +256,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const AuditScreen();
       case GlobalPage.compare:
         return const CompareScreen();
+      case GlobalPage.quickScreening:
+        return const QuickScreeningScreen();
       case GlobalPage.criteriaSets:
         return const CriteriaSetsScreen();
       case GlobalPage.reportTemplates:

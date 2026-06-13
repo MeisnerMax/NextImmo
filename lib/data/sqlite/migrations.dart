@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 39;
+  static const int currentVersion = 41;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -43,6 +43,8 @@ class DbMigrations {
     await _createV37(db);
     await _createV38(db);
     await _createV39(db);
+    await _createV40(db);
+    await _createV41(db);
   }
 
   static Future<void> onUpgrade(
@@ -166,6 +168,12 @@ class DbMigrations {
     }
     if (oldVersion < 39) {
       await _createV39(db);
+    }
+    if (oldVersion < 40) {
+      await _createV40(db);
+    }
+    if (oldVersion < 41) {
+      await _createV41(db);
     }
   }
 
@@ -3653,6 +3661,120 @@ class DbMigrations {
         is_active INTEGER NOT NULL DEFAULT 1
       )
     ''');
+  }
+
+  static Future<void> _createV40(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS quick_screenings (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        source_label TEXT,
+        address_text TEXT,
+        property_type TEXT NOT NULL,
+        units INTEGER NOT NULL DEFAULT 0,
+        area_sqm REAL NOT NULL DEFAULT 0,
+        purchase_price REAL NOT NULL DEFAULT 0,
+        rent_monthly_total REAL NOT NULL DEFAULT 0,
+        vacancy_percent REAL NOT NULL DEFAULT 0,
+        operating_costs_monthly REAL NOT NULL DEFAULT 0,
+        linked_property_id TEXT,
+        linked_scenario_id TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (linked_property_id) REFERENCES properties(id) ON DELETE SET NULL,
+        FOREIGN KEY (linked_scenario_id) REFERENCES scenarios(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quick_screenings_updated ON quick_screenings(updated_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quick_screenings_links ON quick_screenings(linked_property_id, linked_scenario_id)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS valuation_property_snapshots (
+        scenario_id TEXT PRIMARY KEY,
+        source_property_id TEXT NOT NULL,
+        property_name TEXT NOT NULL,
+        address_line1 TEXT NOT NULL,
+        address_line2 TEXT,
+        zip TEXT NOT NULL,
+        city TEXT NOT NULL,
+        country TEXT NOT NULL,
+        property_type TEXT NOT NULL,
+        units INTEGER NOT NULL,
+        gross_area_sqm REAL,
+        residential_area_sqm REAL,
+        commercial_area_sqm REAL,
+        year_built INTEGER,
+        purchase_price REAL,
+        rent_monthly_total REAL,
+        vacancy_percent REAL,
+        operating_costs_monthly REAL,
+        document_status TEXT,
+        technical_info TEXT,
+        auto_imported_fields_json TEXT NOT NULL,
+        manual_adjusted_fields_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_valuation_snapshots_property ON valuation_property_snapshots(source_property_id)',
+    );
+  }
+
+  static Future<void> _createV41(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_creation_profiles (
+        property_id TEXT PRIMARY KEY,
+        creation_reason TEXT NOT NULL,
+        creation_mode TEXT NOT NULL,
+        object_status TEXT NOT NULL,
+        external_reference TEXT,
+        asset_manager TEXT,
+        priority TEXT,
+        tags TEXT,
+        federal_state TEXT,
+        location_quality TEXT,
+        profile_json TEXT NOT NULL,
+        metrics_json TEXT NOT NULL,
+        data_quality_score INTEGER NOT NULL,
+        data_quality_status TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_document_checklist (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        document_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        status TEXT NOT NULL,
+        upload_path TEXT,
+        note TEXT,
+        due_date INTEGER,
+        owner TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_property_document_checklist_property ON property_document_checklist(property_id)',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_property_document_checklist_unique ON property_document_checklist(property_id, document_key)',
+    );
   }
 
   static String _deriveSeedUnitCostType(String note) {

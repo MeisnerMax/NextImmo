@@ -5,6 +5,7 @@ import '../../core/models/property.dart';
 import '../i18n/app_strings.dart';
 import 'property_detail/property_shell.dart';
 import 'properties/create_property_dialog.dart';
+import 'properties/property_creation_workflow_screen.dart';
 import '../state/app_state.dart';
 import '../state/property_state.dart';
 import '../theme/app_theme.dart';
@@ -266,28 +267,21 @@ class PropertiesScreen extends ConsumerWidget {
   }
 
   Future<void> _openCreateDialog(BuildContext context, WidgetRef ref) async {
+    final existingProperties =
+        ref.read(propertiesControllerProvider).valueOrNull ?? <PropertyRecord>[];
     final property = await showDialog<PropertyRecord>(
       context: context,
-      builder:
-          (dialogContext) => CreatePropertyDialog(
-            onCreateProperty:
-                (draft) => ref
-                    .read(propertiesControllerProvider.notifier)
-                    .createPropertyWithBaseScenario(
-                      name: draft.name,
-                      address: draft.address,
-                      city: draft.city,
-                      zip: draft.zip,
-                      country: draft.country,
-                      propertyType: draft.propertyType,
-                      units: draft.units,
-                      strategyType: 'rental',
-                      purchasePrice: 0,
-                      rentMonthly: 0,
-                      rehabBudget: 0,
-                      financingMode: 'cash',
-                    ),
-          ),
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: PropertyCreationWorkflowScreen(
+          existingProperties: existingProperties,
+          onCreateProperty: (draft, assessment) => ref
+              .read(propertiesControllerProvider.notifier)
+              .createPropertyFromDraft(
+                draft: draft,
+                assessment: assessment,
+              ),
+        ),
+      ),
     );
 
     if (property != null && context.mounted) {
