@@ -160,14 +160,21 @@ class _ZoomedApp extends StatelessWidget {
                 child: child,
               );
         return ClipRect(
-          child: Transform.scale(
+          child: OverflowBox(
             alignment: Alignment.topLeft,
-            scale: scale,
-            transformHitTests: true,
-            child: SizedBox(
-              width: logicalSize.width,
-              height: logicalSize.height,
-              child: wrappedChild,
+            minWidth: logicalSize.width,
+            maxWidth: logicalSize.width,
+            minHeight: logicalSize.height,
+            maxHeight: logicalSize.height,
+            child: Transform.scale(
+              alignment: Alignment.topLeft,
+              scale: scale,
+              transformHitTests: true,
+              child: SizedBox(
+                width: logicalSize.width,
+                height: logicalSize.height,
+                child: wrappedChild,
+              ),
             ),
           ),
         );
