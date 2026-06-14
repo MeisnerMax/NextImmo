@@ -170,6 +170,16 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       case PropertyDetailPage.tenants:
       case PropertyDetailPage.leases:
       case PropertyDetailPage.rentRoll:
+      case PropertyDetailPage.saleData:
+      case PropertyDetailPage.buyerInterests:
+      case PropertyDetailPage.viewings:
+      case PropertyDetailPage.saleOffers:
+      case PropertyDetailPage.reservations:
+      case PropertyDetailPage.guests:
+      case PropertyDetailPage.housekeeping:
+      case PropertyDetailPage.hotelRevenue:
+      case PropertyDetailPage.parkingStorage:
+      case PropertyDetailPage.unitSaleStatus:
         return 1;
       case PropertyDetailPage.inputs:
       case PropertyDetailPage.scenarios:

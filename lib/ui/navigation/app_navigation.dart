@@ -385,6 +385,24 @@ const List<PropertyNavigationSection> allPropertyNavigationSections =
             routeKey: 'properties.view.alerts',
             requiresScenario: false,
           ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.saleData,
+            label: 'Verkaufsdaten',
+            routeKey: 'properties.view.sale_data',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.unitSaleStatus,
+            label: 'Kaufpreise',
+            routeKey: 'properties.view.unit_sale_status',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.hotelRevenue,
+            label: 'Umsatz/Reporting',
+            routeKey: 'properties.view.hotel_revenue',
+            requiresScenario: false,
+          ),
         ],
       ),
       PropertyNavigationSection(
@@ -404,9 +422,39 @@ const List<PropertyNavigationSection> allPropertyNavigationSections =
             requiresScenario: false,
           ),
           PropertyNavigationDestination(
+            page: PropertyDetailPage.buyerInterests,
+            label: 'Käufer/Interessenten',
+            routeKey: 'properties.daily_business.buyer_interests',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.guests,
+            label: 'Gäste',
+            routeKey: 'properties.daily_business.guests',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
             page: PropertyDetailPage.leases,
             label: 'Mietverträge',
             routeKey: 'properties.daily_business.leases',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.reservations,
+            label: 'Reservierungen',
+            routeKey: 'properties.daily_business.reservations',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.viewings,
+            label: 'Besichtigungen',
+            routeKey: 'properties.daily_business.viewings',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.saleOffers,
+            label: 'Angebote',
+            routeKey: 'properties.daily_business.sale_offers',
             requiresScenario: false,
           ),
           PropertyNavigationDestination(
@@ -425,6 +473,18 @@ const List<PropertyNavigationSection> allPropertyNavigationSections =
             page: PropertyDetailPage.maintenance,
             label: 'Instandhaltung & CapEx',
             routeKey: 'properties.daily_business.maintenance',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.housekeeping,
+            label: 'Housekeeping',
+            routeKey: 'properties.daily_business.housekeeping',
+            requiresScenario: false,
+          ),
+          PropertyNavigationDestination(
+            page: PropertyDetailPage.parkingStorage,
+            label: 'Stellplätze/Keller',
+            routeKey: 'properties.daily_business.parking_storage',
             requiresScenario: false,
           ),
           PropertyNavigationDestination(

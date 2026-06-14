@@ -59,6 +59,7 @@ import '../../data/repositories/operations_repo.dart';
 import '../../data/repositories/permission_guard.dart';
 import '../../data/repositories/portfolio_analytics_repo.dart';
 import '../../data/repositories/portfolio_repo.dart';
+import '../../data/repositories/property_modules_repo.dart';
 import '../../data/repositories/property_repo.dart';
 import '../../data/repositories/property_profile_repo.dart';
 import '../../data/repositories/rent_roll_repo.dart';
@@ -124,6 +125,16 @@ enum PropertyDetailPage {
   budgetVsActual,
   maintenance,
   covenants,
+  saleData,
+  buyerInterests,
+  viewings,
+  saleOffers,
+  reservations,
+  guests,
+  housekeeping,
+  hotelRevenue,
+  parkingStorage,
+  unitSaleStatus,
 }
 
 final databaseProvider = Provider<Database>(
@@ -394,6 +405,15 @@ final propertyProfileRepositoryProvider = Provider<PropertyProfileRepository>((
 ) {
   return PropertyProfileRepository(ref.watch(databaseProvider));
 });
+final propertyModulesRepositoryProvider = Provider<PropertyModulesRepo>((ref) {
+  return PropertyModulesRepo(ref.watch(databaseProvider));
+});
+final propertyHasHotelModulesProvider =
+    FutureProvider.family<bool, String>((ref, propertyId) {
+      return ref
+          .watch(propertyModulesRepositoryProvider)
+          .hasHotelModules(propertyId);
+    });
 
 final analysisEngineProvider = Provider<AnalysisEngine>(
   (ref) => const AnalysisEngine(),

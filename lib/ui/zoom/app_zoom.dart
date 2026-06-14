@@ -33,22 +33,26 @@ class AppZoomController extends StateNotifier<AppZoomState> {
   static const List<double> levels = <double>[0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
 
   Future<void> zoomIn() async {
-    await setScale(_nextLevel(up: true));
+    await setZoom(_nextLevel(up: true));
   }
 
   Future<void> zoomOut() async {
-    await setScale(_nextLevel(up: false));
+    await setZoom(_nextLevel(up: false));
   }
 
-  Future<void> reset() async {
-    await setScale(1.0);
+  Future<void> resetZoom() async {
+    await setZoom(1.0);
   }
 
-  Future<void> setScale(double value) async {
+  Future<void> setZoom(double value) async {
     final normalized = _nearestLevel(value);
     state = state.copyWith(scale: normalized, loaded: true);
     await _save(normalized);
   }
+
+  Future<void> reset() => resetZoom();
+
+  Future<void> setScale(double value) => setZoom(value);
 
   double _nextLevel({required bool up}) {
     final current = state.scale;
@@ -159,6 +163,7 @@ class _ZoomedApp extends StatelessWidget {
           child: Transform.scale(
             alignment: Alignment.topLeft,
             scale: scale,
+            transformHitTests: true,
             child: SizedBox(
               width: logicalSize.width,
               height: logicalSize.height,
@@ -171,68 +176,119 @@ class _ZoomedApp extends StatelessWidget {
   }
 }
 
-class AppZoomControls extends ConsumerWidget {
+class AppZoomControls extends ConsumerStatefulWidget {
   const AppZoomControls({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppZoomControls> createState() => _AppZoomControlsState();
+}
+
+class _AppZoomControlsState extends ConsumerState<AppZoomControls> {
+  bool _menuOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final zoom = ref.watch(appZoomProvider);
     final controller = ref.read(appZoomProvider.notifier);
     final canZoomOut = zoom.scale > AppZoomController.levels.first + 0.001;
     final canZoomIn = zoom.scale < AppZoomController.levels.last - 0.001;
 
-    return Material(
-      elevation: 8,
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Theme.of(context).dividerColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Zoom -',
-              visualDensity: VisualDensity.compact,
-              onPressed: canZoomOut ? controller.zoomOut : null,
-              icon: const Icon(Icons.remove),
-            ),
-            PopupMenuButton<double>(
-              tooltip: 'Zoom-Stufe',
-              onSelected: controller.setScale,
-              itemBuilder: (context) => [
-                for (final level in AppZoomController.levels)
-                  PopupMenuItem<double>(
-                    value: level,
-                    child: Text('${(level * 100).round()} %'),
-                  ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  '${zoom.percent} %',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_menuOpen) ...[
+          Material(
+            elevation: 8,
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 112,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Theme.of(context).dividerColor),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final level in AppZoomController.levels)
+                    TextButton(
+                      onPressed: () async {
+                        await controller.setZoom(level);
+                        if (mounted) {
+                          setState(() => _menuOpen = false);
+                        }
+                      },
+                      child: Text('${(level * 100).round()} %'),
+                    ),
+                ],
               ),
             ),
-            IconButton(
-              tooltip: 'Zoom +',
-              visualDensity: VisualDensity.compact,
-              onPressed: canZoomIn ? controller.zoomIn : null,
-              icon: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Material(
+          elevation: 8,
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
-            IconButton(
-              tooltip: 'Zuruecksetzen auf 100 %',
-              visualDensity: VisualDensity.compact,
-              onPressed: zoom.scale == 1.0 ? null : controller.reset,
-              icon: const Icon(Icons.restart_alt),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Semantics(
+                  label: 'Zoom -',
+                  button: true,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: canZoomOut
+                        ? () {
+                            controller.zoomOut();
+                          }
+                        : null,
+                    icon: const Icon(Icons.remove),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _menuOpen = !_menuOpen),
+                  child: Text('${zoom.percent} %'),
+                ),
+                Semantics(
+                  label: 'Zoom +',
+                  button: true,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: canZoomIn
+                        ? () {
+                            controller.zoomIn();
+                          }
+                        : null,
+                    icon: const Icon(Icons.add),
+                  ),
+                ),
+                Semantics(
+                  label: 'Zuruecksetzen auf 100 %',
+                  button: true,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: zoom.scale == 1.0
+                        ? null
+                        : () {
+                            controller.resetZoom();
+                          },
+                    icon: const Icon(Icons.restart_alt),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

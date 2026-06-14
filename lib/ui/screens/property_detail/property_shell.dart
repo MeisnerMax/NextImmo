@@ -26,6 +26,7 @@ import 'offer_screen.dart';
 import 'overview_screen.dart';
 import 'property_documents_screen.dart';
 import 'property_tasks_screen.dart';
+import 'property_type_module_screen.dart';
 import 'rent_roll_screen.dart';
 import 'scenario_versions_screen.dart';
 import 'scenarios_screen.dart';
@@ -70,6 +71,9 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     final selectedScenarioId = ref.watch(selectedScenarioIdProvider);
     final scenariosAsync = ref.watch(scenariosByPropertyProvider(propertyId));
     final propertiesAsync = ref.watch(propertiesControllerProvider);
+    final hasHotelModules = ref
+        .watch(propertyHasHotelModulesProvider(propertyId))
+        .valueOrNull ?? false;
     final currentProperty = propertiesAsync.maybeWhen(
       data: (items) {
         for (final property in items) {
@@ -81,17 +85,20 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
       },
       orElse: () => null,
     );
-    final propertyName = currentProperty?.name ?? propertiesAsync.maybeWhen(
-      data: (items) {
-        for (final property in items) {
-          if (property.id == propertyId) {
-            return property.name;
-          }
-        }
-        return propertyId;
-      },
-      orElse: () => propertyId,
-    );
+    final propertyName =
+        currentProperty?.name ??
+        propertiesAsync.maybeWhen(
+          data: (items) {
+            for (final property in items) {
+              if (property.id == propertyId) {
+                return property.name;
+              }
+            }
+            return propertyId;
+          },
+          orElse: () => propertyId,
+        ) ??
+        propertyId;
     final effectivePage = _resolveVisiblePage(selectedPage, currentProperty);
     if (effectivePage != selectedPage) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -148,6 +155,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                 context: context,
                 selectedPage: effectivePage,
                 property: currentProperty,
+                hasHotelModules: hasHotelModules,
               ),
               content: detailContent,
             ),
@@ -271,6 +279,16 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
       case PropertyDetailPage.documents:
       case PropertyDetailPage.audit:
       case PropertyDetailPage.reports:
+      case PropertyDetailPage.saleData:
+      case PropertyDetailPage.buyerInterests:
+      case PropertyDetailPage.viewings:
+      case PropertyDetailPage.saleOffers:
+      case PropertyDetailPage.reservations:
+      case PropertyDetailPage.guests:
+      case PropertyDetailPage.housekeeping:
+      case PropertyDetailPage.hotelRevenue:
+      case PropertyDetailPage.parkingStorage:
+      case PropertyDetailPage.unitSaleStatus:
         return true;
       case PropertyDetailPage.inputs:
       case PropertyDetailPage.analysis:
@@ -348,20 +366,26 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     required BuildContext context,
     required PropertyDetailPage selectedPage,
     required PropertyRecord? property,
+    required bool hasHotelModules,
   }) {
     final zone = context.desktopLayoutZone;
-    final sections = _visibleNavigationSections(property);
+    final sections = _visibleNavigationSections(
+      property,
+      hasHotelModules: hasHotelModules,
+    );
     if (zone == AppDesktopLayoutZone.narrow) {
       return _buildNarrowNavigation(
         context: context,
         selectedPage: selectedPage,
         sections: sections,
+        property: property,
       );
     }
     return _buildTopNavigation(
       context: context,
       selectedPage: selectedPage,
       sections: sections,
+      property: property,
     );
   }
 
@@ -369,6 +393,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     required BuildContext context,
     required PropertyDetailPage selectedPage,
     required List<PropertyNavigationSection> sections,
+    required PropertyRecord? property,
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -390,6 +415,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                   context: context,
                   section: section,
                   selectedPage: selectedPage,
+                  property: property,
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
@@ -404,6 +430,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     required BuildContext context,
     required PropertyNavigationSection section,
     required PropertyDetailPage selectedPage,
+    required PropertyRecord? property,
   }) {
     final selected = section.items.any((item) => item.page == selectedPage);
     final selectedDestination =
@@ -422,7 +449,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
               children: [
                 Icon(_iconForPropertyPage(item.page), size: 18),
                 const SizedBox(width: 10),
-                Text(context.strings.text(item.label)),
+                Text(context.strings.text(_labelForPage(item.page, property))),
               ],
             ),
           ),
@@ -468,7 +495,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                 ),
                 if (selectedDestination != null)
                   Text(
-                    context.strings.text(selectedDestination.label),
+                    context.strings.text(_labelForPage(selectedPage, property)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -494,6 +521,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     required BuildContext context,
     required PropertyDetailPage selectedPage,
     required List<PropertyNavigationSection> sections,
+    required PropertyRecord? property,
   }) {
     final selectedSection = propertySectionForPage(selectedPage);
     return DecoratedBox(
@@ -515,7 +543,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              '${context.strings.text(selectedSection.title)} / ${context.strings.text(propertyDestinationForPage(selectedPage).label)}',
+              '${context.strings.text(selectedSection.title)} / ${context.strings.text(_labelForPage(selectedPage, property))}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: PropertyShell._assetMenuMuted,
               ),
@@ -533,7 +561,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                       (item) => DropdownMenuItem<PropertyDetailPage>(
                         value: item.page,
                         child: Text(
-                          '${context.strings.text(section.title)} / ${context.strings.text(item.label)}',
+                          '${context.strings.text(section.title)} / ${context.strings.text(_labelForPage(item.page, property))}',
                         ),
                       ),
                     ),
@@ -555,12 +583,16 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   }
 
   List<PropertyNavigationSection> _visibleNavigationSections(
-    PropertyRecord? property,
-  ) {
+    PropertyRecord? property, {
+    required bool hasHotelModules,
+  }) {
     if (property == null) {
       return propertyNavigationSections;
     }
-    final allowedPages = _allowedPagesForPropertyType(property.propertyType);
+    final allowedPages = _allowedPagesForPropertyType(
+      property.propertyType,
+      hasHotelModules: hasHotelModules,
+    );
     return _sectionsForPages(allowedPages);
   }
 
@@ -571,31 +603,50 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     if (property == null) {
       return selectedPage;
     }
-    final allowedPages = _allowedPagesForPropertyType(property.propertyType);
+    final hasHotelModules = ref
+            .read(propertyHasHotelModulesProvider(property.id))
+            .valueOrNull ??
+        false;
+    final allowedPages = _allowedPagesForPropertyType(
+      property.propertyType,
+      hasHotelModules: hasHotelModules,
+    );
     if (allowedPages.contains(selectedPage)) {
       return selectedPage;
     }
     return PropertyDetailPage.overview;
   }
 
-  Set<PropertyDetailPage> _allowedPagesForPropertyType(String propertyType) {
-    final shared = <PropertyDetailPage>{
+  Set<PropertyDetailPage> _allowedPagesForPropertyType(
+    String propertyType, {
+    required bool hasHotelModules,
+  }) {
+    final basic = <PropertyDetailPage>{
       PropertyDetailPage.overview,
+      PropertyDetailPage.documents,
+    };
+    final history = <PropertyDetailPage>{
+      PropertyDetailPage.audit,
+      PropertyDetailPage.reports,
+    };
+    final operations = <PropertyDetailPage>{
+      PropertyDetailPage.tasks,
+      PropertyDetailPage.maintenance,
+    };
+    final valuation = <PropertyDetailPage>{
       PropertyDetailPage.scenarios,
       PropertyDetailPage.inputs,
       PropertyDetailPage.analysis,
       PropertyDetailPage.offer,
-      PropertyDetailPage.documents,
-      PropertyDetailPage.audit,
-      PropertyDetailPage.reports,
-      PropertyDetailPage.tasks,
-      PropertyDetailPage.maintenance,
       PropertyDetailPage.budgetVsActual,
     };
     switch (propertyKindFromType(propertyType)) {
       case PropertyKind.rental:
         return <PropertyDetailPage>{
-          ...shared,
+          ...basic,
+          ...history,
+          ...operations,
+          ...valuation,
           PropertyDetailPage.operationsOverview,
           PropertyDetailPage.units,
           PropertyDetailPage.tenants,
@@ -606,24 +657,41 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
           PropertyDetailPage.covenants,
         };
       case PropertyKind.sale:
+        return <PropertyDetailPage>{
+          ...basic,
+          PropertyDetailPage.tasks,
+          PropertyDetailPage.saleData,
+          PropertyDetailPage.buyerInterests,
+          PropertyDetailPage.viewings,
+          PropertyDetailPage.saleOffers,
+        };
       case PropertyKind.condoSale:
         return <PropertyDetailPage>{
-          ...shared,
+          ...basic,
           PropertyDetailPage.units,
-          PropertyDetailPage.comps,
-          PropertyDetailPage.assetWorkbook,
+          PropertyDetailPage.buyerInterests,
+          PropertyDetailPage.reservations,
+          PropertyDetailPage.unitSaleStatus,
+          PropertyDetailPage.parkingStorage,
         };
       case PropertyKind.hotel:
         return <PropertyDetailPage>{
-          ...shared,
-          PropertyDetailPage.operationsOverview,
+          ...basic,
+          PropertyDetailPage.maintenance,
           PropertyDetailPage.units,
+          PropertyDetailPage.reservations,
+          PropertyDetailPage.guests,
+          PropertyDetailPage.housekeeping,
+          PropertyDetailPage.hotelRevenue,
+          PropertyDetailPage.operationsOverview,
           PropertyDetailPage.assetWorkbook,
-          PropertyDetailPage.alerts,
         };
       case PropertyKind.mixed:
-        return <PropertyDetailPage>{
-          ...shared,
+        final pages = <PropertyDetailPage>{
+          ...basic,
+          ...history,
+          ...operations,
+          ...valuation,
           PropertyDetailPage.operationsOverview,
           PropertyDetailPage.units,
           PropertyDetailPage.tenants,
@@ -633,10 +701,44 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
           PropertyDetailPage.assetWorkbook,
           PropertyDetailPage.alerts,
           PropertyDetailPage.covenants,
+          PropertyDetailPage.saleData,
+          PropertyDetailPage.buyerInterests,
+          PropertyDetailPage.viewings,
+          PropertyDetailPage.saleOffers,
         };
+        if (hasHotelModules) {
+          pages.addAll(<PropertyDetailPage>{
+            PropertyDetailPage.reservations,
+            PropertyDetailPage.guests,
+            PropertyDetailPage.housekeeping,
+            PropertyDetailPage.hotelRevenue,
+          });
+        }
+        return pages;
       case PropertyKind.other:
-        return shared;
+        return <PropertyDetailPage>{
+          ...basic,
+          PropertyDetailPage.tasks,
+        };
     }
+  }
+
+  String _labelForPage(PropertyDetailPage page, PropertyRecord? property) {
+    final kind = property == null
+        ? PropertyKind.rental
+        : propertyKindFromType(property.propertyType);
+    if (page == PropertyDetailPage.units) {
+      return switch (kind) {
+        PropertyKind.hotel => 'Zimmer',
+        PropertyKind.condoSale => 'Wohnungen',
+        _ => 'Einheiten',
+      };
+    }
+    if (page == PropertyDetailPage.reservations &&
+        kind == PropertyKind.condoSale) {
+      return 'Reservierungen';
+    }
+    return propertyDestinationForPage(page).label;
   }
 
   List<PropertyNavigationSection> _sectionsForPages(
@@ -752,7 +854,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                 color: selected ? Colors.white : PropertyShell._assetMenuMuted,
               ),
               title: Text(
-                context.strings.text(item.label),
+                context.strings.text(_labelForPage(item.page, null)),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: selected ? Colors.white : PropertyShell._assetMenuMuted,
                   fontWeight: FontWeight.w600,
@@ -827,8 +929,26 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
         return Icons.folder_open_outlined;
       case PropertyDetailPage.reports:
         return Icons.summarize_outlined;
-      default:
-        return Icons.arrow_right_alt;
+      case PropertyDetailPage.saleData:
+        return Icons.sell_outlined;
+      case PropertyDetailPage.buyerInterests:
+        return Icons.person_search_outlined;
+      case PropertyDetailPage.viewings:
+        return Icons.event_available_outlined;
+      case PropertyDetailPage.saleOffers:
+        return Icons.local_offer_outlined;
+      case PropertyDetailPage.reservations:
+        return Icons.event_note_outlined;
+      case PropertyDetailPage.guests:
+        return Icons.badge_outlined;
+      case PropertyDetailPage.housekeeping:
+        return Icons.cleaning_services_outlined;
+      case PropertyDetailPage.hotelRevenue:
+        return Icons.query_stats_outlined;
+      case PropertyDetailPage.parkingStorage:
+        return Icons.local_parking_outlined;
+      case PropertyDetailPage.unitSaleStatus:
+        return Icons.price_check_outlined;
     }
   }
 
@@ -986,6 +1106,56 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
         return PropertyMaintenanceScreen(propertyId: propertyId);
       case PropertyDetailPage.covenants:
         return CovenantsScreen(propertyId: propertyId);
+      case PropertyDetailPage.saleData:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.saleData,
+        );
+      case PropertyDetailPage.buyerInterests:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.buyerInterests,
+        );
+      case PropertyDetailPage.viewings:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.viewings,
+        );
+      case PropertyDetailPage.saleOffers:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.saleOffers,
+        );
+      case PropertyDetailPage.reservations:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.reservations,
+        );
+      case PropertyDetailPage.guests:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.guests,
+        );
+      case PropertyDetailPage.housekeeping:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.housekeeping,
+        );
+      case PropertyDetailPage.hotelRevenue:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.hotelRevenue,
+        );
+      case PropertyDetailPage.parkingStorage:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.parkingStorage,
+        );
+      case PropertyDetailPage.unitSaleStatus:
+        return PropertyTypeModuleScreen(
+          propertyId: propertyId,
+          module: PropertyTypeModule.unitSaleStatus,
+        );
     }
   }
 }

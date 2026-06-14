@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 45;
+  static const int currentVersion = 46;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -49,6 +49,7 @@ class DbMigrations {
     await _createV43(db);
     await _createV44(db);
     await _createV45(db);
+    await _createV46(db);
   }
 
   static Future<void> onUpgrade(
@@ -190,6 +191,9 @@ class DbMigrations {
     }
     if (oldVersion < 45) {
       await _createV45(db);
+    }
+    if (oldVersion < 46) {
+      await _createV46(db);
     }
   }
 
@@ -4181,6 +4185,122 @@ class DbMigrations {
       column: 'scenario_case_type',
       alterSql:
           "ALTER TABLE scenarios ADD COLUMN scenario_case_type TEXT NOT NULL DEFAULT 'base'",
+    );
+  }
+
+  static Future<void> _createV46(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        legal_name TEXT,
+        role TEXT NOT NULL DEFAULT 'other',
+        email TEXT,
+        phone TEXT,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_contacts_role_name ON contacts(role, display_name)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_sale_details (
+        property_id TEXT PRIMARY KEY,
+        asking_price REAL,
+        minimum_price REAL,
+        sale_status TEXT NOT NULL DEFAULT 'draft',
+        listed_at INTEGER,
+        reserved_at INTEGER,
+        sold_at INTEGER,
+        notary_date INTEGER,
+        notes TEXT,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS buyer_interests (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        unit_id TEXT,
+        contact_id TEXT,
+        interest_status TEXT NOT NULL DEFAULT 'active',
+        budget_amount REAL,
+        offer_amount REAL,
+        viewing_at INTEGER,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+        FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_buyer_interests_property ON buyer_interests(property_id, updated_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_buyer_interests_unit ON buyer_interests(unit_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_buyer_interests_contact ON buyer_interests(contact_id)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS reservations (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        unit_id TEXT,
+        guest_contact_id TEXT,
+        check_in INTEGER NOT NULL,
+        check_out INTEGER NOT NULL,
+        reservation_status TEXT NOT NULL DEFAULT 'reserved',
+        total_amount REAL,
+        source TEXT,
+        notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+        FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL,
+        FOREIGN KEY (guest_contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reservations_property_dates ON reservations(property_id, check_in, check_out)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reservations_unit ON reservations(unit_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_reservations_guest ON reservations(guest_contact_id)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS unit_sale_details (
+        unit_id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        sale_status TEXT NOT NULL DEFAULT 'available',
+        asking_price REAL,
+        minimum_price REAL,
+        reserved_at INTEGER,
+        sold_at INTEGER,
+        buyer_contact_id TEXT,
+        notes TEXT,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+        FOREIGN KEY (buyer_contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_unit_sale_details_property ON unit_sale_details(property_id, sale_status)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_unit_sale_details_buyer ON unit_sale_details(buyer_contact_id)',
     );
   }
 

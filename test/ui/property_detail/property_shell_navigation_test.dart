@@ -61,6 +61,114 @@ void main() {
     );
     expect(find.text('New Task'), findsOneWidget);
   });
+
+  testWidgets('sale property shows sale modules instead of tenant module', (
+    tester,
+  ) async {
+    await _pumpShellForType(
+      tester,
+      propertyType: 'sale',
+      selectedPage: PropertyDetailPage.tasks,
+    );
+
+    await tester.tap(find.text('TAGESGESCHAEFT').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Käufer/Interessenten'), findsOneWidget);
+    expect(find.text('Besichtigungen'), findsOneWidget);
+    expect(find.text('Angebote'), findsOneWidget);
+    expect(find.text('Mieter'), findsNothing);
+  });
+
+  testWidgets('hotel property shows hotel modules instead of tenant module', (
+    tester,
+  ) async {
+    await _pumpShellForType(
+      tester,
+      propertyType: 'hotel',
+      selectedPage: PropertyDetailPage.tasks,
+      hasHotelModules: true,
+    );
+
+    await tester.tap(find.text('TAGESGESCHAEFT').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zimmer'), findsOneWidget);
+    expect(find.text('Reservierungen'), findsOneWidget);
+    expect(find.text('Gäste'), findsOneWidget);
+    expect(find.text('Mieter'), findsNothing);
+  });
+
+  testWidgets('mixed property keeps rental and sale modules', (tester) async {
+    await _pumpShellForType(
+      tester,
+      propertyType: 'mixed',
+      selectedPage: PropertyDetailPage.tasks,
+    );
+
+    await tester.tap(find.text('TAGESGESCHAEFT').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mieter'), findsOneWidget);
+    expect(find.text('Mietverträge'), findsOneWidget);
+    expect(find.text('Käufer/Interessenten'), findsOneWidget);
+  });
+
+  testWidgets('legacy multifamily property keeps rental modules', (tester) async {
+    await _pumpShellForType(
+      tester,
+      propertyType: 'multifamily',
+      selectedPage: PropertyDetailPage.tasks,
+    );
+
+    await tester.tap(find.text('TAGESGESCHAEFT').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mieter'), findsOneWidget);
+    expect(find.text('Mietverträge'), findsOneWidget);
+  });
+}
+
+Future<void> _pumpShellForType(
+  WidgetTester tester, {
+  required String propertyType,
+  required PropertyDetailPage selectedPage,
+  bool hasHotelModules = false,
+}) async {
+  tester.view.physicalSize = const Size(1280, 800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  final container = ProviderContainer(
+    overrides: [
+      propertiesControllerProvider.overrideWith(
+        () => _TypedPropertiesController(propertyType),
+      ),
+      scenariosByPropertyProvider.overrideWith(
+        () => _FakeScenariosByPropertyController(),
+      ),
+      tasksRepositoryProvider.overrideWithValue(_FakeTasksRepo()),
+      propertyHasHotelModulesProvider.overrideWith(
+        (ref, propertyId) async => hasHotelModules,
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+  container.read(selectedPropertyIdProvider.notifier).state = 'p1';
+  container.read(propertyDetailPageProvider.notifier).state = selectedPage;
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        home: const Scaffold(body: PropertyShell()),
+      ),
+    ),
+  );
+
+  await tester.pumpAndSettle();
 }
 
 class _FakePropertiesController extends PropertiesController {
@@ -75,6 +183,30 @@ class _FakePropertiesController extends PropertiesController {
         city: 'Berlin',
         country: 'DE',
         propertyType: 'multifamily',
+        units: 12,
+        createdAt: 1,
+        updatedAt: 1,
+      ),
+    ];
+  }
+}
+
+class _TypedPropertiesController extends PropertiesController {
+  _TypedPropertiesController(this.propertyType);
+
+  final String propertyType;
+
+  @override
+  Future<List<PropertyRecord>> build() async {
+    return <PropertyRecord>[
+      PropertyRecord(
+        id: 'p1',
+        name: 'Asset Alpha',
+        addressLine1: 'Main Street 1',
+        zip: '10115',
+        city: 'Berlin',
+        country: 'DE',
+        propertyType: propertyType,
         units: 12,
         createdAt: 1,
         updatedAt: 1,

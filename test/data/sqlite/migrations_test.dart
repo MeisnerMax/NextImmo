@@ -259,4 +259,37 @@ void main() {
     expect(rentNames.contains('month_1'), isTrue);
     expect(rentNames.contains('month_12'), isTrue);
   });
+
+  test('creates v46 property type module tables', () async {
+    Future<bool> tableExists(String name) async {
+      final rows = await db.query(
+        'sqlite_master',
+        where: 'type = ? AND name = ?',
+        whereArgs: <Object?>['table', name],
+      );
+      return rows.isNotEmpty;
+    }
+
+    expect(await tableExists('contacts'), isTrue);
+    expect(await tableExists('property_sale_details'), isTrue);
+    expect(await tableExists('buyer_interests'), isTrue);
+    expect(await tableExists('reservations'), isTrue);
+    expect(await tableExists('unit_sale_details'), isTrue);
+
+    final saleColumns = await db.rawQuery(
+      'PRAGMA table_info(property_sale_details)',
+    );
+    final saleNames = saleColumns.map((row) => row['name']).toSet();
+    expect(saleNames.contains('asking_price'), isTrue);
+    expect(saleNames.contains('minimum_price'), isTrue);
+    expect(saleNames.contains('sale_status'), isTrue);
+    expect(saleNames.contains('notary_date'), isTrue);
+
+    final unitSaleColumns = await db.rawQuery(
+      'PRAGMA table_info(unit_sale_details)',
+    );
+    final unitSaleNames = unitSaleColumns.map((row) => row['name']).toSet();
+    expect(unitSaleNames.contains('sale_status'), isTrue);
+    expect(unitSaleNames.contains('buyer_contact_id'), isTrue);
+  });
 }
