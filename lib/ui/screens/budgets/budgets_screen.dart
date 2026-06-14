@@ -254,7 +254,10 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                             : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                   'Budgetplanung - ${_selected!.versionName}',
@@ -263,12 +266,10 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                                             context,
                                           ).textTheme.titleMedium,
                                     ),
-                                    const Spacer(),
                                     OutlinedButton(
                                       onPressed: _addLineDialog,
                                       child: const Text('Position erfassen'),
                                     ),
-                                    const SizedBox(width: 8),
                                     OutlinedButton(
                                       onPressed: _computeVariance,
                                       child: const Text('Ist-Abgleich'),

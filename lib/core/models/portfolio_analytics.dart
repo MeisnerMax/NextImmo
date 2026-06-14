@@ -51,3 +51,45 @@ class PortfolioIrrResult {
   final List<PortfolioCashflowRecord> datedCashflows;
   final List<PortfolioCashflowPeriodAggregate> periodTable;
 }
+
+class PortfolioMetricsSnapshot {
+  const PortfolioMetricsSnapshot({
+    required this.totalValue,
+    required this.totalAcquisitionCosts,
+    required this.netYield,
+    required this.vacancyRate,
+    required this.ltv,
+    required this.totalLoanPrincipal,
+    required this.propertyKpis,
+  });
+
+  final double totalValue;
+  final double totalAcquisitionCosts;
+  final double netYield;
+  final double vacancyRate;
+  final double ltv;
+  final double totalLoanPrincipal;
+  final Map<String, PropertyPortfolioKpis> propertyKpis;
+}
+
+class PropertyPortfolioKpis {
+  const PropertyPortfolioKpis({
+    required this.propertyYield,
+    required this.cashflowMonthly,
+    required this.estimatedMarketValue,
+    required this.units,
+    required this.occupiedUnits,
+    required this.annualOperatingCosts,
+    required this.bkQuote,
+    required this.serviceChargeBalance,
+  });
+
+  final double propertyYield;
+  final double cashflowMonthly;
+  final double estimatedMarketValue;
+  final int units;
+  final int occupiedUnits;
+  final double annualOperatingCosts;
+  final double bkQuote;
+  final double serviceChargeBalance;
+}

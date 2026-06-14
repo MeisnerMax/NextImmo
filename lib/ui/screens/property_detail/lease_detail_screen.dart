@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'operations_detail_support.dart';
@@ -205,7 +206,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
       builder: (context) => AlertDialog(
         title: Text('Manuelle Miete für $periodKey'),
         content: SizedBox(
-          width: 360,
+          width: ResponsiveConstraints.dialogWidth(context, maxWidth: 360),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -362,7 +363,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Stammdaten',
                 child: Column(
@@ -379,7 +380,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Laufzeit',
                 child: Column(
@@ -421,7 +422,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Miete und Kaution',
                 child: Column(
@@ -448,7 +449,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Naechste Ereignisse',
                 child: Column(
@@ -569,7 +570,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Hinweise',
                 child: bundle.alerts.isEmpty
@@ -589,7 +590,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Aufgaben',
                 child: OperationsTasksPanel(
@@ -599,7 +600,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Dokumente',
                 action: TextButton(
@@ -673,7 +674,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Mietvertrag verlaengern'),
           content: SizedBox(
-            width: 420,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -762,7 +763,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Mietvertrag beenden'),
           content: SizedBox(
-            width: 360,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 360),
             child: _DialogDateField(
               label: 'Enddatum',
               value: endDate,

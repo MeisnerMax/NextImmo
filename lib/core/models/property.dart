@@ -129,3 +129,65 @@ class PropertyRecord {
     );
   }
 }
+
+enum PropertyKind {
+  rental,
+  sale,
+  condoSale,
+  hotel,
+  mixed,
+  other,
+}
+
+PropertyKind propertyKindFromType(String propertyType) {
+  switch (propertyType.trim().toLowerCase()) {
+    case 'rental':
+    case 'residential':
+    case 'single_family':
+    case 'multi_family':
+    case 'multifamily':
+    case 'apartment':
+    case 'commercial':
+    case 'office':
+      return PropertyKind.rental;
+    case 'sale':
+    case 'land':
+    case 'development':
+    case 'renovation':
+      return PropertyKind.sale;
+    case 'condo_sale':
+    case 'condo':
+    case 'apartment_sale':
+      return PropertyKind.condoSale;
+    case 'hotel':
+      return PropertyKind.hotel;
+    case 'mixed':
+    case 'mixed_use':
+      return PropertyKind.mixed;
+    case 'other':
+    default:
+      return PropertyKind.other;
+  }
+}
+
+bool propertySupportsRentalOperations(String propertyType) {
+  final kind = propertyKindFromType(propertyType);
+  return kind == PropertyKind.rental || kind == PropertyKind.mixed;
+}
+
+String propertyTypeLabel(String propertyType) {
+  switch (propertyKindFromType(propertyType)) {
+    case PropertyKind.rental:
+      return 'Vermietungsobjekt';
+    case PropertyKind.sale:
+      return 'Verkaufsobjekt';
+    case PropertyKind.condoSale:
+      return 'Eigentumswohnungen Verkauf';
+    case PropertyKind.hotel:
+      return 'Hotel';
+    case PropertyKind.mixed:
+      return 'Gemischt genutzt';
+    case PropertyKind.other:
+      return 'Sonstiges Objekt';
+  }
+}

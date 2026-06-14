@@ -335,70 +335,32 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
           // Arrears overview cards
           Text('Mietrückstände & Alterung', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Expanded(
-                child: NxCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Rückstände Gesamt', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(totalArrears), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-                      ],
-                    ),
-                  ),
-                ),
+              _financeSummaryCard(
+                context,
+                label: 'Rückstände Gesamt',
+                value: _formatCurrency(totalArrears),
+                valueColor: Colors.red.shade800,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NxCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('> 30 Tage', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(arrears30d), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ),
+              _financeSummaryCard(
+                context,
+                label: '> 30 Tage',
+                value: _formatCurrency(arrears30d),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NxCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('> 60 Tage', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(arrears60d), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-                      ],
-                    ),
-                  ),
-                ),
+              _financeSummaryCard(
+                context,
+                label: '> 60 Tage',
+                value: _formatCurrency(arrears60d),
+                valueColor: Colors.orange.shade800,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: NxCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('> 90 Tage (Kritisch)', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(arrears90d), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.red.shade900)),
-                      ],
-                    ),
-                  ),
-                ),
+              _financeSummaryCard(
+                context,
+                label: '> 90 Tage (Kritisch)',
+                value: _formatCurrency(arrears90d),
+                valueColor: Colors.red.shade900,
               ),
             ],
           ),
@@ -467,8 +429,11 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Zahlungsjournal (Aktuelle Buchungen)', style: Theme.of(context).textTheme.titleMedium),
                       ElevatedButton.icon(
@@ -532,24 +497,21 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
   // TAB 2: NEBENKOSTEN
   // ==========================================
   Widget _buildNebenkostenTab() {
-    double totalPrepayments = 0;
-    for (final lease in _leases) {
-      if (lease.status == 'active') {
-        totalPrepayments += (lease.ancillaryChargesMonthly ?? 0);
-      }
-    }
-    final prepaymentsPa = totalPrepayments * 12;
+    final currentYear = DateTime.now().year;
+    final prepaymentsByUnit = _annualPrepaymentsByUnit();
+    final prepaymentsPa = prepaymentsByUnit.values.fold<double>(0, (s, v) => s + v);
+    final activeCosts = _operatingCosts.where((cost) => !cost.canceled).toList();
+    final groupedCosts = _groupOperatingCosts(activeCosts);
+    final planCostsPa = activeCosts.fold<double>(
+      0,
+      (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
+    );
+    final allocatableCostsPa = activeCosts
+        .where(_isAllocatableOperatingCost)
+        .fold<double>(0, (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear));
+    final nonAllocatableCostsPa = planCostsPa - allocatableCostsPa;
+    final unitRows = _buildServiceChargeUnitRows(activeCosts, prepaymentsByUnit, currentYear);
 
-    double planCostsPa = 0;
-    for (final cost in _operatingCosts) {
-      if (cost.yearlyAmount != null && cost.yearlyAmount! > 0) {
-        planCostsPa += cost.yearlyAmount!;
-      } else if (cost.monthlyAmount != null && cost.monthlyAmount! > 0) {
-        planCostsPa += cost.monthlyAmount! * 12;
-      }
-    }
-
-    // Filter ledger entries for Nebenkosten expenses
     final nkEntries = _entries.where((entry) {
       final account = _accounts.firstWhere((a) => a.id == entry.accountId, orElse: () => LedgerAccountRecord(id: entry.accountId, name: 'Konto', kind: 'income', createdAt: 0));
       final isNkAccount = account.name.toLowerCase().contains('nebenkosten') ||
@@ -580,12 +542,16 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 value: _formatCurrency(prepaymentsPa),
               ),
               _SummaryTile(
-                label: 'Plan-Betriebskosten p.a.',
+                label: 'Betriebskosten Gebäude',
                 value: _formatCurrency(planCostsPa),
               ),
               _SummaryTile(
-                label: 'Ist-Betriebskosten p.a.',
-                value: _formatCurrency(totalNkActual),
+                label: 'Umlagefähig p.a.',
+                value: _formatCurrency(allocatableCostsPa),
+              ),
+              _SummaryTile(
+                label: 'Nicht umlagefähig p.a.',
+                value: _formatCurrency(nonAllocatableCostsPa),
               ),
               _SummaryTile(
                 label: isCovered ? 'Deckung-Überschuss p.a.' : 'Deckung-Unterdeckung p.a.',
@@ -601,11 +567,14 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        'Betriebskosten-Verträge (Soll-Kosten)',
+                        'Nebenkosten / Betriebskosten',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       ElevatedButton.icon(
@@ -616,49 +585,54 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _operatingCosts.isEmpty
+                  activeCosts.isEmpty
                       ? const Center(
                           child: Padding(
                             padding: EdgeInsets.all(16),
                             child: Text('Keine Betriebskostenpositionen angelegt.'),
                           ),
                         )
-                      : ClipRect(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Kostenart')),
-                                DataColumn(label: Text('Bereich')),
-                                DataColumn(label: Text('Versorger')),
-                                DataColumn(label: Text('Umlageschlüssel')),
-                                DataColumn(label: Text('Monatlich')),
-                                DataColumn(label: Text('Jährlich')),
-                                DataColumn(label: Text('Aktionen')),
-                              ],
-                              rows: _operatingCosts.map((cost) {
-                                final scopeLabel = cost.scope == 'unit'
-                                    ? 'Einheit: ${cost.unitCode ?? "-"}'
-                                    : 'Gesamtobjekt';
-                                final monthlyText = cost.monthlyAmount != null
-                                    ? '${cost.monthlyAmount!.toStringAsFixed(2)} €'
-                                    : '-';
-                                final yearlyText = cost.yearlyAmount != null
-                                    ? '${cost.yearlyAmount!.toStringAsFixed(2)} €'
-                                    : '-';
-
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(cost.costType, style: const TextStyle(fontWeight: FontWeight.bold))),
-                                    DataCell(Text(scopeLabel)),
-                                    DataCell(Text(cost.provider ?? '-')),
-                                    DataCell(Text(cost.allocationKey ?? '-')),
-                                    DataCell(Text(monthlyText, style: context.tabularNumericStyle)),
-                                    DataCell(Text(yearlyText, style: context.tabularNumericStyle)),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
+                      : Column(
+                          children: groupedCosts.entries.map((entry) {
+                            final categoryTotal = entry.value.fold<double>(
+                              0,
+                              (sum, cost) => sum + cost.yearlyRunRateForYear(currentYear),
+                            );
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: ExpansionTile(
+                                initiallyExpanded: true,
+                                title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                subtitle: Text('${entry.value.length} Positionen · ${_formatCurrency(categoryTotal)} p.a.'),
+                                children: entry.value.map((cost) {
+                                  final yearlyAmount = cost.yearlyRunRateForYear(currentYear);
+                                  final scopeLabel = cost.scope == 'unit'
+                                      ? 'Einheit: ${cost.unitCode ?? "-"}'
+                                      : 'Alle Einheiten';
+                                  return ListTile(
+                                    title: Text(cost.costType, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    subtitle: Text(
+                                      [
+                                        'Kategorie: ${entry.key}',
+                                        'Jahr: $currentYear',
+                                        'Umlagefähig: ${_isAllocatableOperatingCost(cost) ? "ja" : "nein"}',
+                                        'Umlageschlüssel: ${cost.allocationKey ?? "-"}',
+                                        'Zuordnung: $scopeLabel',
+                                        if ((cost.provider ?? '').isNotEmpty) 'Dienstleister: ${cost.provider}',
+                                        if ((cost.contractNumber ?? '').isNotEmpty) 'Beleg/Referenz: ${cost.contractNumber}',
+                                        if ((_stripOperatingCostMetaNotes(cost.notes) ?? '').isNotEmpty)
+                                          'Notiz: ${_stripOperatingCostMetaNotes(cost.notes)}',
+                                      ].join('\n'),
+                                    ),
+                                    trailing: SizedBox(
+                                      width: 180,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
+                                          Text(
+                                            _formatCurrency(yearlyAmount),
+                                            style: context.tabularNumericStyle.copyWith(fontWeight: FontWeight.w700),
+                                          ),
                                           IconButton(
                                             icon: const Icon(Icons.edit_outlined, size: 18),
                                             onPressed: () => _showOperatingCostDialog(cost),
@@ -666,37 +640,68 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                                            onPressed: () async {
-                                              final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (context) => AlertDialog(
-                                                  title: const Text('Kostenposition löschen'),
-                                                  content: Text('Möchten Sie "${cost.costType}" wirklich löschen?'),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.of(context).pop(false),
-                                                      child: const Text('Abbrechen'),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () => Navigator.of(context).pop(true),
-                                                      child: const Text('Löschen', style: TextStyle(color: Colors.red)),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                              if (confirm == true) {
-                                                await ref.read(assetWorkbookRepositoryProvider).deleteOperatingCost(cost.id);
-                                                _reload();
-                                              }
-                                            },
+                                            onPressed: () => _confirmDeleteOperatingCost(cost),
                                             tooltip: 'Löschen',
                                           ),
                                         ],
                                       ),
                                     ),
+                                  );
+                                }).toList(growable: false),
+                              ),
+                            );
+                          }).toList(growable: false),
+                        ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.component),
+
+          NxCard(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.cardPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Einheitenanteile und Vorauszahlungen', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  unitRows.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Keine Einheiten vorhanden.'),
+                          ),
+                        )
+                      : ClipRect(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              columns: const [
+                                DataColumn(label: Text('Einheit')),
+                                DataColumn(label: Text('Betriebskostenanteil')),
+                                DataColumn(label: Text('Vorauszahlungen')),
+                                DataColumn(label: Text('Saldo')),
+                                DataColumn(label: Text('Berechnung')),
+                              ],
+                              rows: unitRows.map((row) {
+                                final balance = row.prepayments - row.allocatedCosts;
+                                return DataRow(
+                                  cells: [
+                                    DataCell(Text(row.unitCode, style: const TextStyle(fontWeight: FontWeight.w700))),
+                                    DataCell(Text(_formatCurrency(row.allocatedCosts), style: context.tabularNumericStyle)),
+                                    DataCell(Text(_formatCurrency(row.prepayments), style: context.tabularNumericStyle)),
+                                    DataCell(Text(
+                                      _formatCurrency(balance.abs()),
+                                      style: context.tabularNumericStyle.copyWith(
+                                        color: balance >= 0 ? Colors.green : Colors.red,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )),
+                                    DataCell(Text(row.missingBasis ? 'Datenbasis fehlt für einzelne Schlüssel' : 'Anteil = Gesamtkosten x Umlageschlüssel')),
                                   ],
                                 );
-                              }).toList(),
+                              }).toList(growable: false),
                             ),
                           ),
                         ),
@@ -712,8 +717,11 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Betriebskosten Abrechnungsjournal', style: Theme.of(context).textTheme.titleMedium),
                       ElevatedButton.icon(
@@ -1222,6 +1230,197 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     }
   }
 
+  Map<String, List<AssetOperatingCostRecord>> _groupOperatingCosts(
+    List<AssetOperatingCostRecord> costs,
+  ) {
+    final grouped = <String, List<AssetOperatingCostRecord>>{};
+    for (final cost in costs) {
+      grouped.putIfAbsent(_operatingCostCategory(cost), () => <AssetOperatingCostRecord>[]).add(cost);
+    }
+    return grouped;
+  }
+
+  String _operatingCostCategory(AssetOperatingCostRecord cost) {
+    final storedCategory = _storedOperatingCostCategory(cost.notes);
+    if (storedCategory != null) {
+      return storedCategory;
+    }
+    final text = '${cost.scope} ${cost.costType}'.toLowerCase();
+    if (text.contains('grundsteuer') || text.contains('öffentliche') || text.contains('oeffentliche')) {
+      return 'Öffentliche Lasten';
+    }
+    if (text.contains('wasser') ||
+        text.contains('abwasser') ||
+        text.contains('entwässer') ||
+        text.contains('niederschlag') ||
+        text.contains('strom') ||
+        text.contains('versorgung') ||
+        text.contains('utility')) {
+      return 'Versorgung und Verbrauch';
+    }
+    if (text.contains('heizung') || text.contains('warmwasser') || text.contains('gas')) {
+      return 'Heizung und Warmwasser';
+    }
+    if (text.contains('reinigung') ||
+        text.contains('müll') ||
+        text.contains('muell') ||
+        text.contains('abfall') ||
+        text.contains('garten') ||
+        text.contains('ungeziefer') ||
+        text.contains('straßenreinigung') ||
+        text.contains('strassenreinigung')) {
+      return 'Reinigung und Außenanlagen';
+    }
+    if (text.contains('aufzug') ||
+        text.contains('schornstein') ||
+        text.contains('beleuchtung') ||
+        text.contains('antenne') ||
+        text.contains('breitband')) {
+      return 'Gebäude und technische Anlagen';
+    }
+    if (text.contains('versicherung') || text.contains('haftpflicht') || cost.scope == 'insurance') {
+      return 'Versicherungen';
+    }
+    if (text.contains('hauswart') || text.contains('hausmeister')) {
+      return 'Personal / Hauswart';
+    }
+    return 'Sonstige Betriebskosten';
+  }
+
+  bool _isAllocatableOperatingCost(AssetOperatingCostRecord cost) {
+    if (cost.canceled) {
+      return false;
+    }
+    final key = (cost.allocationKey ?? '').trim().toLowerCase();
+    return !key.contains('nicht umlage');
+  }
+
+  Map<String, double> _annualPrepaymentsByUnit() {
+    final unitCodeById = <String, String>{
+      for (final unit in _units) unit.id: unit.unitCode,
+    };
+    final values = <String, double>{};
+    for (final lease in _leases.where((lease) => lease.status == 'active')) {
+      final unitCode = unitCodeById[lease.unitId];
+      if (unitCode == null) {
+        continue;
+      }
+      values[unitCode] = (values[unitCode] ?? 0) + ((lease.ancillaryChargesMonthly ?? 0) * 12);
+    }
+    return values;
+  }
+
+  List<_ServiceChargeUnitRow> _buildServiceChargeUnitRows(
+    List<AssetOperatingCostRecord> costs,
+    Map<String, double> prepaymentsByUnit,
+    int year,
+  ) {
+    return _units.map((unit) {
+      var allocatedCosts = 0.0;
+      var missingBasis = false;
+      for (final cost in costs.where(_isAllocatableOperatingCost)) {
+        final share = _allocationShareForUnit(cost, unit);
+        if (share == null) {
+          missingBasis = true;
+          continue;
+        }
+        allocatedCosts += cost.yearlyRunRateForYear(year) * share;
+      }
+      return _ServiceChargeUnitRow(
+        unitCode: unit.unitCode,
+        allocatedCosts: allocatedCosts,
+        prepayments: prepaymentsByUnit[unit.unitCode] ?? 0,
+        missingBasis: missingBasis,
+      );
+    }).toList(growable: false);
+  }
+
+  double? _allocationShareForUnit(AssetOperatingCostRecord cost, UnitRecord unit) {
+    final key = (cost.allocationKey ?? (cost.scope == 'unit' ? 'Direkt' : 'Wohnfläche')).trim().toLowerCase();
+    final directUnit = cost.unitCode?.trim().toLowerCase();
+    if (key.contains('direkt') || cost.scope == 'unit') {
+      if (directUnit == null || directUnit.isEmpty) {
+        return null;
+      }
+      return directUnit == unit.unitCode.trim().toLowerCase() ? 1 : 0;
+    }
+    if (key.contains('wohnfläche') || key.contains('flaeche') || key.contains('fläche')) {
+      final total = _units.fold<double>(0, (sum, item) => sum + (item.sqft ?? 0));
+      if (total <= 0 || unit.sqft == null) {
+        return null;
+      }
+      return unit.sqft! / total;
+    }
+    if (key.contains('einheit') || key.contains('wohneinheit') || key.contains('anzahl')) {
+      return _units.isEmpty ? null : 1 / _units.length;
+    }
+    if (key.contains('person')) {
+      final total = _units.fold<double>(0, (sum, item) => sum + (item.beds ?? 0));
+      if (total <= 0 || unit.beds == null) {
+        return null;
+      }
+      return unit.beds! / total;
+    }
+    if (key.contains('verbrauch') ||
+        key.contains('miteigentum') ||
+        key.contains('individuell') ||
+        key.contains('schlüssel')) {
+      return null;
+    }
+    return _units.isEmpty ? null : 1 / _units.length;
+  }
+
+  String? _storedOperatingCostCategory(String? notes) {
+    if (notes == null) {
+      return null;
+    }
+    final firstLine = notes.split('\n').first.trim();
+    if (!firstLine.startsWith('Kategorie:')) {
+      return null;
+    }
+    final category = firstLine.substring('Kategorie:'.length).trim();
+    return category.isEmpty ? null : category;
+  }
+
+  String? _stripOperatingCostMetaNotes(String? notes) {
+    if (notes == null || notes.trim().isEmpty) {
+      return null;
+    }
+    final lines = notes.split('\n').toList(growable: false);
+    final visibleLines = lines.where((line) => !line.trim().startsWith('Kategorie:')).toList();
+    final value = visibleLines.join('\n').trim();
+    return value.isEmpty ? null : value;
+  }
+
+  String? _composeOperatingCostNotes(String category, String notes) {
+    final cleanNotes = notes.trim();
+    return cleanNotes.isEmpty ? 'Kategorie: $category' : 'Kategorie: $category\n$cleanNotes';
+  }
+
+  Future<void> _confirmDeleteOperatingCost(AssetOperatingCostRecord cost) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kostenposition löschen'),
+        content: Text('Möchten Sie "${cost.costType}" wirklich löschen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Löschen', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref.read(assetWorkbookRepositoryProvider).deleteOperatingCost(cost.id);
+      await _reload();
+    }
+  }
+
   String _formatDateInput(int? value) {
     if (value == null) {
       return '';
@@ -1291,7 +1490,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     final nextDueCtrl = TextEditingController(
       text: _formatDateInput(existing?.nextDueDate),
     );
-    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final notesCtrl = TextEditingController(
+      text: _stripOperatingCostMetaNotes(existing?.notes) ?? '',
+    );
     
     final scopeOptions = <String>[
       'building',
@@ -1304,17 +1505,31 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     ];
     final allocationOptions = <String>[
       'Wohnfläche',
+      'Miteigentumsanteil',
       'Einheitenanzahl',
+      'Personen',
       'Verbrauch',
       'Individuelle Schlüssel',
       'Direkt',
+      'Nicht umlagefähig',
       if (existing?.allocationKey != null &&
-          !['Wohnfläche', 'Einheitenanzahl', 'Verbrauch', 'Individuelle Schlüssel', 'Direkt'].contains(existing!.allocationKey))
+          !['Wohnfläche', 'Miteigentumsanteil', 'Einheitenanzahl', 'Personen', 'Verbrauch', 'Individuelle Schlüssel', 'Direkt', 'Nicht umlagefähig'].contains(existing!.allocationKey))
         existing.allocationKey!,
+    ];
+    const categoryOptions = <String>[
+      'Öffentliche Lasten',
+      'Versorgung und Verbrauch',
+      'Heizung und Warmwasser',
+      'Reinigung und Außenanlagen',
+      'Gebäude und technische Anlagen',
+      'Versicherungen',
+      'Personal / Hauswart',
+      'Sonstige Betriebskosten',
     ];
 
     var scope = existing?.scope ?? 'building';
     var allocationKey = existing?.allocationKey ?? (scope == 'unit' ? 'Direkt' : 'Wohnfläche');
+    var category = existing == null ? categoryOptions.first : _operatingCostCategory(existing);
     var canceled = existing?.canceled ?? false;
 
     await showDialog<void>(
@@ -1348,12 +1563,25 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                   const SizedBox(height: 8),
                   TextField(
                     controller: costTypeCtrl,
-                    decoration: const InputDecoration(labelText: 'Kostenart * (z.B. Heizung, Müll)'),
+                    decoration: const InputDecoration(labelText: 'Bezeichnung *'),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: categoryOptions.contains(category) ? category : categoryOptions.last,
+                    decoration: const InputDecoration(labelText: 'Kategorie'),
+                    items: [
+                      for (final option in categoryOptions)
+                        DropdownMenuItem(
+                          value: option,
+                          child: Text(option),
+                        ),
+                    ],
+                    onChanged: (value) => setDialogState(() => category = value ?? category),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: unitCodeCtrl,
-                    decoration: const InputDecoration(labelText: 'Einheits-Code (z.B. WE 01)'),
+                    decoration: const InputDecoration(labelText: 'Einheit optional (leer = alle Einheiten)'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -1416,7 +1644,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                   CheckboxListTile(
                     value: canceled,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Gekündigt / vom Mieter übernommen'),
+                    title: const Text('Inaktiv / gekündigt'),
                     onChanged: (value) => setDialogState(() => canceled = value ?? false),
                   ),
                   const SizedBox(height: 8),
@@ -1463,7 +1691,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     startDate: _parseDateInput(validFromCtrl.text),
                     endDate: _parseDateInput(validUntilCtrl.text),
                     nextDueDate: _parseDateInput(nextDueCtrl.text),
-                    notes: _blankToNull(notesCtrl.text),
+                    notes: _composeOperatingCostNotes(category, notesCtrl.text),
                   );
                 } else {
                   await repo.updateOperatingCost(
@@ -1481,7 +1709,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     startDate: _parseDateInput(validFromCtrl.text),
                     endDate: _parseDateInput(validUntilCtrl.text),
                     nextDueDate: _parseDateInput(nextDueCtrl.text),
-                    notes: _blankToNull(notesCtrl.text),
+                    notes: _composeOperatingCostNotes(category, notesCtrl.text),
                   );
                 }
 
@@ -1748,7 +1976,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
         builder: (context, setDialogState) => AlertDialog(
           title: Text(isIncomeOnly ? 'Zahlung buchen' : (isNkOnly ? 'NK-Ausgabe buchen' : 'Buchung erfassen')),
           content: SizedBox(
-            width: 400,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 400),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1823,6 +2051,48 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     amountCtrl.dispose();
     counterpartyCtrl.dispose();
     memoCtrl.dispose();
+  }
+
+  Widget _financeSummaryCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return SizedBox(
+      width: ResponsiveConstraints.itemWidth(
+        context,
+        idealWidth: 220,
+        minWidth: 150,
+        maxWidth: 260,
+      ),
+      child: NxCard(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.grey,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: valueColor,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showArrearsDunningDialog(Map<String, dynamic> arrearsRow) async {
@@ -3364,4 +3634,18 @@ class _LiquidityForecastRow {
   final double debtService;
   final double netCashflow;
   final double cumulativeBalance;
+}
+
+class _ServiceChargeUnitRow {
+  const _ServiceChargeUnitRow({
+    required this.unitCode,
+    required this.allocatedCosts,
+    required this.prepayments,
+    required this.missingBasis,
+  });
+
+  final String unitCode;
+  final double allocatedCosts;
+  final double prepayments;
+  final bool missingBasis;
 }

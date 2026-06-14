@@ -27,12 +27,14 @@ class ScenariosByPropertyController
   Future<ScenarioRecord?> create({
     required String name,
     required String strategyType,
+    String scenarioCaseType = 'base',
   }) async {
     try {
       final scenario = await _repo.create(
         propertyId: arg,
         name: name,
         strategyType: strategyType,
+        scenarioCaseType: scenarioCaseType,
       );
 
       final settings = await _inputsRepo.getSettings();

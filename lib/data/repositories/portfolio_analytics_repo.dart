@@ -3,14 +3,130 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../core/finance/portfolio_irr_engine.dart';
 import '../../core/models/portfolio_analytics.dart';
+import 'asset_workbook_repo.dart';
 import 'capital_events_repo.dart';
 
 class PortfolioAnalyticsRepo {
-  const PortfolioAnalyticsRepo(this._db, this._capitalEventsRepo, this._engine);
+  const PortfolioAnalyticsRepo(
+    this._db,
+    this._capitalEventsRepo,
+    this._engine,
+    this._assetWorkbookRepo,
+  );
 
   final Database _db;
   final CapitalEventsRepo _capitalEventsRepo;
   final PortfolioIrrEngine _engine;
+  final AssetWorkbookRepo _assetWorkbookRepo;
+
+  Future<PortfolioMetricsSnapshot> loadOverviewMetrics({
+    required Set<String> activePropertyIds,
+  }) async {
+    final rentalOverview = await _assetWorkbookRepo.loadPortfolioOverview(
+      includeArchived: true,
+    );
+    final activeRows = rentalOverview.rows
+        .where((row) => activePropertyIds.contains(row.propertyId))
+        .toList(growable: false);
+
+    final purchasePriceRows = await _db.rawQuery('''
+      SELECT s.property_id, si.purchase_price
+      FROM scenario_inputs si
+      INNER JOIN scenarios s ON s.id = si.scenario_id
+      WHERE s.is_base = 1
+    ''');
+    final purchasePrices = {
+      for (final row in purchasePriceRows)
+        row['property_id'] as String:
+            ((row['purchase_price'] as num?) ?? 0).toDouble(),
+    };
+    final activePurchasePrices = {
+      for (final entry in purchasePrices.entries)
+        if (activePropertyIds.contains(entry.key)) entry.key: entry.value,
+    };
+
+    final loanRows = await _db.rawQuery('''
+      SELECT asset_property_id, SUM(principal) AS loan_total
+      FROM loans
+      GROUP BY asset_property_id
+    ''');
+    final loanTotals = {
+      for (final row in loanRows)
+        if (activePropertyIds.contains(row['asset_property_id']))
+          row['asset_property_id'] as String:
+              ((row['loan_total'] as num?) ?? 0).toDouble(),
+    };
+
+    final rentedUnits = activeRows.fold<int>(
+      0,
+      (sum, row) => sum + row.occupiedUnits,
+    );
+    final emptyUnits = activeRows.fold<int>(
+      0,
+      (sum, row) => sum + row.vacantUnits,
+    );
+    final rentableUnits = rentedUnits + emptyUnits;
+    final vacancyRate = rentableUnits == 0 ? 0.0 : emptyUnits / rentableUnits;
+
+    final opex = activeRows.fold<double>(
+      0,
+      (sum, row) => sum + row.annualOperatingCosts,
+    );
+    final annualRent = activeRows.fold<double>(
+      0,
+      (sum, row) => sum + row.annualRent,
+    );
+    final noi = annualRent - opex;
+
+    final estimatedMarketValue = noi <= 0 ? 0.0 : noi / 0.055;
+
+    var totalAcquisitionCosts = 0.0;
+    for (final price in activePurchasePrices.values) {
+      totalAcquisitionCosts += price;
+    }
+
+    var totalLoanPrincipal = 0.0;
+    for (final loan in loanTotals.values) {
+      totalLoanPrincipal += loan;
+    }
+
+    final netYield =
+        totalAcquisitionCosts <= 0 ? 0.0 : noi / totalAcquisitionCosts;
+    final portfolioLtv =
+        estimatedMarketValue <= 0 ? 0.0 : totalLoanPrincipal / estimatedMarketValue;
+
+    final propertyKpis = <String, PropertyPortfolioKpis>{};
+    for (final row in rentalOverview.rows) {
+      final pId = row.propertyId;
+      final pPrice = purchasePrices[pId] ?? 0.0;
+      final pNoi = row.annualRent - row.annualOperatingCosts;
+      final pYield = pPrice > 0 ? pNoi / pPrice : 0.0;
+      final pCashflow = pNoi / 12;
+      final pMarketValue = pNoi <= 0 ? 0.0 : pNoi / 0.055;
+      final pBkQuote =
+          row.annualRent > 0 ? row.annualOperatingCosts / row.annualRent : 0.0;
+      propertyKpis[pId] = PropertyPortfolioKpis(
+        propertyYield: pYield,
+        cashflowMonthly: pCashflow,
+        estimatedMarketValue: pMarketValue,
+        units: row.units,
+        occupiedUnits: row.occupiedUnits,
+        annualOperatingCosts: row.annualOperatingCosts,
+        bkQuote: pBkQuote,
+        serviceChargeBalance: row.serviceChargeBalance,
+      );
+    }
+
+    return PortfolioMetricsSnapshot(
+      totalValue: estimatedMarketValue,
+      totalAcquisitionCosts: totalAcquisitionCosts,
+      netYield: netYield,
+      vacancyRate: vacancyRate,
+      ltv: portfolioLtv,
+      totalLoanPrincipal: totalLoanPrincipal,
+      propertyKpis: propertyKpis,
+    );
+  }
 
   Future<PortfolioIrrResult> computePortfolioIRR({
     required String portfolioId,

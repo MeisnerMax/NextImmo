@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:neximmo_app/ui/state/property_state.dart';
 
 import '../../../core/models/inputs.dart';
+import '../../../core/models/investment_modules.dart';
+import '../../../core/models/property.dart';
 import '../../../core/models/scenario_valuation.dart';
+import '../../../core/services/datasheet_export_service.dart';
 import '../../components/responsive_constraints.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_section_header.dart';
@@ -11,6 +15,7 @@ import '../../components/save_status_indicator.dart';
 import '../../state/analysis_state.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/datasheet_file_export.dart';
 import '../../utils/number_parse.dart';
 import '../../widgets/info_tooltip.dart';
 
@@ -59,7 +64,7 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildValuationWorkflowCard(context),
+                _buildValuationWorkflowCard(context, state),
                 const SizedBox(height: AppSpacing.component),
                 _buildValuationDataCopyCard(context, widget.scenarioId),
                 const SizedBox(height: AppSpacing.component),
@@ -129,6 +134,13 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
+              if (snapshot.autoImportedFields.isNotEmpty) ...[
+                Text(
+                  'Automatisch uebernommen: ${snapshot.autoImportedFields.join(', ')}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 4),
+              ],
               Text(
                 manual.isEmpty
                     ? 'Diese Bewertung nutzt eine eigene Kopie der Property-Daten. Aenderungen hier schreiben nicht auf die Property-Stammdaten zurueck.'
@@ -934,7 +946,10 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     ];
   }
 
-  Widget _buildValuationWorkflowCard(BuildContext context) {
+  Widget _buildValuationWorkflowCard(
+    BuildContext context,
+    ScenarioAnalysisState state,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final steps = <_ValuationWorkflowStep>[
@@ -1092,6 +1107,69 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                 );
               },
             ),
+            const SizedBox(height: AppSpacing.component),
+            Wrap(
+              spacing: AppSpacing.component,
+              runSpacing: AppSpacing.sm,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(globalPageProvider.notifier).state =
+                        GlobalPage.renovationValue;
+                  },
+                  icon: const Icon(Icons.construction_outlined),
+                  label: const Text('Renovierungsmodul oeffnen'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(globalPageProvider.notifier).state =
+                        GlobalPage.dispositionExit;
+                  },
+                  icon: const Icon(Icons.sell_outlined),
+                  label: const Text('Verkaufsmodul oeffnen'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(propertyDetailPageProvider.notifier).state =
+                        PropertyDetailPage.reports;
+                  },
+                  icon: const Icon(Icons.article_outlined),
+                  label: const Text('IC-Memo vorbereiten'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _saveIntensiveDatasheet(
+                    context,
+                    state,
+                    format: DatasheetExportFormat.json,
+                  ),
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('JSON exportieren'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _saveIntensiveDatasheet(
+                    context,
+                    state,
+                    format: DatasheetExportFormat.csv,
+                  ),
+                  icon: const Icon(Icons.table_view_outlined),
+                  label: const Text('CSV exportieren'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _saveIntensiveDatasheet(
+                    context,
+                    state,
+                    format: DatasheetExportFormat.pdf,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('PDF exportieren'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _confirmApplyInputsToProperty(context, state),
+                  icon: const Icon(Icons.publish_outlined),
+                  label: const Text('Aenderungen in Property uebernehmen'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1195,6 +1273,483 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveIntensiveDatasheet(
+    BuildContext context,
+    ScenarioAnalysisState state,
+    {
+    DatasheetExportFormat format = DatasheetExportFormat.json,
+  }) async {
+    final propertyId = state.propertyId;
+    if (propertyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Property fuer Intensivbewertung gefunden.')),
+      );
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final metrics = state.analysis.metrics;
+    final scenarioRecord = await ref
+        .read(scenarioRepositoryProvider)
+        .getById(state.inputs.scenarioId);
+    final scenarioCaseType = _normalizeScenarioCaseType(
+      scenarioRecord?.scenarioCaseType,
+    );
+    final snapshot = await ref
+        .read(valuationDataRepositoryProvider)
+        .getPropertySnapshot(state.inputs.scenarioId);
+    final snapshotData = <String, Object?>{
+      'source_property_id': snapshot?.sourcePropertyId,
+      'auto_imported_fields': snapshot?.autoImportedFields ?? const <String>[],
+      'manual_adjusted_fields': snapshot?.manualAdjustedFields ?? const <String>[],
+    };
+    final compRepo = ref.read(compsRepositoryProvider);
+    final salesComps = await compRepo.listSales(propertyId);
+    final rentalComps = await compRepo.listRentals(propertyId);
+    final salesCompRows = salesComps.map((item) => item.toMap()).toList();
+    final rentalCompRows = rentalComps.map((item) => item.toMap()).toList();
+    final valuationMethods = _buildAcquisitionValuationMethods(
+      state: state,
+      salesComps: salesCompRows,
+      rentalComps: rentalCompRows,
+    );
+    final risks = state.criteria == null
+        ? const <String>['Keine Kriterienbewertung hinterlegt.']
+        : state.criteria!.evaluations
+            .where((item) => !item.pass)
+            .map((item) => item.rule.fieldKey)
+            .toList(growable: false);
+    final recommendation = metrics.capRate >= 0.05 ? 'Pruefen' : 'Vertiefen';
+    final inputData = <String, Object?>{
+      ...state.inputs.toMap(),
+      'scenario_case_type': scenarioCaseType,
+      'valuation_snapshot': snapshotData,
+      'income_lines': state.incomeLines.map((item) => item.toMap()).toList(),
+      'expense_lines': state.expenseLines.map((item) => item.toMap()).toList(),
+      'market_sales': salesCompRows,
+      'market_rentals': rentalCompRows,
+    };
+    final resultData = <String, Object?>{
+      'metrics': metrics.toJson(),
+      'analysis': state.analysis.toJson(),
+      'criteria_failures': risks,
+      'recommendation': recommendation,
+      'valuation': state.valuation.toMap(),
+      'valuation_methods': valuationMethods,
+    };
+    final dcfTable = state.analysis.proformaYears
+        .map((year) => year.toJson())
+        .toList(growable: false);
+    final amortizationTable = state.analysis.amortizationSchedule
+        .map((entry) => entry.toJson())
+        .toList(growable: false);
+    final formulaAppendix = <Map<String, Object?>>[
+      _formulaMap(
+        name: 'NOI Jahr 1',
+        description: 'Operativer Jahresertrag nach laufenden Kosten',
+        inputs: <String, Object?>{
+          'rent_monthly_total': state.inputs.rentMonthlyTotal,
+          'vacancy_percent': state.inputs.vacancyPercent,
+          'expense_lines': state.expenseLines.length,
+        },
+        result: metrics.noiYear1,
+        unit: 'EUR/year',
+        now: now,
+      ),
+      _formulaMap(
+        name: 'Cap Rate',
+        description: 'NOI / Kaufpreis',
+        inputs: <String, Object?>{
+          'noi_year1': metrics.noiYear1,
+          'purchase_price': state.inputs.purchasePrice,
+        },
+        result: metrics.capRate,
+        unit: 'ratio',
+        now: now,
+      ),
+      _formulaMap(
+        name: 'Cash-on-Cash',
+        description: 'Jahrescashflow / eingesetztes Eigenkapital',
+        inputs: <String, Object?>{
+          'annual_cashflow_year1': metrics.annualCashflowYear1,
+          'total_cash_invested': metrics.totalCashInvested,
+        },
+        result: metrics.cashOnCash,
+        unit: 'ratio',
+        now: now,
+      ),
+      _formulaMap(
+        name: 'DSCR',
+        description: 'NOI / Kapitaldienst',
+        inputs: <String, Object?>{
+          'noi_year1': metrics.noiYear1,
+          'dscr': metrics.dscr,
+        },
+        result: metrics.dscr,
+        unit: 'ratio',
+        now: now,
+      ),
+    ];
+    final datasheet = ModuleDatasheet(
+      id: 'acquisition_deep_${state.inputs.scenarioId}_$now',
+      module: 'acquisition_deep',
+      title: 'Ankauf Intensivbewertung',
+      propertyId: state.propertyId,
+      scenarioId: state.inputs.scenarioId,
+      createdAt: now,
+      header: <String, Object?>{
+        'module': 'Ankauf Intensivbewertung',
+        'property_id': state.propertyId,
+        'scenario_id': state.inputs.scenarioId,
+        'scenario_case_type': scenarioCaseType,
+        'date': now,
+      },
+      executiveSummary: <String, Object?>{
+        'noi': metrics.noiYear1,
+        'cap_rate': metrics.capRate,
+        'cashflow': metrics.monthlyCashflowYear1,
+        'irr': metrics.irr,
+        'dscr': metrics.dscr,
+      },
+      inputData: inputData,
+      assumptions: state.valuation.toMap(),
+      calculations: <Map<String, Object?>>[
+        ...formulaAppendix,
+        <String, Object?>{
+          'section': 'dcf_table',
+          'description': 'Jaehrliche Pro-forma-Cashflows fuer DCF/IRR-Pruefung',
+          'rows': dcfTable,
+        },
+        <String, Object?>{
+          'section': 'amortization_schedule',
+          'description': 'Restschuldentwicklung aus dem Finanzierungsszenario',
+          'rows': amortizationTable,
+        },
+        <String, Object?>{
+          'section': 'valuation_methods',
+          'description':
+              'Vergleichswert, Ertragswert, Sachwert, DCF und Cap-Rate-Bewertung',
+          'rows': valuationMethods,
+        },
+      ],
+      metrics: state.analysis.toJson(),
+      sensitivities: <String, Object?>{
+        'purchase_price_minus_10_percent': state.inputs.purchasePrice * 0.90,
+        'purchase_price_plus_10_percent': state.inputs.purchasePrice * 1.10,
+        'rent_minus_10_percent': state.inputs.rentMonthlyTotal * 0.90,
+        'rent_plus_10_percent': state.inputs.rentMonthlyTotal * 1.10,
+        'vacancy_plus_5_points': state.inputs.vacancyPercent + 0.05,
+        'interest_plus_1_point': state.inputs.interestRatePercent + 0.01,
+      },
+      risks: risks,
+      recommendation: recommendation,
+      formulaAppendix: formulaAppendix,
+      dataQuality: <String, Object?>{
+        'missing_values': <String>[
+          if (state.inputs.purchasePrice <= 0) 'purchasePrice',
+          if (state.inputs.rentMonthlyTotal <= 0) 'rentMonthlyTotal',
+          if (state.inputs.grossAreaSqm <= 0) 'grossAreaSqm',
+        ],
+      },
+    );
+    final repo = ref.read(calculationDatasheetRepositoryProvider);
+    final evaluationId = await repo.saveAcquisitionDeepEvaluation(
+      propertyId: propertyId,
+      scenarioId: state.inputs.scenarioId,
+      title: datasheet.title,
+      inputData: inputData,
+      resultData: resultData,
+      risks: risks,
+      recommendation: recommendation,
+      scenarioType: scenarioCaseType,
+      valuationMethods: valuationMethods,
+    );
+    await repo.saveDatasheet(datasheet);
+    final export = ref.read(datasheetExportServiceProvider).prepareFromDatasheet(
+          datasheet: datasheet,
+          format: format,
+        );
+    final exportPath = await saveDatasheetArtifact(export);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Intensivbewertung gespeichert: $evaluationId | Export: ${exportPath ?? export.suggestedFileName}',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmApplyInputsToProperty(
+    BuildContext context,
+    ScenarioAnalysisState state,
+  ) async {
+    final propertyId = state.propertyId;
+    if (propertyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Property fuer Uebernahme gefunden.')),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Property-Stammdaten aktualisieren?'),
+        content: const Text(
+          'Diese Aktion uebernimmt ausgewaehlte Werte aus der Bewertung in die Property-Stammdaten. Die Bewertung bleibt weiterhin eine eigene Datenkopie.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Uebernehmen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    final repo = ref.read(propertyRepositoryProvider);
+    final property = await repo.getById(propertyId);
+    if (property == null) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Property wurde nicht gefunden.')),
+      );
+      return;
+    }
+
+    final updated = PropertyRecord(
+      id: property.id,
+      name: property.name,
+      addressLine1: property.addressLine1,
+      addressLine2: property.addressLine2,
+      zip: property.zip,
+      city: property.city,
+      country: property.country,
+      propertyType: property.propertyType,
+      units: property.units,
+      sqft: state.inputs.grossAreaSqm > 0
+          ? state.inputs.grossAreaSqm
+          : property.sqft,
+      yearBuilt: property.yearBuilt,
+      notes: property.notes,
+      createdAt: property.createdAt,
+      updatedAt: property.updatedAt,
+      archived: property.archived,
+      landArea: property.landArea,
+      residentialArea: state.inputs.residentialAreaSqm > 0
+          ? state.inputs.residentialAreaSqm
+          : property.residentialArea,
+      commercialArea: state.inputs.commercialAreaSqm > 0
+          ? state.inputs.commercialAreaSqm
+          : property.commercialArea,
+      parkingSpots: property.parkingSpots,
+      ownerCompany: property.ownerCompany,
+      purchaseDate: property.purchaseDate,
+      purchasePrice: state.inputs.purchasePrice > 0
+          ? state.inputs.purchasePrice
+          : property.purchasePrice,
+      notary: property.notary,
+      seller: property.seller,
+      landRegistryDetails: property.landRegistryDetails,
+      parcel: property.parcel,
+      energyCertificate: property.energyCertificate,
+      insuranceDetails: property.insuranceDetails,
+      taxAssignment: property.taxAssignment,
+    );
+    await ref.read(propertiesControllerProvider.notifier).updateProperty(updated);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Property-Stammdaten wurden aktualisiert.')),
+    );
+  }
+
+  List<Map<String, Object?>> _buildAcquisitionValuationMethods({
+    required ScenarioAnalysisState state,
+    required List<Map<String, Object?>> salesComps,
+    required List<Map<String, Object?>> rentalComps,
+  }) {
+    final inputs = state.inputs;
+    final metrics = state.analysis.metrics;
+    final area = inputs.lettableAreaSqm > 0
+        ? inputs.lettableAreaSqm
+        : inputs.grossAreaSqm;
+    final selectedSales = salesComps.where((comp) {
+      final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
+      final price = ((comp['price'] as num?) ?? 0).toDouble();
+      final compArea = ((comp['sqft'] as num?) ?? 0).toDouble();
+      return selected && price > 0 && compArea > 0;
+    }).toList();
+    final weightedSales = _weightedAverage(
+      selectedSales.map((comp) {
+        final price = ((comp['price'] as num?) ?? 0).toDouble();
+        final compArea = ((comp['sqft'] as num?) ?? 0).toDouble();
+        final weight = ((comp['weight'] as num?) ?? 1).toDouble();
+        return MapEntry<double, double>(price / compArea, weight);
+      }),
+    );
+    final selectedRentals = rentalComps.where((comp) {
+      final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
+      final rent = ((comp['rent_monthly'] as num?) ?? 0).toDouble();
+      return selected && rent > 0;
+    }).length;
+    final comparisonValue =
+        weightedSales == null || area <= 0 ? null : weightedSales * area;
+
+    final capRate = state.valuation.exitCapRatePercent != null &&
+            state.valuation.exitCapRatePercent! > 0
+        ? state.valuation.exitCapRatePercent!
+        : metrics.capRate > 0
+            ? metrics.capRate
+            : null;
+    final incomeValue =
+        capRate == null || metrics.noiYear1 <= 0 ? null : metrics.noiYear1 / capRate;
+    final totalCostBasis = inputs.purchasePrice +
+        inputs.rehabBudget +
+        inputs.closingCostBuyFixed +
+        inputs.purchasePrice * inputs.closingCostBuyPercent;
+    final costValue = totalCostBasis > 0 ? totalCostBasis : null;
+    final dcfValue = metrics.exitSalePrice > 0 ? metrics.exitSalePrice : null;
+
+    return <Map<String, Object?>>[
+      _valuationMethod(
+        methodName: 'Vergleichswertverfahren',
+        valueMid: comparisonValue,
+        confidence: selectedSales.length >= 3 ? 'medium' : 'low',
+        payload: <String, Object?>{
+          'selected_sales_comps': selectedSales.length,
+          'selected_rental_comps': selectedRentals,
+          'weighted_price_per_area': weightedSales,
+          'target_area_sqm': area,
+          if (comparisonValue == null)
+            'missing_data': 'Mindestens ein ausgewaehlter Verkaufskompar mit Preis und Flaeche erforderlich.',
+        },
+      ),
+      _valuationMethod(
+        methodName: 'Ertragswertverfahren',
+        valueMid: incomeValue,
+        confidence: incomeValue == null ? 'low' : 'medium',
+        payload: <String, Object?>{
+          'noi_year1': metrics.noiYear1,
+          'capitalization_rate': capRate,
+          'model_note':
+              'Vereinfachtes internes Ertragswertmodell auf Basis NOI / Kapitalisierungszins.',
+          if (incomeValue == null)
+            'missing_data': 'NOI oder Kapitalisierungszins fehlt.',
+        },
+      ),
+      _valuationMethod(
+        methodName: 'Sachwertverfahren',
+        valueMid: costValue,
+        confidence: costValue == null ? 'low' : 'medium',
+        payload: <String, Object?>{
+          'purchase_price': inputs.purchasePrice,
+          'rehab_budget': inputs.rehabBudget,
+          'closing_cost_buy_fixed': inputs.closingCostBuyFixed,
+          'closing_cost_buy_percent': inputs.closingCostBuyPercent,
+          'model_note':
+              'Vereinfachtes internes Sachwertmodell auf Basis aktueller Kostenbasis.',
+          if (costValue == null)
+            'missing_data': 'Kaufpreis oder Kostenbasis fehlt.',
+        },
+      ),
+      _valuationMethod(
+        methodName: 'Discounted-Cashflow-Modell',
+        valueMid: dcfValue,
+        confidence: dcfValue == null ? 'low' : 'medium',
+        payload: <String, Object?>{
+          'valuation_mode': metrics.valuationMode,
+          'exit_sale_price': metrics.exitSalePrice,
+          'exit_net_sale': metrics.exitNetSale,
+          'proforma_years': state.analysis.proformaYears.length,
+          if (dcfValue == null)
+            'missing_data': 'DCF-Exitwert ist noch nicht berechnet.',
+        },
+      ),
+      _valuationMethod(
+        methodName: 'Cap-Rate-Bewertung',
+        valueMid: incomeValue,
+        confidence: incomeValue == null ? 'low' : 'medium',
+        payload: <String, Object?>{
+          'noi_year1': metrics.noiYear1,
+          'cap_rate': capRate,
+          'formula': 'NOI / Cap Rate',
+          if (incomeValue == null)
+            'missing_data': 'NOI oder Cap Rate fehlt.',
+        },
+      ),
+    ];
+  }
+
+  Map<String, Object?> _valuationMethod({
+    required String methodName,
+    required double? valueMid,
+    required String confidence,
+    required Map<String, Object?> payload,
+  }) {
+    return <String, Object?>{
+      'method_name': methodName,
+      'value_low': valueMid == null ? null : valueMid * 0.90,
+      'value_mid': valueMid,
+      'value_high': valueMid == null ? null : valueMid * 1.10,
+      'confidence': confidence,
+      'payload': payload,
+    };
+  }
+
+  double? _weightedAverage(Iterable<MapEntry<double, double>> values) {
+    var weightedSum = 0.0;
+    var totalWeight = 0.0;
+    for (final entry in values) {
+      if (entry.key <= 0 || entry.value <= 0) {
+        continue;
+      }
+      weightedSum += entry.key * entry.value;
+      totalWeight += entry.value;
+    }
+    if (totalWeight <= 0) {
+      return null;
+    }
+    return weightedSum / totalWeight;
+  }
+
+  String _normalizeScenarioCaseType(String? value) {
+    const allowed = <String>{'base', 'best', 'worst', 'custom'};
+    if (value == null || !allowed.contains(value)) {
+      return 'base';
+    }
+    return value;
+  }
+
+  Map<String, Object?> _formulaMap({
+    required String name,
+    required String description,
+    required Map<String, Object?> inputs,
+    required double? result,
+    required String unit,
+    required int now,
+  }) {
+    return <String, Object?>{
+      'formula_name': name,
+      'description': description,
+      'inputs': inputs,
+      'result': result,
+      'unit': unit,
+      'calculated_at': now,
+    };
   }
 
   _SavePresentation _savePresentation(

@@ -22,6 +22,7 @@ class ScenarioRecord {
     required this.propertyId,
     required this.name,
     required this.strategyType,
+    this.scenarioCaseType = 'base',
     required this.isBase,
     this.workflowStatus = ScenarioWorkflowStatus.draft,
     this.approvedBy,
@@ -38,6 +39,7 @@ class ScenarioRecord {
   final String propertyId;
   final String name;
   final String strategyType;
+  final String scenarioCaseType;
   final bool isBase;
   final String workflowStatus;
   final String? approvedBy;
@@ -54,6 +56,7 @@ class ScenarioRecord {
   ScenarioRecord copyWith({
     String? name,
     String? strategyType,
+    String? scenarioCaseType,
     bool? isBase,
     String? workflowStatus,
     String? approvedBy,
@@ -69,6 +72,7 @@ class ScenarioRecord {
       propertyId: propertyId,
       name: name ?? this.name,
       strategyType: strategyType ?? this.strategyType,
+      scenarioCaseType: scenarioCaseType ?? this.scenarioCaseType,
       isBase: isBase ?? this.isBase,
       workflowStatus: workflowStatus ?? this.workflowStatus,
       approvedBy: approvedBy ?? this.approvedBy,
@@ -88,6 +92,7 @@ class ScenarioRecord {
       'property_id': propertyId,
       'name': name,
       'strategy_type': strategyType,
+      'scenario_case_type': scenarioCaseType,
       'is_base': isBase ? 1 : 0,
       'workflow_status': workflowStatus,
       'approved_by': approvedBy,
@@ -107,6 +112,7 @@ class ScenarioRecord {
       propertyId: map['property_id']! as String,
       name: map['name']! as String,
       strategyType: map['strategy_type']! as String,
+      scenarioCaseType: (map['scenario_case_type'] as String?) ?? 'base',
       isBase: ((map['is_base'] as num?) ?? 0) == 1,
       workflowStatus:
           (map['workflow_status'] as String?) ?? ScenarioWorkflowStatus.draft,

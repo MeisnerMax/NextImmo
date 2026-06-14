@@ -5,6 +5,7 @@ import 'ui/i18n/app_strings.dart';
 import 'ui/screens/security/security_gate.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
+import 'ui/zoom/app_zoom.dart';
 
 class NexImmoApp extends ConsumerWidget {
   const NexImmoApp({super.key});
@@ -26,6 +27,9 @@ class NexImmoApp extends ConsumerWidget {
       locale: AppStrings.localeFromLanguageCode(settings?.uiLanguageCode),
       supportedLocales: AppStrings.supportedLocales,
       localizationsDelegates: AppStrings.localizationsDelegates,
+      builder: (context, child) => AppZoomHost(
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: const SecurityGate(),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'unit_detail_screen.dart';
@@ -79,7 +80,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
             ),
           ),
         const SizedBox(height: AppSpacing.component),
-        _buildActiveTab(),
+        Expanded(child: _buildActiveTab()),
       ],
     );
   }
@@ -150,7 +151,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     final avgTargetRent = targetRentCount == 0 ? 0.0 : totalTargetRent / targetRentCount;
     final avgMarketRent = marketRentCount == 0 ? 0.0 : totalMarketRent / marketRentCount;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,50 +543,73 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     final bonitaet = _prospects.where((p) => p.moveInReference == 'credit').toList();
     final vertrag = _prospects.where((p) => p.moveInReference == 'contract').toList();
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: () => _prospectDialog(),
                 icon: const Icon(Icons.person_add_outlined),
                 label: const Text('Interessent anlegen'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildKanbanColumn(
-                title: 'Mietanfragen',
-                stage: 'request',
-                prospects: anfragen,
-              ),
-              const SizedBox(width: 8),
-              _buildKanbanColumn(
-                title: 'Besichtigungen',
-                stage: 'viewing',
-                prospects: besichtigungen,
-              ),
-              const SizedBox(width: 8),
-              _buildKanbanColumn(
-                title: 'Bonität & Prüfung',
-                stage: 'credit',
-                prospects: bonitaet,
-              ),
-              const SizedBox(width: 8),
-              _buildKanbanColumn(
-                title: 'Vertragsvorbereitung',
-                stage: 'contract',
-                prospects: vertrag,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = [
+                _buildKanbanColumn(
+                  title: 'Mietanfragen',
+                  stage: 'request',
+                  prospects: anfragen,
+                ),
+                _buildKanbanColumn(
+                  title: 'Besichtigungen',
+                  stage: 'viewing',
+                  prospects: besichtigungen,
+                ),
+                _buildKanbanColumn(
+                  title: 'Bonität & Prüfung',
+                  stage: 'credit',
+                  prospects: bonitaet,
+                ),
+                _buildKanbanColumn(
+                  title: 'Vertragsvorbereitung',
+                  stage: 'contract',
+                  prospects: vertrag,
+                ),
+              ];
+              if (constraints.maxWidth >= 980) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < columns.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 8),
+                      Expanded(child: columns[index]),
+                    ],
+                  ],
+                );
+              }
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final column in columns)
+                    SizedBox(
+                      width: constraints.maxWidth < 560
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 8) / 2,
+                      child: column,
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -597,8 +621,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     required String stage,
     required List<TenantRecord> prospects,
   }) {
-    return Expanded(
-      child: Card(
+    return Card(
         color: const Color(0xFFF8FAFC),
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -725,7 +748,6 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -769,7 +791,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
         builder: (context, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'Interessent anlegen' : 'Interessent bearbeiten'),
           content: SizedBox(
-            width: 420,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -926,7 +948,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
         builder: (context, setDialogState) => AlertDialog(
           title: Text(isEdit ? 'Einheit bearbeiten' : 'Einheit anlegen'),
           content: SizedBox(
-            width: 520,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

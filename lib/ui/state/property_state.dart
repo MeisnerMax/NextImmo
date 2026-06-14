@@ -26,6 +26,46 @@ class PropertiesController
     required String country,
     required String propertyType,
     required int units,
+    double? sqft,
+    int? yearBuilt,
+    String? notes,
+    required String strategyType,
+    required double purchasePrice,
+    required double rentMonthly,
+    required double rehabBudget,
+    required String financingMode,
+  }) async {
+    final result = await createPropertyWithBaseScenarioResult(
+      name: name,
+      address: address,
+      city: city,
+      zip: zip,
+      country: country,
+      propertyType: propertyType,
+      units: units,
+      sqft: sqft,
+      yearBuilt: yearBuilt,
+      notes: notes,
+      strategyType: strategyType,
+      purchasePrice: purchasePrice,
+      rentMonthly: rentMonthly,
+      rehabBudget: rehabBudget,
+      financingMode: financingMode,
+    );
+    return result?.property;
+  }
+
+  Future<PropertyCreateResult?> createPropertyWithBaseScenarioResult({
+    required String name,
+    required String address,
+    required String city,
+    required String zip,
+    required String country,
+    required String propertyType,
+    required int units,
+    double? sqft,
+    int? yearBuilt,
+    String? notes,
     required String strategyType,
     required double purchasePrice,
     required double rentMonthly,
@@ -42,6 +82,9 @@ class PropertiesController
         country: country,
         propertyType: propertyType,
         units: units,
+        sqft: sqft,
+        yearBuilt: yearBuilt,
+        notes: notes,
         strategyType: strategyType,
         settings: settings,
         purchasePrice: purchasePrice,
@@ -57,7 +100,7 @@ class PropertiesController
 
       final current = state.valueOrNull ?? <PropertyRecord>[];
       state = AsyncValue.data(<PropertyRecord>[property, ...current]);
-      return property;
+      return result;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       return null;

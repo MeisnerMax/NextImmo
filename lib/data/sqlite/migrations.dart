@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 41;
+  static const int currentVersion = 45;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -45,6 +45,10 @@ class DbMigrations {
     await _createV39(db);
     await _createV40(db);
     await _createV41(db);
+    await _createV42(db);
+    await _createV43(db);
+    await _createV44(db);
+    await _createV45(db);
   }
 
   static Future<void> onUpgrade(
@@ -175,6 +179,18 @@ class DbMigrations {
     if (oldVersion < 41) {
       await _createV41(db);
     }
+    if (oldVersion < 42) {
+      await _createV42(db);
+    }
+    if (oldVersion < 43) {
+      await _createV43(db);
+    }
+    if (oldVersion < 44) {
+      await _createV44(db);
+    }
+    if (oldVersion < 45) {
+      await _createV45(db);
+    }
   }
 
   static Future<void> _createV1(Database db) async {
@@ -241,6 +257,7 @@ class DbMigrations {
         property_id TEXT NOT NULL,
         name TEXT NOT NULL,
         strategy_type TEXT NOT NULL,
+        scenario_case_type TEXT NOT NULL DEFAULT 'base',
         is_base INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
@@ -3774,6 +3791,396 @@ class DbMigrations {
     );
     await db.execute(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_property_document_checklist_unique ON property_document_checklist(property_id, document_key)',
+    );
+  }
+
+  static Future<void> _createV42(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_quick_evaluations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        property_id TEXT,
+        scenario_id TEXT,
+        scenario_type TEXT NOT NULL DEFAULT 'base',
+        status TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        recommendation TEXT,
+        score INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL,
+        FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_acquisition_quick_property ON acquisition_quick_evaluations(property_id, updated_at)',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'acquisition_quick_evaluations',
+      column: 'scenario_type',
+      alterSql:
+          "ALTER TABLE acquisition_quick_evaluations ADD COLUMN scenario_type TEXT NOT NULL DEFAULT 'base'",
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_deep_evaluations (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        scenario_id TEXT,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        risk_score INTEGER,
+        recommendation TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+        FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_scenarios (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        scenario_name TEXT NOT NULL,
+        scenario_type TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_rent_roll_entries (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        unit_label TEXT,
+        tenant_name TEXT,
+        usage_type TEXT,
+        area_sqm REAL,
+        current_rent_monthly REAL,
+        market_rent_monthly REAL,
+        is_vacant INTEGER NOT NULL DEFAULT 0,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_financing_assumptions (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        scenario_id TEXT,
+        loan_amount REAL,
+        equity REAL,
+        interest_rate_percent REAL,
+        amortization_percent REAL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE,
+        FOREIGN KEY (scenario_id) REFERENCES acquisition_scenarios(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_market_comps (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        comp_type TEXT NOT NULL,
+        address TEXT,
+        price REAL,
+        rent_monthly REAL,
+        area_sqm REAL,
+        adjustment_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_risk_items (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        risk_category TEXT NOT NULL,
+        title TEXT NOT NULL,
+        severity INTEGER NOT NULL,
+        mitigation TEXT,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_measures (
+        id TEXT PRIMARY KEY,
+        renovation_project_id TEXT,
+        renovation_scenario_id TEXT,
+        measure_type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        trade TEXT,
+        affected_area_sqm REAL,
+        is_required INTEGER NOT NULL DEFAULT 0,
+        is_value_add INTEGER NOT NULL DEFAULT 0,
+        is_recoverable INTEGER NOT NULL DEFAULT 0,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (renovation_project_id) REFERENCES renovation_projects(id) ON DELETE SET NULL,
+        FOREIGN KEY (renovation_scenario_id) REFERENCES renovation_scenarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_cost_items (
+        id TEXT PRIMARY KEY,
+        renovation_project_id TEXT,
+        renovation_scenario_id TEXT,
+        measure_id TEXT,
+        label TEXT NOT NULL,
+        budget_amount REAL,
+        committed_amount REAL,
+        actual_amount REAL,
+        remaining_amount REAL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (renovation_project_id) REFERENCES renovation_projects(id) ON DELETE SET NULL,
+        FOREIGN KEY (renovation_scenario_id) REFERENCES renovation_scenarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (measure_id) REFERENCES renovation_measures(id) ON DELETE SET NULL
+      )
+    ''');
+    await _addColumnIfMissing(
+      db,
+      table: 'renovation_cost_items',
+      column: 'renovation_scenario_id',
+      alterSql: 'ALTER TABLE renovation_cost_items ADD COLUMN renovation_scenario_id TEXT',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_rent_impacts (
+        id TEXT PRIMARY KEY,
+        renovation_project_id TEXT NOT NULL,
+        unit_id TEXT,
+        current_rent_monthly REAL,
+        target_rent_monthly REAL,
+        vacancy_months REAL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (renovation_project_id) REFERENCES renovation_projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_value_impacts (
+        id TEXT PRIMARY KEY,
+        renovation_project_id TEXT NOT NULL,
+        noi_before REAL,
+        noi_after REAL,
+        cap_rate_before REAL,
+        cap_rate_after REAL,
+        result_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (renovation_project_id) REFERENCES renovation_projects(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS renovation_scenarios (
+        id TEXT PRIMARY KEY,
+        renovation_project_id TEXT,
+        scenario_name TEXT NOT NULL,
+        scenario_type TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (renovation_project_id) REFERENCES renovation_projects(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS disposition_cases (
+        id TEXT PRIMARY KEY,
+        property_id TEXT,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        recommendation TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS disposition_offers (
+        id TEXT PRIMARY KEY,
+        disposition_case_id TEXT NOT NULL,
+        buyer_name TEXT NOT NULL,
+        offer_price REAL NOT NULL,
+        closing_probability REAL,
+        risk_level TEXT,
+        due_diligence_deadline TEXT,
+        exclusivity_until TEXT,
+        payment_target TEXT,
+        offer_version TEXT,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (disposition_case_id) REFERENCES disposition_cases(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS disposition_cost_items (
+        id TEXT PRIMARY KEY,
+        disposition_case_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        amount REAL NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (disposition_case_id) REFERENCES disposition_cases(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS disposition_valuation_methods (
+        id TEXT PRIMARY KEY,
+        disposition_case_id TEXT NOT NULL,
+        method_name TEXT NOT NULL,
+        value_low REAL,
+        value_mid REAL,
+        value_high REAL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (disposition_case_id) REFERENCES disposition_cases(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS disposition_scenarios (
+        id TEXT PRIMARY KEY,
+        disposition_case_id TEXT NOT NULL,
+        scenario_name TEXT NOT NULL,
+        scenario_type TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (disposition_case_id) REFERENCES disposition_cases(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS calculation_datasheets (
+        id TEXT PRIMARY KEY,
+        module TEXT NOT NULL,
+        property_id TEXT,
+        scenario_id TEXT,
+        title TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        export_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS formula_audit_entries (
+        id TEXT PRIMARY KEY,
+        datasheet_id TEXT,
+        module TEXT NOT NULL,
+        property_id TEXT,
+        scenario_id TEXT,
+        formula_name TEXT NOT NULL,
+        formula_description TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result REAL,
+        unit TEXT NOT NULL,
+        calculated_at INTEGER NOT NULL,
+        FOREIGN KEY (datasheet_id) REFERENCES calculation_datasheets(id) ON DELETE CASCADE,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_formula_audit_module_object ON formula_audit_entries(module, property_id, scenario_id)',
+    );
+  }
+
+  static Future<void> _createV43(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'disposition_offers',
+      column: 'due_diligence_deadline',
+      alterSql:
+          'ALTER TABLE disposition_offers ADD COLUMN due_diligence_deadline TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'disposition_offers',
+      column: 'exclusivity_until',
+      alterSql: 'ALTER TABLE disposition_offers ADD COLUMN exclusivity_until TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'disposition_offers',
+      column: 'payment_target',
+      alterSql: 'ALTER TABLE disposition_offers ADD COLUMN payment_target TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      table: 'disposition_offers',
+      column: 'offer_version',
+      alterSql: 'ALTER TABLE disposition_offers ADD COLUMN offer_version TEXT',
+    );
+  }
+
+  static Future<void> _createV44(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS acquisition_valuation_methods (
+        id TEXT PRIMARY KEY,
+        evaluation_id TEXT NOT NULL,
+        method_name TEXT NOT NULL,
+        value_low REAL,
+        value_mid REAL,
+        value_high REAL,
+        confidence TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (evaluation_id) REFERENCES acquisition_deep_evaluations(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_acquisition_valuation_methods_eval ON acquisition_valuation_methods(evaluation_id)',
+    );
+  }
+
+  static Future<void> _createV45(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      table: 'scenarios',
+      column: 'scenario_case_type',
+      alterSql:
+          "ALTER TABLE scenarios ADD COLUMN scenario_case_type TEXT NOT NULL DEFAULT 'base'",
     );
   }
 

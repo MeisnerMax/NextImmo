@@ -5,6 +5,7 @@ import '../../../core/models/operations.dart';
 import '../../../core/models/asset_workbook.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_status_badge.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'operations_detail_support.dart';
@@ -172,7 +173,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Stammdaten',
                 child: Column(
@@ -199,7 +200,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Aktueller Status',
                 child: Column(
@@ -229,7 +230,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Belegung',
                 child: Column(
@@ -286,7 +287,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Aktuelle Miete',
                 child: bundle.latestRentRollLine == null
@@ -308,7 +309,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Offene Hinweise',
                 child: bundle.alerts.isEmpty
@@ -335,7 +336,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Aufgaben',
                 child: OperationsTasksPanel(
@@ -345,7 +346,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 420,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
               child: OperationsSectionCard(
                 title: 'Dokumente',
                 action: TextButton(
@@ -421,7 +422,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Als leer markieren'),
           content: SizedBox(
-            width: 400,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 400),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -564,7 +565,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Offline setzen'),
         content: SizedBox(
-          width: 360,
+          width: ResponsiveConstraints.dialogWidth(context, maxWidth: 360),
           child: TextField(
             controller: reasonCtrl,
             decoration: const InputDecoration(labelText: 'Offline-Grund'),
@@ -778,7 +779,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
 
   Widget _unitKpiCard(String label, String value, {required String subtitle, Widget? badge}) {
     return SizedBox(
-      width: 250,
+      width: ResponsiveConstraints.itemWidth(context, idealWidth: 250),
       child: NxCard(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.cardPadding),
@@ -1124,7 +1125,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                     ],
                   ),
                   content: SizedBox(
-                    width: 520,
+                    width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1321,7 +1322,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           (context) => AlertDialog(
             title: const Text('Verlauf der Kostenposition'),
             content: SizedBox(
-              width: 620,
+              width: ResponsiveConstraints.dialogWidth(context, maxWidth: 620),
               child: FutureBuilder<List<AssetOperatingCostHistoryRecord>>(
                 future: ref
                     .read(assetWorkbookRepositoryProvider)

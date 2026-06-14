@@ -14,11 +14,17 @@ class ValuationDataRepo {
   final Database _db;
 
   Future<List<QuickScreeningRecord>> listQuickScreenings() async {
-    final rows = await _db.query(
-      'quick_screenings',
-      orderBy: 'updated_at DESC',
-      limit: 25,
-    );
+    final rows = await _db.rawQuery('''
+      SELECT
+        quick_screenings.*,
+        acquisition_quick_evaluations.input_json AS acquisition_input_json,
+        acquisition_quick_evaluations.scenario_type AS acquisition_scenario_type
+      FROM quick_screenings
+      LEFT JOIN acquisition_quick_evaluations
+        ON acquisition_quick_evaluations.id = quick_screenings.id
+      ORDER BY quick_screenings.updated_at DESC
+      LIMIT 25
+      ''');
     return rows.map(QuickScreeningRecord.fromMap).toList(growable: false);
   }
 

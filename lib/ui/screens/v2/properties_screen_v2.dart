@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/portfolio_analytics.dart';
 import '../../../core/models/property.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_data_table_shell.dart';
@@ -169,7 +170,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
           final activePropertyIds =
               activeProperties.map((property) => property.id).toSet();
 
-          return FutureBuilder<_PortfolioMetricsData>(
+          return FutureBuilder<PortfolioMetricsSnapshot>(
             future: _loadPortfolioMetrics(activePropertyIds),
             builder: (context, snapshot) {
               final metrics = snapshot.data;
@@ -179,7 +180,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final safeMetrics = metrics ?? const _PortfolioMetricsData(
+              final safeMetrics = metrics ?? const PortfolioMetricsSnapshot(
                 totalValue: 0,
                 totalAcquisitionCosts: 0,
                 netYield: 0,
@@ -247,98 +248,18 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     );
   }
 
-  Future<_PortfolioMetricsData> _loadPortfolioMetrics(Set<String> activePropertyIds) async {
-    final db = ref.read(databaseProvider);
-    final rentalOverview = await ref
-        .read(assetWorkbookRepositoryProvider)
-        .loadPortfolioOverview(includeArchived: true);
-    final activeRows = rentalOverview.rows
-        .where((row) => activePropertyIds.contains(row.propertyId))
-        .toList(growable: false);
-
-    final purchasePriceRows = await db.rawQuery('''
-      SELECT s.property_id, si.purchase_price
-      FROM scenario_inputs si
-      INNER JOIN scenarios s ON s.id = si.scenario_id
-      WHERE s.is_base = 1
-    ''');
-    final purchasePrices = {
-      for (final row in purchasePriceRows)
-        row['property_id'] as String: ((row['purchase_price'] as num?) ?? 0).toDouble()
-    };
-    final activePurchasePrices = {
-      for (final entry in purchasePrices.entries)
-        if (activePropertyIds.contains(entry.key)) entry.key: entry.value,
-    };
-
-    final loanRows = await db.rawQuery('''
-      SELECT asset_property_id, SUM(principal) AS loan_total
-      FROM loans
-      GROUP BY asset_property_id
-    ''');
-    final loanTotals = {
-      for (final row in loanRows)
-        if (activePropertyIds.contains(row['asset_property_id']))
-        row['asset_property_id'] as String: ((row['loan_total'] as num?) ?? 0).toDouble()
-    };
-
-    final rentedUnits = activeRows.fold<int>(0, (sum, row) => sum + row.occupiedUnits);
-    final emptyUnits = activeRows.fold<int>(0, (sum, row) => sum + row.vacantUnits);
-    final rentableUnits = rentedUnits + emptyUnits;
-    final vacancyRate = rentableUnits == 0 ? 0.0 : emptyUnits / rentableUnits;
-
-    final opex = activeRows.fold<double>(0, (sum, row) => sum + row.annualOperatingCosts);
-    final annualRent = activeRows.fold<double>(0, (sum, row) => sum + row.annualRent);
-    final noi = annualRent - opex;
-
-    final estimatedMarketValue = noi <= 0 ? 0.0 : noi / 0.055;
-
-    var totalAcquisitionCosts = 0.0;
-    for (final price in activePurchasePrices.values) {
-      totalAcquisitionCosts += price;
-    }
-
-    var totalLoanPrincipal = 0.0;
-    for (final loan in loanTotals.values) {
-      totalLoanPrincipal += loan;
-    }
-
-    final netYield = totalAcquisitionCosts <= 0 ? 0.0 : noi / totalAcquisitionCosts;
-    final portfolioLtv = estimatedMarketValue <= 0 ? 0.0 : totalLoanPrincipal / estimatedMarketValue;
-
-    final propertyKpis = <String, _PropertyKpis>{};
-    for (final row in rentalOverview.rows) {
-      final pId = row.propertyId;
-      final pPrice = purchasePrices[pId] ?? 0.0;
-      final pNoi = row.annualRent - row.annualOperatingCosts;
-      final pYield = pPrice > 0 ? pNoi / pPrice : 0.0;
-      final pCashflow = pNoi / 12;
-      final pMarketValue = pNoi <= 0 ? 0.0 : pNoi / 0.055;
-      final pBkQuote = row.annualRent > 0 ? row.annualOperatingCosts / row.annualRent : 0.0;
-      propertyKpis[pId] = _PropertyKpis(
-        propertyYield: pYield,
-        cashflowMonthly: pCashflow,
-        estimatedMarketValue: pMarketValue,
-        units: row.units,
-        occupiedUnits: row.occupiedUnits,
-        annualOperatingCosts: row.annualOperatingCosts,
-        bkQuote: pBkQuote,
-        serviceChargeBalance: row.serviceChargeBalance,
-      );
-    }
-
-    return _PortfolioMetricsData(
-      totalValue: estimatedMarketValue,
-      totalAcquisitionCosts: totalAcquisitionCosts,
-      netYield: netYield,
-      vacancyRate: vacancyRate,
-      ltv: portfolioLtv,
-      totalLoanPrincipal: totalLoanPrincipal,
-      propertyKpis: propertyKpis,
-    );
+  Future<PortfolioMetricsSnapshot> _loadPortfolioMetrics(
+    Set<String> activePropertyIds,
+  ) {
+    return ref
+        .read(portfolioAnalyticsRepositoryProvider)
+        .loadOverviewMetrics(activePropertyIds: activePropertyIds);
   }
 
-  Widget _buildKpisHeader(BuildContext context, _PortfolioMetricsData metrics) {
+  Widget _buildKpisHeader(
+    BuildContext context,
+    PortfolioMetricsSnapshot metrics,
+  ) {
     final ltvColor = metrics.ltv < 0.60
         ? context.semanticColors.success
         : (metrics.ltv <= 0.75 ? context.semanticColors.warning : context.semanticColors.error);
@@ -424,7 +345,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
 
   List<PropertyRecord> _sortProperties(
     List<PropertyRecord> properties,
-    _PortfolioMetricsData metrics,
+    PortfolioMetricsSnapshot metrics,
   ) {
     final sorted = [...properties];
     int compareText(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
@@ -487,14 +408,14 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
   Widget _buildPropertyGrid(
     BuildContext context,
     List<PropertyRecord> properties,
-    _PortfolioMetricsData metrics,
+    PortfolioMetricsSnapshot metrics,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final crossAxisCount = width < 640 ? 1 : (width < 900 ? 2 : 4);
         final childAspectRatio =
-            width < 640 ? 0.78 : (width < 900 ? 0.68 : 0.62);
+            width < 640 ? 0.62 : (width < 900 ? 0.58 : 0.54);
 
         return GridView.builder(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
@@ -517,7 +438,11 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     );
   }
 
-  Widget _buildPropertyCard(BuildContext context, PropertyRecord property, _PropertyKpis? kpis) {
+  Widget _buildPropertyCard(
+    BuildContext context,
+    PropertyRecord property,
+    PropertyPortfolioKpis? kpis,
+  ) {
     final theme = Theme.of(context);
     
     final marketValue = kpis?.estimatedMarketValue ?? 0.0;
@@ -855,7 +780,7 @@ class _PropertyCover extends ConsumerWidget {
 
   final PropertyRecord property;
   final bool compact;
-  final _PropertyKpis? kpis;
+  final PropertyPortfolioKpis? kpis;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1089,47 +1014,6 @@ class _PropertyActions extends StatelessWidget {
       ],
     );
   }
-}
-
-class _PortfolioMetricsData {
-  const _PortfolioMetricsData({
-    required this.totalValue,
-    required this.totalAcquisitionCosts,
-    required this.netYield,
-    required this.vacancyRate,
-    required this.ltv,
-    required this.totalLoanPrincipal,
-    required this.propertyKpis,
-  });
-
-  final double totalValue;
-  final double totalAcquisitionCosts;
-  final double netYield;
-  final double vacancyRate;
-  final double ltv;
-  final double totalLoanPrincipal;
-  final Map<String, _PropertyKpis> propertyKpis;
-}
-
-class _PropertyKpis {
-  const _PropertyKpis({
-    required this.propertyYield,
-    required this.cashflowMonthly,
-    required this.estimatedMarketValue,
-    required this.units,
-    required this.occupiedUnits,
-    required this.annualOperatingCosts,
-    required this.bkQuote,
-    required this.serviceChargeBalance,
-  });
-  final double propertyYield;
-  final double cashflowMonthly;
-  final double estimatedMarketValue;
-  final int units;
-  final int occupiedUnits;
-  final double annualOperatingCosts;
-  final double bkQuote;
-  final double serviceChargeBalance;
 }
 
 class _KpiCardSpec {

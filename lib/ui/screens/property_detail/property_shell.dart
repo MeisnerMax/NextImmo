@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/property.dart';
 import '../../../core/models/scenario.dart';
 import '../../i18n/app_strings.dart';
 import '../../navigation/app_navigation.dart';
@@ -69,7 +70,18 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
     final selectedScenarioId = ref.watch(selectedScenarioIdProvider);
     final scenariosAsync = ref.watch(scenariosByPropertyProvider(propertyId));
     final propertiesAsync = ref.watch(propertiesControllerProvider);
-    final propertyName = propertiesAsync.maybeWhen(
+    final currentProperty = propertiesAsync.maybeWhen(
+      data: (items) {
+        for (final property in items) {
+          if (property.id == propertyId) {
+            return property;
+          }
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
+    final propertyName = currentProperty?.name ?? propertiesAsync.maybeWhen(
       data: (items) {
         for (final property in items) {
           if (property.id == propertyId) {
@@ -80,8 +92,14 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
       },
       orElse: () => propertyId,
     );
-    final section = propertySectionForPage(selectedPage);
-    final destination = propertyDestinationForPage(selectedPage);
+    final effectivePage = _resolveVisiblePage(selectedPage, currentProperty);
+    if (effectivePage != selectedPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(propertyDetailPageProvider.notifier).state = effectivePage;
+      });
+    }
+    final section = propertySectionForPage(effectivePage);
+    final destination = propertyDestinationForPage(effectivePage);
 
     // Auto-expand active section
     _expanded[section.title] = true;
@@ -97,7 +115,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
         );
         final detailContent = _buildDetailContent(
           context: context,
-          page: selectedPage,
+          page: effectivePage,
           propertyId: propertyId,
           scenarioId: activeScenarioId,
           scenarios: scenarios,
@@ -111,7 +129,7 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
               title: propertyName,
               breadcrumbs: propertyBreadcrumbs(
                 propertyName: propertyName,
-                page: selectedPage,
+                page: effectivePage,
               ).map(s.text).toList(growable: false),
               subtitle: '${s.text(section.title)} / ${s.text(destination.label)}',
               contextBar: ConstrainedBox(
@@ -123,11 +141,13 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
                 ),
               ),
               plainHeader: true,
-              fullPageScroll: _usesFullPageScroll(selectedPage),
+              fullPageScroll: _usesFullPageScroll(effectivePage),
               pagePadding: AppSpacing.xl,
+              topNavigation: true,
               navigation: _propertyNavigation(
                 context: context,
-                selectedPage: selectedPage,
+                selectedPage: effectivePage,
+                property: currentProperty,
               ),
               content: detailContent,
             ),
@@ -327,9 +347,10 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   Widget _propertyNavigation({
     required BuildContext context,
     required PropertyDetailPage selectedPage,
+    required PropertyRecord? property,
   }) {
     final zone = context.desktopLayoutZone;
-    final sections = _visibleNavigationSections(selectedPage);
+    final sections = _visibleNavigationSections(property);
     if (zone == AppDesktopLayoutZone.narrow) {
       return _buildNarrowNavigation(
         context: context,
@@ -337,26 +358,134 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
         sections: sections,
       );
     }
+    return _buildTopNavigation(
+      context: context,
+      selectedPage: selectedPage,
+      sections: sections,
+    );
+  }
+
+  Widget _buildTopNavigation({
+    required BuildContext context,
+    required PropertyDetailPage selectedPage,
+    required List<PropertyNavigationSection> sections,
+  }) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: PropertyShell._assetSidebar,
         border: Border.all(color: PropertyShell._assetBorder),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),
-      child: ListView(
+      child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xs,
-          vertical: AppSpacing.component,
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
-        children: sections
-            .map(
-              (section) => _buildAccordionSection(
-                context: context,
-                section: section,
-                selectedPage: selectedPage,
-              ),
-            )
-            .toList(growable: false),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final section in sections) ...[
+                _buildTopNavigationSection(
+                  context: context,
+                  section: section,
+                  selectedPage: selectedPage,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopNavigationSection({
+    required BuildContext context,
+    required PropertyNavigationSection section,
+    required PropertyDetailPage selectedPage,
+  }) {
+    final selected = section.items.any((item) => item.page == selectedPage);
+    final selectedDestination =
+        selected ? propertyDestinationForPage(selectedPage) : null;
+
+    return PopupMenuButton<PropertyDetailPage>(
+      tooltip: context.strings.text(section.title),
+      onSelected: (value) {
+        ref.read(propertyDetailPageProvider.notifier).state = value;
+      },
+      itemBuilder: (context) => [
+        for (final item in section.items)
+          PopupMenuItem<PropertyDetailPage>(
+            value: item.page,
+            child: Row(
+              children: [
+                Icon(_iconForPropertyPage(item.page), size: 18),
+                const SizedBox(width: 10),
+                Text(context.strings.text(item.label)),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.component,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? PropertyShell._assetMenuSelected
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          border: Border.all(
+            color: selected ? Colors.white24 : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selectedDestination == null
+                  ? Icons.folder_open_outlined
+                  : _iconForPropertyPage(selectedPage),
+              size: 18,
+              color: selected ? Colors.white : PropertyShell._assetMenuMuted,
+            ),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.strings.text(section.title).toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: PropertyShell._assetMenuMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                if (selectedDestination != null)
+                  Text(
+                    context.strings.text(selectedDestination.label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.expand_more,
+              size: 18,
+              color: selected ? Colors.white : PropertyShell._assetMenuMuted,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -426,9 +555,105 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   }
 
   List<PropertyNavigationSection> _visibleNavigationSections(
-    PropertyDetailPage selectedPage,
+    PropertyRecord? property,
   ) {
-    return propertyNavigationSections;
+    if (property == null) {
+      return propertyNavigationSections;
+    }
+    final allowedPages = _allowedPagesForPropertyType(property.propertyType);
+    return _sectionsForPages(allowedPages);
+  }
+
+  PropertyDetailPage _resolveVisiblePage(
+    PropertyDetailPage selectedPage,
+    PropertyRecord? property,
+  ) {
+    if (property == null) {
+      return selectedPage;
+    }
+    final allowedPages = _allowedPagesForPropertyType(property.propertyType);
+    if (allowedPages.contains(selectedPage)) {
+      return selectedPage;
+    }
+    return PropertyDetailPage.overview;
+  }
+
+  Set<PropertyDetailPage> _allowedPagesForPropertyType(String propertyType) {
+    final shared = <PropertyDetailPage>{
+      PropertyDetailPage.overview,
+      PropertyDetailPage.scenarios,
+      PropertyDetailPage.inputs,
+      PropertyDetailPage.analysis,
+      PropertyDetailPage.offer,
+      PropertyDetailPage.documents,
+      PropertyDetailPage.audit,
+      PropertyDetailPage.reports,
+      PropertyDetailPage.tasks,
+      PropertyDetailPage.maintenance,
+      PropertyDetailPage.budgetVsActual,
+    };
+    switch (propertyKindFromType(propertyType)) {
+      case PropertyKind.rental:
+        return <PropertyDetailPage>{
+          ...shared,
+          PropertyDetailPage.operationsOverview,
+          PropertyDetailPage.units,
+          PropertyDetailPage.tenants,
+          PropertyDetailPage.leases,
+          PropertyDetailPage.rentRoll,
+          PropertyDetailPage.assetWorkbook,
+          PropertyDetailPage.alerts,
+          PropertyDetailPage.covenants,
+        };
+      case PropertyKind.sale:
+      case PropertyKind.condoSale:
+        return <PropertyDetailPage>{
+          ...shared,
+          PropertyDetailPage.units,
+          PropertyDetailPage.comps,
+          PropertyDetailPage.assetWorkbook,
+        };
+      case PropertyKind.hotel:
+        return <PropertyDetailPage>{
+          ...shared,
+          PropertyDetailPage.operationsOverview,
+          PropertyDetailPage.units,
+          PropertyDetailPage.assetWorkbook,
+          PropertyDetailPage.alerts,
+        };
+      case PropertyKind.mixed:
+        return <PropertyDetailPage>{
+          ...shared,
+          PropertyDetailPage.operationsOverview,
+          PropertyDetailPage.units,
+          PropertyDetailPage.tenants,
+          PropertyDetailPage.leases,
+          PropertyDetailPage.rentRoll,
+          PropertyDetailPage.comps,
+          PropertyDetailPage.assetWorkbook,
+          PropertyDetailPage.alerts,
+          PropertyDetailPage.covenants,
+        };
+      case PropertyKind.other:
+        return shared;
+    }
+  }
+
+  List<PropertyNavigationSection> _sectionsForPages(
+    Set<PropertyDetailPage> allowedPages,
+  ) {
+    return allPropertyNavigationSections
+        .map(
+          (section) => PropertyNavigationSection(
+            title: section.title,
+            routeKey: section.routeKey,
+            items: section.items
+                .where((item) => allowedPages.contains(item.page))
+                .toList(growable: false),
+          ),
+        )
+        .where((section) => section.items.isNotEmpty)
+        .toList(growable: false);
   }
 
   bool _menuContainsPage(

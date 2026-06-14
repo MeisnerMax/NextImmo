@@ -9,6 +9,7 @@ import '../../../core/models/documents.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
@@ -75,6 +76,7 @@ class _PropertyMaintenanceScreenState
       title: 'Instandhaltung & CapEx',
       breadcrumbs: ['Objekte', _property?.name ?? widget.propertyId, 'Instandhaltung'],
       subtitle: 'Tickets, Sanierungen, CapEx-Planung und Gewährleistungen verwalten.',
+      scrollable: true,
       expandContent: false,
       primaryAction: ElevatedButton.icon(
         onPressed: _createTicketDialog,
@@ -425,14 +427,15 @@ class _PropertyMaintenanceScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: () => _createTicketDialog(initialCategory: 'renovation'),
                 icon: const Icon(Icons.add),
                 label: const Text('Sanierung anlegen'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
@@ -508,7 +511,9 @@ class _PropertyMaintenanceScreenState
                                 ),
                               ],
                               const SizedBox(height: 12),
-                              Row(
+                              Wrap(
+                                spacing: 16,
+                                runSpacing: 8,
                                 children: [
                                   if (ticket.startDate != null) ...[
                                     const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
@@ -517,7 +522,6 @@ class _PropertyMaintenanceScreenState
                                       'Start: ${_shortDate(ticket.startDate!)}',
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
-                                    const SizedBox(width: 16),
                                   ],
                                   if (ticket.endDate != null) ...[
                                     const Icon(Icons.event, size: 14, color: Colors.grey),
@@ -526,7 +530,6 @@ class _PropertyMaintenanceScreenState
                                       'Ende: ${_shortDate(ticket.endDate!)}',
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
-                                    const SizedBox(width: 16),
                                   ],
                                   if (ticket.vendorName != null) ...[
                                     const Icon(Icons.business, size: 14, color: Colors.grey),
@@ -560,8 +563,9 @@ class _PropertyMaintenanceScreenState
                               const SizedBox(height: 12),
                               const Divider(),
                               const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
                                 children: [
                                   Text(
                                     'Geschätzte Kosten: ${_formatCurrency(costEstimate)}',
@@ -616,21 +620,25 @@ class _PropertyMaintenanceScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: () => _createTicketDialog(initialCategory: 'renovation', initialStatus: 'planned'),
                 icon: const Icon(Icons.add),
                 label: const Text('CapEx-Maßnahme planen'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
             children: [
-              Expanded(
+              SizedBox(
+                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                 child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -645,8 +653,8 @@ class _PropertyMaintenanceScreenState
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
+              SizedBox(
+                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                 child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -661,8 +669,8 @@ class _PropertyMaintenanceScreenState
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
+              SizedBox(
+                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                 child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -801,14 +809,15 @@ class _PropertyMaintenanceScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: () => _createTicketDialog(initialCategory: 'warranty'),
                 icon: const Icon(Icons.add),
                 label: const Text('Gewährleistung erfassen'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton(onPressed: _reload, child: const Text('Aktualisieren')),
             ],
           ),
@@ -869,7 +878,9 @@ class _PropertyMaintenanceScreenState
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Row(
+                              Wrap(
+                                spacing: 16,
+                                runSpacing: 8,
                                 children: [
                                   if (ticket.vendorName != null) ...[
                                     const Icon(Icons.business, size: 14, color: Colors.grey),
@@ -878,7 +889,6 @@ class _PropertyMaintenanceScreenState
                                       'Firma: ${ticket.vendorName!}',
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
-                                    const SizedBox(width: 16),
                                   ],
                                   const Icon(Icons.date_range, size: 14, color: Colors.grey),
                                   const SizedBox(width: 4),
@@ -1921,7 +1931,7 @@ class _PropertyMaintenanceScreenState
                   return AlertDialog(
                     title: const Text('Neues Maintenance Ticket'),
                     content: SizedBox(
-                      width: 520,
+                      width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
                       child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -2362,7 +2372,7 @@ class _PropertyMaintenanceScreenState
                   return AlertDialog(
                     title: const Text('Ticket bearbeiten'),
                     content: SizedBox(
-                      width: 520,
+                      width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
                       child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -3248,7 +3258,7 @@ class _PropertyMaintenanceScreenState
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text('${comp.label}: Tickets verknüpfen'),
           content: SizedBox(
-            width: 500,
+            width: ResponsiveConstraints.dialogWidth(ctx, maxWidth: 500),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3368,7 +3378,7 @@ class _PropertyMaintenanceScreenState
             ],
           ),
           content: SizedBox(
-            width: 400,
+            width: ResponsiveConstraints.dialogWidth(ctx, maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

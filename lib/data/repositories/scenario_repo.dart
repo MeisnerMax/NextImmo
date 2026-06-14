@@ -61,6 +61,7 @@ class ScenarioRepository {
     required String propertyId,
     required String name,
     required String strategyType,
+    String scenarioCaseType = 'base',
     bool isBase = false,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -69,6 +70,7 @@ class ScenarioRepository {
       propertyId: propertyId,
       name: name,
       strategyType: strategyType,
+      scenarioCaseType: scenarioCaseType,
       isBase: isBase,
       workflowStatus: ScenarioWorkflowStatus.draft,
       approvedBy: null,
@@ -117,6 +119,7 @@ class ScenarioRepository {
       propertyId: source.propertyId,
       name: newName,
       strategyType: source.strategyType,
+      scenarioCaseType: source.scenarioCaseType,
       isBase: false,
       workflowStatus: ScenarioWorkflowStatus.draft,
       approvedBy: null,

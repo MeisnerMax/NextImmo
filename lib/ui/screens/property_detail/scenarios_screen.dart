@@ -9,6 +9,7 @@ import '../../../core/models/analysis_result.dart';
 import '../../../core/security/rbac.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_status_badge.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/analysis_state.dart';
 import '../../state/app_state.dart';
 import '../../state/scenario_state.dart';
@@ -102,6 +103,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
       title: 'Szenarien & Bewertung',
       breadcrumbs: ['Objekte', widget.propertyId, 'Szenarien'],
       subtitle: 'Szenarien vergleichen, Ankauf kalkulieren und Kreditauflagen prüfen.',
+      scrollable: true,
       expandContent: false,
       primaryAction: Container(),
       secondaryActions: [
@@ -158,7 +160,9 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               ElevatedButton(
                 onPressed: canCreate && !_isMutating
@@ -185,28 +189,30 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final details = Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
                                   children: [
                                     Text(
                                       scenario.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                             fontWeight: FontWeight.bold,
                                           ),
                                     ),
-                                    const SizedBox(width: 8),
                                     if (isSelected)
                                       const NxStatusBadge(label: 'Aktiv', kind: NxBadgeKind.success),
                                   ],
                                 ),
                                 const SizedBox(height: 6),
                                 Text('Strategie: ${scenario.strategyType.toUpperCase()}'),
+                                Text('Case: ${_caseTypeLabel(scenario.scenarioCaseType)}'),
                                 if (scenario.reviewComment != null && scenario.reviewComment!.trim().isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 6),
@@ -221,9 +227,8 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                     ),
                                   ),
                               ],
-                            ),
-                          ),
-                          Wrap(
+                            );
+                          final badges = Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
@@ -242,8 +247,26 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   color: AppColors.warning,
                                 ),
                             ],
-                          ),
-                        ],
+                          );
+                          if (constraints.maxWidth < 680) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                details,
+                                const SizedBox(height: 8),
+                                badges,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: details),
+                              const SizedBox(width: 12),
+                              badges,
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       Wrap(
@@ -1066,23 +1089,26 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
               children: [
                 Text('Rendite-Kennzahlen', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
                   children: [
-                    Expanded(
+                    SizedBox(
+                      width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                       child: _SummaryTile(
                         label: 'Bruttomietrendite',
                         value: '${(metrics.capRate * 100).toStringAsFixed(2)} %',
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    SizedBox(
+                      width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                       child: _SummaryTile(
                         label: 'Cash-on-Cash',
                         value: '${(metrics.cashOnCash * 100).toStringAsFixed(2)} %',
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    SizedBox(
+                      width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
                       child: _SummaryTile(
                         label: 'IRR (Zinsfuß)',
                         value: metrics.irr == null ? '-' : '${(metrics.irr! * 100).toStringAsFixed(2)} %',
@@ -1174,8 +1200,10 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Criteria Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text('Governance Ankaufskriterien', style: Theme.of(context).textTheme.titleMedium),
                   if (criteria != null)
@@ -1297,12 +1325,15 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Prüfungsnotiz',
-            hintText: 'Zusätzlicher Governance-Hinweis',
+        content: SizedBox(
+          width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
+          child: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Prüfungsnotiz',
+              hintText: 'Zusätzlicher Governance-Hinweis',
+            ),
           ),
         ),
         actions: [
@@ -1370,37 +1401,71 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
     return '${dt.year}-$mm-$dd $hh:$min';
   }
 
+  String _caseTypeLabel(String value) {
+    switch (value) {
+      case 'best':
+        return 'Best Case';
+      case 'worst':
+        return 'Worst Case';
+      case 'custom':
+        return 'Eigener Case';
+      case 'base':
+      default:
+        return 'Base Case';
+    }
+  }
+
   Future<void> _showCreateScenarioDialog(ScenariosByPropertyController controller) async {
     final nameCtrl = TextEditingController(text: 'Szenario ${widget.scenarios.length + 1}');
     String strategy = 'rental';
+    String caseType = 'base';
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Neues Szenario erstellen'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name des Szenarios'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: strategy,
-                decoration: const InputDecoration(labelText: 'Strategie / Typ'),
-                items: const [
-                  DropdownMenuItem(value: 'rental', child: Text('Mietänderungen')),
-                  DropdownMenuItem(value: 'sell', child: Text('Verkauf')),
-                  DropdownMenuItem(value: 'buy', child: Text('Kauf')),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setDialogState(() => strategy = val);
-                  }
-                },
-              ),
-            ],
+          content: SizedBox(
+            width: ResponsiveConstraints.dialogWidth(ctx, maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name des Szenarios'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: strategy,
+                  decoration: const InputDecoration(labelText: 'Strategie / Typ'),
+                  items: const [
+                    DropdownMenuItem(value: 'rental', child: Text('Mietänderungen')),
+                    DropdownMenuItem(value: 'sell', child: Text('Verkauf')),
+                    DropdownMenuItem(value: 'buy', child: Text('Kauf')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() => strategy = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: caseType,
+                  decoration: const InputDecoration(labelText: 'Bewertungs-Case'),
+                  items: const [
+                    DropdownMenuItem(value: 'base', child: Text('Base Case')),
+                    DropdownMenuItem(value: 'best', child: Text('Best Case')),
+                    DropdownMenuItem(value: 'worst', child: Text('Worst Case')),
+                    DropdownMenuItem(value: 'custom', child: Text('Eigener Case')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setDialogState(() => caseType = val);
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1411,7 +1476,13 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isNotEmpty) {
-                  _runAction(() => controller.create(name: name, strategyType: strategy));
+                  _runAction(
+                    () => controller.create(
+                      name: name,
+                      strategyType: strategy,
+                      scenarioCaseType: caseType,
+                    ),
+                  );
                 }
                 Navigator.of(ctx).pop();
               },

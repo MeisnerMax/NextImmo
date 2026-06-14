@@ -33,10 +33,12 @@ class PropertyTypeOption {
 }
 
 const List<PropertyTypeOption> propertyTypeOptions = <PropertyTypeOption>[
-  PropertyTypeOption(value: 'single_family', label: 'Single Family'),
-  PropertyTypeOption(value: 'multi_family', label: 'Multi Family'),
-  PropertyTypeOption(value: 'apartment', label: 'Apartment'),
-  PropertyTypeOption(value: 'commercial', label: 'Commercial Asset'),
+  PropertyTypeOption(value: 'rental', label: 'Vermietungsobjekt'),
+  PropertyTypeOption(value: 'sale', label: 'Verkaufsobjekt'),
+  PropertyTypeOption(value: 'condo_sale', label: 'Eigentumswohnungen Verkauf'),
+  PropertyTypeOption(value: 'hotel', label: 'Hotel'),
+  PropertyTypeOption(value: 'mixed', label: 'Gemischt genutzt'),
+  PropertyTypeOption(value: 'other', label: 'Sonstiges Objekt'),
 ];
 
 String propertyTypeDisplayLabel(String propertyType) {
@@ -49,15 +51,7 @@ String propertyTypeDisplayLabel(String propertyType) {
   if (normalized.isEmpty) {
     return 'Property';
   }
-  return normalized
-      .split('_')
-      .map(
-        (segment) =>
-            segment.isEmpty
-                ? segment
-                : '${segment[0].toUpperCase()}${segment.substring(1)}',
-      )
-      .join(' ');
+  return propertyTypeLabel(normalized);
 }
 
 class CreatePropertyDialog extends StatefulWidget {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
 import '../../components/nx_card.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'lease_detail_screen.dart';
@@ -61,7 +62,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       return l.securityDeposit == null || l.securityDeposit == 0 || l.depositStatus == 'pending';
     }).length;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -507,7 +508,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
       builder: (context) => AlertDialog(
         title: Text(existing == null ? 'Mieter anlegen' : 'Mieter bearbeiten'),
         content: SizedBox(
-          width: 420,
+          width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -658,7 +659,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'Mietvertrag anlegen' : 'Mietvertrag bearbeiten'),
           content: SizedBox(
-            width: 560,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 560),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -886,7 +887,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Indexregel anlegen'),
           content: SizedBox(
-            width: 420,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 420),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -966,7 +967,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Manuelle Anpassung'),
           content: SizedBox(
-            width: 360,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 360),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

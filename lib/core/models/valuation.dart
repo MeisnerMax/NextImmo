@@ -132,6 +132,8 @@ class QuickScreeningRecord {
     this.linkedScenarioId,
     required this.status,
     this.notes,
+    this.acquisitionInputJson,
+    this.acquisitionScenarioType,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -151,6 +153,8 @@ class QuickScreeningRecord {
   final String? linkedScenarioId;
   final String status;
   final String? notes;
+  final String? acquisitionInputJson;
+  final String? acquisitionScenarioType;
   final int createdAt;
   final int updatedAt;
 
@@ -176,6 +180,8 @@ class QuickScreeningRecord {
       linkedScenarioId: linkedScenarioId ?? this.linkedScenarioId,
       status: status ?? this.status,
       notes: notes,
+      acquisitionInputJson: acquisitionInputJson,
+      acquisitionScenarioType: acquisitionScenarioType,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -221,6 +227,8 @@ class QuickScreeningRecord {
       linkedScenarioId: map['linked_scenario_id'] as String?,
       status: (map['status'] as String?) ?? 'draft',
       notes: map['notes'] as String?,
+      acquisitionInputJson: map['acquisition_input_json'] as String?,
+      acquisitionScenarioType: map['acquisition_scenario_type'] as String?,
       createdAt: (map['created_at']! as num).toInt(),
       updatedAt: (map['updated_at']! as num).toInt(),
     );

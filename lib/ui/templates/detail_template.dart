@@ -19,6 +19,7 @@ class DetailTemplate extends StatelessWidget {
     this.navigationWidth = 288,
     this.compactNavigationMinHeight = 160,
     this.compactNavigationMaxHeight = 280,
+    this.topNavigation = false,
   });
 
   final String title;
@@ -34,6 +35,7 @@ class DetailTemplate extends StatelessWidget {
   final double navigationWidth;
   final double compactNavigationMinHeight;
   final double compactNavigationMaxHeight;
+  final bool topNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -45,48 +47,55 @@ class DetailTemplate extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (topNavigation) ...[
+                navigation,
+                const SizedBox(height: AppSpacing.component),
+              ],
               _buildHeader(context),
               if (headerActions != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 headerActions!,
               ],
               const SizedBox(height: AppSpacing.component),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final zone = AppLayout.desktopZoneForWidth(
-                    constraints.maxWidth,
-                  );
-                  if (zone == AppDesktopLayoutZone.narrow) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+              if (topNavigation)
+                content
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final zone = AppLayout.desktopZoneForWidth(
+                      constraints.maxWidth,
+                    );
+                    if (zone == AppDesktopLayoutZone.narrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: compactNavigationMaxHeight,
+                            child: navigation,
+                          ),
+                          const SizedBox(height: AppSpacing.component),
+                          content,
+                        ],
+                      );
+                    }
+                    final adaptiveNavigationWidth =
+                        zone == AppDesktopLayoutZone.medium
+                            ? (navigationWidth - 40).clamp(220, navigationWidth)
+                            : navigationWidth;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: compactNavigationMaxHeight,
+                          width: adaptiveNavigationWidth.toDouble(),
+                          height: 520,
                           child: navigation,
                         ),
-                        const SizedBox(height: AppSpacing.component),
-                        content,
+                        const SizedBox(width: AppSpacing.component),
+                        Expanded(child: content),
                       ],
                     );
-                  }
-                  final adaptiveNavigationWidth =
-                      zone == AppDesktopLayoutZone.medium
-                          ? (navigationWidth - 40).clamp(220, navigationWidth)
-                          : navigationWidth;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: adaptiveNavigationWidth.toDouble(),
-                        height: 520,
-                        child: navigation,
-                      ),
-                      const SizedBox(width: AppSpacing.component),
-                      Expanded(child: content),
-                    ],
-                  );
-                },
-              ),
+                  },
+                ),
             ],
           ),
         ),
@@ -97,6 +106,10 @@ class DetailTemplate extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (topNavigation) ...[
+            navigation,
+            const SizedBox(height: AppSpacing.component),
+          ],
           _buildHeader(context),
           if (headerActions != null) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -104,42 +117,45 @@ class DetailTemplate extends StatelessWidget {
           ],
           const SizedBox(height: AppSpacing.component),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final zone = AppLayout.desktopZoneForWidth(
-                  constraints.maxWidth,
-                );
-                if (zone == AppDesktopLayoutZone.narrow) {
-                  final navigationHeight = (constraints.maxHeight * 0.26).clamp(
-                    104.0,
-                    compactNavigationMinHeight,
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(height: navigationHeight, child: navigation),
-                      const SizedBox(height: AppSpacing.component),
-                      Expanded(child: content),
-                    ],
-                  );
-                }
-                final adaptiveNavigationWidth =
-                    zone == AppDesktopLayoutZone.medium
-                        ? (navigationWidth - 40).clamp(220, navigationWidth)
-                        : navigationWidth;
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: adaptiveNavigationWidth.toDouble(),
-                      child: navigation,
-                    ),
-                    const SizedBox(width: AppSpacing.component),
-                    Expanded(child: content),
-                  ],
-                );
-              },
-            ),
+            child: topNavigation
+                ? content
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final zone = AppLayout.desktopZoneForWidth(
+                        constraints.maxWidth,
+                      );
+                      if (zone == AppDesktopLayoutZone.narrow) {
+                        final navigationHeight =
+                            (constraints.maxHeight * 0.26).clamp(
+                          104.0,
+                          compactNavigationMinHeight,
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(height: navigationHeight, child: navigation),
+                            const SizedBox(height: AppSpacing.component),
+                            Expanded(child: content),
+                          ],
+                        );
+                      }
+                      final adaptiveNavigationWidth =
+                          zone == AppDesktopLayoutZone.medium
+                              ? (navigationWidth - 40).clamp(220, navigationWidth)
+                              : navigationWidth;
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: adaptiveNavigationWidth.toDouble(),
+                            child: navigation,
+                          ),
+                          const SizedBox(width: AppSpacing.component),
+                          Expanded(child: content),
+                        ],
+                      );
+                    },
+                  ),
           ),
         ],
       ),

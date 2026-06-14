@@ -14,21 +14,30 @@ import '../../core/offer/offer_solver.dart';
 import '../../core/operations/lease_indexation_engine.dart';
 import '../../core/operations/rent_roll_engine.dart';
 import '../../core/quality/data_quality_service.dart';
+import '../../core/services/acquisition_calculation_service.dart';
 import '../../core/reports/export_csv.dart';
 import '../../core/reports/portfolio_pack_builder.dart';
 import '../../core/reports/report_builder.dart';
 import '../../core/reports/report_templates.dart';
+import '../../core/services/datasheet_builder_service.dart';
+import '../../core/services/datasheet_export_service.dart';
+import '../../core/services/disposition_calculation_service.dart';
+import '../../core/services/formula_audit_service.dart';
+import '../../core/services/renovation_calculation_service.dart';
+import '../../core/models/investment_modules.dart';
 import '../../core/models/settings.dart';
 import '../../core/models/valuation.dart';
 import '../../core/security/password_hasher.dart';
 import '../../core/security/rbac.dart';
 import '../../core/services/backup_service.dart';
+import '../../core/services/backup_restore_service.dart';
 import '../../core/services/ledger_service.dart';
 import '../../core/services/zip_service.dart';
 import '../../core/services/task_generation_service.dart';
 import '../../data/repositories/audit_log_repo.dart';
 import '../../data/repositories/asset_workbook_repo.dart';
 import '../../data/repositories/budget_repo.dart';
+import '../../data/repositories/calculation_datasheet_repo.dart';
 import '../../data/repositories/contractor_repo.dart';
 import '../../data/repositories/capital_events_repo.dart';
 import '../../data/repositories/comps_repo.dart';
@@ -64,6 +73,7 @@ import '../../data/repositories/tasks_repo.dart';
 import '../../data/repositories/valuation_data_repo.dart';
 import '../../data/repositories/workspace_repo.dart';
 import '../../data/sqlite/db.dart';
+import '../../data/sqlite/migrations.dart';
 
 enum GlobalPage {
   dashboard,
@@ -82,6 +92,8 @@ enum GlobalPage {
   audit,
   compare,
   quickScreening,
+  renovationValue,
+  dispositionExit,
   criteriaSets,
   reportTemplates,
   adminUsers,
@@ -176,6 +188,47 @@ final scenarioRepositoryProvider = Provider<ScenarioRepository>((ref) {
 final valuationDataRepositoryProvider = Provider<ValuationDataRepo>((ref) {
   return ValuationDataRepo(ref.watch(databaseProvider));
 });
+
+final calculationDatasheetRepositoryProvider =
+    Provider<CalculationDatasheetRepo>((ref) {
+  return CalculationDatasheetRepo(ref.watch(databaseProvider));
+});
+
+final formulaAuditServiceProvider = Provider<FormulaAuditService>((ref) {
+  return const FormulaAuditService();
+});
+
+final acquisitionCalculationServiceProvider =
+    Provider<AcquisitionCalculationService>((ref) {
+  return AcquisitionCalculationService(
+    formulaAuditService: ref.watch(formulaAuditServiceProvider),
+  );
+});
+
+final renovationCalculationServiceProvider =
+    Provider<RenovationCalculationService>((ref) {
+  return RenovationCalculationService(
+    formulaAuditService: ref.watch(formulaAuditServiceProvider),
+  );
+});
+
+final dispositionCalculationServiceProvider =
+    Provider<DispositionCalculationService>((ref) {
+  return DispositionCalculationService(
+    formulaAuditService: ref.watch(formulaAuditServiceProvider),
+  );
+});
+
+final datasheetBuilderServiceProvider = Provider<DatasheetBuilderService>((ref) {
+  return const DatasheetBuilderService();
+});
+
+final datasheetExportServiceProvider = Provider<DatasheetExportService>((ref) {
+  return const DatasheetExportService();
+});
+
+final renovationImpactTransferProvider =
+    StateProvider<RenovationImpactTransfer?>((ref) => null);
 
 final valuationPropertySnapshotProvider =
     FutureProvider.family<ValuationPropertySnapshot?, String>((ref, scenarioId) {
@@ -325,6 +378,17 @@ final backupServiceProvider = Provider<BackupService>(
 final workspaceRepositoryProvider = Provider<WorkspaceRepository>((ref) {
   return WorkspaceRepository(ref.watch(appDatabaseProvider));
 });
+final backupRestoreServiceProvider = Provider<BackupRestoreService>((ref) {
+  return BackupRestoreService(
+    backupService: ref.watch(backupServiceProvider),
+    workspaceRepository: ref.watch(workspaceRepositoryProvider),
+    inputsRepository: ref.watch(inputsRepositoryProvider),
+    searchRepository: ref.watch(searchRepositoryProvider),
+    database: ref.watch(databaseProvider),
+    dbSchemaVersion: DbMigrations.currentVersion,
+    appVersion: '1.0.0+1',
+  );
+});
 final propertyProfileRepositoryProvider = Provider<PropertyProfileRepository>((
   ref,
 ) {
@@ -429,6 +493,7 @@ final portfolioAnalyticsRepositoryProvider = Provider<PortfolioAnalyticsRepo>((
     ref.watch(databaseProvider),
     ref.watch(capitalEventsRepositoryProvider),
     ref.watch(portfolioIrrEngineProvider),
+    ref.watch(assetWorkbookRepositoryProvider),
   );
 });
 final dataQualityRepositoryProvider = Provider<DataQualityRepo>((ref) {

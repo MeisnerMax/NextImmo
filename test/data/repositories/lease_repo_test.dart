@@ -139,6 +139,67 @@ void main() {
     );
   });
 
+  test('getTenantsForProperty only returns tenants assigned to that property', () async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.insert('properties', <String, Object?>{
+      'id': 'p2',
+      'name': 'Property 2',
+      'address_line1': 'Street 2',
+      'address_line2': null,
+      'zip': '10117',
+      'city': 'Berlin',
+      'country': 'DE',
+      'property_type': 'rental',
+      'units': 1,
+      'sqft': null,
+      'year_built': null,
+      'notes': null,
+      'created_at': now,
+      'updated_at': now,
+      'archived': 0,
+    });
+    await db.insert('units', <String, Object?>{
+      'id': 'u2',
+      'asset_property_id': 'p2',
+      'unit_code': 'B1',
+      'unit_type': 'apartment',
+      'beds': null,
+      'baths': null,
+      'sqft': null,
+      'floor': null,
+      'status': 'vacant',
+      'market_rent_monthly': null,
+      'notes': null,
+      'created_at': now,
+      'updated_at': now,
+    });
+
+    final tenantA = await repo.upsertTenant(displayName: 'Tenant A');
+    final tenantB = await repo.upsertTenant(displayName: 'Tenant B');
+    await repo.createLease(
+      assetPropertyId: 'p1',
+      unitId: 'u1',
+      tenantId: tenantA.id,
+      leaseName: 'Lease A',
+      startDate: DateTime(2024, 1, 1).millisecondsSinceEpoch,
+      status: 'active',
+      baseRentMonthly: 1000,
+    );
+    await repo.createLease(
+      assetPropertyId: 'p2',
+      unitId: 'u2',
+      tenantId: tenantB.id,
+      leaseName: 'Lease B',
+      startDate: DateTime(2024, 1, 1).millisecondsSinceEpoch,
+      status: 'active',
+      baseRentMonthly: 1200,
+    );
+
+    final propertyTenants = await repo.getTenantsForProperty('p1');
+
+    expect(propertyTenants.map((tenant) => tenant.id), [tenantA.id]);
+  });
+
   test('deleteIndexationRule removes rule and audit log records it', () async {
     final lease = await repo.createLease(
       assetPropertyId: 'p1',

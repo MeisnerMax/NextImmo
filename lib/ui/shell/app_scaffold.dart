@@ -8,6 +8,7 @@ import '../components/nx_content_frame.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/disposition_exit_screen.dart';
 import '../screens/esg_dashboard_screen.dart';
 import '../screens/help_screen.dart';
 import '../screens/imports_screen.dart';
@@ -22,6 +23,7 @@ import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
 import '../screens/quick_screening_screen.dart';
 import '../screens/rental_overview_screen.dart';
+import '../screens/renovation_value_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/v2/dashboard_screen_v2.dart';
@@ -258,6 +260,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const CompareScreen();
       case GlobalPage.quickScreening:
         return const QuickScreeningScreen();
+      case GlobalPage.renovationValue:
+        return const RenovationValueScreen();
+      case GlobalPage.dispositionExit:
+        return const DispositionExitScreen();
       case GlobalPage.criteriaSets:
         return const CriteriaSetsScreen();
       case GlobalPage.reportTemplates:

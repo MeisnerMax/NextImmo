@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../../core/models/property.dart';
 import '../../components/nx_card.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
+import '../../state/property_state.dart';
 import '../../theme/app_theme.dart';
 import 'tenant_detail_screen.dart';
 
@@ -31,6 +34,13 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedTenantId = ref.watch(selectedOperationsTenantIdProvider);
+    final property = _currentProperty(
+      ref.watch(propertiesControllerProvider).valueOrNull,
+    );
+    if (property != null &&
+        !propertySupportsRentalOperations(property.propertyType)) {
+      return _nonRentalState(context, property);
+    }
     final filteredTenants = _tenants.where((tenant) {
       final needle = _query.trim().toLowerCase();
       final matchesQuery =
@@ -66,7 +76,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
        (t.phone == null || t.phone!.trim().isEmpty))
     ).length;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +115,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
               ElevatedButton.icon(
                 onPressed: _createTenantDialog,
                 icon: const Icon(Icons.add),
-                label: const Text('Mieter anlegen'),
+                label: const Text('Mieter-Stammdaten anlegen'),
               ),
               SizedBox(
                 width: 220,
@@ -383,7 +393,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
           Text('Mieter', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           if (tenants.isEmpty)
-            const Text('Keine Mieter fuer diese Filter.')
+            const Text('Fuer dieses Objekt sind noch keine Mieter zugeordnet.')
           else
             Column(
               children: [
@@ -414,7 +424,9 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
   }
 
   Future<void> _reload() async {
-    final tenants = await ref.read(leaseRepositoryProvider).listTenants();
+    final tenants = await ref
+        .read(leaseRepositoryProvider)
+        .getTenantsForProperty(widget.propertyId);
     if (!mounted) {
       return;
     }
@@ -426,6 +438,49 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
     if (tenants.isNotEmpty && !tenants.any((tenant) => tenant.id == selectedId)) {
       ref.read(selectedOperationsTenantIdProvider.notifier).state = tenants.first.id;
     }
+  }
+
+  PropertyRecord? _currentProperty(List<PropertyRecord>? properties) {
+    if (properties == null) {
+      return null;
+    }
+    for (final property in properties) {
+      if (property.id == widget.propertyId) {
+        return property;
+      }
+    }
+    return null;
+  }
+
+  Widget _nonRentalState(BuildContext context, PropertyRecord property) {
+    final message = switch (propertyKindFromType(property.propertyType)) {
+      PropertyKind.sale =>
+        'Dieses Objekt ist als Verkaufsobjekt angelegt. Mieterverwaltung ist hier deaktiviert.',
+      PropertyKind.condoSale =>
+        'Dieses Objekt ist als Eigentumswohnungs-Verkauf angelegt. Verwende Kaeufer, Interessenten und Reservierungen statt Mieter.',
+      PropertyKind.hotel =>
+        'Dieses Objekt ist als Hotel angelegt. Verwende Gaeste, Reservierungen und Zimmer statt Mieter.',
+      PropertyKind.other =>
+        'Fuer diese Objektart ist keine Mieterverwaltung aktiviert.',
+      PropertyKind.rental || PropertyKind.mixed =>
+        'Fuer dieses Objekt sind noch keine Mieter zugeordnet.',
+    };
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.page),
+      child: NxCard(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.info_outline,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _createTenantDialog() => _tenantDialog();
@@ -460,7 +515,7 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'Mieter anlegen' : 'Mieter bearbeiten'),
           content: SizedBox(
-            width: 520,
+            width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

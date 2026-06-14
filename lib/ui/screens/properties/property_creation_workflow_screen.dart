@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/property.dart';
 import '../../../core/models/property_creation.dart';
 import '../../../core/services/property_creation_validation_service.dart';
+import '../../components/responsive_constraints.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/number_parse.dart';
 
@@ -60,15 +61,22 @@ class _PropertyCreationWorkflowScreenState
           const SizedBox(width: 12),
         ],
       ),
-      body: Row(
-        children: [
-          SizedBox(
-            width: 310,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 820;
+          final navigation = SizedBox(
+            width: compact ? double.infinity : 310,
+            height: compact ? 260 : null,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: context.semanticColors.surfaceAlt,
                 border: Border(
-                  right: BorderSide(color: context.semanticColors.border),
+                  right: compact
+                      ? BorderSide.none
+                      : BorderSide(color: context.semanticColors.border),
+                  bottom: compact
+                      ? BorderSide(color: context.semanticColors.border)
+                      : BorderSide.none,
                 ),
               ),
               child: ListView(
@@ -91,34 +99,37 @@ class _PropertyCreationWorkflowScreenState
                 ],
               ),
             ),
-          ),
-          Expanded(
+          );
+          final content = Expanded(
             child: Column(
               children: [
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(AppSpacing.section),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1180),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _steps[_step],
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _steps[_step],
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _stepSubtitles[_step],
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: context.semanticColors.textSecondary,
+                            const SizedBox(height: 6),
+                            Text(
+                              _stepSubtitles[_step],
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: context.semanticColors.textSecondary,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.section),
-                          _buildStep(context, assessment),
-                        ],
+                            const SizedBox(height: AppSpacing.section),
+                            _buildStep(context, assessment),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -142,8 +153,11 @@ class _PropertyCreationWorkflowScreenState
                 ),
               ],
             ),
-          ),
-        ],
+          );
+          return compact
+              ? Column(children: [navigation, content])
+              : Row(children: [navigation, content]);
+        },
       ),
     );
   }
@@ -176,14 +190,12 @@ class _PropertyCreationWorkflowScreenState
           title: 'Objektart',
           child: _OptionGrid(
             options: const [
-              _OptionSpec('residential', 'Wohnimmobilie', Icons.apartment, 'Mehrfamilienhaus, Wohnung oder Wohnportfolio.'),
-              _OptionSpec('commercial', 'Gewerbeimmobilie', Icons.business_outlined, 'Buero, Retail, Logistik oder sonstige Gewerbeflaechen.'),
-              _OptionSpec('mixed_use', 'Mischobjekt', Icons.domain_add_outlined, 'Kombinierte Wohn- und Gewerbenutzung.'),
-              _OptionSpec('hotel', 'Hotel', Icons.hotel_outlined, 'Hotel- oder Beherbergungsbetrieb.'),
-              _OptionSpec('land', 'Grundstueck', Icons.landscape_outlined, 'Unbebautes oder entwickelbares Grundstueck.'),
-              _OptionSpec('renovation', 'Sanierungsobjekt', Icons.construction_outlined, 'Objekt mit erkennbarem Sanierungsfokus.'),
-              _OptionSpec('development', 'Projektentwicklung', Icons.architecture_outlined, 'Neubau- oder Entwicklungsprojekt.'),
-              _OptionSpec('other', 'Sonstiges', Icons.home_work_outlined, 'Spezialfall ausserhalb der Standardkategorien.'),
+              _OptionSpec('rental', 'Vermietungsobjekt', Icons.apartment, 'Wohn-, Gewerbe- oder Bestandsobjekt mit Mietverhaeltnissen.'),
+              _OptionSpec('sale', 'Verkaufsobjekt', Icons.sell_outlined, 'Objekt mit Verkaufsprozess, Angeboten und Interessenten.'),
+              _OptionSpec('condo_sale', 'Eigentumswohnungen', Icons.domain_add_outlined, 'Aufgeteilte Wohnungen mit Kaeufern, Reservierungen und Kaufpreisen.'),
+              _OptionSpec('hotel', 'Hotel', Icons.hotel_outlined, 'Hotel- oder Beherbergungsbetrieb mit Zimmern und Reservierungen.'),
+              _OptionSpec('mixed', 'Mischobjekt', Icons.home_work_outlined, 'Objekt mit mehreren aktiven Nutzungsmodulen.'),
+              _OptionSpec('other', 'Sonstiges', Icons.more_horiz, 'Spezialfall ausserhalb der Standardkategorien.'),
             ],
             selected: _draft.propertyType,
             onSelected: (value) => setState(() => _draft.propertyType = value),
@@ -547,13 +559,25 @@ class _PropertyCreationWorkflowScreenState
           for (final doc in _draft.documents)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.start,
                 children: [
-                  SizedBox(width: 210, child: Text(doc.label)),
-                  const SizedBox(width: 10),
                   SizedBox(
-                    width: 150,
+                    width: ResponsiveConstraints.itemWidth(
+                      context,
+                      idealWidth: 210,
+                      maxWidth: 260,
+                    ),
+                    child: Text(doc.label),
+                  ),
+                  SizedBox(
+                    width: ResponsiveConstraints.itemWidth(
+                      context,
+                      idealWidth: 150,
+                      maxWidth: 220,
+                    ),
                     child: _dropdown(
                       label: 'Status',
                       value: doc.status,
@@ -566,14 +590,30 @@ class _PropertyCreationWorkflowScreenState
                       onChanged: (value) => doc.status = value,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _text('Upload/Pfad optional', doc.uploadPath, (v) => doc.uploadPath = v)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _text('Notiz', doc.note, (v) => doc.note = v)),
-                  const SizedBox(width: 10),
-                  SizedBox(width: 150, child: _date('Frist', doc.dueDate, (v) => doc.dueDate = v)),
-                  const SizedBox(width: 10),
-                  SizedBox(width: 160, child: _text('Verantwortlich', doc.owner, (v) => doc.owner = v)),
+                  _workflowField(
+                    context,
+                    _text('Upload/Pfad optional', doc.uploadPath, (v) => doc.uploadPath = v),
+                  ),
+                  _workflowField(
+                    context,
+                    _text('Notiz', doc.note, (v) => doc.note = v),
+                  ),
+                  SizedBox(
+                    width: ResponsiveConstraints.itemWidth(
+                      context,
+                      idealWidth: 150,
+                      maxWidth: 220,
+                    ),
+                    child: _date('Frist', doc.dueDate, (v) => doc.dueDate = v),
+                  ),
+                  SizedBox(
+                    width: ResponsiveConstraints.itemWidth(
+                      context,
+                      idealWidth: 160,
+                      maxWidth: 240,
+                    ),
+                    child: _text('Verantwortlich', doc.owner, (v) => doc.owner = v),
+                  ),
                 ],
               ),
             ),
@@ -1417,15 +1457,15 @@ class _UnitEditor extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(child: _inlineText('Einheitennummer', unit.unitCode, (v) => unit.unitCode = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Nutzung', unit.useType, (v) => unit.useType = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Etage', unit.floor, (v) => unit.floor = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineNumber('Flaeche', unit.area, (v) => unit.area = v)),
+              _workflowField(context, _inlineText('Einheitennummer', unit.unitCode, (v) => unit.unitCode = v)),
+              _workflowField(context, _inlineText('Nutzung', unit.useType, (v) => unit.useType = v)),
+              _workflowField(context, _inlineText('Etage', unit.floor, (v) => unit.floor = v)),
+              _workflowField(context, _inlineNumber('Flaeche', unit.area, (v) => unit.area = v)),
               IconButton(
                 tooltip: 'Duplizieren',
                 onPressed: onDuplicate,
@@ -1439,19 +1479,27 @@ class _UnitEditor extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(child: _inlineNumber('Zimmer optional', unit.rooms, (v) => unit.rooms = v)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DropdownButtonFormField<String>(
+              _workflowField(context, _inlineNumber('Zimmer optional', unit.rooms, (v) => unit.rooms = v)),
+              _workflowField(
+                context,
+                DropdownButtonFormField<String>(
                   value: unit.status,
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: const [
+                    DropdownMenuItem(value: 'rented', child: Text('Vermietet')),
                     DropdownMenuItem(value: 'occupied', child: Text('Vermietet')),
                     DropdownMenuItem(value: 'vacant', child: Text('Leer')),
+                    DropdownMenuItem(value: 'owner_occupied', child: Text('Eigengenutzt')),
+                    DropdownMenuItem(value: 'for_sale', child: Text('Zum Verkauf')),
                     DropdownMenuItem(value: 'reserved', child: Text('Reserviert')),
+                    DropdownMenuItem(value: 'sold', child: Text('Verkauft')),
+                    DropdownMenuItem(value: 'hotel_room_active', child: Text('Hotelzimmer aktiv')),
                     DropdownMenuItem(value: 'renovation', child: Text('In Sanierung')),
+                    DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
                     DropdownMenuItem(value: 'offline', child: Text('Nicht nutzbar')),
                   ],
                   onChanged: (value) {
@@ -1462,18 +1510,17 @@ class _UnitEditor extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineNumber('Kaltmiete', unit.coldRent, (v) => unit.coldRent = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineNumber('Nebenkosten', unit.serviceCharge, (v) => unit.serviceCharge = v)),
+              _workflowField(context, _inlineNumber('Kaltmiete', unit.coldRent, (v) => unit.coldRent = v)),
+              _workflowField(context, _inlineNumber('Nebenkosten', unit.serviceCharge, (v) => unit.serviceCharge = v)),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(child: _inlineText('Stellplatzzuordnung', unit.parkingAssignment, (v) => unit.parkingAssignment = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Notizen', unit.notes, (v) => unit.notes = v)),
+              _workflowField(context, _inlineText('Stellplatzzuordnung', unit.parkingAssignment, (v) => unit.parkingAssignment = v)),
+              _workflowField(context, _inlineText('Notizen', unit.notes, (v) => unit.notes = v)),
             ],
           ),
         ],
@@ -1530,12 +1577,15 @@ class _TenantEditor extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(child: _inlineText('Mietername', tenant.tenantName, (v) => tenant.tenantName = v)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DropdownButtonFormField<String>(
+              _workflowField(context, _inlineText('Mietername', tenant.tenantName, (v) => tenant.tenantName = v)),
+              _workflowField(
+                context,
+                DropdownButtonFormField<String>(
                   value: unitCodes.contains(tenant.unitCode)
                       ? tenant.unitCode
                       : (unitCodes.isEmpty ? null : unitCodes.first),
@@ -1558,27 +1608,25 @@ class _TenantEditor extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(child: _inlineDate('Mietbeginn', tenant.leaseStart, (v) => tenant.leaseStart = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineDate('Mietende', tenant.leaseEnd, (v) => tenant.leaseEnd = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Kuendigungsfrist', tenant.noticePeriod, (v) => tenant.noticePeriod = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineNumber('Kaltmiete', tenant.coldRent, (v) => tenant.coldRent = v)),
+              _workflowField(context, _inlineDate('Mietbeginn', tenant.leaseStart, (v) => tenant.leaseStart = v)),
+              _workflowField(context, _inlineDate('Mietende', tenant.leaseEnd, (v) => tenant.leaseEnd = v)),
+              _workflowField(context, _inlineText('Kuendigungsfrist', tenant.noticePeriod, (v) => tenant.noticePeriod = v)),
+              _workflowField(context, _inlineNumber('Kaltmiete', tenant.coldRent, (v) => tenant.coldRent = v)),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(child: _inlineNumber('Nebenkosten', tenant.serviceCharges, (v) => tenant.serviceCharges = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineNumber('Kaution', tenant.deposit, (v) => tenant.deposit = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Zahlungsstatus', tenant.paymentStatus, (v) => tenant.paymentStatus = v)),
-              const SizedBox(width: 10),
-              Expanded(child: _inlineText('Notizen', tenant.notes, (v) => tenant.notes = v)),
+              _workflowField(context, _inlineNumber('Nebenkosten', tenant.serviceCharges, (v) => tenant.serviceCharges = v)),
+              _workflowField(context, _inlineNumber('Kaution', tenant.deposit, (v) => tenant.deposit = v)),
+              _workflowField(context, _inlineText('Zahlungsstatus', tenant.paymentStatus, (v) => tenant.paymentStatus = v)),
+              _workflowField(context, _inlineText('Notizen', tenant.notes, (v) => tenant.notes = v)),
             ],
           ),
         ],
@@ -1621,6 +1669,18 @@ class _TenantEditor extends StatelessWidget {
   }
 }
 
+Widget _workflowField(BuildContext context, Widget child) {
+  return SizedBox(
+    width: ResponsiveConstraints.itemWidth(
+      context,
+      idealWidth: 220,
+      minWidth: 160,
+      maxWidth: 280,
+    ),
+    child: child,
+  );
+}
+
 class _FooterBar extends StatelessWidget {
   const _FooterBar({
     required this.currentStep,
@@ -1652,18 +1712,19 @@ class _FooterBar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: context.semanticColors.border)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.end,
         children: [
           Text('Schritt ${currentStep + 1} von $totalSteps'),
-          const Spacer(),
           TextButton(onPressed: onSummary, child: const Text('Zur Pruefung')),
-          const SizedBox(width: 8),
           OutlinedButton.icon(
             onPressed: onBack,
             icon: const Icon(Icons.arrow_back),
             label: const Text('Zurueck'),
           ),
-          const SizedBox(width: 8),
           if (currentStep < totalSteps - 1)
             FilledButton.icon(
               onPressed: onNext,

@@ -40,6 +40,22 @@ class LeaseRepo {
     return rows.map(TenantRecord.fromMap).toList();
   }
 
+  Future<List<TenantRecord>> getTenantsForProperty(String propertyId) async {
+    final rows = await _db.rawQuery(
+      '''
+      SELECT DISTINCT t.*
+      FROM tenants t
+      INNER JOIN leases l ON l.tenant_id = t.id
+      LEFT JOIN units u ON u.id = l.unit_id
+      WHERE l.asset_property_id = ?
+         OR u.asset_property_id = ?
+      ORDER BY t.display_name COLLATE NOCASE
+      ''',
+      <Object?>[propertyId, propertyId],
+    );
+    return rows.map(TenantRecord.fromMap).toList(growable: false);
+  }
+
   Future<TenantRecord> upsertTenant({
     String? id,
     required String displayName,
@@ -112,6 +128,10 @@ class LeaseRepo {
       orderBy: 'start_date DESC',
     );
     return rows.map(LeaseRecord.fromMap).toList();
+  }
+
+  Future<List<LeaseRecord>> getLeasesForProperty(String propertyId) {
+    return listLeasesByAsset(propertyId);
   }
 
   Future<TenantRecord?> getTenantById(String tenantId) async {

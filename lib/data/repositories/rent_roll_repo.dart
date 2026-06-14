@@ -29,6 +29,13 @@ class RentRollRepo {
     return rows.map(UnitRecord.fromMap).toList();
   }
 
+  Future<List<UnitRecord>> getUnitsForProperty(
+    String propertyId, {
+    bool includeArchived = false,
+  }) {
+    return listUnitsByAsset(propertyId, includeArchived: includeArchived);
+  }
+
   Future<UnitRecord> createUnit({
     required String assetPropertyId,
     required String unitCode,

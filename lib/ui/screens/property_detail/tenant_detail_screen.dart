@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'operations_detail_support.dart';
@@ -135,7 +136,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
           runSpacing: AppSpacing.component,
           children: [
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Stammdaten',
                 child: Column(
@@ -152,7 +153,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
               ),
             ),
             SizedBox(
-              width: 360,
+              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
               child: OperationsSectionCard(
                 title: 'Kontaktqualitaet',
                 child: Column(
@@ -294,7 +295,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
               runSpacing: AppSpacing.component,
               children: [
                 SizedBox(
-                  width: 420,
+                  width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
                   child: OperationsSectionCard(
                     title: 'Aufgaben',
                     child: OperationsTasksPanel(
@@ -304,7 +305,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                   ),
                 ),
                 SizedBox(
-                  width: 420,
+                  width: ResponsiveConstraints.itemWidth(context, idealWidth: 420),
                   child: OperationsSectionCard(
                     title: 'Dokumente',
                     action: TextButton(

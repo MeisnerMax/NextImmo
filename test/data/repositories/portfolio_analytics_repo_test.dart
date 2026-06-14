@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/core/finance/portfolio_irr_engine.dart';
 import 'package:neximmo_app/core/services/ledger_service.dart';
+import 'package:neximmo_app/data/repositories/asset_workbook_repo.dart';
 import 'package:neximmo_app/data/repositories/capital_events_repo.dart';
 import 'package:neximmo_app/data/repositories/portfolio_analytics_repo.dart';
 import 'package:neximmo_app/data/sqlite/db.dart';
@@ -21,7 +22,12 @@ void main() {
     db = await appDatabase.instance;
 
     capitalRepo = CapitalEventsRepo(db, const LedgerService());
-    repo = PortfolioAnalyticsRepo(db, capitalRepo, const PortfolioIrrEngine());
+    repo = PortfolioAnalyticsRepo(
+      db,
+      capitalRepo,
+      const PortfolioIrrEngine(),
+      AssetWorkbookRepo(db),
+    );
 
     await db.insert('properties', <String, Object?>{
       'id': 'a1',

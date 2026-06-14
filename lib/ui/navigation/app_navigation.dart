@@ -171,6 +171,20 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         icon: Icons.speed_outlined,
       ),
       GlobalNavigationDestination(
+        page: GlobalPage.renovationValue,
+        label: 'Renovierung',
+        title: 'Renovierung und Wertsteigerung',
+        routeKey: 'valuation_scenarios.renovation_value',
+        icon: Icons.construction_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.dispositionExit,
+        label: 'Verkauf / Exit',
+        title: 'Verkauf und Exit-Analyse',
+        routeKey: 'valuation_scenarios.disposition_exit',
+        icon: Icons.sell_outlined,
+      ),
+      GlobalNavigationDestination(
         page: GlobalPage.criteriaSets,
         label: 'Kriterien',
         title: 'Kriterien',
@@ -592,7 +606,9 @@ bool isPageAllowedForRole(GlobalPage page, String role) {
           page != GlobalPage.audit &&
           page != GlobalPage.criteriaSets &&
           page != GlobalPage.compare &&
-          page != GlobalPage.quickScreening;
+          page != GlobalPage.quickScreening &&
+          page != GlobalPage.renovationValue &&
+          page != GlobalPage.dispositionExit;
 
     case 'viewer':
       return page != GlobalPage.adminUsers &&

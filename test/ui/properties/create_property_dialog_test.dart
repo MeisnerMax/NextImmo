@@ -5,9 +5,11 @@ import 'package:neximmo_app/ui/screens/properties/create_property_dialog.dart';
 
 void main() {
   test('maps property type values to readable labels', () {
-    expect(propertyTypeDisplayLabel('single_family'), 'Single Family');
-    expect(propertyTypeDisplayLabel('multi_family'), 'Multi Family');
-    expect(propertyTypeDisplayLabel('commercial'), 'Commercial Asset');
+    expect(propertyTypeDisplayLabel('rental'), 'Vermietungsobjekt');
+    expect(propertyTypeDisplayLabel('sale'), 'Verkaufsobjekt');
+    expect(propertyTypeDisplayLabel('condo_sale'), 'Eigentumswohnungen Verkauf');
+    expect(propertyTypeDisplayLabel('hotel'), 'Hotel');
+    expect(propertyTypeDisplayLabel('single_family'), 'Vermietungsobjekt');
   });
 
   testWidgets('create property dialog keeps only base fields', (tester) async {
@@ -80,6 +82,6 @@ void main() {
     expect(createdDraft, isNotNull);
     expect(createdDraft!.country, 'DE');
     expect(createdDraft!.units, 1);
-    expect(createdDraft!.propertyType, 'single_family');
+    expect(createdDraft!.propertyType, 'rental');
   });
 }

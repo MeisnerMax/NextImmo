@@ -4,7 +4,7 @@ class PropertyCreationDraft {
     this.country = 'DE',
   }) : internalId = internalId ?? _suggestInternalId();
 
-  String propertyType = 'residential';
+  String propertyType = 'rental';
   String creationReason = 'bestand';
   String creationMode = 'complete';
 

@@ -1,12 +1,9 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../core/security/rbac.dart';
 import '../../core/models/settings.dart';
-import '../../data/sqlite/migrations.dart';
 import '../i18n/app_strings.dart';
 import '../components/nx_card.dart';
 import '../components/nx_form_section_card.dart';
@@ -2050,31 +2047,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _statusTone = SaveStatusTone.working;
         });
       }
-      final effectiveSettings = settings.copyWith(
-        workspaceRootPath:
-            _workspaceRootController.text.trim().isEmpty
-                ? null
-                : _workspaceRootController.text.trim(),
-      );
-      final workspace = await ref
-          .read(workspaceRepositoryProvider)
-          .resolvePaths(effectiveSettings);
-      final manifest = await ref
-          .read(backupServiceProvider)
+      final result = await ref
+          .read(backupRestoreServiceProvider)
           .createBackup(
-            dbPath: workspace.dbPath,
-            docsDirectoryPath: workspace.docsPath,
+            settings: settings,
+            workspaceRootPath: _workspaceRootController.text,
             destinationZipPath: saveLocation.path,
-            dbSchemaVersion: DbMigrations.currentVersion,
-            appVersion: '1.0.0+1',
           );
-      final updated = settings.copyWith(
-        workspaceRootPath: workspace.rootPath,
-        lastBackupAt: manifest.createdAt,
-        lastBackupPath: saveLocation.path,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-      await ref.read(inputsRepositoryProvider).updateSettings(updated);
+      final updated = result.updatedSettings;
+      ref.read(settingsRevisionProvider.notifier).state++;
       if (!mounted) {
         return;
       }
@@ -2165,63 +2146,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _statusTone = SaveStatusTone.working;
         });
       }
-      final effectiveSettings = settings.copyWith(
-        workspaceRootPath:
-            _workspaceRootController.text.trim().isEmpty
-                ? null
-                : _workspaceRootController.text.trim(),
-      );
-      final backupService = ref.read(backupServiceProvider);
-      final workspace = await ref
-          .read(workspaceRepositoryProvider)
-          .resolvePaths(effectiveSettings);
-      final manifest = await backupService.readManifest(file.path);
-      if (manifest.dbSchemaVersion > DbMigrations.currentVersion) {
-        throw StateError(
-          _strings.text(
-            'Backup schema ({schema}) is newer than current app schema ({current}).',
-            <String, Object?>{
-              'schema': manifest.dbSchemaVersion,
-              'current': DbMigrations.currentVersion,
-            },
-          ),
-        );
-      }
-
-      final preRestorePath = p.join(
-        workspace.backupsPath,
-        'pre_restore_${DateTime.now().millisecondsSinceEpoch}.zip',
-      );
-      await backupService.createBackup(
-        dbPath: workspace.dbPath,
-        docsDirectoryPath: workspace.docsPath,
-        destinationZipPath: preRestorePath,
-        dbSchemaVersion: DbMigrations.currentVersion,
-        appVersion: '1.0.0+1',
-      );
-
-      final currentDb = ref.read(databaseProvider);
-      await backupService.restoreFromBackup(
-        zipPath: file.path,
-        docsDirectoryPath: workspace.docsPath,
-        tempDirectoryPath: workspace.tempPath,
-        restoreDbFromFile: (extractedDbFile) async {
-          final backupDb = await databaseFactoryFfi.openDatabase(
-            extractedDbFile.path,
-            options: OpenDatabaseOptions(readOnly: true),
+      await ref
+          .read(backupRestoreServiceProvider)
+          .restoreBackup(
+            settings: settings,
+            workspaceRootPath: _workspaceRootController.text,
+            sourceZipPath: file.path,
+            newerSchemaMessage:
+                (backupSchemaVersion, currentSchemaVersion) => _strings.text(
+                  'Backup schema ({schema}) is newer than current app schema ({current}).',
+                  <String, Object?>{
+                  'schema': backupSchemaVersion,
+                  'current': currentSchemaVersion,
+                  },
+                ),
           );
-          try {
-            await _restoreDatabaseData(
-              currentDb: currentDb,
-              backupDb: backupDb,
-            );
-          } finally {
-            await backupDb.close();
-          }
-        },
-      );
-
-      await ref.read(searchRepositoryProvider).rebuildIndex();
       ref.read(globalPageProvider.notifier).state = GlobalPage.dashboard;
       if (!mounted) {
         return;
@@ -2242,61 +2181,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _statusTone = SaveStatusTone.error;
       });
     }
-  }
-
-  Future<void> _restoreDatabaseData({
-    required Database currentDb,
-    required Database backupDb,
-  }) async {
-    final currentTables = await currentDb.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-    );
-    final backupTables = await backupDb.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-    );
-    final backupTableNames =
-        backupTables.map((row) => row['name'] as String).toSet();
-
-    await currentDb.transaction((txn) async {
-      await txn.execute('PRAGMA foreign_keys = OFF');
-      for (final row in currentTables) {
-        final table = row['name'] as String;
-        if (table == 'android_metadata') {
-          continue;
-        }
-        if (!backupTableNames.contains(table)) {
-          await txn.delete(table);
-          continue;
-        }
-        final currentCols =
-            (await txn.rawQuery(
-              'PRAGMA table_info($table)',
-            )).map((c) => c['name'] as String).toSet();
-        final backupCols =
-            (await backupDb.rawQuery(
-              'PRAGMA table_info($table)',
-            )).map((c) => c['name'] as String).toSet();
-        final commonCols = currentCols
-            .where((c) => backupCols.contains(c))
-            .toList(growable: false);
-        await txn.delete(table);
-        if (commonCols.isEmpty) {
-          continue;
-        }
-        final backupRows = await backupDb.query(table, columns: commonCols);
-        for (final backupRow in backupRows) {
-          final map = <String, Object?>{
-            for (final col in commonCols) col: backupRow[col],
-          };
-          await txn.insert(
-            table,
-            map,
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-        }
-      }
-      await txn.execute('PRAGMA foreign_keys = ON');
-    });
   }
 }
 

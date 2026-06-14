@@ -96,7 +96,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    Padding(
+                    SingleChildScrollView(
                       padding: const EdgeInsets.all(AppSpacing.page),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

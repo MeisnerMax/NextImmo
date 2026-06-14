@@ -50,14 +50,15 @@ class PropertiesScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: () => _openCreateDialog(context, ref),
                 icon: const Icon(Icons.add),
                 label: const Text('New Property'),
               ),
-              const SizedBox(width: 12),
               OutlinedButton.icon(
                 onPressed: controller.reload,
                 icon: const Icon(Icons.refresh, size: 16),
@@ -94,9 +95,11 @@ class PropertiesScreen extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.component),
                     child: SingleChildScrollView(
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: DataTable(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 760),
+                          child: DataTable(
                           sortAscending: false,
                           sortColumnIndex: 3,
                           headingRowColor: WidgetStateProperty.all(
@@ -251,6 +254,7 @@ class PropertiesScreen extends ConsumerWidget {
                                     ),
                                   )
                                   .toList(),
+                          ),
                         ),
                       ),
                     ),

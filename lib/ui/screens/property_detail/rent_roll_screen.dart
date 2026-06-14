@@ -61,7 +61,7 @@ class _RentRollScreenState extends ConsumerState<RentRollScreen> {
         ? null
         : _selected!.snapshot.occupancyRate - priorSnapshot.occupancyRate;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.page),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
