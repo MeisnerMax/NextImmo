@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/models/inputs.dart';
 import '../../core/models/scenario.dart';
 import '../../data/repositories/inputs_repo.dart';
 import '../../data/repositories/scenario_repo.dart';

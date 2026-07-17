@@ -1,4 +1,4 @@
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 class AppZoomStorage {
   const AppZoomStorage._();
@@ -6,7 +6,7 @@ class AppZoomStorage {
   static const String _key = 'neximmo.ui_zoom_scale';
 
   static Future<double?> readScale() async {
-    final value = html.window.localStorage[_key];
+    final value = web.window.localStorage.getItem(_key);
     if (value == null || value.isEmpty) {
       return null;
     }
@@ -14,6 +14,6 @@ class AppZoomStorage {
   }
 
   static Future<void> writeScale(double scale) async {
-    html.window.localStorage[_key] = scale.toString();
+    web.window.localStorage.setItem(_key, scale.toString());
   }
 }

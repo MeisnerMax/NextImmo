@@ -22,7 +22,6 @@ import '../screens/notifications_screen.dart';
 import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
 import '../screens/quick_screening_screen.dart';
-import '../screens/rental_overview_screen.dart';
 import '../screens/renovation_value_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';

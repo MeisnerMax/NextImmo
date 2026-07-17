@@ -262,6 +262,7 @@ class _CreatePropertyDialogState extends State<CreatePropertyDialog> {
   Widget _buildPropertyTypeField(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: _propertyType,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: context.strings.text('Property Type'),
       ),
@@ -269,7 +270,11 @@ class _CreatePropertyDialogState extends State<CreatePropertyDialog> {
           .map(
             (option) => DropdownMenuItem<String>(
               value: option.value,
-              child: Text(context.strings.text(option.label)),
+              child: Text(
+                context.strings.text(option.label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           )
           .toList(growable: false),

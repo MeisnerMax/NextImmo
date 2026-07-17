@@ -45,7 +45,7 @@ void main() {
 
     await tester.pump();
 
-    print('--- RENDER FLEX DIAGNOSTICS (DASHBOARD) ---');
+    debugPrint('--- RENDER FLEX DIAGNOSTICS (DASHBOARD) ---');
     void visitor(Element element) {
       final renderObject = element.renderObject;
       if (renderObject is RenderFlex) {
@@ -56,24 +56,24 @@ void main() {
         // We can inspect if the renderObject has overflowed by comparing size with constraints or using its internal fields if accessible,
         // or just print details for all horizontal ones.
         if (renderObject.direction == Axis.horizontal) {
-          print('Horizontal RenderFlex:');
-          print('  Creator: ${element.widget.runtimeType}');
-          print('  Constraints: ${renderObject.constraints}');
-          print('  Size: ${renderObject.hasSize ? renderObject.size : "No Size"}');
-          print('  Offset: $offset');
+          debugPrint('Horizontal RenderFlex:');
+          debugPrint('  Creator: ${element.widget.runtimeType}');
+          debugPrint('  Constraints: ${renderObject.constraints}');
+          debugPrint('  Size: ${renderObject.hasSize ? renderObject.size : "No Size"}');
+          debugPrint('  Offset: $offset');
           
           final ancestors = <String>[];
           element.visitAncestorElements((parent) {
             ancestors.add(parent.widget.runtimeType.toString());
             return ancestors.length < 5;
           });
-          print('  Ancestors: ${ancestors.join(" -> ")}');
+          debugPrint('  Ancestors: ${ancestors.join(" -> ")}');
         }
       }
       element.visitChildren(visitor);
     }
 
     tester.binding.rootElement?.visitChildren(visitor);
-    print('-------------------------------------------');
+    debugPrint('-------------------------------------------');
   });
 }

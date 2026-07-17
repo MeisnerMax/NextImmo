@@ -1796,7 +1796,7 @@ class _TaskMiniCard extends StatelessWidget {
           decoration: BoxDecoration(
             color:
                 selected
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
             border: Border.all(

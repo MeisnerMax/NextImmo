@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/models/criteria.dart';
 import '../../../core/models/scenario.dart';
 import '../../../core/models/covenant.dart';
 import '../../../core/models/inputs.dart';
@@ -422,7 +421,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('rental_lettableAreaSqm_${scenarioId}'),
+                          key: Key('rental_lettableAreaSqm_$scenarioId'),
                           initialValue: inputs.lettableAreaSqm.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Vermietbare Fläche (qm)'),
                           keyboardType: TextInputType.number,
@@ -433,7 +432,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_grossAreaSqm_${scenarioId}'),
+                          key: Key('rental_grossAreaSqm_$scenarioId'),
                           initialValue: inputs.grossAreaSqm.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Bruttogrundfläche (qm)'),
                           keyboardType: TextInputType.number,
@@ -455,7 +454,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('rental_rentMonthlyTotal_${scenarioId}'),
+                          key: Key('rental_rentMonthlyTotal_$scenarioId'),
                           initialValue: inputs.rentMonthlyTotal.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Soll-Miete (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -466,7 +465,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_rentGrowthPercent_${scenarioId}'),
+                          key: Key('rental_rentGrowthPercent_$scenarioId'),
                           initialValue: inputs.rentGrowthPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Mietwachstum p.a. (%)'),
                           keyboardType: TextInputType.number,
@@ -477,7 +476,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_vacancyPercent_${scenarioId}'),
+                          key: Key('rental_vacancyPercent_$scenarioId'),
                           initialValue: inputs.vacancyPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Leerstandsquote (%)'),
                           keyboardType: TextInputType.number,
@@ -499,7 +498,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('rental_managementPercent_${scenarioId}'),
+                          key: Key('rental_managementPercent_$scenarioId'),
                           initialValue: inputs.managementPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Verwaltungskostenquote (% der Soll-Miete)'),
                           keyboardType: TextInputType.number,
@@ -510,7 +509,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_maintenancePercent_${scenarioId}'),
+                          key: Key('rental_maintenancePercent_$scenarioId'),
                           initialValue: inputs.maintenancePercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Instandhaltungsquote (% der Soll-Miete)'),
                           keyboardType: TextInputType.number,
@@ -521,7 +520,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_capexPercent_${scenarioId}'),
+                          key: Key('rental_capexPercent_$scenarioId'),
                           initialValue: inputs.capexPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'CapEx Rücklagenquote (% der Soll-Miete)'),
                           keyboardType: TextInputType.number,
@@ -532,7 +531,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_propertyTaxMonthly_${scenarioId}'),
+                          key: Key('rental_propertyTaxMonthly_$scenarioId'),
                           initialValue: inputs.propertyTaxMonthly.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Grundsteuer (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -543,7 +542,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_insuranceMonthly_${scenarioId}'),
+                          key: Key('rental_insuranceMonthly_$scenarioId'),
                           initialValue: inputs.insuranceMonthly.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Gebäudeversicherung (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -554,7 +553,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_utilitiesMonthly_${scenarioId}'),
+                          key: Key('rental_utilitiesMonthly_$scenarioId'),
                           initialValue: inputs.utilitiesMonthly.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Versorgungskosten / Utilities (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -565,7 +564,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_hoaMonthly_${scenarioId}'),
+                          key: Key('rental_hoaMonthly_$scenarioId'),
                           initialValue: inputs.hoaMonthly.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Hausgeld / HOA (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -576,7 +575,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('rental_otherExpensesMonthly_${scenarioId}'),
+                          key: Key('rental_otherExpensesMonthly_$scenarioId'),
                           initialValue: inputs.otherExpensesMonthly.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Sonstige Betriebskosten (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -598,7 +597,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('buy_purchasePrice_${scenarioId}'),
+                          key: Key('buy_purchasePrice_$scenarioId'),
                           initialValue: inputs.purchasePrice.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Kaufpreis (€)'),
                           keyboardType: TextInputType.number,
@@ -609,7 +608,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('buy_closingCostBuyPercent_${scenarioId}'),
+                          key: Key('buy_closingCostBuyPercent_$scenarioId'),
                           initialValue: inputs.closingCostBuyPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Erwerbsnebenkosten (%)'),
                           keyboardType: TextInputType.number,
@@ -620,7 +619,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('buy_rehabBudget_${scenarioId}'),
+                          key: Key('buy_rehabBudget_$scenarioId'),
                           initialValue: inputs.rehabBudget.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Sanierungsbudget / Rehab-Kosten (€)'),
                           keyboardType: TextInputType.number,
@@ -642,7 +641,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('buy_downPaymentPercent_${scenarioId}'),
+                          key: Key('buy_downPaymentPercent_$scenarioId'),
                           initialValue: inputs.downPaymentPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Eigenkapitalquote (%)'),
                           keyboardType: TextInputType.number,
@@ -653,7 +652,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('buy_interestRatePercent_${scenarioId}'),
+                          key: Key('buy_interestRatePercent_$scenarioId'),
                           initialValue: inputs.interestRatePercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Sollzins p.a. (%)'),
                           keyboardType: TextInputType.number,
@@ -664,7 +663,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('buy_termYears_${scenarioId}'),
+                          key: Key('buy_termYears_$scenarioId'),
                           initialValue: inputs.termYears.toString(),
                           decoration: const InputDecoration(labelText: 'Darlehenslaufzeit (Jahre)'),
                           keyboardType: TextInputType.number,
@@ -686,7 +685,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('buy_rentMonthlyTotal_${scenarioId}'),
+                          key: Key('buy_rentMonthlyTotal_$scenarioId'),
                           initialValue: inputs.rentMonthlyTotal.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Soll-Miete (monatlich, €)'),
                           keyboardType: TextInputType.number,
@@ -697,7 +696,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('buy_vacancyPercent_${scenarioId}'),
+                          key: Key('buy_vacancyPercent_$scenarioId'),
                           initialValue: inputs.vacancyPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Leerstandsquote (%)'),
                           keyboardType: TextInputType.number,
@@ -719,7 +718,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('sell_arvOverride_${scenarioId}'),
+                          key: Key('sell_arvOverride_$scenarioId'),
                           initialValue: (inputs.arvOverride ?? inputs.purchasePrice).toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Ziel-Verkaufspreis (€)'),
                           keyboardType: TextInputType.number,
@@ -730,7 +729,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_saleCostPercent_${scenarioId}'),
+                          key: Key('sell_saleCostPercent_$scenarioId'),
                           initialValue: inputs.saleCostPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Verkaufsnebenkosten / Makler (%)'),
                           keyboardType: TextInputType.number,
@@ -741,7 +740,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_closingCostSellPercent_${scenarioId}'),
+                          key: Key('sell_closingCostSellPercent_$scenarioId'),
                           initialValue: inputs.closingCostSellPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Sonstige Verkaufskosten (%)'),
                           keyboardType: TextInputType.number,
@@ -752,7 +751,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_sellAfterYears_${scenarioId}'),
+                          key: Key('sell_sellAfterYears_$scenarioId'),
                           initialValue: inputs.sellAfterYears.toString(),
                           decoration: const InputDecoration(labelText: 'Haltedauer (Jahre)'),
                           keyboardType: TextInputType.number,
@@ -763,7 +762,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_closingCostBuyFixed_${scenarioId}'),
+                          key: Key('sell_closingCostBuyFixed_$scenarioId'),
                           initialValue: inputs.closingCostBuyFixed.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Spekulationssteuersatz (%)'),
                           keyboardType: TextInputType.number,
@@ -785,7 +784,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                     child: Column(
                       children: [
                         TextFormField(
-                          key: Key('sell_purchasePrice_${scenarioId}'),
+                          key: Key('sell_purchasePrice_$scenarioId'),
                           initialValue: inputs.purchasePrice.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Kaufpreis (€)'),
                           keyboardType: TextInputType.number,
@@ -796,7 +795,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_closingCostBuyPercent_${scenarioId}'),
+                          key: Key('sell_closingCostBuyPercent_$scenarioId'),
                           initialValue: inputs.closingCostBuyPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Erwerbsnebenkosten (%)'),
                           keyboardType: TextInputType.number,
@@ -807,7 +806,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_rehabBudget_${scenarioId}'),
+                          key: Key('sell_rehabBudget_$scenarioId'),
                           initialValue: inputs.rehabBudget.toStringAsFixed(0),
                           decoration: const InputDecoration(labelText: 'Sanierungsbudget (€)'),
                           keyboardType: TextInputType.number,
@@ -818,7 +817,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          key: Key('sell_downPaymentPercent_${scenarioId}'),
+                          key: Key('sell_downPaymentPercent_$scenarioId'),
                           initialValue: inputs.downPaymentPercent.toStringAsFixed(2),
                           decoration: const InputDecoration(labelText: 'Eigenkapitalquote (%)'),
                           keyboardType: TextInputType.number,

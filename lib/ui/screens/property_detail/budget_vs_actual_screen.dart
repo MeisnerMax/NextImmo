@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-import '../../../core/engine/financing.dart';
 import '../../../core/models/budget.dart';
 import '../../../core/models/covenant.dart';
 import '../../../core/models/ledger.dart';
@@ -58,7 +57,6 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   List<AssetOperatingCostRecord> _operatingCosts = const [];
   
-  String? _status;
   bool _isLoading = true;
 
   @override
@@ -82,7 +80,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
   }
 
   Future<void> _reload() async {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     setState(() => _isLoading = true);
 
     try {
@@ -137,9 +137,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
       await _computeBudgetVariance();
       await _loadSelectedLoanDetails();
 
-      _status = null;
-    } catch (e) {
-      _status = e.toString();
+    } catch (_) {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -149,7 +147,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   Future<void> _computeBudgetVariance() async {
     final budget = _selectedBudget;
-    if (budget == null) return;
+    if (budget == null) {
+      return;
+    }
 
     final budgetRepo = ref.read(budgetRepositoryProvider);
     final detail = await budgetRepo.getBudgetDetail(budget.id);
@@ -171,7 +171,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   Future<void> _loadSelectedLoanDetails() async {
     final loan = _selectedLoan;
-    if (loan == null) return;
+    if (loan == null) {
+      return;
+    }
 
     final covRepo = ref.read(covenantRepositoryProvider);
     final covenants = await covRepo.listCovenantsByLoan(loan.id);
@@ -289,9 +291,13 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
           totalArrears += outstanding;
           // random age categorization for visualization
           final age = (lease.createdAt % 3 == 0) ? 95 : ((lease.createdAt % 2 == 0) ? 45 : 15);
-          if (age > 90) arrears90d += outstanding;
-          else if (age > 60) arrears60d += outstanding;
-          else if (age > 30) arrears30d += outstanding;
+          if (age > 90) {
+            arrears90d += outstanding;
+          } else if (age > 60) {
+            arrears60d += outstanding;
+          } else if (age > 30) {
+            arrears30d += outstanding;
+          }
 
           arrearsList.add({
             'tenant': tenant.displayName,
@@ -1135,7 +1141,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                         contentPadding: EdgeInsets.zero,
                                         leading: const Icon(Icons.gavel, size: 20),
                                         title: Text('Typ: ${c.kind.toUpperCase()} (${c.operator.toUpperCase()})'),
-                                        trailing: Text('${c.threshold.toStringAsFixed(2)}', style: context.tabularNumericStyle.copyWith(fontWeight: FontWeight.bold)),
+                                        trailing: Text(c.threshold.toStringAsFixed(2), style: context.tabularNumericStyle.copyWith(fontWeight: FontWeight.bold)),
                                         subtitle: Text('Schweregrad: ${c.severity}'),
                                       );
                                     },
@@ -1208,11 +1214,6 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
       }
     }
     return accountId;
-  }
-
-  String _nullIfEmpty(String text) {
-    final t = text.trim();
-    return t.isEmpty ? '' : t;
   }
 
   String _scopeLabel(String scope) {
@@ -1746,7 +1747,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
       dialogRenovations = tickets.where((t) => t.category == 'renovation').toList();
     } catch (_) {}
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     await showDialog<void>(
       context: context,
@@ -1857,7 +1860,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   Future<void> _addLineDialog() async {
     final selected = _selectedBudget;
-    if (selected == null || _accounts.isEmpty) return;
+    if (selected == null || _accounts.isEmpty) {
+      return;
+    }
 
     var accountId = _accounts.first.id;
     var direction = 'out';
@@ -1924,7 +1929,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
             ElevatedButton(
               onPressed: () async {
                 final amount = double.tryParse(amountCtrl.text.trim());
-                if (amount == null) return;
+                if (amount == null) {
+                  return;
+                }
                 await ref.read(budgetRepositoryProvider).upsertBudgetLine(
                   budgetId: selected.id,
                   accountId: accountId,
@@ -1951,7 +1958,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
   Future<void> _createLedgerEntryDialog({bool isIncomeOnly = false, bool isNkOnly = false}) async {
     // Determine accounts list
     final filteredAccounts = _accounts.where((a) {
-      if (isIncomeOnly) return a.kind == 'income';
+      if (isIncomeOnly) {
+        return a.kind == 'income';
+      }
       if (isNkOnly) {
         return a.name.toLowerCase().contains('nebenkosten') ||
             a.name.toLowerCase().contains('betriebskosten') ||
@@ -1963,7 +1972,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
       return true;
     }).toList();
 
-    if (filteredAccounts.isEmpty) return;
+    if (filteredAccounts.isEmpty) {
+      return;
+    }
 
     var accountId = filteredAccounts.first.id;
     final amountCtrl = TextEditingController();
@@ -2020,7 +2031,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
             ElevatedButton(
               onPressed: () async {
                 final amount = double.tryParse(amountCtrl.text.trim());
-                if (amount == null) return;
+                if (amount == null) {
+                  return;
+                }
                 
                 final selectedAccount = _accounts.firstWhere((a) => a.id == accountId);
                 
@@ -2167,7 +2180,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               final principal = double.tryParse(principalCtrl.text.trim());
               final rate = double.tryParse(rateCtrl.text.trim());
               final term = int.tryParse(termCtrl.text.trim());
-              if (principal == null || rate == null || term == null) return;
+              if (principal == null || rate == null || term == null) {
+                return;
+              }
               
               await ref.read(covenantRepositoryProvider).createLoan(
                 assetPropertyId: widget.propertyId,
@@ -2198,7 +2213,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   Future<void> _addLoanPeriodDialog() async {
     final loan = _selectedLoan;
-    if (loan == null) return;
+    if (loan == null) {
+      return;
+    }
     
     final periodCtrl = TextEditingController(text: _fromPeriod);
     final balanceCtrl = TextEditingController(text: loan.principal.toStringAsFixed(2));
@@ -2239,7 +2256,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
             onPressed: () async {
               final balance = double.tryParse(balanceCtrl.text.trim());
               final debt = double.tryParse(debtCtrl.text.trim());
-              if (balance == null || debt == null) return;
+              if (balance == null || debt == null) {
+                return;
+              }
               
               await ref.read(covenantRepositoryProvider).upsertLoanPeriod(
                 loanId: loan.id,
@@ -2266,7 +2285,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
   Future<void> _createCovenantDialog() async {
     final loan = _selectedLoan;
-    if (loan == null) return;
+    if (loan == null) {
+      return;
+    }
     
     String kind = 'dscr';
     String op = 'gte';
@@ -2290,7 +2311,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     DropdownMenuItem(value: 'ltv', child: Text('LTV (Verschuldungsgrad)')),
                   ],
                   onChanged: (value) {
-                    if (value != null) setDialogState(() => kind = value);
+                    if (value != null) {
+                      setDialogState(() => kind = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 8),
@@ -2301,7 +2324,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     DropdownMenuItem(value: 'lte', child: Text('<= (Kleiner gleich)')),
                   ],
                   onChanged: (value) {
-                    if (value != null) setDialogState(() => op = value);
+                    if (value != null) {
+                      setDialogState(() => op = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 8),
@@ -2317,7 +2342,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     DropdownMenuItem(value: 'soft', child: Text('Soft (Beobachtung)')),
                   ],
                   onChanged: (value) {
-                    if (value != null) setDialogState(() => severity = value);
+                    if (value != null) {
+                      setDialogState(() => severity = value);
+                    }
                   },
                 ),
               ],
@@ -2331,7 +2358,9 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
             ElevatedButton(
               onPressed: () async {
                 final threshold = double.tryParse(thresholdCtrl.text.trim());
-                if (threshold == null) return;
+                if (threshold == null) {
+                  return;
+                }
                 
                 await ref.read(covenantRepositoryProvider).createCovenant(
                   loanId: loan.id,
@@ -3140,9 +3169,13 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
   String _fmtEuro(double v) {
     final sign = v < 0 ? '-' : '';
     final abs = v.abs();
-    if (abs >= 1000000) return '${sign}€ ${(abs / 1000000).toStringAsFixed(2)} Mio.';
-    if (abs >= 1000)    return '${sign}€ ${(abs / 1000).toStringAsFixed(1)} Tsd.';
-    return '${sign}€ ${abs.toStringAsFixed(0)}';
+    if (abs >= 1000000) {
+      return '$sign€ ${(abs / 1000000).toStringAsFixed(2)} Mio.';
+    }
+    if (abs >= 1000) {
+      return '$sign€ ${(abs / 1000).toStringAsFixed(1)} Tsd.';
+    }
+    return '$sign€ ${abs.toStringAsFixed(0)}';
   }
 }
 

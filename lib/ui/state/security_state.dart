@@ -38,7 +38,7 @@ final securityControllerProvider =
 
 final activeUserRoleProvider = Provider<String>((ref) {
   final state = ref.watch(securityControllerProvider).valueOrNull;
-  return state?.context.user.role ?? 'admin';
+  return state?.context.user.role ?? '';
 });
 final activeUserIdProvider = Provider<String?>((ref) {
   return ref.watch(securityControllerProvider).valueOrNull?.context.user.id;

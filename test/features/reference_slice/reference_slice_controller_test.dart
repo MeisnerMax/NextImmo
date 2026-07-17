@@ -1,0 +1,404 @@
+import 'dart:async';
+import 'dart:collection';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
+
+void main() {
+  group('ReferenceSliceController', () {
+    late _FakeIdentityRepository identity;
+    late _FakePropertyRepository properties;
+    late ReferenceSliceController controller;
+    late Queue<String> ids;
+
+    setUp(() {
+      identity = _FakeIdentityRepository();
+      properties = _FakePropertyRepository();
+      ids = Queue<String>.of(<String>['mutation-a', 'correlation-a']);
+      controller = ReferenceSliceController(
+        identityRepository: identity,
+        propertyRepository: properties,
+        idFactory: () => ids.removeFirst(),
+      );
+    });
+
+    tearDown(() async {
+      controller.dispose();
+      await identity.close();
+    });
+
+    test('stays unprivileged without an authenticated session', () async {
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.unauthenticated);
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(properties.listCalls, 0);
+      expect(identity.listCalls, 0);
+    });
+
+    test('blocks all data while an enrolled MFA factor is pending', () async {
+      identity.currentSession = const AuthenticatedSession(
+        userId: 'user-a',
+        currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+        nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+      );
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
+    });
+
+    test('loads the only active workspace and explicit empty list', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(controller.state.workspacePhase, WorkspacePhase.selected);
+      expect(controller.state.selectedWorkspaceId, 'workspace-a');
+      expect(controller.state.propertyListPhase, PropertyListPhase.empty);
+      expect(properties.listWorkspaceIds, <String>['workspace-a']);
+    });
+
+    test(
+      'requires selection with multiple workspaces and rejects foreign id',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+            _access(
+              workspaceId: 'workspace-b',
+              permissions: <String>{'property.read'},
+            ),
+          ],
+        );
+
+        await controller.start();
+        expect(
+          controller.state.workspacePhase,
+          WorkspacePhase.selectionRequired,
+        );
+        expect(properties.listCalls, 0);
+
+        await controller.selectWorkspace('foreign-workspace');
+        expect(controller.state.propertyListPhase, PropertyListPhase.forbidden);
+        expect(controller.state.selectedWorkspaceId, isNull);
+        expect(properties.listCalls, 0);
+
+        await controller.selectWorkspace('workspace-b');
+        expect(controller.state.selectedWorkspaceId, 'workspace-b');
+        expect(properties.listWorkspaceIds, <String>['workspace-b']);
+      },
+    );
+
+    test(
+      'derives forbidden list state before calling the repository',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[_access(permissions: <String>{})],
+        );
+
+        await controller.start();
+
+        expect(controller.state.propertyListPhase, PropertyListPhase.forbidden);
+        expect(
+          controller.state.failureKind,
+          PropertyRepositoryFailureKind.forbidden,
+        );
+        expect(properties.listCalls, 0);
+      },
+    );
+
+    test('loads stable-id detail and applies a successful update', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+      properties.updateResults.add(
+        PropertyRepositorySuccess<PropertyDto>(
+          _property(version: 2, name: 'After'),
+        ),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      await controller.updateSelectedProperty(_changes(name: 'After'));
+
+      expect(properties.detailPropertyIds, <String>['property-a']);
+      expect(controller.state.propertyDetailPhase, PropertyDetailPhase.ready);
+      expect(controller.state.mutationPhase, PropertyMutationPhase.succeeded);
+      expect(controller.state.selectedProperty?.version, 2);
+      expect(properties.updateCommands.single.context.actorId, 'user-a');
+      expect(
+        properties.updateCommands.single.context.workspaceId,
+        'workspace-a',
+      );
+      expect(properties.updateCommands.single.context.expectedVersion, 1);
+    });
+
+    test('retries a transient failure with the identical command', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+      properties.updateResults
+        ..add(
+          const PropertyRepositoryFailure<PropertyDto>(
+            kind: PropertyRepositoryFailureKind.infrastructureFailure,
+            message: 'Temporary failure.',
+          ),
+        )
+        ..add(PropertyRepositorySuccess<PropertyDto>(_property(version: 2)));
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      await controller.updateSelectedProperty(_changes());
+      expect(controller.state.mutationPhase, PropertyMutationPhase.failed);
+
+      await controller.retryUpdate();
+
+      expect(properties.updateCommands, hasLength(2));
+      expect(
+        identical(properties.updateCommands[0], properties.updateCommands[1]),
+        isTrue,
+      );
+      expect(properties.updateCommands[1].context.mutationId, 'mutation-a');
+      expect(controller.state.mutationPhase, PropertyMutationPhase.succeeded);
+    });
+
+    test(
+      'surfaces version conflict and replaces stale detail safely',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read', 'property.update'}),
+          ],
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+        final current = _property(version: 4, name: 'Server value');
+        properties.updateResults.add(
+          PropertyRepositoryFailure<PropertyDto>(
+            kind: PropertyRepositoryFailureKind.versionConflict,
+            message: 'Stale version.',
+            versionConflict: PropertyVersionConflict(
+              expectedVersion: 1,
+              actualVersion: 4,
+              currentProperty: current,
+            ),
+          ),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+        await controller.updateSelectedProperty(_changes());
+
+        expect(controller.state.mutationPhase, PropertyMutationPhase.conflict);
+        expect(controller.state.versionConflict?.actualVersion, 4);
+        expect(controller.state.selectedProperty?.name, 'Server value');
+        await controller.retryUpdate();
+        expect(properties.updateCommands, hasLength(1));
+      },
+    );
+
+    test('session loss invalidates a late property response', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      final pendingList =
+          Completer<PropertyRepositoryResult<PropertyPageResult>>();
+      properties.listHandler = (_) => pendingList.future;
+
+      final start = controller.start();
+      await _flushEvents();
+      identity.emit(null);
+      await _flushEvents();
+      pendingList.complete(
+        PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        ),
+      );
+      await start;
+      await _flushEvents();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.unauthenticated);
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.selectedWorkspaceId, isNull);
+    });
+  });
+}
+
+Future<void> _flushEvents() => Future<void>.delayed(Duration.zero);
+
+WorkspaceAccess _access({
+  String workspaceId = 'workspace-a',
+  required Set<String> permissions,
+}) {
+  return WorkspaceAccess(
+    workspace: WorkspaceSummary(
+      id: workspaceId,
+      key: workspaceId,
+      name: workspaceId,
+      version: 1,
+    ),
+    membership: MembershipSummary(
+      id: 'membership-$workspaceId',
+      workspaceId: workspaceId,
+      userId: 'user-a',
+      roleId: 'role-$workspaceId',
+      version: 1,
+    ),
+    permissions: permissions,
+  );
+}
+
+PropertyDto _property({int version = 1, String name = 'Property'}) {
+  return PropertyDto(
+    id: 'property-a',
+    workspaceId: 'workspace-a',
+    name: name,
+    addressLine1: 'Street 1',
+    zip: '10115',
+    city: 'Berlin',
+    country: 'de',
+    propertyType: 'office',
+    units: 1,
+    status: PropertyStatus.active,
+    createdAt: DateTime.utc(2026, 7, 1),
+    updatedAt: DateTime.utc(2026, 7, 1),
+    createdBy: 'user-a',
+    updatedBy: 'user-a',
+    version: version,
+  );
+}
+
+PropertyUpdateDto _changes({String name = 'Updated'}) {
+  return PropertyUpdateDto(
+    name: name,
+    addressLine1: 'Street 2',
+    zip: '10117',
+    city: 'Berlin',
+    country: 'de',
+    propertyType: 'office',
+    units: 2,
+    status: PropertyStatus.active,
+  );
+}
+
+class _FakeIdentityRepository implements IdentityAccessRepository {
+  final StreamController<AuthenticatedSession?> _sessions =
+      StreamController<AuthenticatedSession?>.broadcast();
+
+  @override
+  AuthenticatedSession? currentSession;
+
+  IdentityAccessResult<List<WorkspaceAccess>> result =
+      const IdentityAccessSuccess<List<WorkspaceAccess>>(<WorkspaceAccess>[]);
+  int listCalls = 0;
+
+  @override
+  Stream<AuthenticatedSession?> watchSession() => _sessions.stream;
+
+  @override
+  Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
+    required String userId,
+  }) async {
+    listCalls++;
+    return result;
+  }
+
+  void authenticate() {
+    currentSession = const AuthenticatedSession(
+      userId: 'user-a',
+      currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+      nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+    );
+  }
+
+  void emit(AuthenticatedSession? session) {
+    currentSession = session;
+    _sessions.add(session);
+  }
+
+  Future<void> close() => _sessions.close();
+}
+
+class _FakePropertyRepository implements PropertyRepository {
+  PropertyRepositoryResult<PropertyPageResult> listResult =
+      const PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[]),
+      );
+  PropertyRepositoryResult<PropertyDto> detailResult =
+      const PropertyRepositoryFailure<PropertyDto>(
+        kind: PropertyRepositoryFailureKind.notFound,
+        message: 'Not found.',
+      );
+  Future<PropertyRepositoryResult<PropertyPageResult>> Function(
+    PropertyListQuery query,
+  )?
+  listHandler;
+  final Queue<PropertyRepositoryResult<PropertyDto>> updateResults =
+      Queue<PropertyRepositoryResult<PropertyDto>>();
+  final List<String> listWorkspaceIds = <String>[];
+  final List<String> detailPropertyIds = <String>[];
+  final List<PropertyUpdateCommand> updateCommands = <PropertyUpdateCommand>[];
+
+  int get listCalls => listWorkspaceIds.length;
+
+  @override
+  Future<PropertyRepositoryResult<PropertyPageResult>> list(
+    PropertyListQuery query,
+  ) async {
+    listWorkspaceIds.add(query.workspaceId);
+    final handler = listHandler;
+    return handler == null ? listResult : handler(query);
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> getById({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    detailPropertyIds.add(propertyId);
+    return detailResult;
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> update(
+    PropertyUpdateCommand command,
+  ) async {
+    updateCommands.add(command);
+    return updateResults.removeFirst();
+  }
+}

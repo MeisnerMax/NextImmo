@@ -2278,19 +2278,6 @@ String _scopeLabel(String scope) {
   }
 }
 
-Widget _balanceChip(double value) {
-  final label =
-      value < 0
-          ? 'Nachzahlung ${_formatCurrency(value.abs())}'
-          : value > 0
-          ? 'Guthaben ${_formatCurrency(value)}'
-          : 'Ausgeglichen';
-  return Chip(
-    label: Text(label),
-    visualDensity: VisualDensity.compact,
-  );
-}
-
 double? _parseNumber(String raw) {
   final trimmed = raw.trim();
   final normalized =

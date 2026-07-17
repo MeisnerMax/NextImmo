@@ -34,7 +34,6 @@ class _PropertyMaintenanceScreenState
   String _viewMode = 'list';
   List<MaintenanceWorkflowRecord> _tickets = const [];
   MaintenanceWorkflowRecord? _selectedTicket;
-  String? _status;
   PropertyRecord? _property;
   List<UnitRecord> _units = const [];
   // Bauteilzustand state
@@ -64,14 +63,6 @@ class _PropertyMaintenanceScreenState
 
   @override
   Widget build(BuildContext context) {
-    final openCount = _tickets
-        .where((w) => !_isClosedStatus(w.ticket.status))
-        .length;
-    final linkedTaskCount = _tickets.fold<int>(
-      0,
-      (sum, w) => sum + w.linkedTaskCount,
-    );
-
     return ListFilterTemplate(
       title: 'Instandhaltung & CapEx',
       breadcrumbs: ['Objekte', _property?.name ?? widget.propertyId, 'Instandhaltung'],
@@ -1199,7 +1190,7 @@ class _PropertyMaintenanceScreenState
                             border: Border.all(color: context.semanticColors.border),
                             borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
                             color: isRenovation 
-                                ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.15)
+                                ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                                 : Theme.of(context).colorScheme.surface,
                           ),
                           child: Column(
@@ -1223,7 +1214,7 @@ class _PropertyMaintenanceScreenState
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${_categoryLabel(ticket.category)}',
+                                _categoryLabel(ticket.category),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               const SizedBox(height: 8),
@@ -1485,7 +1476,7 @@ class _PropertyMaintenanceScreenState
                     borderRadius: BorderRadius.circular(3),
                   ),
                   const SizedBox(height: 12),
-                  Text('Checkliste / Aufgaben (${completed}/${total})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text('Checkliste / Aufgaben ($completed/$total)', style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   if (tasks.isEmpty)
                     const Text('Keine Aufgaben angelegt.')
@@ -2756,15 +2747,9 @@ class _PropertyMaintenanceScreenState
 
   Future<void> _runDueNotifications() async {
     final settings = await ref.read(inputsRepositoryProvider).getSettings();
-    final created = await ref
+    await ref
         .read(maintenanceRepositoryProvider)
         .createDueNotifications(dueSoonDays: settings.maintenanceDueSoonDays);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _status = 'Es wurden $created Instandhaltungs-Benachrichtigungen erstellt.';
-    });
   }
 
   bool _matchesDueBucket(MaintenanceWorkflowRecord workflow, String bucket) {
@@ -3051,7 +3036,7 @@ class _PropertyMaintenanceScreenState
       final diff = now.difference(entry.lastService!).inDays;
       lastServiceText = diff == 0
           ? 'Heute'
-          : 'Vor ${diff} Tagen (${entry.lastService!.year}-${entry.lastService!.month.toString().padLeft(2, '0')}-${entry.lastService!.day.toString().padLeft(2, '0')})';
+          : 'Vor $diff Tagen (${entry.lastService!.year}-${entry.lastService!.month.toString().padLeft(2, '0')}-${entry.lastService!.day.toString().padLeft(2, '0')})';
     }
     if (entry.nextService != null) {
       final diff = entry.nextService!.difference(now).inDays;
@@ -3061,7 +3046,7 @@ class _PropertyMaintenanceScreenState
       } else if (diff == 0) {
         nextServiceText = 'Heute';
       } else {
-        nextServiceText = 'In ${diff} Tagen (${entry.nextService!.year}-${entry.nextService!.month.toString().padLeft(2, '0')}-${entry.nextService!.day.toString().padLeft(2, '0')})';
+        nextServiceText = 'In $diff Tagen (${entry.nextService!.year}-${entry.nextService!.month.toString().padLeft(2, '0')}-${entry.nextService!.day.toString().padLeft(2, '0')})';
       }
     }
 
@@ -3834,7 +3819,7 @@ class _PropertyMaintenanceMiniTicket extends StatelessWidget {
           decoration: BoxDecoration(
             color:
                 selected
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
             border: Border.all(
@@ -3868,7 +3853,7 @@ class _PropertyMaintenanceMiniTicket extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${ticket.priority}',
+                ticket.priority,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
@@ -3927,15 +3912,11 @@ class _BauteilStatusEntry {
   _BauteilStatusEntry({
     required this.id,
     required this.label,
-    this.status = 'gut',
-    this.lastService,
-    this.nextService,
-    this.notes,
   });
 
   final String id;
   final String label;
-  String status; // 'gut' | 'prufen' | 'kritisch'
+  String status = 'gut'; // 'gut' | 'prufen' | 'kritisch'
   DateTime? lastService;
   DateTime? nextService;
   String? notes;

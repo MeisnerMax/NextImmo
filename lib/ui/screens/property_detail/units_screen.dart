@@ -1253,21 +1253,6 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
   }
 }
 
-String _statusLabel(String status) {
-  switch (status) {
-    case 'occupied':
-      return 'Vermietet';
-    case 'vacant':
-      return 'Leer';
-    case 'offline':
-      return 'Offline';
-    case 'archived':
-      return 'Archiviert';
-    default:
-      return status;
-    }
-}
-
 class _DateField extends StatelessWidget {
   const _DateField({
     required this.label,
@@ -1331,7 +1316,6 @@ class _KpiTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantic = context.semanticColors;
     return SizedBox(
       width: 190,
       child: Card(

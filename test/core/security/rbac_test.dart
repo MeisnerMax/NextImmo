@@ -57,5 +57,12 @@ void main() {
       rbac.canPermission(role: 'admin', permission: Permission.securityManage),
       isTrue,
     );
+    expect(
+      rbac.canPermission(
+        role: 'unknown',
+        permission: Permission.propertyRead,
+      ),
+      isFalse,
+    );
   });
 }

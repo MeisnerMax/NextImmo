@@ -41,8 +41,13 @@ void main() {
           child: const MaterialApp(home: AppScaffold()),
         ),
       );
-      // Yield to the real FFI isolate event loop to complete initialization queries
-      await Future.delayed(const Duration(milliseconds: 200));
+      for (var attempt = 0; attempt < 40; attempt += 1) {
+        await tester.pump();
+        if (find.text('Objekte').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     });
 
     await tester.pump();
@@ -53,8 +58,13 @@ void main() {
     await tester.tap(find.text('Objekte').last);
 
     await tester.runAsync(() async {
-      // Yield to the event loop for screen transition and queries
-      await Future.delayed(const Duration(milliseconds: 200));
+      for (var attempt = 0; attempt < 40; attempt += 1) {
+        await tester.pump();
+        if (find.text('New Property').evaluate().isNotEmpty) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     });
 
     await tester.pump();

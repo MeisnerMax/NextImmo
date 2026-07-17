@@ -485,11 +485,6 @@ class _TenantsScreenState extends ConsumerState<TenantsScreen> {
 
   Future<void> _createTenantDialog() => _tenantDialog();
 
-  bool _hasContact(TenantRecord tenant) {
-    return (tenant.email?.trim().isNotEmpty ?? false) &&
-        (tenant.phone?.trim().isNotEmpty ?? false);
-  }
-
   Future<void> _tenantDialog({TenantRecord? existing}) async {
     final nameCtrl = TextEditingController(text: existing?.displayName ?? '');
     final legalNameCtrl = TextEditingController(text: existing?.legalName ?? '');

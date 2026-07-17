@@ -119,9 +119,8 @@ class RenovationCalculationService {
     ];
     final averageRisk =
         riskValues.reduce((value, element) => value + element) / riskValues.length;
-    final riskScore = (
-      ((averageRisk - 1) / 4 * 100).round().clamp(0, 100) as num
-    ).toInt();
+    final riskScore =
+        ((averageRisk - 1) / 4 * 100).round().clamp(0, 100).toInt();
     final riskBufferAmount = forecastTotalCosts * inputs.riskBufferPercent;
     final worstCaseCosts = forecastTotalCosts + delayCosts + riskBufferAmount;
     double? renovationNpv;
@@ -138,9 +137,9 @@ class RenovationCalculationService {
         inputs.renovationHorizonYears > 0 &&
         additionalNoi != 0) {
       renovationIrr = _irr(<double>[
-        (-forecastTotalCosts as double),
+        -forecastTotalCosts,
         for (var year = 1; year <= inputs.renovationHorizonYears; year += 1)
-          (additionalNoi as double),
+          additionalNoi,
       ]);
       if (renovationIrr == null) {
         warnings.add('Renovierungs-IRR konnte mit den aktuellen Cashflows nicht eindeutig berechnet werden.');
@@ -405,16 +404,19 @@ class RenovationCalculationService {
     if (lowValue == null || highValue == null) {
       return null;
     }
+    var currentLowValue = lowValue;
+    var currentHighValue = highValue;
     var expansions = 0;
-    while (lowValue!.sign == highValue!.sign && expansions < 20) {
+    while (currentLowValue.sign == currentHighValue.sign && expansions < 20) {
       high *= 2;
       highValue = _npv(cashflows, high);
       if (highValue == null) {
         return null;
       }
+      currentHighValue = highValue;
       expansions += 1;
     }
-    if (lowValue!.sign == highValue!.sign) {
+    if (currentLowValue.sign == currentHighValue.sign) {
       return null;
     }
 
@@ -427,9 +429,9 @@ class RenovationCalculationService {
       if (midValue.abs() < 0.000001) {
         return mid;
       }
-      if (midValue.sign == lowValue!.sign) {
+      if (midValue.sign == currentLowValue.sign) {
         low = mid;
-        lowValue = midValue;
+        currentLowValue = midValue;
       } else {
         high = mid;
       }

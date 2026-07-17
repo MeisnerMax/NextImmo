@@ -1,3 +1,27 @@
+# Globale Codex Anweisung
+
+## Sprache
+Antworte auf Deutsch.
+
+## Arbeitsweise
+Arbeite knapp, gezielt und im Token Sparmodus.
+Lies nur relevante Dateien.
+Lies jede Datei vollständig, bevor du sie änderst.
+Ändere nur, was für die konkrete Aufgabe notwendig ist.
+Keine unnötigen Refactorings.
+Keine neuen Packages ohne ausdrücklichen Auftrag.
+Keine langen Logs.
+Keine Wiederholung der Aufgabenstellung am Ende.
+
+## Ausgabe
+Am Ende nur:
+1. Geänderte Dateien
+2. Kurze Zusammenfassung
+3. Tests
+4. Risiken
+
+---
+
 # Codex Projektanweisung
 
 ## Projektkontext
@@ -57,7 +81,6 @@ Maximal 5 kurze Punkte.
 
 ### Risiken
 Nur echte Risiken nennen.
-
 
 ## Responsive UI Regeln
 

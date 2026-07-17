@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/portfolio_analytics.dart';
 import '../../../core/models/property.dart';
 import '../../components/nx_card.dart';
-import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
 import '../../i18n/app_strings.dart';
@@ -81,7 +80,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                       setState(() => _query = value.trim().toLowerCase()),
               decoration: const InputDecoration(
                 labelText: 'Search properties',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
               ),
             ),
           ),
@@ -89,6 +88,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
             width: context.viewport == AppViewport.mobile ? 180 : 220,
             child: DropdownButtonFormField<String>(
               value: _sortKey,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Sortierung',
                 prefixIcon: Icon(Icons.sort_outlined),
@@ -467,7 +467,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.65),
+                    color: Colors.black.withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
                     border: Border.all(color: Colors.white24, width: 0.5),
                   ),
@@ -629,10 +629,10 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
+        color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
           width: 1,
         ),
       ),
@@ -641,7 +641,7 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
           Icon(
             icon,
             size: 14,
-            color: context.semanticColors.textSecondary.withOpacity(0.8),
+            color: context.semanticColors.textSecondary.withValues(alpha: 0.8),
           ),
           const SizedBox(width: 5),
           Expanded(
@@ -776,11 +776,9 @@ class _PropertiesScreenV2State extends ConsumerState<PropertiesScreenV2> {
 }
 
 class _PropertyCover extends ConsumerWidget {
-  const _PropertyCover({required this.property, this.compact = false, this.kpis});
+  const _PropertyCover({required this.property});
 
   final PropertyRecord property;
-  final bool compact;
-  final PropertyPortfolioKpis? kpis;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -818,51 +816,7 @@ class _PropertyCover extends ConsumerWidget {
       base = _fallbackBox(colors, context);
     }
 
-    if (compact || kpis == null) {
-      return base;
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        base,
-        Positioned(
-          bottom: 8,
-          left: 8,
-          right: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Rendite: ${(kpis!.propertyYield * 100).toStringAsFixed(1)}%',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Cashflow: ${kpis!.cashflowMonthly.toStringAsFixed(0)} €/M',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Leerstand: ${kpis!.units - kpis!.occupiedUnits}',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return base;
   }
 
   Widget _fallbackBox(List<Color> colors, BuildContext context) {
@@ -876,13 +830,13 @@ class _PropertyCover extends ConsumerWidget {
         border: Border.all(color: context.semanticColors.border),
       ),
       child: Padding(
-        padding: EdgeInsets.all(compact ? 8 : AppSpacing.component),
+        padding: const EdgeInsets.all(AppSpacing.component),
         child: Align(
           alignment: Alignment.bottomLeft,
           child: Icon(
             _coverIcon(property.propertyType),
             color: Colors.white,
-            size: compact ? 20 : 34,
+            size: 34,
           ),
         ),
       ),

@@ -319,7 +319,7 @@ class PropertyRepository {
 
       if (scenario != null) {
         final inputs = ScenarioInputs.defaults(
-          scenarioId: scenario!.id,
+          scenarioId: scenario.id,
           settings: settings,
         ).copyWith(
           purchasePrice:
@@ -344,7 +344,7 @@ class PropertyRepository {
         );
         await txn.insert(
           'scenarios',
-          scenario!.toMap(),
+          scenario.toMap(),
           conflictAlgorithm: ConflictAlgorithm.abort,
         );
         await txn.insert(
@@ -557,7 +557,7 @@ class PropertyRepository {
     if (searchRepo != null) {
       await searchRepo.upsertIndexEntry(searchRepo.buildPropertyRecord(property));
       if (scenario != null) {
-        await searchRepo.upsertIndexEntry(searchRepo.buildScenarioRecord(scenario!));
+        await searchRepo.upsertIndexEntry(searchRepo.buildScenarioRecord(scenario));
       }
     }
     await _recordAudit(

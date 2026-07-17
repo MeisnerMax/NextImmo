@@ -992,7 +992,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     borderRadius: BorderRadius.circular(3),
                   ),
                   const SizedBox(height: 12),
-                  Text('Checkliste / Aufgaben (${completed}/${total})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text('Checkliste / Aufgaben ($completed/$total)', style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   if (tasks.isEmpty)
                     const Text('Keine Aufgaben angelegt.')
@@ -2810,7 +2810,7 @@ class _MaintenanceMiniTicket extends StatelessWidget {
           decoration: BoxDecoration(
             color:
                 selected
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
             border: Border.all(

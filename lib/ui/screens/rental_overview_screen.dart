@@ -457,43 +457,6 @@ String _signalLabel(PortfolioRentalOverviewRow row) {
   return 'OK';
 }
 
-IconData _signalIcon(PortfolioRentalOverviewRow row) {
-  final signal = _signalLabel(row);
-  if (signal == 'Leerstand prüfen') {
-    return Icons.apartment_outlined;
-  }
-  if (signal == 'Kostenquote hoch' || signal == 'BK Nachzahlung') {
-    return Icons.request_quote_outlined;
-  }
-  if (signal == 'Kaution offen') {
-    return Icons.account_balance_wallet_outlined;
-  }
-  if (signal == 'Daten prüfen') {
-    return Icons.table_chart_outlined;
-  }
-  return Icons.check_circle_outline;
-}
-
-String _signalDetail(PortfolioRentalOverviewRow row) {
-  final signal = _signalLabel(row);
-  if (signal == 'Leerstand prüfen') {
-    return '${row.vacantUnits} leere Einheit(en), Vermietung und Mietplan prüfen.';
-  }
-  if (signal == 'Kostenquote hoch') {
-    return 'Betriebskostenquote über 35%, Kostenpositionen und Umlage prüfen.';
-  }
-  if (signal == 'BK Nachzahlung') {
-    return 'BK-Saldo negativ, Vorauszahlungen und Abrechnung je Einheit prüfen.';
-  }
-  if (signal == 'Kaution offen') {
-    return 'Offene Kaution ${_formatCurrency(row.openDepositAmount)} prüfen.';
-  }
-  if (signal == 'Daten prüfen') {
-    return 'Fehlende Datenbereiche: ${row.missingSourceLabels.join(', ')}.';
-  }
-  return 'Keine offenen Signale.';
-}
-
 int _signalPriority(PortfolioRentalOverviewRow row) {
   final signal = _signalLabel(row);
   if (signal == 'Leerstand prüfen') {

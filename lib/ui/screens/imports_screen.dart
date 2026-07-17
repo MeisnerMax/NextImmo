@@ -328,7 +328,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(AppSpacing.cardPadding),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(AppRadiusTokens.md),
                           border: Border.all(color: context.semanticColors.border),
                         ),

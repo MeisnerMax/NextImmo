@@ -35,7 +35,6 @@ class OverviewScreen extends ConsumerStatefulWidget {
 
 class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   static const Color _panel = Color(0xFFFFFFFF);
-  static const Color _panelHigh = Color(0xFFF1F5F9);
   static const Color _border = Color(0xFFE2E8F0);
   static const Color _text = Color(0xFF0F172A);
   static const Color _muted = Color(0xFF64748B);
@@ -1828,13 +1827,6 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
       return _teal;
     }
     return _text;
-  }
-
-  static String _formatOptional(double? value) {
-    if (value == null) {
-      return 'N/A';
-    }
-    return value.toStringAsFixed(2);
   }
 
   static double _maxAxisValue(List<double> values) {

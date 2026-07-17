@@ -282,7 +282,6 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
     AppSemanticColors semantic, {
     required bool collapsed,
   }) {
-    final theme = Theme.of(context);
     const primary = Colors.white;
     final tile = ListTile(
       visualDensity: VisualDensity.compact,

@@ -29,7 +29,6 @@ class UnitDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
-  TenantDetailBundle? _bundleTenant;
   UnitDetailBundle? _bundle;
   AssetWorkbookBundle? _propertyWorkbook;
   bool _loading = true;

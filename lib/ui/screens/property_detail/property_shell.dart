@@ -449,7 +449,13 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
               children: [
                 Icon(_iconForPropertyPage(item.page), size: 18),
                 const SizedBox(width: 10),
-                Text(context.strings.text(_labelForPage(item.page, property))),
+                Flexible(
+                  child: Text(
+                    context.strings.text(_labelForPage(item.page, property)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -764,122 +770,6 @@ class _PropertyShellState extends ConsumerState<PropertyShell> {
   ) {
     return sections.any(
       (section) => section.items.any((item) => item.page == page),
-    );
-  }
-
-  Widget _buildAccordionSection({
-    required BuildContext context,
-    required PropertyNavigationSection section,
-    required PropertyDetailPage selectedPage,
-  }) {
-    final title = section.title;
-    final expanded = _expanded[title] ?? false;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () {
-            setState(() {
-              _expanded[title] = !expanded;
-            });
-          },
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.strings.text(title).toUpperCase(),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: PropertyShell._assetMenuMuted,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Icon(
-                  expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18,
-                  color: PropertyShell._assetMenuMuted,
-                ),
-              ],
-            ),
-          ),
-        ),
-        AnimatedCrossFade(
-          firstChild: const SizedBox.shrink(),
-          secondChild: Column(
-            children: [
-              const SizedBox(height: 4),
-              for (final item in section.items)
-                _buildNavTile(
-                  context: context,
-                  item: item,
-                  selectedPage: selectedPage,
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-          crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-          duration: const Duration(milliseconds: 140),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavTile({
-    required BuildContext context,
-    required PropertyNavigationDestination item,
-    required PropertyDetailPage selectedPage,
-  }) {
-    final selected = item.page == selectedPage;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: selected ? PropertyShell._assetMenuSelected : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              leading: Icon(
-                _iconForPropertyPage(item.page),
-                size: 20,
-                color: selected ? Colors.white : PropertyShell._assetMenuMuted,
-              ),
-              title: Text(
-                context.strings.text(_labelForPage(item.page, null)),
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? Colors.white : PropertyShell._assetMenuMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              onTap: () {
-                ref.read(propertyDetailPageProvider.notifier).state = item.page;
-              },
-            ),
-          ),
-          if (selected)
-            Positioned(
-              left: 0,
-              top: 8,
-              bottom: 8,
-              width: 4,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 

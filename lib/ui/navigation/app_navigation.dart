@@ -677,6 +677,6 @@ bool isPageAllowedForRole(GlobalPage page, String role) {
           page != GlobalPage.imports;
 
     default:
-      return true;
+      return false;
   }
 }

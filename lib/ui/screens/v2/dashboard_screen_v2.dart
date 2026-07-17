@@ -804,8 +804,8 @@ class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
             margin: const EdgeInsets.only(bottom: 24),
             decoration: BoxDecoration(
               color: theme.brightness == Brightness.dark
-                  ? Colors.white.withOpacity(0.02)
-                  : Colors.black.withOpacity(0.01),
+                  ? Colors.white.withValues(alpha: 0.02)
+                  : Colors.black.withValues(alpha: 0.01),
               borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
               border: Border.all(
                 color: context.semanticColors.border,
@@ -1118,33 +1118,6 @@ class _IconActionButton extends StatelessWidget {
   }
 }
 
-class _PeriodTabs extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    const labels = ['1M', '3M', 'YTD', '1Y', 'ALL'];
-    return Wrap(
-      spacing: 14,
-      children: [
-        for (final label in labels)
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color:
-                  label == 'YTD'
-                      ? Theme.of(context).colorScheme.primary
-                      : context.semanticColors.textSecondary,
-              decoration:
-                  label == 'YTD'
-                      ? TextDecoration.underline
-                      : TextDecoration.none,
-              decorationColor: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
 
@@ -1202,56 +1175,6 @@ class _AlertCard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskTile extends StatelessWidget {
-  const _TaskTile({
-    required this.title,
-    required this.due,
-    required this.onTap,
-  });
-
-  final String title;
-  final String due;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: _SovereignModule(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
-                border: Border.all(color: context.semanticColors.border),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    due,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -2035,89 +1958,6 @@ BudgetRecord _emptyBudget(String propertyId) {
   );
 }
 
-class _PerformanceInsights extends StatelessWidget {
-  const _PerformanceInsights({required this.overview});
-
-  final DashboardOverviewData overview;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 840;
-        if (stacked) {
-          return Column(
-            children: [
-              _InsightChartCard(
-                title: 'Asset Mix',
-                description: 'Distribution of active assets by property type.',
-                child: _TypeMixChart(values: overview.propertyTypeMix),
-              ),
-              const SizedBox(height: AppSpacing.component),
-              _InsightChartCard(
-                title: 'Pipeline Trend',
-                description: 'New assets created over the last six months.',
-                child: _IntakeTrendChart(values: overview.intakeTrend),
-              ),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _InsightChartCard(
-                title: 'Asset Mix',
-                description: 'Distribution of active assets by property type.',
-                child: _TypeMixChart(values: overview.propertyTypeMix),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.component),
-            Expanded(
-              child: _InsightChartCard(
-                title: 'Pipeline Trend',
-                description: 'New assets created over the last six months.',
-                child: _IntakeTrendChart(values: overview.intakeTrend),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _InsightChartCard extends StatelessWidget {
-  const _InsightChartCard({
-    required this.title,
-    required this.description,
-    required this.child,
-  });
-
-  final String title;
-  final String description;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(description, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: AppSpacing.component),
-            SizedBox(height: 260, child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TypeMixChart extends StatelessWidget {
   const _TypeMixChart({required this.values});
 
@@ -2217,116 +2057,6 @@ class _TypeMixChart extends StatelessWidget {
           ),
         ),
         barGroups: bars,
-      ),
-    );
-  }
-}
-
-class _IntakeTrendChart extends StatelessWidget {
-  const _IntakeTrendChart({required this.values});
-
-  final List<DashboardMonthValue> values;
-
-  @override
-  Widget build(BuildContext context) {
-    final spots = <FlSpot>[
-      for (var index = 0; index < values.length; index++)
-        FlSpot(index.toDouble(), values[index].value.toDouble()),
-    ];
-
-    return LineChart(
-      LineChartData(
-        minY: 0,
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: context.semanticColors.border.withValues(alpha: 0.4),
-            strokeWidth: 1,
-            dashArray: [4, 4],
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        lineTouchData: LineTouchData(
-          enabled: true,
-          touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
-            tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
-            tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            tooltipRoundedRadius: AppRadiusTokens.md,
-            getTooltipItems: (touchedSpots) {
-              return touchedSpots.map((touchedSpot) {
-                return LineTooltipItem(
-                  '${touchedSpot.y.toInt()} Objekte',
-                  TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                );
-              }).toList();
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 24,
-              getTitlesWidget: (value, _) => Text(value.toInt().toString()),
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, _) {
-                final index = value.toInt();
-                if (index < 0 || index >= values.length) {
-                  return const SizedBox.shrink();
-                }
-                final date = values[index].date;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text('${date.month}/${date.year % 100}'),
-                );
-              },
-            ),
-          ),
-        ),
-        lineBarsData: [
-          LineChartBarData(
-            isCurved: true,
-            color: Theme.of(context).colorScheme.secondary,
-            barWidth: 3,
-            dotData: FlDotData(
-              show: true,
-              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                radius: 4.5,
-                color: Theme.of(context).colorScheme.secondary,
-                strokeWidth: 2,
-                strokeColor: Theme.of(context).colorScheme.surface,
-              ),
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.24),
-                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.0),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            spots: spots,
-          ),
-        ],
       ),
     );
   }
@@ -2458,7 +2188,7 @@ class _SignalCard extends StatelessWidget {
                             Icon(
                               _metricIcon(metric.label),
                               size: 16,
-                              color: color.withOpacity(0.8),
+                              color: color.withValues(alpha: 0.8),
                             ),
                           ],
                         ),
@@ -2488,111 +2218,6 @@ class _SignalCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ActionCenterList extends StatelessWidget {
-  const _ActionCenterList({required this.actionItems, required this.onOpen});
-
-  final List<DashboardActionItem> actionItems;
-  final ValueChanged<DashboardNavigationTarget> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    if (actionItems.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'No urgent actions',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'The portfolio is currently clear of critical dashboard actions.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: actionItems.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final item = actionItems[index];
-          final color = _severityColor(context, item.severity);
-          return Container(
-            key: ValueKey<String>('dashboard-action-$index'),
-            decoration: BoxDecoration(
-              border: Border(left: BorderSide(color: color, width: 3)),
-            ),
-            child: ListTile(
-              title: Text(item.title),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text('${item.detail} Next: ${item.nextStep}.'),
-              ),
-              trailing: TextButton(
-                onPressed: () => onOpen(item.target),
-                child: Text(item.nextStep),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ActivityList extends StatelessWidget {
-  const _ActivityList({required this.activityItems, required this.onOpen});
-
-  final List<DashboardActivityItem> activityItems;
-  final ValueChanged<DashboardNavigationTarget> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    if (activityItems.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Text(
-            'No recent portfolio activity yet.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: activityItems.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final item = activityItems[index];
-          return ListTile(
-            leading: Icon(item.icon),
-            title: Text(item.title),
-            subtitle: Text('${item.detail} • ${_formatDate(item.timestamp)}'),
-            trailing: TextButton(
-              onPressed: () => onOpen(item.target),
-              child: const Text('Open'),
-            ),
-          );
-        },
       ),
     );
   }

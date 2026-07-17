@@ -528,7 +528,6 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     String? selectedUnitId;
     String? selectedTicketId;
     String? selectedRenovationId;
-    bool isLoading = true;
 
     if (_entityType == 'asset_property') {
       try {
@@ -536,9 +535,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
         final tickets = await ref.read(maintenanceRepositoryProvider).listTickets(assetPropertyId: _entityId);
         dialogTickets = tickets.where((t) => t.category != 'renovation').toList();
         dialogRenovations = tickets.where((t) => t.category == 'renovation').toList();
-        isLoading = false;
       } catch (_) {
-        isLoading = false;
       }
     }
 
@@ -1215,8 +1212,8 @@ class _BudgetStatusStrip extends StatelessWidget {
         vertical: 8,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        border: Border.all(color: color.withOpacity(0.4)),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
       ),
       child: Row(

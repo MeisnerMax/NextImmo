@@ -103,10 +103,10 @@ class DispositionCalculationService {
     if (inputs.equityInvested > 0 && inputs.holdPeriodYears > 0) {
       final annualCashflow = inputs.runningCashflows / inputs.holdPeriodYears;
       irr = _irr(<double>[
-        (-inputs.equityInvested as double),
+        -inputs.equityInvested,
         for (var year = 1; year < inputs.holdPeriodYears; year += 1)
-          (annualCashflow as double),
-        (annualCashflow + netSaleProceeds as double),
+          annualCashflow,
+        annualCashflow + netSaleProceeds,
       ]);
       if (irr == null) {
         warnings.add('Verkaufs-IRR konnte mit den aktuellen Cashflows nicht eindeutig berechnet werden.');
@@ -308,7 +308,7 @@ class DispositionCalculationService {
     final ranked = offers.map((offer) {
       final probability = offer.closingProbability.clamp(0, 1).toDouble();
       final riskPenalty =
-          ((offer.riskScore.clamp(1, 5) as num).toDouble() - 1) * 0.04;
+          (offer.riskScore.clamp(1, 5).toDouble() - 1) * 0.04;
       final financingPenalty = offer.financingConfirmed ? 0.0 : 0.08;
       final riskAdjustedValue =
           offer.offerPrice * (probability - riskPenalty - financingPenalty);
@@ -353,16 +353,19 @@ class DispositionCalculationService {
     if (lowValue == null || highValue == null) {
       return null;
     }
+    var currentLowValue = lowValue;
+    var currentHighValue = highValue;
     var expansions = 0;
-    while (lowValue!.sign == highValue!.sign && expansions < 20) {
+    while (currentLowValue.sign == currentHighValue.sign && expansions < 20) {
       high *= 2;
       highValue = _npv(cashflows, high);
       if (highValue == null) {
         return null;
       }
+      currentHighValue = highValue;
       expansions += 1;
     }
-    if (lowValue!.sign == highValue!.sign) {
+    if (currentLowValue.sign == currentHighValue.sign) {
       return null;
     }
 
@@ -375,9 +378,9 @@ class DispositionCalculationService {
       if (midValue.abs() < 0.000001) {
         return mid;
       }
-      if (midValue.sign == lowValue!.sign) {
+      if (midValue.sign == currentLowValue.sign) {
         low = mid;
-        lowValue = midValue;
+        currentLowValue = midValue;
       } else {
         high = mid;
       }

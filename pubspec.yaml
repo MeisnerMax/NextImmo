@@ -23,6 +23,8 @@ dependencies:
   archive: ^3.6.1
   crypto: ^3.0.6
   fl_chart: ^0.69.2
+  web: ^1.1.1
+  supabase_flutter: 2.15.4
 
 dev_dependencies:
   flutter_test:

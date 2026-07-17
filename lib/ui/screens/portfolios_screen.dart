@@ -21,7 +21,6 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'portfolio/data_quality_dashboard_screen.dart';
 import 'portfolio/portfolio_analytics_screen.dart';
-import 'portfolio/portfolio_pack_screen.dart';
 
 class PortfoliosScreen extends ConsumerStatefulWidget {
   const PortfoliosScreen({super.key});
@@ -1077,7 +1076,7 @@ class _TrendChart extends StatelessWidget {
               painter: _TrendChartPainter(
                 values: nonEmpty,
                 lineColor: Theme.of(context).colorScheme.primary,
-                fillColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                 gridColor: context.semanticColors.border,
               ),
               child: const SizedBox.expand(),
@@ -1217,7 +1216,7 @@ class _BarList extends StatelessWidget {
                           (item.value.abs() / denominator).clamp(0.0, 1.0).toDouble(),
                       minHeight: 10,
                       backgroundColor:
-                          Theme.of(context).colorScheme.surfaceVariant,
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       color:
                           item.value < 0
                               ? Theme.of(context).colorScheme.error
@@ -1643,7 +1642,6 @@ class _PortfolioDetailScreenState extends ConsumerState<PortfolioDetailScreen> {
         }).toList();
 
         // Calculations for Asset KPIs
-        final totalUnits = filtered.fold<int>(0, (sum, p) => sum + p.units);
         final baseValue = filtered.fold<double>(0.0, (sum, p) => sum + (p.units * 180000.0));
         final marketValue = baseValue * 1.15;
         final bookValue = baseValue * 0.95;
@@ -2506,16 +2504,6 @@ class _PortfolioDetailScreenState extends ConsumerState<PortfolioDetailScreen> {
     } catch (_) {}
   }
 
-  Future<void> _openReportingPack() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const PortfolioPackScreen()),
-    );
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
-  }
-
   Future<void> _openPortfolioAnalytics(_PortfolioDetailVm vm) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -2548,39 +2536,6 @@ class _PortfolioDetailScreenState extends ConsumerState<PortfolioDetailScreen> {
     setState(() {});
   }
 
-  Widget _infoTile(String label, String value) {
-    final semantic = context.semanticColors;
-    return Container(
-      width: ResponsiveConstraints.itemWidth(context, idealWidth: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border.all(color: semantic.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: semantic.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurface,
-            ).merge(context.tabularNumericStyle),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _PortfolioDetailVm {

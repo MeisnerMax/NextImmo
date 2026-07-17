@@ -191,10 +191,12 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : LayoutBuilder(
-                builder: (context, constraints) {
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
                   final stacked = constraints.maxWidth < 980;
                   if (_viewMode == 'board') {
                     return Column(
@@ -296,8 +298,10 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
                       Expanded(child: _buildTaskDetail(context)),
                     ],
                   );
-                },
-              ),
+                    },
+                  ),
+                ),
+          ),
         ],
       ),
     );
@@ -1322,7 +1326,7 @@ class _PropertyTaskMiniCard extends StatelessWidget {
           decoration: BoxDecoration(
             color:
                 selected
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
             border: Border.all(

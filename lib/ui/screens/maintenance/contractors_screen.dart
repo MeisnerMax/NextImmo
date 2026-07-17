@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:math' as math;
 
 import '../../../core/models/contractor.dart';
 import '../../../core/models/maintenance.dart';
@@ -31,13 +30,16 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final contractorRepo = ref.read(contractorRepositoryProvider);
       final list = await contractorRepo.listContractors();
+      if (!mounted) return;
       
       final maintRepo = ref.read(maintenanceRepositoryProvider);
       final tickets = await maintRepo.listTickets();
+      if (!mounted) return;
       
       setState(() {
         _contractors = list;
@@ -53,11 +55,14 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Laden der Handwerker: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -78,8 +83,6 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredContractors;
-    final isDesktop = context.viewport == AppViewport.desktop;
-
     final content = _isLoading
         ? const Center(child: CircularProgressIndicator())
         : Row(
@@ -196,7 +199,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                               Icon(
                                 Icons.engineering_outlined,
                                 size: 64,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3),
+                                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -283,8 +286,8 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    colorScheme.primary.withOpacity(0.08),
-                    colorScheme.primary.withOpacity(0.01),
+                    colorScheme.primary.withValues(alpha: 0.08),
+                    colorScheme.primary.withValues(alpha: 0.01),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -536,8 +539,8 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        border: Border.all(color: color.withOpacity(0.4)),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
