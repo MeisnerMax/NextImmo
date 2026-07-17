@@ -24,6 +24,22 @@ void main() {
       expect(gateway.membershipCalls, 0);
     });
 
+    test('rejects workspace access while an MFA challenge is pending', () async {
+      gateway.currentSession = const AuthenticatedSession(
+        userId: 'user-a',
+        currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+        nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+      );
+
+      final result = await repository.listWorkspaceAccesses(userId: 'user-a');
+
+      expect(
+        (result as IdentityAccessFailure<List<WorkspaceAccess>>).kind,
+        IdentityAccessFailureKind.unauthenticated,
+      );
+      expect(gateway.membershipCalls, 0);
+    });
+
     test('maps active memberships and exact role permissions', () async {
       gateway.memberships = <Map<String, dynamic>>[_membershipJson()];
       gateway.workspaces = <Map<String, dynamic>>[_workspaceJson()];

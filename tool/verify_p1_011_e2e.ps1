@@ -20,16 +20,18 @@ if (-not $container) {
   throw "Supabase database container for '$projectId' is not running."
 }
 
-$fixture = Join-Path $PSScriptRoot '..\supabase\tests_integration\p1_007_setup.sql'
-$target = '/tmp/neximmo-p1-007-setup.sql'
-docker cp $fixture "${container}:$target" | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw 'P1-007 fixture copy failed.'
-}
-docker exec -i $container psql -U postgres -d postgres -v ON_ERROR_STOP=1 `
-  -f $target | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw 'P1-007 fixture setup failed.'
+foreach ($fixtureName in @('p1_007_setup.sql', 'p1_011_setup.sql')) {
+  $fixture = Join-Path $PSScriptRoot "..\supabase\tests_integration\$fixtureName"
+  $target = "/tmp/neximmo-$fixtureName"
+  docker cp $fixture "${container}:$target" | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "$fixtureName copy failed."
+  }
+  docker exec -i $container psql -U postgres -d postgres -v ON_ERROR_STOP=1 `
+    -f $target | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "$fixtureName setup failed."
+  }
 }
 
 $status = npx supabase status -o env
@@ -64,9 +66,9 @@ if (-not $authReady) {
 }
 
 flutter test --no-pub `
-  test/integration/supabase_property_repository_integration_test.dart `
+  test/integration/supabase_property_realtime_integration_test.dart `
   "--dart-define=SUPABASE_URL=$apiUrl" `
   "--dart-define=SUPABASE_PUBLISHABLE_KEY=$publishableKey"
 if ($LASTEXITCODE -ne 0) {
-  throw 'P1-007 Supabase integration test failed.'
+  throw 'P1-011 Realtime integration test failed.'
 }

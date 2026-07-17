@@ -17,8 +17,9 @@
 | DEC-013 | PowerSync is optional and limited to selected mobile workflows. | accepted | Web support and conflicts require pilot | Phase 3 |
 | DEC-014 | Legal/tax/accounting rules require external domain validation. | open | no authoritative source in repository | before relevant production feature |
 | DEC-015 | Production region is Frankfurt. | proposed | roadmap and EU data residency target | before paid provisioning |
-| DEC-016 | Initial authentication method is email magic link plus MFA for privileged roles. | proposed | roadmap; final identity policy open | before auth implementation |
+| DEC-016 | Initial authentication method is passwordless email login; enrolled MFA is represented through Supabase AAL and pending `aal2` blocks client-side access. A mandatory MFA rule for privileged roles remains open. | proposed | passwordless email and Supabase AAL researched; fail-closed Client-State und Repository-Zugriff sind getestet, aber privilegierte Rollenmatrix und restriktive RLS/AAL-Policy sind nicht definiert | before production auth and privileged-role enforcement |
 | DEC-017 | Supabase project creation and paid resources require explicit credentials/authority. | open | external state and cost | Phase 1 provisioning |
+| DEC-018 | Realtime is a workspace-scoped query invalidation signal; repository readback remains canonical and the subscription lifecycle is bound to session, workspace and MFA state. | accepted | P1-011 adapter, controller lifecycle tests and local multi-client E2E | revisit only for an offline/sync pilot |
 
 ## Open Decision Rule
 

@@ -131,7 +131,8 @@ class SupabaseIdentityAccessRepositoryAdapter
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
     required String userId,
   }) async {
-    if (_gateway.currentSession?.userId != userId) {
+    final session = _gateway.currentSession;
+    if (session?.userId != userId || session!.requiresMfaChallenge) {
       return const IdentityAccessFailure<List<WorkspaceAccess>>(
         kind: IdentityAccessFailureKind.unauthenticated,
         message: 'The requested user is not authenticated.',

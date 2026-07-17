@@ -97,8 +97,8 @@ select is(
    where pubname = 'supabase_realtime'
      and schemaname = 'public'
      and tablename = 'properties'),
-  0,
-  'properties is not added to Realtime publication'
+  1,
+  'properties is added to Realtime publication'
 );
 
 insert into auth.users (

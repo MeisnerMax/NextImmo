@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../identity_access/application/identity_access_repository.dart';
+import '../../portfolio_property/application/property_query_invalidation_source.dart';
 import '../../portfolio_property/application/property_repository.dart';
 import '../../portfolio_property/domain/property_dto.dart';
 
@@ -145,9 +146,11 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   ReferenceSliceController({
     required IdentityAccessRepository identityRepository,
     required PropertyRepository propertyRepository,
+    PropertyQueryInvalidationSource? propertyInvalidationSource,
     ReferenceIdFactory? idFactory,
   }) : _identityRepository = identityRepository,
        _propertyRepository = propertyRepository,
+       _propertyInvalidationSource = propertyInvalidationSource,
        _idFactory = idFactory ?? const Uuid().v4,
        super(const ReferenceSliceState.loading());
 
@@ -156,14 +159,17 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
 
   final IdentityAccessRepository _identityRepository;
   final PropertyRepository _propertyRepository;
+  final PropertyQueryInvalidationSource? _propertyInvalidationSource;
   final ReferenceIdFactory _idFactory;
 
   StreamSubscription<AuthenticatedSession?>? _sessionSubscription;
+  StreamSubscription<PropertyQueryInvalidation>? _propertySubscription;
   PropertyUpdateCommand? _retryCommand;
   String? _handledSessionKey;
   int _scopeGeneration = 0;
   int _detailGeneration = 0;
   int _mutationGeneration = 0;
+  int _propertySubscriptionGeneration = 0;
   bool _started = false;
 
   Future<void> start() async {
@@ -193,6 +199,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     final access = _findWorkspace(workspaceId);
     if (access == null) {
       _scopeGeneration++;
+      await _stopPropertyInvalidations();
       _retryCommand = null;
       state = state.copyWith(
         workspacePhase:
@@ -212,6 +219,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       );
       return;
     }
+    await _stopPropertyInvalidations();
     final generation = ++_scopeGeneration;
     _retryCommand = null;
     state = state.copyWith(
@@ -228,6 +236,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       message: null,
     );
     await _loadFirstPropertyPage(access, generation);
+    if (generation == _scopeGeneration &&
+        state.selectedWorkspaceId == access.workspace.id) {
+      _startPropertyInvalidations(access);
+    }
   }
 
   Future<void> reloadProperties() async {
@@ -392,10 +404,11 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     AuthenticatedSession? session, {
     bool force = false,
   }) async {
-    final sessionKey = session == null
-        ? null
-        : '${session.userId}:${session.currentAssuranceLevel.name}:'
-              '${session.nextAssuranceLevel.name}';
+    final sessionKey =
+        session == null
+            ? null
+            : '${session.userId}:${session.currentAssuranceLevel.name}:'
+                '${session.nextAssuranceLevel.name}';
     if (!force && sessionKey == _handledSessionKey) {
       return;
     }
@@ -403,6 +416,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _scopeGeneration++;
     _detailGeneration++;
     _mutationGeneration++;
+    await _stopPropertyInvalidations();
     _retryCommand = null;
     if (session == null) {
       state = const ReferenceSliceState(
@@ -441,6 +455,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     String userId, {
     String? preserveWorkspaceId,
   }) async {
+    await _stopPropertyInvalidations();
     final generation = ++_scopeGeneration;
     state = state.copyWith(
       workspacePhase: WorkspacePhase.loading,
@@ -551,6 +566,110 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     );
   }
 
+  void _startPropertyInvalidations(WorkspaceAccess access) {
+    final source = _propertyInvalidationSource;
+    if (source == null || !access.allows(propertyReadPermission)) {
+      return;
+    }
+    final subscriptionGeneration = ++_propertySubscriptionGeneration;
+    _propertySubscription = source
+        .watchWorkspace(workspaceId: access.workspace.id)
+        .listen(
+          (invalidation) => unawaited(
+            _handlePropertyInvalidation(
+              invalidation,
+              subscriptionGeneration: subscriptionGeneration,
+            ),
+          ),
+          onError: (_, __) {},
+        );
+  }
+
+  Future<void> _stopPropertyInvalidations() async {
+    _propertySubscriptionGeneration++;
+    final subscription = _propertySubscription;
+    _propertySubscription = null;
+    if (subscription == null) {
+      return;
+    }
+    try {
+      await subscription.cancel();
+    } catch (_) {
+      // REST-backed state remains usable when Realtime cleanup fails.
+    }
+  }
+
+  Future<void> _handlePropertyInvalidation(
+    PropertyQueryInvalidation invalidation, {
+    required int subscriptionGeneration,
+  }) async {
+    final access = state.selectedWorkspace;
+    if (subscriptionGeneration != _propertySubscriptionGeneration ||
+        access == null ||
+        !access.allows(propertyReadPermission) ||
+        invalidation.workspaceId != access.workspace.id) {
+      return;
+    }
+    final workspaceId = access.workspace.id;
+    final selectedPropertyId = state.selectedProperty?.id;
+    final refreshDetail =
+        selectedPropertyId != null &&
+        (invalidation.isReconciliation ||
+            invalidation.propertyId == selectedPropertyId);
+    final scopeGeneration = ++_scopeGeneration;
+    final detailGeneration = refreshDetail ? ++_detailGeneration : null;
+    final listFuture = _propertyRepository.list(
+      PropertyListQuery(workspaceId: workspaceId),
+    );
+    final detailFuture =
+        refreshDetail
+            ? _propertyRepository.getById(
+              workspaceId: workspaceId,
+              propertyId: selectedPropertyId,
+            )
+            : null;
+
+    final listResult = await listFuture;
+    if (subscriptionGeneration != _propertySubscriptionGeneration ||
+        scopeGeneration != _scopeGeneration ||
+        state.selectedWorkspaceId != workspaceId) {
+      return;
+    }
+    if (listResult case PropertyRepositorySuccess<PropertyPageResult>()) {
+      final items = _preferNewerProperties(
+        current: state.properties,
+        refreshed: listResult.value.items,
+      );
+      state = state.copyWith(
+        propertyListPhase:
+            items.isEmpty ? PropertyListPhase.empty : PropertyListPhase.ready,
+        properties: items,
+        nextCursor: listResult.value.nextCursor,
+      );
+    }
+
+    if (detailFuture == null || detailGeneration == null) {
+      return;
+    }
+    final detailResult = await detailFuture;
+    if (subscriptionGeneration != _propertySubscriptionGeneration ||
+        detailGeneration != _detailGeneration ||
+        state.selectedWorkspaceId != workspaceId ||
+        state.selectedProperty?.id != selectedPropertyId) {
+      return;
+    }
+    if (detailResult case PropertyRepositorySuccess<PropertyDto>()) {
+      final current = state.selectedProperty;
+      if (current == null || detailResult.value.version >= current.version) {
+        state = state.copyWith(
+          propertyDetailPhase: PropertyDetailPhase.ready,
+          selectedProperty: detailResult.value,
+          properties: _replaceProperty(state.properties, detailResult.value),
+        );
+      }
+    }
+  }
+
   Future<void> _submitUpdate(
     PropertyUpdateCommand command, {
     required bool retry,
@@ -574,6 +693,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
     switch (result) {
       case PropertyRepositorySuccess<PropertyDto>():
+        _scopeGeneration++;
+        _detailGeneration++;
         _retryCommand = null;
         state = state.copyWith(
           propertyDetailPhase: PropertyDetailPhase.ready,
@@ -584,6 +705,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       case PropertyRepositoryFailure<PropertyDto>():
         if (result.kind == PropertyRepositoryFailureKind.versionConflict) {
           final conflict = result.versionConflict!;
+          _scopeGeneration++;
+          _detailGeneration++;
           _retryCommand = null;
           state = state.copyWith(
             propertyDetailPhase: PropertyDetailPhase.ready,
@@ -631,6 +754,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _scopeGeneration++;
     _detailGeneration++;
     _mutationGeneration++;
+    unawaited(_stopPropertyInvalidations());
     _retryCommand = null;
     state = const ReferenceSliceState(
       authPhase: ReferenceAuthPhase.error,
@@ -645,6 +769,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   @override
   void dispose() {
     unawaited(_sessionSubscription?.cancel());
+    unawaited(_stopPropertyInvalidations());
     super.dispose();
   }
 }
@@ -669,6 +794,23 @@ List<PropertyDto> _replaceProperty(
   return List<PropertyDto>.unmodifiable(result);
 }
 
+List<PropertyDto> _preferNewerProperties({
+  required List<PropertyDto> current,
+  required List<PropertyDto> refreshed,
+}) {
+  final currentById = <String, PropertyDto>{
+    for (final property in current) property.id: property,
+  };
+  return List<PropertyDto>.unmodifiable(
+    refreshed.map((property) {
+      final existing = currentById[property.id];
+      return existing != null && existing.version > property.version
+          ? existing
+          : property;
+    }),
+  );
+}
+
 final identityAccessRepositoryProvider = Provider<IdentityAccessRepository>(
   (ref) => throw StateError('IdentityAccessRepository is not configured.'),
 );
@@ -677,6 +819,9 @@ final referencePropertyRepositoryProvider = Provider<PropertyRepository>(
   (ref) => throw StateError('Reference PropertyRepository is not configured.'),
 );
 
+final propertyQueryInvalidationSourceProvider =
+    Provider<PropertyQueryInvalidationSource?>((ref) => null);
+
 final referenceSliceControllerProvider = StateNotifierProvider.autoDispose<
   ReferenceSliceController,
   ReferenceSliceState
@@ -684,6 +829,9 @@ final referenceSliceControllerProvider = StateNotifierProvider.autoDispose<
   final controller = ReferenceSliceController(
     identityRepository: ref.watch(identityAccessRepositoryProvider),
     propertyRepository: ref.watch(referencePropertyRepositoryProvider),
+    propertyInvalidationSource: ref.watch(
+      propertyQueryInvalidationSourceProvider,
+    ),
   );
   unawaited(controller.start());
   return controller;

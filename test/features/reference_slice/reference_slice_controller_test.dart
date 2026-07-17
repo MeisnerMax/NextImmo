@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_query_invalidation_source.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
@@ -11,23 +12,28 @@ void main() {
   group('ReferenceSliceController', () {
     late _FakeIdentityRepository identity;
     late _FakePropertyRepository properties;
+    late _FakePropertyInvalidationSource invalidations;
     late ReferenceSliceController controller;
     late Queue<String> ids;
 
     setUp(() {
       identity = _FakeIdentityRepository();
       properties = _FakePropertyRepository();
+      invalidations = _FakePropertyInvalidationSource();
       ids = Queue<String>.of(<String>['mutation-a', 'correlation-a']);
       controller = ReferenceSliceController(
         identityRepository: identity,
         propertyRepository: properties,
+        propertyInvalidationSource: invalidations,
         idFactory: () => ids.removeFirst(),
       );
     });
 
     tearDown(() async {
       controller.dispose();
+      await _flushEvents();
       await identity.close();
+      await invalidations.close();
     });
 
     test('stays unprivileged without an authenticated session', () async {
@@ -256,6 +262,117 @@ void main() {
       expect(controller.state.properties, isEmpty);
       expect(controller.state.selectedWorkspaceId, isNull);
     });
+
+    test('Realtime refreshes the active list and matching detail', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property(version: 2)]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(version: 2, name: 'Realtime'),
+      );
+
+      invalidations.emit(
+        const PropertyQueryInvalidation(
+          workspaceId: 'workspace-a',
+          propertyId: 'property-a',
+        ),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(invalidations.workspaceIds, <String>['workspace-a']);
+      expect(properties.listCalls, 2);
+      expect(properties.detailPropertyIds, <String>[
+        'property-a',
+        'property-a',
+      ]);
+      expect(controller.state.selectedProperty?.name, 'Realtime');
+      expect(controller.state.selectedProperty?.version, 2);
+    });
+
+    test('workspace switch cancels the old Realtime scope', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+          _access(
+            workspaceId: 'workspace-b',
+            permissions: <String>{'property.read'},
+          ),
+        ],
+      );
+
+      await controller.start();
+      await controller.selectWorkspace('workspace-a');
+      await controller.selectWorkspace('workspace-b');
+      final callsBeforeLateEvent = properties.listCalls;
+
+      invalidations.emit(
+        const PropertyQueryInvalidation(
+          workspaceId: 'workspace-a',
+          propertyId: 'property-a',
+        ),
+      );
+      await _flushEvents();
+
+      expect(invalidations.workspaceIds, <String>[
+        'workspace-a',
+        'workspace-b',
+      ]);
+      expect(invalidations.cancelCalls['workspace-a'], 1);
+      expect(properties.listCalls, callsBeforeLateEvent);
+      expect(controller.state.selectedWorkspaceId, 'workspace-b');
+    });
+
+    test(
+      'session downgrade cancels Realtime and ignores late events',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+          ],
+        );
+
+        await controller.start();
+        identity.emit(
+          const AuthenticatedSession(
+            userId: 'user-a',
+            currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+            nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+          ),
+        );
+        await _flushEvents();
+        final callsAfterDowngrade = properties.listCalls;
+
+        invalidations.emit(
+          const PropertyQueryInvalidation(
+            workspaceId: 'workspace-a',
+            propertyId: 'property-a',
+          ),
+        );
+        await _flushEvents();
+
+        expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+        expect(invalidations.cancelCalls['workspace-a'], 1);
+        expect(properties.listCalls, callsAfterDowngrade);
+      },
+    );
   });
 }
 
@@ -400,5 +517,41 @@ class _FakePropertyRepository implements PropertyRepository {
   ) async {
     updateCommands.add(command);
     return updateResults.removeFirst();
+  }
+}
+
+class _FakePropertyInvalidationSource
+    implements PropertyQueryInvalidationSource {
+  final Map<String, StreamController<PropertyQueryInvalidation>> _controllers =
+      <String, StreamController<PropertyQueryInvalidation>>{};
+  final List<String> workspaceIds = <String>[];
+  final Map<String, int> cancelCalls = <String, int>{};
+
+  @override
+  Stream<PropertyQueryInvalidation> watchWorkspace({
+    required String workspaceId,
+  }) {
+    workspaceIds.add(workspaceId);
+    final controller = StreamController<PropertyQueryInvalidation>.broadcast(
+      onCancel: () {
+        cancelCalls.update(
+          workspaceId,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+      },
+    );
+    _controllers[workspaceId] = controller;
+    return controller.stream;
+  }
+
+  void emit(PropertyQueryInvalidation invalidation) {
+    _controllers[invalidation.workspaceId]?.add(invalidation);
+  }
+
+  Future<void> close() async {
+    for (final controller in _controllers.values) {
+      await controller.close();
+    }
   }
 }

@@ -1,22 +1,23 @@
 # P0.5 Testbaseline
 
-Stand: 2026-07-12
+Stand: 2026-07-17
 
 ## 1. Inventar
 
 | ID | Bereich | Bestand | Status | Evidenz |
 |---|---|---:|---|---|
-| TST-001 | Testdateien gesamt | 92 | verified | `test/**/*.dart` |
-| TST-002 | Testfaelle (`test`/`testWidgets`) | 180 Deklarationen; 192 Laufzeitfaelle | verified | `test/**/*.dart`; 187 bestanden, 5 Skips |
+| TST-001 | Testdateien gesamt | 97 | verified | `test/**/*.dart` |
+| TST-002 | Testfaelle (`test`/`testWidgets`) | 207 Deklarationen; 227 Laufzeitfaelle | verified | `test/**/*.dart`; 221 bestanden, 6 Skips |
 | TST-003 | Domain/Core | 29 Dateien | verified | `test/core/` |
 | TST-004 | Daten/SQLite-Repositories | 27 Dateien | verified | `test/data/` |
 | TST-005 | Widget/UI | 28 Dateien | verified | `test/ui/`, einschliesslich Navigation und responsivem Overflow-Gate |
-| TST-006 | Integration | 3 Dateien | verified | `test/integration/`, einschliesslich echtem Supabase-Client/RLS/RPC-Gate |
+| TST-006 | Integration | 4 Dateien | verified | `test/integration/`, einschliesslich echten Supabase-Client-, RLS-, RPC- und Mehrclient-Realtime-Gates |
 | TST-007 | Root/Smoke/Layout | 2 Dateien | verified | `test/widget_test.dart`, `test/debug_layout_test.dart` |
-| TST-008 | Golden-/Screenshot-Tests | 0 Aufrufe | verified | keine Verwendung von `matchesGoldenFile`; keine Golden-Fixtures |
-| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency- und Clientintegration | verified | `.github/workflows/flutter.yml` |
+| TST-008 | Golden-/Screenshot-Tests | 3 Baselines | verified | P1-010 Phone, Tablet und Desktop unter `test/features/reference_slice/goldens/` |
+| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency-, Client- und Mehrclient-Realtime-Integration | verified | `.github/workflows/flutter.yml` |
+| TST-010 | Feature-Slices | 7 Dateien | verified | `test/features/`, einschliesslich P1-010-UI und P1-011-Lifecycle |
 
-Vorhandene Schwerpunkte: deterministische Core-Engines, SQLite- und Supabase-Repository-Vertraege, PostgreSQL/RLS, ausgewaehlte Widgets und drei lokale Integrationsfluesse. Nicht vorhanden sind Import-Reconciliation, echte plattformuebergreifende E2E- und responsive Screenshot-Gates.
+Vorhandene Schwerpunkte: deterministische Core-Engines, SQLite- und Supabase-Repository-Vertraege, PostgreSQL/RLS, ausgewaehlte Widgets und vier lokale Integrationsfluesse. Nicht vorhanden sind Import-Reconciliation, echte plattformuebergreifende E2E- und umfassende responsive Screenshot-Gates.
 
 ## 2. Kritische Rechen- und Datenpfade
 
@@ -116,6 +117,10 @@ Gate-Regeln:
 | RUN-006 | P1-004 Rollback/Concurrency | 9 Rollback-Pruefungen und Zwei-Sitzungs-Test bestanden | verified |
 | RUN-007 | P1-007 Clientintegration | Login, RLS, RPC, Retry, Konflikt und Readback bestanden | verified |
 | RUN-008 | `flutter analyze --no-pub` / Web-Build | 0 Findings; Web-Build erfolgreich | verified |
+| RUN-009 | P1-009 Auth-/Workspace-/Property-State | 15 gezielte Tests bestanden; echter Clienttest ohne Harness erwartungsgemaess uebersprungen und separat im lokalen Harness bestanden | verified |
+| RUN-010 | P1-009 Abschlussgate | lokale Supabase-Integration 1/1, Gesamtsuite 202 bestanden/5 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified |
+| RUN-011 | P1-010 Adaptive UI | 14 Widgettests, 7 Breakpoint-Breiten und 3 Golden-Baselines bestanden; Gesamtsuite 216 bestanden/5 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
+| RUN-012 | P1-011 Realtime-Invalidierung | lokaler Mehrclient-E2E fuer aktiven und fremden Workspace, kanonischer Readback, 160 pgTAP- und 12 Rollback-Pruefungen; Gesamtsuite 221 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
 
 ## 7. Risiken
 
@@ -127,4 +132,4 @@ Gate-Regeln:
 | RISK-QA-004 | Prozessabsturz kann den In-Process-Rollback unterbrechen; SHA-256 beweist keine Urheberschaft | Teilzustand nach hartem Crash oder absichtlich neu gehashtes Fremdarchiv | Restore-Journal/Start-Recovery und HMAC/Signatur mit Schluesselverwaltung in P1-014 | mitigated |
 | RISK-QA-005 | Neue Policies koennen Mandantentrennung regressieren | Cross-Tenant-Datenzugriff | pgTAP/RLS- und reale Clientintegration sind CI-Gates | mitigated |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | Web-Build oder Analyzer bricht | `package:web`, Analyzer und Web-Build sind CI-Gates | mitigated |
-| RISK-QA-007 | Responsive-Golden-Gate fehlt | pixelbezogene Regressionen bleiben moeglich | Overflow-Basis-Gate und CI vorhanden; LVL-006 bleibt fuer P1-010 offen | partial |
+| RISK-QA-007 | Responsive-Golden-Abdeckung ist noch auf den Referenzschnitt begrenzt | pixelbezogene Regressionen anderer Screens bleiben moeglich | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen | partial |

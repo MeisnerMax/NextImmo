@@ -1,6 +1,6 @@
 # Phase 0 Gate Status
 
-Stand: 2026-07-12  
+Stand: 2026-07-17
 Owner: `integration-agent`  
 Gesamtstatus: `PASS`  
 Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente`
@@ -31,13 +31,41 @@ Status: `done`.
 - Evidenz: `lib/ui/state/security_state.dart`, `lib/ui/navigation/app_navigation.dart`, `test/core/security/rbac_test.dart`, `test/ui/navigation/app_navigation_test.dart`.
 - Abschluss: gezielte Rollen-/Navigationstests und Analyzer fuer beide geaenderten Sicherheitsdateien erfolgreich.
 
+## P1-009 Referenzschnitt-Abschluss
+
+Status: `done`.
+
+- Authentifizierte Session, Workspace-Zugriffe und Property-Application-State sind als getrennte Vertraege und Controller modelliert.
+- Eine Supabase-Session mit `aal1` und ausstehendem `aal2` bleibt ohne Workspace- und Property-Zugriff (`mfaRequired`).
+- Eine verpflichtende MFA-Regel fuer privilegierte Rollen ist noch nicht produktionssicher definiert; Rollenmatrix und restriktive RLS/AAL-Policy bleiben offen.
+- Abschluss: gezielter und vollstaendiger Analyzer ohne Findings, 15 gezielte Tests sowie 202 Gesamttests mit 5 Skips bestanden, lokale Supabase-Clientintegration 1/1 bestanden und Web-Build erfolgreich.
+
+## P1-010 Adaptive Referenzschnitt-UI
+
+Status: `partial`.
+
+- Feature-lokale Property-Liste, Detailansicht und Mutation verwenden bestehende Breakpoints, Theme-Tokens und UI-Komponenten.
+- Phone wechselt explizit zwischen Liste und Detail; Desktop zeigt beide Bereiche nebeneinander. Tablet bleibt kompakt navigierbar.
+- 14 Widgettests decken Auth/MFA, Suche, Detailwechsel, Konflikt/Retry und sieben Breakpoint-Breiten ab; drei Golden-Baselines fuer Phone, Tablet und Desktop bestehen.
+- Vollstaendiger Analyzer ohne Findings, 216 Gesamttests mit 5 Skips und Web-Build bestehen.
+- Runtime-Wiring, bedienbare Auth/MFA-Aktionen und echte stabile Deep Links bleiben offen; bestehende Navigation wurde nicht veraendert.
+
+## P1-011 Realtime-Invalidierung
+
+Status: `done`.
+
+- Der aktive Workspace abonniert ausschliesslich `UPDATE`-Invalidierungen fuer `properties`; kanonische Daten kommen danach erneut aus dem Repository.
+- Die initiale Reconciliation wartet auf die bestaetigte Postgres-Replikationsbereitschaft. Workspace-, Session-, MFA-Wechsel und Dispose beenden den alten Kanal; Generationen verhindern spaete Ueberschreibungen.
+- Der lokale Mehrclient-E2E bestaetigt Event und Readback im aktiven Workspace sowie ausbleibende Fremd-Workspace-Events.
+- Abschluss: 160 pgTAP- und 12 Rollback-Pruefungen, beide lokalen Clientintegrationen, 221 Gesamttests mit 6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
+
 ## P1-001 bis P1-004 Datenbankinkrement
 
 Status: `done`.
 
 - Lokale Supabase-Struktur und CLI `2.109.1` sind reproduzierbar eingerichtet.
 - Workspace-, Rollen-, Rechte-, Audit- und Property-Vertraege nutzen Default-Deny-RLS.
-- 160 pgTAP-Pruefungen, 9 Rollback-Pruefungen und ein echter Zwei-Sitzungs-Concurrency-Test bestehen.
+- 160 pgTAP-Pruefungen, 12 Rollback-Pruefungen und ein echter Zwei-Sitzungs-Concurrency-Test bestehen.
 - Property-Mutationen sind versioniert, idempotent, auditierbar und an Workspace, Leserecht, Schreibrecht sowie `auth.uid()` gebunden.
 
 ## Phase-1-Freigabe
@@ -54,4 +82,4 @@ Status: `done`.
 | RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | Format 2 prueft Pfade, Payload-Hashes, SQLite-Integritaet, Schema und In-Process-Rollback; Journal/HMAC fuer P1-014 offen |
 | RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 160 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
-| RISK-QA-007 | Responsive Screenshot-Goldens fehlen | Overflow-Basis-Gate besteht; CI ist vorhanden, Pixel-Gate bleibt fuer P1-010 offen |
+| RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
