@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../identity_access/application/identity_access_repository.dart';
+import '../../identity_access/application/entitlement_invalidation_source.dart';
 import '../../portfolio_property/application/property_query_invalidation_source.dart';
 import '../../portfolio_property/application/property_repository.dart';
 import '../../portfolio_property/domain/property_dto.dart';
@@ -185,11 +186,16 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     required IdentityAccessRepository identityRepository,
     required PropertyRepository propertyRepository,
     PropertyQueryInvalidationSource? propertyInvalidationSource,
+    EntitlementInvalidationSource? entitlementInvalidationSource,
+    Duration entitlementRevalidationInterval = const Duration(minutes: 1),
     ReferenceIdFactory? idFactory,
   }) : _identityRepository = identityRepository,
        _propertyRepository = propertyRepository,
        _propertyInvalidationSource = propertyInvalidationSource,
+       _entitlementInvalidationSource = entitlementInvalidationSource,
+       _entitlementRevalidationInterval = entitlementRevalidationInterval,
        _idFactory = idFactory ?? const Uuid().v4,
+       assert(entitlementRevalidationInterval > Duration.zero),
        super(const ReferenceSliceState.loading());
 
   static const propertyReadPermission = 'property.read';
@@ -198,10 +204,14 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   final IdentityAccessRepository _identityRepository;
   final PropertyRepository _propertyRepository;
   final PropertyQueryInvalidationSource? _propertyInvalidationSource;
+  final EntitlementInvalidationSource? _entitlementInvalidationSource;
+  final Duration _entitlementRevalidationInterval;
   final ReferenceIdFactory _idFactory;
 
   StreamSubscription<AuthenticatedSession?>? _sessionSubscription;
   StreamSubscription<PropertyQueryInvalidation>? _propertySubscription;
+  StreamSubscription<EntitlementInvalidation>? _entitlementSubscription;
+  Timer? _entitlementRevalidationTimer;
   PropertyUpdateCommand? _retryCommand;
   String? _handledSessionKey;
   int _scopeGeneration = 0;
@@ -209,10 +219,14 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   int _mutationGeneration = 0;
   int _identityActionGeneration = 0;
   int _propertySubscriptionGeneration = 0;
+  int _entitlementSubscriptionGeneration = 0;
   final Map<int, _InvalidationRefreshRequest> _pendingInvalidationRefreshes =
       <int, _InvalidationRefreshRequest>{};
   final Set<int> _runningInvalidationRefreshes = <int>{};
   bool _started = false;
+  bool _entitlementRevalidationPending = false;
+  bool _entitlementRevalidationRunning = false;
+  String? _entitlementPreservedWorkspaceId;
 
   Future<void> start() async {
     if (_started) {
@@ -611,6 +625,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _detailGeneration++;
     _mutationGeneration++;
     final identityGeneration = ++_identityActionGeneration;
+    await _stopEntitlementInvalidations();
     await _stopPropertyInvalidations();
     _retryCommand = null;
     if (session == null) {
@@ -648,6 +663,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       userId: userId,
     );
     await _loadWorkspaces(userId);
+    if (state.authPhase == ReferenceAuthPhase.authenticated &&
+        state.userId == userId) {
+      _startEntitlementInvalidations(userId);
+    }
   }
 
   Future<void> _loadTotpFactors(String userId, int generation) async {
@@ -825,6 +844,129 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       await subscription.cancel();
     } catch (_) {
       // REST-backed state remains usable when Realtime cleanup fails.
+    }
+  }
+
+  void _startEntitlementInvalidations(String userId) {
+    final source = _entitlementInvalidationSource;
+    if (source == null) {
+      return;
+    }
+    final subscriptionGeneration = ++_entitlementSubscriptionGeneration;
+    _entitlementSubscription = source
+        .watchUser(userId: userId)
+        .listen(
+          (invalidation) => _queueEntitlementRevalidation(
+            invalidation,
+            subscriptionGeneration: subscriptionGeneration,
+          ),
+          onError:
+              (_, __) => _queueEntitlementRevalidation(
+                EntitlementInvalidation.reconcile(userId: userId),
+                subscriptionGeneration: subscriptionGeneration,
+              ),
+        );
+    _entitlementRevalidationTimer = Timer.periodic(
+      _entitlementRevalidationInterval,
+      (_) => _queueEntitlementRevalidation(
+        EntitlementInvalidation.reconcile(userId: userId),
+        subscriptionGeneration: subscriptionGeneration,
+      ),
+    );
+  }
+
+  Future<void> _stopEntitlementInvalidations() async {
+    _entitlementSubscriptionGeneration++;
+    _entitlementRevalidationPending = false;
+    _entitlementPreservedWorkspaceId = null;
+    _entitlementRevalidationTimer?.cancel();
+    _entitlementRevalidationTimer = null;
+    final subscription = _entitlementSubscription;
+    _entitlementSubscription = null;
+    if (subscription == null) {
+      return;
+    }
+    try {
+      await subscription.cancel();
+    } catch (_) {
+      // Periodic REST revalidation remains the fail-closed fallback.
+    }
+  }
+
+  void _queueEntitlementRevalidation(
+    EntitlementInvalidation invalidation, {
+    required int subscriptionGeneration,
+  }) {
+    if (subscriptionGeneration != _entitlementSubscriptionGeneration ||
+        state.authPhase != ReferenceAuthPhase.authenticated ||
+        state.userId != invalidation.userId) {
+      return;
+    }
+    _entitlementRevalidationPending = true;
+    _entitlementPreservedWorkspaceId ??= state.selectedWorkspaceId;
+    _clearWorkspaceCachesForRevalidation();
+    if (!_entitlementRevalidationRunning) {
+      _entitlementRevalidationRunning = true;
+      unawaited(
+        _drainEntitlementRevalidations(
+          invalidation.userId,
+          subscriptionGeneration: subscriptionGeneration,
+        ),
+      );
+    }
+  }
+
+  void _clearWorkspaceCachesForRevalidation() {
+    _scopeGeneration++;
+    _detailGeneration++;
+    _mutationGeneration++;
+    _retryCommand = null;
+    unawaited(_stopPropertyInvalidations());
+    state = state.copyWith(
+      workspacePhase: WorkspacePhase.loading,
+      propertyListPhase: PropertyListPhase.idle,
+      propertyDetailPhase: PropertyDetailPhase.idle,
+      mutationPhase: PropertyMutationPhase.idle,
+      workspaces: const <WorkspaceAccess>[],
+      selectedWorkspaceId: null,
+      properties: const <PropertyDto>[],
+      nextCursor: null,
+      selectedProperty: null,
+      failureKind: null,
+      versionConflict: null,
+      message: null,
+    );
+  }
+
+  Future<void> _drainEntitlementRevalidations(
+    String userId, {
+    required int subscriptionGeneration,
+  }) async {
+    try {
+      while (_entitlementRevalidationPending &&
+          subscriptionGeneration == _entitlementSubscriptionGeneration &&
+          state.authPhase == ReferenceAuthPhase.authenticated &&
+          state.userId == userId) {
+        _entitlementRevalidationPending = false;
+        await _loadWorkspaces(
+          userId,
+          preserveWorkspaceId: _entitlementPreservedWorkspaceId,
+        );
+      }
+    } finally {
+      _entitlementRevalidationRunning = false;
+      if (_entitlementRevalidationPending &&
+          subscriptionGeneration == _entitlementSubscriptionGeneration) {
+        _entitlementRevalidationRunning = true;
+        unawaited(
+          _drainEntitlementRevalidations(
+            userId,
+            subscriptionGeneration: subscriptionGeneration,
+          ),
+        );
+      } else {
+        _entitlementPreservedWorkspaceId = null;
+      }
     }
   }
 
@@ -1052,6 +1194,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _detailGeneration++;
     _mutationGeneration++;
     unawaited(_stopPropertyInvalidations());
+    unawaited(_stopEntitlementInvalidations());
     _retryCommand = null;
     state = const ReferenceSliceState(
       authPhase: ReferenceAuthPhase.error,
@@ -1067,6 +1210,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   void dispose() {
     unawaited(_sessionSubscription?.cancel());
     unawaited(_stopPropertyInvalidations());
+    unawaited(_stopEntitlementInvalidations());
     super.dispose();
   }
 }
@@ -1161,6 +1305,9 @@ final referencePropertyRepositoryProvider = Provider<PropertyRepository>(
 final propertyQueryInvalidationSourceProvider =
     Provider<PropertyQueryInvalidationSource?>((ref) => null);
 
+final entitlementInvalidationSourceProvider =
+    Provider<EntitlementInvalidationSource?>((ref) => null);
+
 final referenceSliceControllerProvider = StateNotifierProvider.autoDispose<
   ReferenceSliceController,
   ReferenceSliceState
@@ -1170,6 +1317,9 @@ final referenceSliceControllerProvider = StateNotifierProvider.autoDispose<
     propertyRepository: ref.watch(referencePropertyRepositoryProvider),
     propertyInvalidationSource: ref.watch(
       propertyQueryInvalidationSourceProvider,
+    ),
+    entitlementInvalidationSource: ref.watch(
+      entitlementInvalidationSourceProvider,
     ),
   );
   unawaited(controller.start());

@@ -49,7 +49,16 @@ Status: `done`.
 - 14 Widgettests decken Auth/MFA, Suche, Detailwechsel, Konflikt/Retry und sieben Breakpoint-Breiten ab; drei Golden-Baselines fuer Phone, Tablet und Desktop bestehen.
 - Explizite SQLite-/Supabase-Runtimeauswahl, Provider-Overrides sowie stabile `/properties`- und `/properties/:id`-Routen sind verdrahtet.
 - Ein Kaltstart-Deep-Link oeffnet genau eine Route und das Detail unabhaengig von der Listenladung; der Supabase-Screen besitzt einen Material-/Scaffold-Kontext.
-- Abschluss: Analyzer ohne Findings, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips und Web-Build erfolgreich. Bedienbare Auth/MFA-Aktionen sind separat als `P1-016` offen.
+- Abschluss: Analyzer ohne Findings, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips und Web-Build erfolgreich. Bedienbare Auth/MFA-Aktionen wurden anschliessend mit `P1-016` geschlossen.
+
+## P1-016 Bedienbare Auth-/MFA-Aktionen
+
+Status: `done`.
+
+- Der IdentityAccess-Vertrag und Supabase-Adapter bieten passwordless E-Mail-Anforderung, TOTP-Enrollment, Faktorwahl, Challenge/Verify und lokalen Logout ohne SDK-Typen im Application-Vertrag.
+- Der adaptive Referenzschnitt stellt Login, MFA-Step-up, Enrollment und Logout bedienbar dar; Secrets werden nur waehrend des Enrollments gehalten und bei Sessionwechsel/Logout geleert.
+- Property-Mutation bleibt client- und serverseitig an AAL2 gebunden. Eine allgemeine privilegierte Rollen-/AAL-Matrix bleibt separat offen.
+- Abschluss: 54 gezielte Tests, echte lokale PKCE/passwordless- und TOTP-AAL2-Clientgates, Gesamtsuite 245 bestanden/6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
 
 ## P1-011 Realtime-Invalidierung
 

@@ -20,7 +20,11 @@ if (-not $container) {
   throw "Supabase database container for '$projectId' is not running."
 }
 
-foreach ($fixtureName in @('p1_007_setup.sql', 'p1_011_setup.sql')) {
+foreach ($fixtureName in @(
+  'p1_007_setup.sql',
+  'p1_011_setup.sql',
+  'p1_017_setup.sql'
+)) {
   $fixture = Join-Path $PSScriptRoot "..\supabase\tests_integration\$fixtureName"
   $target = "/tmp/neximmo-$fixtureName"
   docker cp $fixture "${container}:$target" | Out-Null

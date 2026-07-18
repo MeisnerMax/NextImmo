@@ -15,13 +15,14 @@ Status: `partial_local_review`; Phase-1-Gate nicht akzeptiert.
 | GATE-QA-001 | Analyzer, Flutter-Suite, Web-Build und responsive Referenz-Goldens | verified_local |
 | GATE-ADV-001 | Supabase Security-/Performance-Advisors melden keine Error-Level-Findings | verified_local |
 | GATE-RT-003 | Explizite SQLite-/Supabase-Runtimeauswahl, Provider-Wiring und stabile Kaltstart-Deep-Links | verified_local |
+| GATE-AUTH-001 | Bedienbare passwordless-PKCE-Anforderung, TOTP-Enrollment/Step-up und lokaler Logout; Secrets bleiben fluechtig | verified_local |
 
 ## Open Findings
 
 | ID | Prioritaet | Befund | Gate / Massnahme | Status |
 |---|---|---|---|---|
 | GATE-BLK-001 | blocker | Runtime-/Provider-/Deep-Link-Pfad war nicht mit dem Referenzschnitt verdrahtet. | P1-010 Runtime-Inkrement und Kaltstart-Test | resolved_local |
-| GATE-BLK-002 | blocker | Property-Mutation ist serverseitig AAL2-geschuetzt; eine allgemeine verpflichtende MFA-Regel fuer privilegierte Rollen ist weiterhin nicht definiert. | DEC-016 und allgemeine Rollen-/AAL-Matrix | open |
+| GATE-BLK-002 | blocker | Bedienbare Auth-/MFA-Aktionen und Property-AAL2 sind lokal geschlossen; eine allgemeine verpflichtende MFA-Regel fuer privilegierte Rollen ist weiterhin nicht definiert. | DEC-016 und allgemeine Rollen-/AAL-Matrix | open |
 | GATE-BLK-003 | blocker | Kein autorisierter Sandbox-/Staging-E2E oder Remote-Restore-Drill. | DEC-015, DEC-017, P1-014 remote | open |
 | GATE-SEC-004 | high | Membership-/Rollenentzug erzeugt kein eigenes Client-Invalidierungssignal; Cache-Leerung greift erst bei Refresh/forbidden. | Entitlement-Revalidation-Vertrag und Mehrclient-Entzugstest | open |
 | GATE-SEC-005 | high | `entity_scopes` begrenzen Property-RLS noch nicht; Archivzugriff ist fachlich nicht entschieden. | DEC-SEC-002 und explizite Policy-/Negativtests | open |
@@ -42,4 +43,4 @@ CI blockiert Advisor-Findings ab Level `error`; das Schema-Lintgate besteht auf 
 
 ## Gate Decision
 
-`REJECTED_FOR_PHASE_1_COMPLETION`: Lokale Runtime, Property-AAL2, Security-Funktion und Performance-Struktur sind stark belegt. Allgemeine privilegierte MFA, Entitlements, Entity-Scopes/Archiv, Performancebudgets, Remote-Staging und Betriebsnachweise fehlen. Keine Produktionsfreigabe ableiten.
+`REJECTED_FOR_PHASE_1_COMPLETION`: Lokale Runtime, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Security-Funktion und Performance-Struktur sind stark belegt. Allgemeine privilegierte MFA, Entitlements, Entity-Scopes/Archiv, Performancebudgets, Remote-Staging und Betriebsnachweise fehlen. Keine Produktionsfreigabe ableiten.

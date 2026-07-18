@@ -12,6 +12,7 @@ import 'data/repositories/security_repo.dart';
 import 'data/repositories/tasks_repo.dart';
 import 'data/sqlite/db.dart';
 import 'features/identity_access/data/supabase_identity_access_repository_adapter.dart';
+import 'features/identity_access/data/supabase_entitlement_invalidation_adapter.dart';
 import 'features/portfolio_property/data/supabase_property_query_invalidation_adapter.dart';
 import 'features/portfolio_property/data/supabase_property_repository_adapter.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
@@ -32,6 +33,9 @@ Future<void> main() async {
         overrides: [
           identityAccessRepositoryProvider.overrideWithValue(
             SupabaseIdentityAccessRepositoryAdapter(client: client),
+          ),
+          entitlementInvalidationSourceProvider.overrideWithValue(
+            SupabaseEntitlementInvalidationAdapter(client: client),
           ),
           referencePropertyRepositoryProvider.overrideWithValue(
             SupabasePropertyRepositoryAdapter(client: client),

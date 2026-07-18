@@ -7,7 +7,7 @@ Stand: 2026-07-18
 | ID | Bereich | Bestand | Status | Evidenz |
 |---|---|---:|---|---|
 | TST-001 | Testdateien gesamt | 101 | verified | `test/**/*.dart`, einschliesslich MFA-Testhilfe |
-| TST-002 | Testfaelle (`test`/`testWidgets`) | 220 Deklarationen; 240 Laufzeitfaelle | verified | `test/**/*.dart`; 234 bestanden, 6 Skips |
+| TST-002 | Testfaelle (`test`/`testWidgets`) | 231 Deklarationen; 251 Laufzeitfaelle | verified | `test/**/*.dart`; 245 bestanden, 6 Skips |
 | TST-003 | Domain/Core | 29 Dateien | verified | `test/core/` |
 | TST-004 | Daten/SQLite-Repositories | 27 Dateien | verified | `test/data/` |
 | TST-005 | Widget/UI | 28 Dateien | verified | `test/ui/`, einschliesslich Navigation und responsivem Overflow-Gate |
@@ -125,6 +125,7 @@ Gate-Regeln:
 | RUN-014 | P1-014 lokaler Backup-/Restore-Vertrag | Zielguard 7/7, manipuliertes Archiv vor Zielerstellung abgelehnt, nichtleerer PostgreSQL-Restore mit 18 reconciliierten Zeilen und Cleanup bestanden; 160 pgTAP, Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Remote-/Storage-Drill offen |
 | RUN-015 | P1-015 lokales Gate-Review | Unknown-AAL fail-closed, Realtime-Burst-Coalescing/Pagination, suspendierte Membership und Audit-Korrelation; 164 pgTAP, Security-/Performance-Advisors ohne Error-Befund, Gesamtsuite 232 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Gate abgelehnt; weitere Gates offen |
 | RUN-016 | Runtime-, AAL2- und Performance-Hardening | Explizite Runtimeauswahl, Kaltstart-Deep-Link, serverseitiges Property-AAL2 mit echtem TOTP-Clientnachweis, FK-/Keyset-Indizes und RLS-InitPlans; 196 pgTAP, beide Clientgates, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips, Analyzer 0 Findings, Web-Build und DB-Lint erfolgreich | verified_local; allgemeine Auth-Aktionen/Entitlements/Remote offen |
+| RUN-017 | P1-016 bedienbare Auth-/MFA-Aktionen | Passwordless-PKCE-Anforderung, TOTP-Enrollment/Step-up und lokaler Logout in Vertrag, Adapter, Controller und adaptiver UI; 54 gezielte Tests, beide echten lokalen Clientgates, Gesamtsuite 245 bestanden/6 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified_local; allgemeine Rollen-/AAL-Matrix und Remote-E2E offen |
 
 ## 7. Risiken
 

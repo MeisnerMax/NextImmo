@@ -1,6 +1,6 @@
 # Phase 1 Execution Backlog
 
-Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` sind complete; `P1-016` ist das naechste lokale Inkrement.
+Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` und `P1-016` sind complete; `P1-017` ist das naechste lokale Inkrement.
 
 ## Dependency Order
 
@@ -21,12 +21,12 @@ Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` sind complet
 | P1-013 | Add CI gates for Dart, Flutter, SQL, RLS and migration tests. | P1-003, P1-005 | CI workflow | required checks green | done |
 | P1-014 | Add backup/restore and operational runbook for sandbox/staging. | P1-001, DEC-015, DEC-017 | tested runbook | restore drill passes | partial (local contract/drill done; remote/storage gates open) |
 | P1-015 | Run reference-slice security and performance review. | P1-001..P1-014 | gate report | Phase-1 gate accepted | partial (local review done; gate rejected) |
-| P1-016 | Add operable passwordless email auth, TOTP step-up and logout actions. | P1-009, P1-010, DEC-016 | IdentityAccess contract, Supabase adapter and adaptive reference UI | adapter/controller/widget tests plus local auth integration pass | queued |
+| P1-016 | Add operable passwordless email auth, TOTP step-up and logout actions. | P1-009, P1-010, DEC-016 | IdentityAccess contract, Supabase adapter and adaptive reference UI | adapter/controller/widget tests plus local auth integration pass | done |
 | P1-017 | Revalidate entitlements and clear client caches after membership/role revocation. | P1-011, GATE-SEC-004 | explicit revalidation lifecycle and revocation signal | two-client revocation test proves bounded cache clearing | queued |
 
 ## First Safe Local Increment
 
-Runtime/Deep Links, Property-AAL2 und Performance-Indizes/InitPlans sind lokal abgeschlossen. Das naechste sichere vertikale Inkrement ist `P1-016`; danach folgt `P1-017`. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
+Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2 und Performance-Indizes/InitPlans sind lokal abgeschlossen. Das naechste sichere vertikale Inkrement ist `P1-017`. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
 
 ## P1-001 Validation
 
@@ -102,6 +102,13 @@ Runtime/Deep Links, Property-AAL2 und Performance-Indizes/InitPlans sind lokal a
 - 164 pgTAP-Pruefungen decken suspendierte Memberships fuer Property-/Audit-Lesen und RPC-Schreiben sowie Audit-`correlation_id` ab. Security-/Performance-Advisors laufen in CI und blockieren Error-Befunde.
 - `../phase_1/03_reference_slice_gate_review.md` weist das Gate weiterhin wegen allgemeiner privilegierter MFA, Entitlements, Entity-Scope/Archiv, Remote-Betrieb und Performancebudgets zurueck.
 - Property-AAL2, Performance-Indizes/InitPlans und Runtime sind lokal geschlossen: 196 pgTAP, beide echten Clientgates, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips, Analyzer ohne Findings, DB-Lint und Web-Build bestehen. P1-015 bleibt `partial`.
+
+## P1-016 Validation
+
+- Application-Vertrag und Supabase-Adapter kapseln passwordless E-Mail-Anforderung, TOTP-Enrollment, Faktorauflistung, Challenge/Verify und lokalen Logout ohne Supabase-Typen im Vertrag.
+- Controller und adaptive UI behandeln Aktions-, Fehler- und Busy-Zustaende explizit; TOTP-Secrets werden nicht persistiert und bei Sessionwechsel oder Logout verworfen.
+- Der echte lokale P1-007-Flow nutzt fluechtigen PKCE-Speicher, fordert passwordless Auth an, bestaetigt AAL1-Deny und hebt die Session per echtem TOTP auf AAL2; P1-011 bleibt mit zwei AAL2-Writern gruen.
+- 54 gezielte Tests, Gesamtsuite 245 bestanden/6 Skips, Analyzer ohne Findings, 196 pgTAP, DB-Lint und Web-Build bestehen. Allgemeine privilegierte Rollen-/AAL-Policy und Remote-E2E bleiben offen.
 
 ## Responsive QA Validation
 

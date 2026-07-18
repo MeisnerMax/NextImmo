@@ -1,6 +1,6 @@
 # P0 Reference Slice Specification
 
-Status: `partial`; lokal inklusive Runtime, Deep Links und Property-AAL2 verifiziert, bedienbare Auth-/Entitlement-/Staging-Gates offen.
+Status: `partial`; lokal inklusive Runtime, Deep Links, bedienbarer passwordless Auth/TOTP und Property-AAL2 verifiziert; Entitlement-/Staging-Gates offen.
 
 ## Slice
 
@@ -31,6 +31,7 @@ Status: `partial`; lokal inklusive Runtime, Deep Links und Property-AAL2 verifiz
 | EVD-REF-007 | `lib/features/reference_slice/`, `test/features/reference_slice/`, `test/integration/supabase_property_realtime_integration_test.dart` | Application-State, adaptive UI und lokaler Mehrclient-Realtime-Fluss sind implementiert und getestet. | verified |
 | EVD-REF-008 | `lib/ui/navigation/app_navigation.dart`, `test/app_runtime_test.dart` | Stabile `/properties`- und `/properties/:id`-Routen funktionieren auch beim Kaltstart ohne doppelten Route-Stack. | verified |
 | EVD-REF-009 | `supabase/migrations/20260718100000_p1_015_aal_hardening.sql`, `test/integration/support/supabase_mfa_test_helper.dart` | Property-Mutation verlangt serverseitig AAL2; echter lokaler TOTP-Flow weist AAL1-Deny und AAL2-Erfolg nach. | verified_local |
+| EVD-REF-010 | `lib/features/identity_access/`, `lib/features/reference_slice/`, `test/integration/supabase_property_repository_integration_test.dart` | Passwordless-PKCE-Anforderung, TOTP-Enrollment/Step-up und lokaler Logout sind bedienbar und lokal gegen Supabase verifiziert. | verified_local |
 
 ## Cloud Contract
 
@@ -127,7 +128,7 @@ Atomic result:
 | AC-REF-008 | verified | Exactly one audit event preserves actor and correlation ID. |
 | AC-REF-009 | verified | Controller/UI tests cover loading, empty, error, unauthenticated and forbidden states. |
 
-Der lokale Teststand umfasst 196 pgTAP, Rollback, Concurrency, echte AAL2-Adapter-/Mehrclientgates, Controller-, responsive Widget-/Golden- und Kaltstart-Deep-Link-Tests. Bedienbare passwordless Auth-/MFA-Aktionen, allgemeine privilegierte MFA/Rollenpolicy, Entitlement-Revalidation, Staging-E2E und Performancebudgets bleiben offen; Details: `docs/architecture/phase_1/03_reference_slice_gate_review.md`.
+Der lokale Teststand umfasst 196 pgTAP, Rollback, Concurrency, echte passwordless-PKCE-/AAL2-Adapter-/Mehrclientgates, Controller-, responsive Widget-/Golden- und Kaltstart-Deep-Link-Tests. Allgemeine privilegierte MFA/Rollenpolicy, Entitlement-Revalidation, Staging-E2E und Performancebudgets bleiben offen; Details: `docs/architecture/phase_1/03_reference_slice_gate_review.md`.
 
 ## Exclusions
 
