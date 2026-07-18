@@ -170,6 +170,9 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   int _detailGeneration = 0;
   int _mutationGeneration = 0;
   int _propertySubscriptionGeneration = 0;
+  final Map<int, _InvalidationRefreshRequest> _pendingInvalidationRefreshes =
+      <int, _InvalidationRefreshRequest>{};
+  final Set<int> _runningInvalidationRefreshes = <int>{};
   bool _started = false;
 
   Future<void> start() async {
@@ -575,11 +578,9 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _propertySubscription = source
         .watchWorkspace(workspaceId: access.workspace.id)
         .listen(
-          (invalidation) => unawaited(
-            _handlePropertyInvalidation(
-              invalidation,
-              subscriptionGeneration: subscriptionGeneration,
-            ),
+          (invalidation) => _queuePropertyInvalidation(
+            invalidation,
+            subscriptionGeneration: subscriptionGeneration,
           ),
           onError: (_, __) {},
         );
@@ -587,6 +588,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
 
   Future<void> _stopPropertyInvalidations() async {
     _propertySubscriptionGeneration++;
+    _pendingInvalidationRefreshes.clear();
     final subscription = _propertySubscription;
     _propertySubscription = null;
     if (subscription == null) {
@@ -599,10 +601,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
   }
 
-  Future<void> _handlePropertyInvalidation(
+  void _queuePropertyInvalidation(
     PropertyQueryInvalidation invalidation, {
     required int subscriptionGeneration,
-  }) async {
+  }) {
     final access = state.selectedWorkspace;
     if (subscriptionGeneration != _propertySubscriptionGeneration ||
         access == null ||
@@ -610,14 +612,63 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         invalidation.workspaceId != access.workspace.id) {
       return;
     }
-    final workspaceId = access.workspace.id;
     final selectedPropertyId = state.selectedProperty?.id;
     final refreshDetail =
         selectedPropertyId != null &&
         (invalidation.isReconciliation ||
             invalidation.propertyId == selectedPropertyId);
+    final pending = _pendingInvalidationRefreshes[subscriptionGeneration];
+    _pendingInvalidationRefreshes[subscriptionGeneration] =
+        _InvalidationRefreshRequest(
+          workspaceId: access.workspace.id,
+          refreshDetail: refreshDetail || (pending?.refreshDetail ?? false),
+        );
+    if (_runningInvalidationRefreshes.add(subscriptionGeneration)) {
+      unawaited(_drainPropertyInvalidations(subscriptionGeneration));
+    }
+  }
+
+  Future<void> _drainPropertyInvalidations(int subscriptionGeneration) async {
+    try {
+      while (true) {
+        final request = _pendingInvalidationRefreshes.remove(
+          subscriptionGeneration,
+        );
+        if (request == null) {
+          return;
+        }
+        await _refreshPropertiesFromInvalidation(
+          request,
+          subscriptionGeneration: subscriptionGeneration,
+        );
+      }
+    } finally {
+      _runningInvalidationRefreshes.remove(subscriptionGeneration);
+      if (_pendingInvalidationRefreshes.containsKey(subscriptionGeneration) &&
+          subscriptionGeneration == _propertySubscriptionGeneration &&
+          _runningInvalidationRefreshes.add(subscriptionGeneration)) {
+        unawaited(_drainPropertyInvalidations(subscriptionGeneration));
+      }
+    }
+  }
+
+  Future<void> _refreshPropertiesFromInvalidation(
+    _InvalidationRefreshRequest request, {
+    required int subscriptionGeneration,
+  }) async {
+    final access = state.selectedWorkspace;
+    if (subscriptionGeneration != _propertySubscriptionGeneration ||
+        access == null ||
+        !access.allows(propertyReadPermission) ||
+        access.workspace.id != request.workspaceId) {
+      return;
+    }
+    final workspaceId = request.workspaceId;
+    final selectedPropertyId = state.selectedProperty?.id;
+    final refreshDetail = request.refreshDetail && selectedPropertyId != null;
     final scopeGeneration = ++_scopeGeneration;
     final detailGeneration = refreshDetail ? ++_detailGeneration : null;
+    final currentNextCursor = state.nextCursor;
     final listFuture = _propertyRepository.list(
       PropertyListQuery(workspaceId: workspaceId),
     );
@@ -636,16 +687,35 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       return;
     }
     if (listResult case PropertyRepositorySuccess<PropertyPageResult>()) {
-      final items = _preferNewerProperties(
+      final merged = _mergeRefreshedFirstPage(
         current: state.properties,
+        currentNextCursor: currentNextCursor,
         refreshed: listResult.value.items,
+        refreshedNextCursor: listResult.value.nextCursor,
       );
       state = state.copyWith(
         propertyListPhase:
-            items.isEmpty ? PropertyListPhase.empty : PropertyListPhase.ready,
-        properties: items,
-        nextCursor: listResult.value.nextCursor,
+            merged.items.isEmpty
+                ? PropertyListPhase.empty
+                : PropertyListPhase.ready,
+        properties: merged.items,
+        nextCursor: merged.nextCursor,
       );
+    } else if (listResult case PropertyRepositoryFailure<PropertyPageResult>(
+      kind: PropertyRepositoryFailureKind.forbidden,
+    )) {
+      state = state.copyWith(
+        propertyListPhase: PropertyListPhase.forbidden,
+        propertyDetailPhase: PropertyDetailPhase.forbidden,
+        mutationPhase: PropertyMutationPhase.idle,
+        properties: const <PropertyDto>[],
+        nextCursor: null,
+        selectedProperty: null,
+        failureKind: PropertyRepositoryFailureKind.forbidden,
+        versionConflict: null,
+        message: listResult.message,
+      );
+      return;
     }
 
     if (detailFuture == null || detailGeneration == null) {
@@ -794,20 +864,62 @@ List<PropertyDto> _replaceProperty(
   return List<PropertyDto>.unmodifiable(result);
 }
 
-List<PropertyDto> _preferNewerProperties({
+class _InvalidationRefreshRequest {
+  const _InvalidationRefreshRequest({
+    required this.workspaceId,
+    required this.refreshDetail,
+  });
+
+  final String workspaceId;
+  final bool refreshDetail;
+}
+
+class _MergedPropertyPage {
+  const _MergedPropertyPage({required this.items, required this.nextCursor});
+
+  final List<PropertyDto> items;
+  final String? nextCursor;
+}
+
+_MergedPropertyPage _mergeRefreshedFirstPage({
   required List<PropertyDto> current,
+  required String? currentNextCursor,
   required List<PropertyDto> refreshed,
+  required String? refreshedNextCursor,
 }) {
   final currentById = <String, PropertyDto>{
     for (final property in current) property.id: property,
   };
-  return List<PropertyDto>.unmodifiable(
-    refreshed.map((property) {
-      final existing = currentById[property.id];
-      return existing != null && existing.version > property.version
-          ? existing
-          : property;
-    }),
+  final refreshedItems = refreshed
+      .map((property) {
+        final existing = currentById[property.id];
+        return existing != null && existing.version > property.version
+            ? existing
+            : property;
+      })
+      .toList(growable: false);
+  if (refreshedNextCursor == null) {
+    return _MergedPropertyPage(
+      items: List<PropertyDto>.unmodifiable(refreshedItems),
+      nextCursor: null,
+    );
+  }
+  final refreshedIds = refreshedItems.map((property) => property.id).toSet();
+  final tail = current.where(
+    (property) =>
+        property.id.compareTo(refreshedNextCursor) > 0 &&
+        !refreshedIds.contains(property.id),
+  );
+  final items = List<PropertyDto>.unmodifiable(<PropertyDto>[
+    ...refreshedItems,
+    ...tail,
+  ]);
+  return _MergedPropertyPage(
+    items: items,
+    nextCursor:
+        items.length > refreshedItems.length
+            ? currentNextCursor
+            : refreshedNextCursor,
   );
 }
 

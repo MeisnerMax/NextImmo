@@ -59,6 +59,33 @@ Status: `done`.
 - Der lokale Mehrclient-E2E bestaetigt Event und Readback im aktiven Workspace sowie ausbleibende Fremd-Workspace-Events.
 - Abschluss: 160 pgTAP- und 12 Rollback-Pruefungen, beide lokalen Clientintegrationen, 221 Gesamttests mit 6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
 
+## P1-012 Migrations-Dry-Run
+
+Status: `done`.
+
+- Der read-only SQLite-Adapter liest den expliziten Legacy-Workspace und alle globalen Legacy-Properties deterministisch, ohne Quelldaten zu veraendern.
+- Der Mapper verlangt explizite Ziel-Workspace- und Actor-UUIDs sowie die bestaetigte Zuordnung globaler Properties; mehrdeutige Workspaces und nicht abgebildete Felder blockieren den Import.
+- Deterministische UUIDv5-IDs, kanonische SHA-256-Pruefsummen, Mengenabgleich und kontrollierter Abbruch sind getestet; der Report enthaelt keine Rohdaten oder PII.
+- Abschluss: 7 gezielte Tests, 228 Gesamttests mit 6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
+
+## P1-014 Backup-/Restore-Betrieb
+
+Status: `partial`; lokaler Vertrag verifiziert, Sandbox-/Staging-Drill offen.
+
+- Ein fail-closed PowerShell-Drill sichert die expliziten lokalen PostgreSQL-Schemas, prueft den Export per SHA-256 und restauriert atomar in eine neue, eindeutig geschuetzte Wegwerf-Datenbank.
+- Quell-/Ziel-Counts, kanonische Datenhashes, Migration-Head, RLS, Constraints und Realtime-Publikation werden ohne Rohdaten oder Secrets abgeglichen.
+- Zielschutz, manipuliertes Archiv, nichtleerer synthetischer Restore und rueckstandsfreies Cleanup bestehen; das Gate ist in CI aufgenommen.
+- Nicht nachgewiesen sind Remote-/Offsite-Backup, Storage-Export, Verschluesselung/Authentizitaet, Crash-Recovery, RPO/RTO oder ein autorisierter Sandbox-/Staging-Drill.
+
+## P1-015 Referenzschnitt-Gate-Review
+
+Status: `partial`; lokale Review abgeschlossen, Phase-1-Gate abgelehnt.
+
+- Unbekannte Supabase-AAL-Werte sperren Workspace- und Property-Zugriffe fail-closed; Realtime-Bursts werden zusammengefasst und erhalten bereits geladene Seiten.
+- 164 pgTAP-Pruefungen decken zusaetzlich suspendierte Memberships und Audit-Korrelation ab; lokale Security-/Performance-Advisors blockieren CI bei Error-Befunden.
+- Der Gate-Report `../phase_1/03_reference_slice_gate_review.md` dokumentiert die lokalen Nachweise und offenen Security-, Performance- und Betriebsbefunde.
+- Offen bleiben insbesondere serverseitige MFA/AAL-Durchsetzung, Entitlement-Invalidierung, Entity-Scopes/Archivierung, notwendige Index-/Policy-Migrationen, Runtime-Wiring und ein autorisierter Remote-/Staging-Nachweis.
+
 ## P1-001 bis P1-004 Datenbankinkrement
 
 Status: `done`.
@@ -79,7 +106,8 @@ Status: `done`.
 | ID | Risiko | Behandlung |
 |---|---|---|
 | RISK-QA-001 | Golden-Master-Fixtures fehlen teilweise | vor Adapter-/Migrationswechsel einfrieren |
-| RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | Format 2 prueft Pfade, Payload-Hashes, SQLite-Integritaet, Schema und In-Process-Rollback; Journal/HMAC fuer P1-014 offen |
-| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 160 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
+| RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore und Cleanup; Journal, AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
+| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 164 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
 | RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
+| RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets und benoetigte Indizes sind offen | vor Gate-Abnahme Budgets definieren, Query-Plaene messen und autorisierte Migrationen testen |

@@ -305,6 +305,152 @@ void main() {
       expect(controller.state.selectedProperty?.version, 2);
     });
 
+    test('Realtime refresh preserves already loaded property pages', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      var call = 0;
+      properties.listHandler = (query) async {
+        call++;
+        return switch (call) {
+          1 => PropertyRepositorySuccess<PropertyPageResult>(
+            PropertyPageResult(
+              items: <PropertyDto>[
+                _property(id: 'property-a'),
+                _property(id: 'property-b'),
+              ],
+              nextCursor: 'property-b',
+            ),
+          ),
+          2 => PropertyRepositorySuccess<PropertyPageResult>(
+            PropertyPageResult(
+              items: <PropertyDto>[_property(id: 'property-c')],
+            ),
+          ),
+          _ => PropertyRepositorySuccess<PropertyPageResult>(
+            PropertyPageResult(
+              items: <PropertyDto>[
+                _property(id: 'property-a', version: 2),
+                _property(id: 'property-b'),
+              ],
+              nextCursor: 'property-b',
+            ),
+          ),
+        };
+      };
+
+      await controller.start();
+      await controller.loadNextPropertyPage();
+      invalidations.emit(
+        const PropertyQueryInvalidation(
+          workspaceId: 'workspace-a',
+          propertyId: 'property-a',
+        ),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(
+        controller.state.properties.map((property) => property.id),
+        <String>['property-a', 'property-b', 'property-c'],
+      );
+      expect(controller.state.properties.first.version, 2);
+      expect(controller.state.nextCursor, isNull);
+    });
+
+    test('Realtime burst is coalesced to one pending refresh', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      await controller.start();
+
+      final firstRefresh =
+          Completer<PropertyRepositoryResult<PropertyPageResult>>();
+      var refreshCalls = 0;
+      properties.listHandler = (_) {
+        refreshCalls++;
+        if (refreshCalls == 1) {
+          return firstRefresh.future;
+        }
+        return Future<PropertyRepositoryResult<PropertyPageResult>>.value(
+          PropertyRepositorySuccess<PropertyPageResult>(
+            PropertyPageResult(items: <PropertyDto>[_property(version: 2)]),
+          ),
+        );
+      };
+
+      for (var index = 0; index < 20; index++) {
+        invalidations.emit(
+          const PropertyQueryInvalidation(
+            workspaceId: 'workspace-a',
+            propertyId: 'property-a',
+          ),
+        );
+      }
+      await _flushEvents();
+      expect(refreshCalls, 1);
+
+      firstRefresh.complete(
+        PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property(version: 2)]),
+        ),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(refreshCalls, 2);
+      expect(properties.listCalls, 3);
+      expect(controller.state.properties.single.version, 2);
+    });
+
+    test('Realtime forbidden response clears cached property data', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      properties
+          .listResult = const PropertyRepositoryFailure<PropertyPageResult>(
+        kind: PropertyRepositoryFailureKind.forbidden,
+        message: 'Access revoked.',
+      );
+      invalidations.emit(
+        const PropertyQueryInvalidation(
+          workspaceId: 'workspace-a',
+          propertyId: 'property-a',
+        ),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(controller.state.propertyListPhase, PropertyListPhase.forbidden);
+      expect(
+        controller.state.propertyDetailPhase,
+        PropertyDetailPhase.forbidden,
+      );
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.selectedProperty, isNull);
+    });
+
     test('workspace switch cancels the old Realtime scope', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
@@ -400,9 +546,13 @@ WorkspaceAccess _access({
   );
 }
 
-PropertyDto _property({int version = 1, String name = 'Property'}) {
+PropertyDto _property({
+  String id = 'property-a',
+  int version = 1,
+  String name = 'Property',
+}) {
   return PropertyDto(
-    id: 'property-a',
+    id: id,
     workspaceId: 'workspace-a',
     name: name,
     addressLine1: 'Street 1',
@@ -488,6 +638,7 @@ class _FakePropertyRepository implements PropertyRepository {
   final Queue<PropertyRepositoryResult<PropertyDto>> updateResults =
       Queue<PropertyRepositoryResult<PropertyDto>>();
   final List<String> listWorkspaceIds = <String>[];
+  final List<PropertyListQuery> listQueries = <PropertyListQuery>[];
   final List<String> detailPropertyIds = <String>[];
   final List<PropertyUpdateCommand> updateCommands = <PropertyUpdateCommand>[];
 
@@ -498,6 +649,7 @@ class _FakePropertyRepository implements PropertyRepository {
     PropertyListQuery query,
   ) async {
     listWorkspaceIds.add(query.workspaceId);
+    listQueries.add(query);
     final handler = listHandler;
     return handler == null ? listResult : handler(query);
   }

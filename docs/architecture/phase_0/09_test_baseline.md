@@ -6,16 +6,16 @@ Stand: 2026-07-17
 
 | ID | Bereich | Bestand | Status | Evidenz |
 |---|---|---:|---|---|
-| TST-001 | Testdateien gesamt | 97 | verified | `test/**/*.dart` |
-| TST-002 | Testfaelle (`test`/`testWidgets`) | 207 Deklarationen; 227 Laufzeitfaelle | verified | `test/**/*.dart`; 221 bestanden, 6 Skips |
+| TST-001 | Testdateien gesamt | 99 | verified | `test/**/*.dart` |
+| TST-002 | Testfaelle (`test`/`testWidgets`) | 218 Deklarationen; 238 Laufzeitfaelle | verified | `test/**/*.dart`; 232 bestanden, 6 Skips |
 | TST-003 | Domain/Core | 29 Dateien | verified | `test/core/` |
 | TST-004 | Daten/SQLite-Repositories | 27 Dateien | verified | `test/data/` |
 | TST-005 | Widget/UI | 28 Dateien | verified | `test/ui/`, einschliesslich Navigation und responsivem Overflow-Gate |
 | TST-006 | Integration | 4 Dateien | verified | `test/integration/`, einschliesslich echten Supabase-Client-, RLS-, RPC- und Mehrclient-Realtime-Gates |
 | TST-007 | Root/Smoke/Layout | 2 Dateien | verified | `test/widget_test.dart`, `test/debug_layout_test.dart` |
 | TST-008 | Golden-/Screenshot-Tests | 3 Baselines | verified | P1-010 Phone, Tablet und Desktop unter `test/features/reference_slice/goldens/` |
-| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency-, Client- und Mehrclient-Realtime-Integration | verified | `.github/workflows/flutter.yml` |
-| TST-010 | Feature-Slices | 7 Dateien | verified | `test/features/`, einschliesslich P1-010-UI und P1-011-Lifecycle |
+| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency-, Client-, Mehrclient-Realtime-, Advisor- und lokaler Backup-/Restore-Drill | verified | `.github/workflows/flutter.yml` |
+| TST-010 | Feature-Slices | 9 Dateien | verified | `test/features/`, einschliesslich P1-010-UI, P1-011-Lifecycle und P1-012-Migrations-Dry-Run |
 
 Vorhandene Schwerpunkte: deterministische Core-Engines, SQLite- und Supabase-Repository-Vertraege, PostgreSQL/RLS, ausgewaehlte Widgets und vier lokale Integrationsfluesse. Nicht vorhanden sind Import-Reconciliation, echte plattformuebergreifende E2E- und umfassende responsive Screenshot-Gates.
 
@@ -121,6 +121,9 @@ Gate-Regeln:
 | RUN-010 | P1-009 Abschlussgate | lokale Supabase-Integration 1/1, Gesamtsuite 202 bestanden/5 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified |
 | RUN-011 | P1-010 Adaptive UI | 14 Widgettests, 7 Breakpoint-Breiten und 3 Golden-Baselines bestanden; Gesamtsuite 216 bestanden/5 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
 | RUN-012 | P1-011 Realtime-Invalidierung | lokaler Mehrclient-E2E fuer aktiven und fremden Workspace, kanonischer Readback, 160 pgTAP- und 12 Rollback-Pruefungen; Gesamtsuite 221 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
+| RUN-013 | P1-012 Migrations-Dry-Run | 7 gezielte Mapper-/SQLite-Adaptertests fuer deterministische IDs, Counts, Checksums, Fail-closed-Zuordnung, PII-freien Report und Abbruch; Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
+| RUN-014 | P1-014 lokaler Backup-/Restore-Vertrag | Zielguard 7/7, manipuliertes Archiv vor Zielerstellung abgelehnt, nichtleerer PostgreSQL-Restore mit 18 reconciliierten Zeilen und Cleanup bestanden; 160 pgTAP, Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Remote-/Storage-Drill offen |
+| RUN-015 | P1-015 lokales Gate-Review | Unknown-AAL fail-closed, Realtime-Burst-Coalescing/Pagination, suspendierte Membership und Audit-Korrelation; 164 pgTAP, Security-/Performance-Advisors ohne Error-Befund, Gesamtsuite 232 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Gate abgelehnt; Server-/Runtime-/Remote-/Performance-Gates offen |
 
 ## 7. Risiken
 
@@ -129,7 +132,8 @@ Gate-Regeln:
 | RISK-QA-001 | Keine versionierten Golden-Master-Fixtures | unbemerkte Aenderung finanzieller Ergebnisse | GM-VAL bis GM-BKP vor Migration einfrieren | open |
 | RISK-QA-002 | Mehrere IRR-Implementierungen koennen langfristig divergieren | abweichende Renditewerte bei kuenftigen Aenderungen | direkte Referenzfaelle fuer alle drei Rechner bestehen; gemeinsame Implementierung spaeter konsolidieren | mitigated |
 | RISK-QA-003 | Migrationstest startet nur am aktuellen Schema | Upgrade kann Daten verlieren oder Beziehungen brechen | Versions-Fixtures, Upgrade, Reconciliation und Rollback | open |
-| RISK-QA-004 | Prozessabsturz kann den In-Process-Rollback unterbrechen; SHA-256 beweist keine Urheberschaft | Teilzustand nach hartem Crash oder absichtlich neu gehashtes Fremdarchiv | Restore-Journal/Start-Recovery und HMAC/Signatur mit Schluesselverwaltung in P1-014 | mitigated |
+| RISK-QA-004 | Prozessabsturz kann Cleanup unterbrechen; SHA-256 beweist keine Urheberschaft | verwaistes Restore-Ziel oder absichtlich neu gehashtes Fremdarchiv | lokaler atomarer Drill besteht; Restore-Journal/Start-Recovery, AEAD und HMAC/Signatur mit Schluesselverwaltung bleiben fuer P1-014 offen | partial |
 | RISK-QA-005 | Neue Policies koennen Mandantentrennung regressieren | Cross-Tenant-Datenzugriff | pgTAP/RLS- und reale Clientintegration sind CI-Gates | mitigated |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | Web-Build oder Analyzer bricht | `package:web`, Analyzer und Web-Build sind CI-Gates | mitigated |
 | RISK-QA-007 | Responsive-Golden-Abdeckung ist noch auf den Referenzschnitt begrenzt | pixelbezogene Regressionen anderer Screens bleiben moeglich | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen | partial |
+| RISK-QA-008 | Keine verbindlichen Performance-Budgets; benoetigte FK-/Listenindizes und RLS-Initplan-Optimierungen sind offen | Last- und Skalierungsregressionen bleiben unentdeckt | Budgets festlegen, Query-Plaene messen und autorisierte Migrationen durch pgTAP/Advisors absichern | open |

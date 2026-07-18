@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(53);
 
 select has_type('public', 'property_status', 'property status enum exists');
 select is(
@@ -253,6 +253,41 @@ select throws_ok(
 );
 
 reset role;
+update public.memberships
+set status = 'suspended'
+where id = '51000000-0000-0000-0000-000000000101';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000101', true);
+
+select is(
+  (select count(*)::integer from public.properties),
+  0,
+  'suspended membership cannot read properties'
+);
+select is(
+  (select count(*)::integer from public.audit_events),
+  0,
+  'suspended membership cannot read audit events'
+);
+select is(
+  public.update_property(
+    '10000000-0000-0000-0000-000000000101',
+    '71000000-0000-0000-0000-000000000101',
+    1,
+    '61000000-0000-0000-0000-000000000114',
+    '91000000-0000-0000-0000-000000000114',
+    '{"name":"Suspended"}'::jsonb
+  ) #>> '{error,code}',
+  'forbidden',
+  'suspended membership cannot execute an authorized property update'
+);
+
+reset role;
+update public.memberships
+set status = 'active'
+where id = '51000000-0000-0000-0000-000000000101';
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000101', true);
 
@@ -293,6 +328,7 @@ select is((select version from public.properties), 2::bigint, 'stored property v
 select is((select updated_by from public.properties), 'a0000000-0000-0000-0000-000000000101'::uuid, 'actor is always auth.uid');
 select is((select count(*)::integer from public.audit_events), 1, 'success writes exactly one audit event');
 select is((select actor_user_id from public.audit_events), 'a0000000-0000-0000-0000-000000000101'::uuid, 'audit actor is auth.uid');
+select is((select correlation_id from public.audit_events), '91000000-0000-0000-0000-000000000104'::uuid, 'audit event preserves the command correlation id');
 
 reset role;
 select is((select count(*)::integer from public.mutation_receipts where status = 'succeeded'), 1, 'success marks one receipt succeeded');

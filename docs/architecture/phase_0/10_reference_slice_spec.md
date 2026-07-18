@@ -1,6 +1,6 @@
 # P0 Reference Slice Specification
 
-Status: `proposed`
+Status: `partial`; lokal implementiert und verifiziert, Runtime-/Staging-Gate offen.
 
 ## Slice
 
@@ -10,24 +10,25 @@ Status: `proposed`
 
 | ID | Capability | Owner | Status |
 |---|---|---|---|
-| REF-001 | Supabase authentication session | identity_access | proposed |
-| REF-002 | Active workspace membership | identity_access | proposed |
-| REF-003 | Workspace-scoped property list | portfolio_property | proposed |
-| REF-004 | Workspace-scoped property detail | portfolio_property | proposed |
-| REF-005 | Optimistic-concurrency property update | portfolio_property | proposed |
-| REF-006 | Append-only audit event | platform_audit_jobs | proposed |
-| REF-007 | Realtime refresh for authorized workspace clients | portfolio_property | proposed |
+| REF-001 | Supabase authentication session | identity_access | verified |
+| REF-002 | Active workspace membership | identity_access | verified |
+| REF-003 | Workspace-scoped property list | portfolio_property | verified |
+| REF-004 | Workspace-scoped property detail | portfolio_property | verified |
+| REF-005 | Optimistic-concurrency property update | portfolio_property | verified |
+| REF-006 | Append-only audit event | platform_audit_jobs | verified |
+| REF-007 | Realtime refresh for authorized workspace clients | portfolio_property | verified |
 
 ## Existing Evidence
 
 | ID | Evidence | Finding | Status |
 |---|---|---|---|
 | EVD-REF-001 | `lib/main.dart` | SQLite FFI is initialized before app start. | verified |
-| EVD-REF-002 | `lib/ui/state/security_state.dart`, `lib/ui/navigation/app_navigation.dart` | P1-008 is started: missing state resolves to no role and unknown roles receive no global page access. | verified |
+| EVD-REF-002 | `lib/ui/state/security_state.dart`, `lib/ui/navigation/app_navigation.dart` | P1-008 ist abgeschlossen: fehlender State liefert keine Rolle und unbekannte Rollen erhalten keinen globalen Seitenzugriff. | verified |
 | EVD-REF-003 | `lib/core/security/rbac.dart` | Local permission vocabulary is default-deny for unknown roles. | verified |
-| EVD-REF-004 | `lib/data/repositories/permission_guard.dart` | Authorization is process-local, not server-enforced. | verified |
-| EVD-REF-005 | `lib/core/models/property.dart` | Current property model has no workspace, actor or version fields. | verified |
-| EVD-REF-006 | `lib/data/repositories/audit_log_repo.dart` | Audit supports workspace, actor, correlation and diffs but remains SQLite-local. | verified |
+| EVD-REF-004 | `lib/data/repositories/permission_guard.dart`, `supabase/migrations/20260712160000_p1_003_default_deny_rls.sql` | Legacy-Authorization bleibt lokal; der Cloud-Schnitt wird serverseitig durch Default-Deny-RLS geschuetzt. | verified |
+| EVD-REF-005 | `lib/core/models/property.dart`, `lib/features/portfolio_property/domain/property_dto.dart` | Das Legacy-Modell bleibt unveraendert; der Cloud-DTO fuehrt Workspace, Actor und Version. | verified |
+| EVD-REF-006 | `lib/data/repositories/audit_log_repo.dart`, `supabase/migrations/20260712170000_p1_004_property_contract.sql` | Legacy-Audit bleibt lokal; Cloud-Mutationen schreiben atomar append-only Audit-Events. | verified |
+| EVD-REF-007 | `lib/features/reference_slice/`, `test/features/reference_slice/`, `test/integration/supabase_property_realtime_integration_test.dart` | Application-State, adaptive UI und lokaler Mehrclient-Realtime-Fluss sind implementiert und getestet. | verified |
 
 ## Cloud Contract
 
@@ -35,7 +36,7 @@ Status: `proposed`
 
 Required fields: `id`, `name`, `created_at`, `updated_at`, `version`.
 
-The workspace is the tenancy root and therefore does not carry a self-referencing `workspace_id`; all workspace-owned child entities do. `[proposed]`
+The workspace is the tenancy root and therefore does not carry a self-referencing `workspace_id`; all workspace-owned child entities do. `[verified]`
 
 ### Membership
 
@@ -103,6 +104,28 @@ Atomic result:
 - Flutter state tests for unauthenticated, forbidden, conflict and retry states.
 - Responsive widget tests at phone, tablet and desktop widths.
 - End-to-end test with two authorized sessions verifying Realtime refresh.
+
+## Current Gate Evidence
+
+| ID | Status | Evidence / gap |
+|---|---|---|
+| AC-RLS-001 | verified | Anonymous table/RPC access is denied by grants and pgTAP. |
+| AC-RLS-002 | verified | Two-workspace read/write isolation passes in pgTAP and real client tests. |
+| AC-RLS-003 | verified | Suspended membership cannot read Property/Audit or update through RPC. |
+| AC-RLS-004 | verified | Viewer reads but receives `forbidden` for mutation. |
+| AC-RLS-005 | verified | Manager mutation is workspace-scoped and foreign IDs fail closed. |
+| AC-RLS-006 | partial | SQL and Supabase-Flutter client paths pass; a raw PostgREST parity test is open. |
+| AC-REF-001 | verified | Session/AAL and active memberships are mapped fail-closed. |
+| AC-REF-002 | verified | List query filters workspace and tombstones. |
+| AC-REF-003 | partial | Stable ID detail exists; stable route/deep-link wiring is open in P1-010. |
+| AC-REF-004 | verified | Successful RPC increments version exactly once. |
+| AC-REF-005 | verified | Identical mutation retry returns the stored result without duplicate audit. |
+| AC-REF-006 | verified | Stale version returns structured conflict and current property. |
+| AC-REF-007 | verified | Local authorized second client observes committed update. |
+| AC-REF-008 | verified | Exactly one audit event preserves actor and correlation ID. |
+| AC-REF-009 | verified | Controller/UI tests cover loading, empty, error, unauthenticated and forbidden states. |
+
+Der lokale Teststand umfasst Migration/164 pgTAP, Rollback, Concurrency, Adapter-/Controller-, responsive Widget-/Golden- und Mehrclient-Realtime-Tests. Staging-E2E, produktive MFA/Rollenpolicy, Runtime-/Deep-Link-Wiring und Performancebudgets bleiben offen; Details: `docs/architecture/phase_1/03_reference_slice_gate_review.md`.
 
 ## Exclusions
 

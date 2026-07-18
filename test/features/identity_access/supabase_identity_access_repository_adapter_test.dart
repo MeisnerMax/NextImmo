@@ -24,11 +24,30 @@ void main() {
       expect(gateway.membershipCalls, 0);
     });
 
-    test('rejects workspace access while an MFA challenge is pending', () async {
+    test(
+      'rejects workspace access while an MFA challenge is pending',
+      () async {
+        gateway.currentSession = const AuthenticatedSession(
+          userId: 'user-a',
+          currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+          nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+        );
+
+        final result = await repository.listWorkspaceAccesses(userId: 'user-a');
+
+        expect(
+          (result as IdentityAccessFailure<List<WorkspaceAccess>>).kind,
+          IdentityAccessFailureKind.unauthenticated,
+        );
+        expect(gateway.membershipCalls, 0);
+      },
+    );
+
+    test('fails closed for an unknown assurance level', () async {
       gateway.currentSession = const AuthenticatedSession(
         userId: 'user-a',
-        currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
-        nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+        currentAssuranceLevel: AuthenticationAssuranceLevel.unknown,
+        nextAssuranceLevel: AuthenticationAssuranceLevel.unknown,
       );
 
       final result = await repository.listWorkspaceAccesses(userId: 'user-a');

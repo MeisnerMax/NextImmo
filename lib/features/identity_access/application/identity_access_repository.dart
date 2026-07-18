@@ -42,7 +42,7 @@ class WorkspaceAccess {
   bool allows(String permission) => permissions.contains(permission);
 }
 
-enum AuthenticationAssuranceLevel { aal1, aal2 }
+enum AuthenticationAssuranceLevel { unknown, aal1, aal2 }
 
 class AuthenticatedSession {
   const AuthenticatedSession({
@@ -56,8 +56,10 @@ class AuthenticatedSession {
   final AuthenticationAssuranceLevel nextAssuranceLevel;
 
   bool get requiresMfaChallenge =>
-      currentAssuranceLevel == AuthenticationAssuranceLevel.aal1 &&
-      nextAssuranceLevel == AuthenticationAssuranceLevel.aal2;
+      currentAssuranceLevel == AuthenticationAssuranceLevel.unknown ||
+      nextAssuranceLevel == AuthenticationAssuranceLevel.unknown ||
+      (currentAssuranceLevel == AuthenticationAssuranceLevel.aal1 &&
+          nextAssuranceLevel == AuthenticationAssuranceLevel.aal2);
 }
 
 enum IdentityAccessFailureKind {

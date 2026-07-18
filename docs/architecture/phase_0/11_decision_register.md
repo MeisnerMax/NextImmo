@@ -20,6 +20,8 @@
 | DEC-016 | Initial authentication method is passwordless email login; enrolled MFA is represented through Supabase AAL and pending `aal2` blocks client-side access. A mandatory MFA rule for privileged roles remains open. | proposed | passwordless email and Supabase AAL researched; fail-closed Client-State und Repository-Zugriff sind getestet, aber privilegierte Rollenmatrix und restriktive RLS/AAL-Policy sind nicht definiert | before production auth and privileged-role enforcement |
 | DEC-017 | Supabase project creation and paid resources require explicit credentials/authority. | open | external state and cost | Phase 1 provisioning |
 | DEC-018 | Realtime is a workspace-scoped query invalidation signal; repository readback remains canonical and the subscription lifecycle is bound to session, workspace and MFA state. | accepted | P1-011 adapter, controller lifecycle tests and local multi-client E2E | revisit only for an offline/sync pilot |
+| DEC-019 | The legacy reference migration starts as a read-only dry run with explicit workspace/actor binding, deterministic UUIDv5 IDs and canonical SHA-256 reconciliation; reports contain no raw business or PII values. | accepted | P1-012 mapper, SQLite adapter and deterministic/negative tests | before any write-capable import executor |
+| DEC-020 | The first backup/restore gate is a local, schema-scoped logical PostgreSQL drill into a new disposable database; database-global Realtime publication state is rebuilt from versioned migrations and then reconciled. | accepted | P1-014 target/corruption guards, non-empty restore, SHA-256 and invariant fingerprint | before authorized sandbox/staging drill |
 
 ## Open Decision Rule
 

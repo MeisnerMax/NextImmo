@@ -53,6 +53,10 @@ jobs:
         run: supabase db reset --local --no-seed
       - name: Lint database
         run: supabase db lint --local --schema public --level error --fail-on error
+      - name: Check database advisors
+        run: |
+          supabase db advisors --local --type security --level info --fail-on error
+          supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
       - name: Test P1-011 and P1-004 rollback
@@ -73,6 +77,15 @@ jobs:
       - name: Test P1-011 Realtime integration
         shell: pwsh
         run: ./tool/verify_p1_011_e2e.ps1
+      - name: Test P1-014 restore target guards
+        shell: pwsh
+        run: ./tool/test_p1_014_backup_restore_guard.ps1
+      - name: Test P1-014 corrupt archive guard
+        shell: pwsh
+        run: ./tool/verify_p1_014_backup_restore.ps1 -TestCorruptArchive
+      - name: Test P1-014 local backup restore drill
+        shell: pwsh
+        run: ./tool/verify_p1_014_backup_restore.ps1
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup

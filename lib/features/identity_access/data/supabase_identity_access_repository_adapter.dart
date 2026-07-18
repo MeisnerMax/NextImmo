@@ -267,7 +267,8 @@ int _requiredInt(Map<String, dynamic> json, String key) {
 
 AuthenticationAssuranceLevel _mapAssurance(String? value) {
   return switch (value) {
+    'aal1' => AuthenticationAssuranceLevel.aal1,
     'aal2' => AuthenticationAssuranceLevel.aal2,
-    _ => AuthenticationAssuranceLevel.aal1,
+    _ => AuthenticationAssuranceLevel.unknown,
   };
 }
