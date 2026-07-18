@@ -318,7 +318,7 @@ export default function HomePage() {
           <div className="site-footer__top">
             <div><Logo inverse /><p>Immobilien Asset Management Software<br />von NexGen Consulting.</p></div>
             <div><span>Produkt</span><a href="#produkt">Überblick</a><a href="#funktionen">Funktionen</a><a href="#system">System</a></div>
-            <div><span>Unternehmen</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.contactUrl}>Kontakt</a><a href={`mailto:${siteConfig.email}`}>{siteConfig.email}</a></div>
+            <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
             <div><span>Rechtliches</span><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a><a href={`${siteConfig.parentUrl}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/cookies`}>Cookies</a></div>
           </div>
           <div className="site-footer__bottom"><span>© {new Date().getFullYear()} NexGen Consulting. Alle Rechte vorbehalten.</span><span>Made in Coburg · Germany</span></div>

@@ -3,6 +3,7 @@ export const siteConfig = {
   company: 'NexGen Consulting',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://neximmo.nexgen-consulting.de',
   parentUrl: 'https://nexgen-consulting.de',
+  hotelsUrl: 'https://hotels.nexgen-consulting.de',
   contactUrl: 'https://nexgen-consulting.de/kontakt',
   email: 'meisner@nexgen-consulting.de',
   description:

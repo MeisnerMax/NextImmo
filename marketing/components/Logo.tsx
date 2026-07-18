@@ -5,7 +5,7 @@ export function Logo({ inverse = false }: { inverse?: boolean }) {
         NX
       </span>
       <span className="brand__word">
-        Next<span>Immo</span>
+        Nex<span>Immo</span>
       </span>
     </span>
   );
