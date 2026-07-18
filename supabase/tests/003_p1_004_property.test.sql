@@ -165,6 +165,8 @@ create temporary table p1_004_results (
 );
 grant all on table p1_004_results to authenticated;
 
+select set_config('request.jwt.claims', '{"aal":"aal2"}', true);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000101', true);
 

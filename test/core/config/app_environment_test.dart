@@ -30,6 +30,14 @@ void main() {
       ),
       throwsStateError,
     );
+    expect(
+      () => AppEnvironment.fromValues(
+        environment: 'staging',
+        dataBackend: 'supabase',
+        supabaseUrl: 'https://project.supabase.co',
+      ),
+      throwsStateError,
+    );
   });
 
   test('accepts complete Supabase public configuration', () {

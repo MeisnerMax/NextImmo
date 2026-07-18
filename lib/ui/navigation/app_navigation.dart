@@ -2,6 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 
+const referencePropertiesRoute = '/properties';
+
+String referencePropertyRoute(String propertyId) {
+  final normalized = propertyId.trim();
+  if (normalized.isEmpty) {
+    throw ArgumentError.value(propertyId, 'propertyId', 'must not be empty');
+  }
+  return '$referencePropertiesRoute/${Uri.encodeComponent(normalized)}';
+}
+
+String? referencePropertyIdFromRoute(String? routeName) {
+  if (routeName == null) {
+    return null;
+  }
+  final segments = Uri.tryParse(routeName)?.pathSegments;
+  if (segments == null ||
+      segments.length != 2 ||
+      segments.first != 'properties' ||
+      segments.last.trim().isEmpty) {
+    return null;
+  }
+  return segments.last;
+}
+
 class AppNavigationGroup {
   const AppNavigationGroup({
     required this.title,

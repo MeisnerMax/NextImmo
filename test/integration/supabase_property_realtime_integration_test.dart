@@ -8,6 +8,8 @@ import 'package:neximmo_app/features/portfolio_property/data/supabase_property_r
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'support/supabase_mfa_test_helper.dart';
+
 void main() {
   const url = String.fromEnvironment('SUPABASE_URL');
   const publishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
@@ -46,6 +48,10 @@ void main() {
             email: 'p1-011-b@example.test',
             password: 'NexImmo-Test-2026!',
           ),
+        ]);
+        await Future.wait<void>(<Future<void>>[
+          elevateSupabaseTestClientToAal2(writerA),
+          elevateSupabaseTestClientToAal2(writerB),
         ]);
 
         final source = SupabasePropertyQueryInvalidationAdapter(

@@ -5,13 +5,16 @@ import '../../../ui/components/nx_card.dart';
 import '../../../ui/components/nx_empty_state.dart';
 import '../../../ui/components/nx_page_header.dart';
 import '../../../ui/components/nx_status_badge.dart';
+import '../../../ui/navigation/app_navigation.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../portfolio_property/domain/property_dto.dart';
 import '../application/reference_slice_controller.dart';
 import 'reference_property_detail_panel.dart';
 
 class ReferenceSliceScreen extends ConsumerStatefulWidget {
-  const ReferenceSliceScreen({super.key});
+  const ReferenceSliceScreen({super.key, this.initialPropertyId});
+
+  final String? initialPropertyId;
 
   @override
   ConsumerState<ReferenceSliceScreen> createState() =>
@@ -20,15 +23,23 @@ class ReferenceSliceScreen extends ConsumerStatefulWidget {
 
 class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
   bool _showCompactDetail = false;
+  bool _initialPropertyHandled = false;
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(referenceSliceControllerProvider);
     final controller = ref.read(referenceSliceControllerProvider.notifier);
+    ref.listen<ReferenceSliceState>(referenceSliceControllerProvider, (
+      _,
+      next,
+    ) {
+      _openInitialProperty(next);
+    });
+    _openInitialProperty(state);
     return ReferenceSliceView(
       state: state,
       showCompactDetail: _showCompactDetail,
-      onBackToList: () => setState(() => _showCompactDetail = false),
+      onBackToList: _backToList,
       onRefreshWorkspaces: controller.refreshWorkspaces,
       onSelectWorkspace: controller.selectWorkspace,
       onReloadProperties: controller.reloadProperties,
@@ -37,11 +48,47 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
         await controller.openProperty(propertyId);
         if (mounted) {
           setState(() => _showCompactDetail = true);
+          final route = referencePropertyRoute(propertyId);
+          if (ModalRoute.of(context)?.settings.name != route) {
+            Navigator.of(context).pushReplacementNamed(route);
+          }
         }
       },
       onUpdateProperty: controller.updateSelectedProperty,
       onRetryUpdate: controller.retryUpdate,
     );
+  }
+
+  void _openInitialProperty(ReferenceSliceState state) {
+    final propertyId = widget.initialPropertyId;
+    if (_initialPropertyHandled ||
+        propertyId == null ||
+        state.selectedWorkspace == null ||
+        state.propertyListPhase == PropertyListPhase.idle ||
+        state.propertyListPhase == PropertyListPhase.loading) {
+      return;
+    }
+    _initialPropertyHandled = true;
+    if (state.selectedProperty?.id == propertyId) {
+      _showCompactDetail = true;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref
+          .read(referenceSliceControllerProvider.notifier)
+          .openProperty(propertyId);
+      if (mounted) {
+        setState(() => _showCompactDetail = true);
+      }
+    });
+  }
+
+  void _backToList() {
+    if (widget.initialPropertyId != null) {
+      Navigator.of(context).pushReplacementNamed(referencePropertiesRoute);
+      return;
+    }
+    setState(() => _showCompactDetail = false);
   }
 }
 

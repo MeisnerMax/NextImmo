@@ -6,6 +6,8 @@ import 'package:neximmo_app/features/portfolio_property/data/supabase_property_r
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'support/supabase_mfa_test_helper.dart';
+
 void main() {
   const url = String.fromEnvironment('SUPABASE_URL');
   const publishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
@@ -81,6 +83,13 @@ void main() {
         ),
       );
 
+      final aal1Result = await repository.update(command);
+      expect(
+        (aal1Result as PropertyRepositoryFailure<PropertyDto>).kind,
+        PropertyRepositoryFailureKind.forbidden,
+      );
+
+      await elevateSupabaseTestClientToAal2(client);
       final first = await repository.update(command);
       final retry = await repository.update(command);
       expect(

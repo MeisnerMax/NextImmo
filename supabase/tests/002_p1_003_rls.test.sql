@@ -12,7 +12,8 @@ select functions_are(
     'is_current_active_membership',
     'prepare_audit_event',
     'reject_audit_event_change',
-    'reject_protected_column_update'
+    'reject_protected_column_update',
+    'update_property_core'
   ],
   'private function inventory is complete'
 );
