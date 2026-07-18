@@ -43,6 +43,8 @@ void main() {
       final writerA = createSupabaseTestClient(url, publishableKey);
       final writerB = createSupabaseTestClient(url, publishableKey);
       StreamSubscription<PropertyQueryInvalidation>? subscription;
+      String? writerAFactorId;
+      String? writerBFactorId;
       try {
         await Future.wait(<Future<AuthResponse>>[
           observer.auth.signInWithPassword(
@@ -58,10 +60,8 @@ void main() {
             password: 'NexImmo-Test-2026!',
           ),
         ]);
-        await Future.wait<void>(<Future<void>>[
-          elevateSupabaseTestClientToAal2(writerA),
-          elevateSupabaseTestClientToAal2(writerB),
-        ]);
+        writerAFactorId = await elevateSupabaseTestClientToAal2(writerA);
+        writerBFactorId = await elevateSupabaseTestClientToAal2(writerB);
 
         final source = SupabasePropertyQueryInvalidationAdapter(
           client: observer,
@@ -140,6 +140,12 @@ void main() {
         expect(property.version, 2);
       } finally {
         await subscription?.cancel();
+        if (writerAFactorId != null) {
+          await writerA.auth.mfa.unenroll(writerAFactorId);
+        }
+        if (writerBFactorId != null) {
+          await writerB.auth.mfa.unenroll(writerBFactorId);
+        }
         await Future.wait<void>(<Future<void>>[
           observer.auth.signOut(),
           writerA.auth.signOut(),
@@ -174,6 +180,7 @@ void main() {
       StreamSubscription<EntitlementInvalidation>? probeSubscription;
       StreamSubscription<EntitlementInvalidation>? foreignSubscription;
       ReferenceSliceController? controller;
+      String? observerFactorId;
       try {
         await Future.wait(<Future<AuthResponse>>[
           observer.auth.signInWithPassword(
@@ -185,6 +192,7 @@ void main() {
             password: 'NexImmo-Test-2026!',
           ),
         ]);
+        observerFactorId = await elevateSupabaseTestClientToAal2(observer);
 
         final foreignDenied = Completer<void>();
         foreignSubscription = SupabaseEntitlementInvalidationAdapter(
@@ -297,6 +305,9 @@ void main() {
         controller?.dispose();
         await probeSubscription?.cancel();
         await foreignSubscription?.cancel();
+        if (observerFactorId != null) {
+          await observer.auth.mfa.unenroll(observerFactorId);
+        }
         await Future.wait<void>(<Future<void>>[
           observer.auth.signOut(),
           revoker.auth.signOut(),
