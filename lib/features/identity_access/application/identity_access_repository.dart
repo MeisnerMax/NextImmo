@@ -62,9 +62,43 @@ class AuthenticatedSession {
           nextAssuranceLevel == AuthenticationAssuranceLevel.aal2);
 }
 
+class TotpFactor {
+  const TotpFactor({required this.id, this.friendlyName});
+
+  final String id;
+  final String? friendlyName;
+}
+
+class TotpEnrollment {
+  const TotpEnrollment({
+    required this.factorId,
+    required this.secret,
+    required this.uri,
+  });
+
+  final String factorId;
+  final String secret;
+  final String uri;
+}
+
+class TotpChallenge {
+  const TotpChallenge({
+    required this.factorId,
+    required this.challengeId,
+    required this.expiresAt,
+  });
+
+  final String factorId;
+  final String challengeId;
+  final DateTime expiresAt;
+}
+
 enum IdentityAccessFailureKind {
+  invalidInput,
   unauthenticated,
   forbidden,
+  verificationFailed,
+  rateLimited,
   infrastructureFailure,
 }
 
@@ -93,4 +127,23 @@ abstract interface class IdentityAccessRepository {
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
     required String userId,
   });
+
+  Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
+    required String email,
+  });
+
+  Future<IdentityAccessResult<TotpEnrollment>> enrollTotp();
+
+  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors();
+
+  Future<IdentityAccessResult<TotpChallenge>> challengeTotp({
+    required String factorId,
+  });
+
+  Future<IdentityAccessResult<AuthenticatedSession>> verifyTotp({
+    required TotpChallenge challenge,
+    required String code,
+  });
+
+  Future<IdentityAccessResult<void>> signOut();
 }

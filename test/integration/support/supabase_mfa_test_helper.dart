@@ -3,23 +3,53 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+SupabaseClient createSupabaseTestClient(String url, String publishableKey) {
+  return SupabaseClient(
+    url,
+    publishableKey,
+    authOptions: AuthClientOptions(
+      pkceAsyncStorage: _InMemoryGotrueAsyncStorage(),
+    ),
+  );
+}
+
 Future<void> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
   final enrollment = await client.auth.mfa.enroll(
     factorType: FactorType.totp,
-    friendlyName: 'neximmo-integration-${DateTime.now().microsecondsSinceEpoch}',
+    friendlyName:
+        'neximmo-integration-${DateTime.now().microsecondsSinceEpoch}',
   );
   final secret = enrollment.totp?.secret;
   if (secret == null || secret.isEmpty) {
     throw StateError('Supabase did not return a TOTP enrollment secret.');
   }
 
-  await client.auth.mfa.challengeAndVerify(
+  final challenge = await client.auth.mfa.challenge(factorId: enrollment.id);
+  await client.auth.mfa.verify(
     factorId: enrollment.id,
+    challengeId: challenge.id,
     code: _totpCode(secret, DateTime.now().toUtc()),
   );
-  final assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  final assurance = client.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assurance.currentLevel != AuthenticatorAssuranceLevels.aal2) {
     throw StateError('Supabase session did not reach AAL2.');
+  }
+}
+
+class _InMemoryGotrueAsyncStorage extends GotrueAsyncStorage {
+  final Map<String, String> _values = <String, String>{};
+
+  @override
+  Future<String?> getItem({required String key}) async => _values[key];
+
+  @override
+  Future<void> removeItem({required String key}) async {
+    _values.remove(key);
+  }
+
+  @override
+  Future<void> setItem({required String key, required String value}) async {
+    _values[key] = value;
   }
 }
 

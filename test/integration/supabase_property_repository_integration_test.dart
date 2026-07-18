@@ -4,8 +4,6 @@ import 'package:neximmo_app/features/identity_access/data/supabase_identity_acce
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/data/supabase_property_repository_adapter.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'support/supabase_mfa_test_helper.dart';
 
 void main() {
@@ -24,14 +22,30 @@ void main() {
         isNotEmpty,
         reason: 'SUPABASE_PUBLISHABLE_KEY dart define is required.',
       );
+      expect(
+        Uri.tryParse(url)?.host,
+        anyOf('127.0.0.1', 'localhost', '::1'),
+        reason: 'This integration test is restricted to local Supabase.',
+      );
 
-      final client = SupabaseClient(url, publishableKey);
+      final client = createSupabaseTestClient(url, publishableKey);
+      final identityRepository = SupabaseIdentityAccessRepositoryAdapter(
+        client: client,
+      );
+      final passwordlessResult = await identityRepository
+          .requestPasswordlessSignIn(email: 'p1-007@example.test');
+      expect(
+        passwordlessResult,
+        isA<IdentityAccessSuccess<void>>(),
+        reason: switch (passwordlessResult) {
+          IdentityAccessFailure<void>(:final kind, :final message) =>
+            '$kind: $message',
+          _ => null,
+        },
+      );
       await client.auth.signInWithPassword(
         email: 'p1-007@example.test',
         password: 'NexImmo-Test-2026!',
-      );
-      final identityRepository = SupabaseIdentityAccessRepositoryAdapter(
-        client: client,
       );
       final accessResult = await identityRepository.listWorkspaceAccesses(
         userId: actorId,
@@ -127,7 +141,11 @@ void main() {
         'After',
       );
 
-      await client.auth.signOut();
+      expect(
+        await identityRepository.signOut(),
+        isA<IdentityAccessSuccess<void>>(),
+      );
+      expect(identityRepository.currentSession, isNull);
     },
     skip:
         url.isEmpty || publishableKey.isEmpty

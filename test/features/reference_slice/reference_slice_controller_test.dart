@@ -45,19 +45,102 @@ void main() {
       expect(identity.listCalls, 0);
     });
 
+    test(
+      'requests a passwordless sign-in link with explicit feedback',
+      () async {
+        await controller.start();
+
+        await controller.requestPasswordlessSignIn('user@example.test');
+
+        expect(
+          controller.state.authActionPhase,
+          ReferenceAuthActionPhase.emailSent,
+        );
+        expect(identity.passwordlessEmails, <String>['user@example.test']);
+        expect(controller.state.authMessage, contains('sign-in link'));
+      },
+    );
+
     test('blocks all data while an enrolled MFA factor is pending', () async {
       identity.currentSession = const AuthenticatedSession(
         userId: 'user-a',
         currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
         nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
       );
+      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
+        <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
+      );
 
       await controller.start();
 
       expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.totpFactors.single.id, 'factor-a');
       expect(controller.state.workspacePhase, WorkspacePhase.idle);
       expect(identity.listCalls, 0);
       expect(properties.listCalls, 0);
+    });
+
+    test(
+      'verifies an existing TOTP factor and loads authorized data',
+      () async {
+        identity.currentSession = const AuthenticatedSession(
+          userId: 'user-a',
+          currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+          nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+        );
+        identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
+          <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
+        );
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+          ],
+        );
+
+        await controller.start();
+        await controller.verifyTotp(factorId: 'factor-a', code: '123456');
+
+        expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+        expect(
+          controller.state.assuranceLevel,
+          AuthenticationAssuranceLevel.aal2,
+        );
+        expect(controller.state.totpFactors, isEmpty);
+        expect(identity.challengedFactorIds, <String>['factor-a']);
+        expect(identity.verifiedCodes, <String>['123456']);
+        expect(controller.state.selectedWorkspaceId, 'workspace-a');
+      },
+    );
+
+    test('enrolls TOTP, verifies it and clears secrets on sign-out', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+
+      await controller.start();
+      await controller.beginTotpEnrollment();
+
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentReady,
+      );
+      expect(controller.state.totpEnrollment?.secret, 'sensitive-secret');
+
+      await controller.verifyTotp(factorId: 'factor-new', code: '654321');
+      expect(
+        controller.state.assuranceLevel,
+        AuthenticationAssuranceLevel.aal2,
+      );
+      expect(controller.state.totpEnrollment, isNull);
+
+      await controller.signOut();
+      expect(controller.state.authPhase, ReferenceAuthPhase.unauthenticated);
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.totpEnrollment, isNull);
+      expect(identity.signOutCalls, 1);
     });
 
     test('loads the only active workspace and explicit empty list', () async {
@@ -592,10 +675,109 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
 
   IdentityAccessResult<List<WorkspaceAccess>> result =
       const IdentityAccessSuccess<List<WorkspaceAccess>>(<WorkspaceAccess>[]);
+  IdentityAccessResult<void> passwordlessResult =
+      const IdentityAccessSuccess<void>(null);
+  IdentityAccessResult<TotpEnrollment> enrollmentResult =
+      const IdentityAccessSuccess<TotpEnrollment>(
+        TotpEnrollment(
+          factorId: 'factor-new',
+          secret: 'sensitive-secret',
+          uri: 'otpauth://sensitive',
+        ),
+      );
+  IdentityAccessResult<List<TotpFactor>> factorsResult =
+      const IdentityAccessSuccess<List<TotpFactor>>(<TotpFactor>[]);
+  IdentityAccessResult<TotpChallenge> challengeResult =
+      IdentityAccessSuccess<TotpChallenge>(
+        TotpChallenge(
+          factorId: 'factor-a',
+          challengeId: 'challenge-a',
+          expiresAt: DateTime.utc(2026, 7, 18, 12),
+        ),
+      );
+  IdentityAccessResult<AuthenticatedSession> verifyResult =
+      const IdentityAccessSuccess<AuthenticatedSession>(
+        AuthenticatedSession(
+          userId: 'user-a',
+          currentAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+          nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+        ),
+      );
+  IdentityAccessResult<void> signOutResult = const IdentityAccessSuccess<void>(
+    null,
+  );
   int listCalls = 0;
+  final List<String> passwordlessEmails = <String>[];
+  int enrollmentCalls = 0;
+  int factorCalls = 0;
+  final List<String> challengedFactorIds = <String>[];
+  final List<String> verifiedCodes = <String>[];
+  int signOutCalls = 0;
 
   @override
   Stream<AuthenticatedSession?> watchSession() => _sessions.stream;
+
+  @override
+  Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
+    required String email,
+  }) async {
+    passwordlessEmails.add(email);
+    return passwordlessResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<TotpEnrollment>> enrollTotp() async {
+    enrollmentCalls++;
+    return enrollmentResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async {
+    factorCalls++;
+    return factorsResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<TotpChallenge>> challengeTotp({
+    required String factorId,
+  }) async {
+    challengedFactorIds.add(factorId);
+    if (challengeResult case IdentityAccessSuccess<TotpChallenge>(
+      value: final challenge,
+    )) {
+      return IdentityAccessSuccess<TotpChallenge>(
+        TotpChallenge(
+          factorId: factorId,
+          challengeId: challenge.challengeId,
+          expiresAt: challenge.expiresAt,
+        ),
+      );
+    }
+    return challengeResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<AuthenticatedSession>> verifyTotp({
+    required TotpChallenge challenge,
+    required String code,
+  }) async {
+    verifiedCodes.add(code);
+    if (verifyResult case IdentityAccessSuccess<AuthenticatedSession>(
+      value: final session,
+    )) {
+      currentSession = session;
+    }
+    return verifyResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<void>> signOut() async {
+    signOutCalls++;
+    if (signOutResult is IdentityAccessSuccess<void>) {
+      currentSession = null;
+    }
+    return signOutResult;
+  }
 
   @override
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
@@ -605,11 +787,13 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
     return result;
   }
 
-  void authenticate() {
-    currentSession = const AuthenticatedSession(
+  void authenticate({
+    AuthenticationAssuranceLevel level = AuthenticationAssuranceLevel.aal2,
+  }) {
+    currentSession = AuthenticatedSession(
       userId: 'user-a',
-      currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
-      nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+      currentAssuranceLevel: level,
+      nextAssuranceLevel: level,
     );
   }
 

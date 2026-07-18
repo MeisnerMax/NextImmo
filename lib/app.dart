@@ -34,18 +34,35 @@ class NexImmoApp extends ConsumerWidget {
       locale: AppStrings.localeFromLanguageCode(settings?.uiLanguageCode),
       supportedLocales: AppStrings.supportedLocales,
       localizationsDelegates: AppStrings.localizationsDelegates,
-      builder: (context, child) => AppZoomHost(
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder:
+          (context, child) =>
+              AppZoomHost(child: child ?? const SizedBox.shrink()),
       home:
           environment.dataBackend == DataBackend.sqlite
               ? const SecurityGate()
-              : const ReferenceSliceScreen(),
+              : null,
       onGenerateRoute:
           environment.dataBackend == DataBackend.supabase
               ? _generateReferenceRoute
               : null,
+      onGenerateInitialRoutes:
+          environment.dataBackend == DataBackend.supabase
+              ? _generateReferenceInitialRoutes
+              : null,
     );
+  }
+
+  List<Route<void>> _generateReferenceInitialRoutes(String initialRoute) {
+    final route = _generateReferenceRoute(RouteSettings(name: initialRoute));
+    if (route != null) {
+      return <Route<void>>[route];
+    }
+    return <Route<void>>[
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: referencePropertiesRoute),
+        builder: (_) => const ReferenceSliceScreen(),
+      ),
+    ];
   }
 
   Route<void>? _generateReferenceRoute(RouteSettings settings) {

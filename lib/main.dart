@@ -24,7 +24,7 @@ Future<void> main() async {
   if (environment.dataBackend == DataBackend.supabase) {
     await Supabase.initialize(
       url: environment.supabaseUrl!,
-      anonKey: environment.supabasePublishableKey!,
+      publishableKey: environment.supabasePublishableKey!,
     );
     final client = Supabase.instance.client;
     runApp(

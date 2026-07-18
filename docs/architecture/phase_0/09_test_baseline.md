@@ -1,13 +1,13 @@
 # P0.5 Testbaseline
 
-Stand: 2026-07-17
+Stand: 2026-07-18
 
 ## 1. Inventar
 
 | ID | Bereich | Bestand | Status | Evidenz |
 |---|---|---:|---|---|
-| TST-001 | Testdateien gesamt | 99 | verified | `test/**/*.dart` |
-| TST-002 | Testfaelle (`test`/`testWidgets`) | 218 Deklarationen; 238 Laufzeitfaelle | verified | `test/**/*.dart`; 232 bestanden, 6 Skips |
+| TST-001 | Testdateien gesamt | 101 | verified | `test/**/*.dart`, einschliesslich MFA-Testhilfe |
+| TST-002 | Testfaelle (`test`/`testWidgets`) | 220 Deklarationen; 240 Laufzeitfaelle | verified | `test/**/*.dart`; 234 bestanden, 6 Skips |
 | TST-003 | Domain/Core | 29 Dateien | verified | `test/core/` |
 | TST-004 | Daten/SQLite-Repositories | 27 Dateien | verified | `test/data/` |
 | TST-005 | Widget/UI | 28 Dateien | verified | `test/ui/`, einschliesslich Navigation und responsivem Overflow-Gate |
@@ -123,7 +123,8 @@ Gate-Regeln:
 | RUN-012 | P1-011 Realtime-Invalidierung | lokaler Mehrclient-E2E fuer aktiven und fremden Workspace, kanonischer Readback, 160 pgTAP- und 12 Rollback-Pruefungen; Gesamtsuite 221 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
 | RUN-013 | P1-012 Migrations-Dry-Run | 7 gezielte Mapper-/SQLite-Adaptertests fuer deterministische IDs, Counts, Checksums, Fail-closed-Zuordnung, PII-freien Report und Abbruch; Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | verified |
 | RUN-014 | P1-014 lokaler Backup-/Restore-Vertrag | Zielguard 7/7, manipuliertes Archiv vor Zielerstellung abgelehnt, nichtleerer PostgreSQL-Restore mit 18 reconciliierten Zeilen und Cleanup bestanden; 160 pgTAP, Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Remote-/Storage-Drill offen |
-| RUN-015 | P1-015 lokales Gate-Review | Unknown-AAL fail-closed, Realtime-Burst-Coalescing/Pagination, suspendierte Membership und Audit-Korrelation; 164 pgTAP, Security-/Performance-Advisors ohne Error-Befund, Gesamtsuite 232 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Gate abgelehnt; Server-/Runtime-/Remote-/Performance-Gates offen |
+| RUN-015 | P1-015 lokales Gate-Review | Unknown-AAL fail-closed, Realtime-Burst-Coalescing/Pagination, suspendierte Membership und Audit-Korrelation; 164 pgTAP, Security-/Performance-Advisors ohne Error-Befund, Gesamtsuite 232 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Gate abgelehnt; weitere Gates offen |
+| RUN-016 | Runtime-, AAL2- und Performance-Hardening | Explizite Runtimeauswahl, Kaltstart-Deep-Link, serverseitiges Property-AAL2 mit echtem TOTP-Clientnachweis, FK-/Keyset-Indizes und RLS-InitPlans; 196 pgTAP, beide Clientgates, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips, Analyzer 0 Findings, Web-Build und DB-Lint erfolgreich | verified_local; allgemeine Auth-Aktionen/Entitlements/Remote offen |
 
 ## 7. Risiken
 
@@ -136,4 +137,4 @@ Gate-Regeln:
 | RISK-QA-005 | Neue Policies koennen Mandantentrennung regressieren | Cross-Tenant-Datenzugriff | pgTAP/RLS- und reale Clientintegration sind CI-Gates | mitigated |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | Web-Build oder Analyzer bricht | `package:web`, Analyzer und Web-Build sind CI-Gates | mitigated |
 | RISK-QA-007 | Responsive-Golden-Abdeckung ist noch auf den Referenzschnitt begrenzt | pixelbezogene Regressionen anderer Screens bleiben moeglich | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen | partial |
-| RISK-QA-008 | Keine verbindlichen Performance-Budgets; benoetigte FK-/Listenindizes und RLS-Initplan-Optimierungen sind offen | Last- und Skalierungsregressionen bleiben unentdeckt | Budgets festlegen, Query-Plaene messen und autorisierte Migrationen durch pgTAP/Advisors absichern | open |
+| RISK-QA-008 | Keine verbindlichen Performance-Budgets; breite Property-Projektion und serielle Identity-Reads sind ungemessen | Last- und Skalierungsregressionen bleiben unentdeckt | Budgets festlegen und reproduzierbare Queryplan-, RPC- und Flutter-Profile messen | open |

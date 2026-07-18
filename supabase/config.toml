@@ -61,6 +61,10 @@ otp_expiry = 3600
 enable_signup = false
 enable_confirmations = false
 
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 [edge_runtime]
 enabled = true
 policy = "oneshot"

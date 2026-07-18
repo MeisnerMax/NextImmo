@@ -1,6 +1,6 @@
 # Phase 0 Gate Status
 
-Stand: 2026-07-17
+Stand: 2026-07-18
 Owner: `integration-agent`  
 Gesamtstatus: `PASS`  
 Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente`
@@ -42,13 +42,14 @@ Status: `done`.
 
 ## P1-010 Adaptive Referenzschnitt-UI
 
-Status: `partial`.
+Status: `done`.
 
 - Feature-lokale Property-Liste, Detailansicht und Mutation verwenden bestehende Breakpoints, Theme-Tokens und UI-Komponenten.
 - Phone wechselt explizit zwischen Liste und Detail; Desktop zeigt beide Bereiche nebeneinander. Tablet bleibt kompakt navigierbar.
 - 14 Widgettests decken Auth/MFA, Suche, Detailwechsel, Konflikt/Retry und sieben Breakpoint-Breiten ab; drei Golden-Baselines fuer Phone, Tablet und Desktop bestehen.
-- Vollstaendiger Analyzer ohne Findings, 216 Gesamttests mit 5 Skips und Web-Build bestehen.
-- Runtime-Wiring, bedienbare Auth/MFA-Aktionen und echte stabile Deep Links bleiben offen; bestehende Navigation wurde nicht veraendert.
+- Explizite SQLite-/Supabase-Runtimeauswahl, Provider-Overrides sowie stabile `/properties`- und `/properties/:id`-Routen sind verdrahtet.
+- Ein Kaltstart-Deep-Link oeffnet genau eine Route und das Detail unabhaengig von der Listenladung; der Supabase-Screen besitzt einen Material-/Scaffold-Kontext.
+- Abschluss: Analyzer ohne Findings, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips und Web-Build erfolgreich. Bedienbare Auth/MFA-Aktionen sind separat als `P1-016` offen.
 
 ## P1-011 Realtime-Invalidierung
 
@@ -82,9 +83,9 @@ Status: `partial`; lokaler Vertrag verifiziert, Sandbox-/Staging-Drill offen.
 Status: `partial`; lokale Review abgeschlossen, Phase-1-Gate abgelehnt.
 
 - Unbekannte Supabase-AAL-Werte sperren Workspace- und Property-Zugriffe fail-closed; Realtime-Bursts werden zusammengefasst und erhalten bereits geladene Seiten.
-- 164 pgTAP-Pruefungen decken zusaetzlich suspendierte Memberships und Audit-Korrelation ab; lokale Security-/Performance-Advisors blockieren CI bei Error-Befunden.
+- 196 pgTAP-Pruefungen decken zusaetzlich suspendierte Memberships, Audit-Korrelation, Performance-Indizes/InitPlans und serverseitiges Property-AAL2 ab; lokale Security-/Performance-Advisors blockieren CI bei Error-Befunden.
 - Der Gate-Report `../phase_1/03_reference_slice_gate_review.md` dokumentiert die lokalen Nachweise und offenen Security-, Performance- und Betriebsbefunde.
-- Offen bleiben insbesondere serverseitige MFA/AAL-Durchsetzung, Entitlement-Invalidierung, Entity-Scopes/Archivierung, notwendige Index-/Policy-Migrationen, Runtime-Wiring und ein autorisierter Remote-/Staging-Nachweis.
+- Runtime-Wiring, Property-AAL2 sowie notwendige Index-/InitPlan-Migrationen sind lokal geschlossen. Offen bleiben allgemeine privilegierte MFA/Rollenpolicy, Entitlement-Invalidierung, Entity-Scopes/Archivierung, Performancebudgets und ein autorisierter Remote-/Staging-Nachweis.
 
 ## P1-001 bis P1-004 Datenbankinkrement
 
@@ -107,7 +108,7 @@ Status: `done`.
 |---|---|---|
 | RISK-QA-001 | Golden-Master-Fixtures fehlen teilweise | vor Adapter-/Migrationswechsel einfrieren |
 | RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore und Cleanup; Journal, AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
-| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 164 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
+| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 196 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
 | RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
-| RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets und benoetigte Indizes sind offen | vor Gate-Abnahme Budgets definieren, Query-Plaene messen und autorisierte Migrationen testen |
+| RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets; breite Property-Projektion und serielle Identity-Reads sind ungemessen | vor Gate-Abnahme Budgets definieren und reproduzierbare Query-/Clientprofile messen |

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../ui/components/nx_card.dart';
 import '../../../ui/components/nx_empty_state.dart';
@@ -7,6 +8,7 @@ import '../../../ui/components/nx_page_header.dart';
 import '../../../ui/components/nx_status_badge.dart';
 import '../../../ui/navigation/app_navigation.dart';
 import '../../../ui/theme/app_theme.dart';
+import '../../identity_access/application/identity_access_repository.dart';
 import '../../portfolio_property/domain/property_dto.dart';
 import '../application/reference_slice_controller.dart';
 import 'reference_property_detail_panel.dart';
@@ -36,26 +38,35 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
       _openInitialProperty(next);
     });
     _openInitialProperty(state);
-    return ReferenceSliceView(
-      state: state,
-      showCompactDetail: _showCompactDetail,
-      onBackToList: _backToList,
-      onRefreshWorkspaces: controller.refreshWorkspaces,
-      onSelectWorkspace: controller.selectWorkspace,
-      onReloadProperties: controller.reloadProperties,
-      onLoadNextPage: controller.loadNextPropertyPage,
-      onOpenProperty: (propertyId) async {
-        await controller.openProperty(propertyId);
-        if (mounted) {
-          setState(() => _showCompactDetail = true);
-          final route = referencePropertyRoute(propertyId);
-          if (ModalRoute.of(context)?.settings.name != route) {
-            Navigator.of(context).pushReplacementNamed(route);
+    return Scaffold(
+      body: ReferenceSliceView(
+        state: state,
+        showCompactDetail: _showCompactDetail,
+        onBackToList: _backToList,
+        onRefreshWorkspaces: controller.refreshWorkspaces,
+        onSelectWorkspace: controller.selectWorkspace,
+        onReloadProperties: controller.reloadProperties,
+        onLoadNextPage: controller.loadNextPropertyPage,
+        onOpenProperty: (propertyId) async {
+          final navigator = Navigator.of(context);
+          final currentRouteName = ModalRoute.of(context)?.settings.name;
+          await controller.openProperty(propertyId);
+          if (mounted) {
+            final route = referencePropertyRoute(propertyId);
+            if (currentRouteName != route) {
+              navigator.pushNamed(route);
+            } else {
+              setState(() => _showCompactDetail = true);
+            }
           }
-        }
-      },
-      onUpdateProperty: controller.updateSelectedProperty,
-      onRetryUpdate: controller.retryUpdate,
+        },
+        onUpdateProperty: controller.updateSelectedProperty,
+        onRetryUpdate: controller.retryUpdate,
+        onRequestPasswordlessSignIn: controller.requestPasswordlessSignIn,
+        onBeginTotpEnrollment: controller.beginTotpEnrollment,
+        onVerifyTotp: controller.verifyTotp,
+        onSignOut: controller.signOut,
+      ),
     );
   }
 
@@ -63,9 +74,7 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
     final propertyId = widget.initialPropertyId;
     if (_initialPropertyHandled ||
         propertyId == null ||
-        state.selectedWorkspace == null ||
-        state.propertyListPhase == PropertyListPhase.idle ||
-        state.propertyListPhase == PropertyListPhase.loading) {
+        state.selectedWorkspace == null) {
       return;
     }
     _initialPropertyHandled = true;
@@ -74,6 +83,9 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
       await ref
           .read(referenceSliceControllerProvider.notifier)
           .openProperty(propertyId);
@@ -85,6 +97,10 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
 
   void _backToList() {
     if (widget.initialPropertyId != null) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
       Navigator.of(context).pushReplacementNamed(referencePropertiesRoute);
       return;
     }
@@ -105,6 +121,10 @@ class ReferenceSliceView extends StatefulWidget {
     required this.onOpenProperty,
     required this.onUpdateProperty,
     required this.onRetryUpdate,
+    required this.onRequestPasswordlessSignIn,
+    required this.onBeginTotpEnrollment,
+    required this.onVerifyTotp,
+    required this.onSignOut,
   });
 
   final ReferenceSliceState state;
@@ -117,6 +137,11 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function(String propertyId) onOpenProperty;
   final Future<void> Function(PropertyUpdateDto changes) onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
+  final Future<void> Function(String email) onRequestPasswordlessSignIn;
+  final Future<void> Function() onBeginTotpEnrollment;
+  final Future<void> Function({required String factorId, required String code})
+  onVerifyTotp;
+  final Future<void> Function() onSignOut;
 
   @override
   State<ReferenceSliceView> createState() => _ReferenceSliceViewState();
@@ -124,11 +149,16 @@ class ReferenceSliceView extends StatefulWidget {
 
 class _ReferenceSliceViewState extends State<ReferenceSliceView> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _totpCodeController = TextEditingController();
   String _query = '';
+  String? _selectedFactorId;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _emailController.dispose();
+    _totpCodeController.dispose();
     super.dispose();
   }
 
@@ -142,19 +172,9 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
           child: CircularProgressIndicator(),
         );
       case ReferenceAuthPhase.unauthenticated:
-        return const _AuthState(
-          key: Key('reference-unauthenticated'),
-          title: 'Sign in required',
-          description: 'Authenticate before accessing workspace data.',
-          icon: Icons.lock_outline,
-        );
+        return _buildPasswordlessSignIn();
       case ReferenceAuthPhase.mfaRequired:
-        return const _AuthState(
-          key: Key('reference-mfa-required'),
-          title: 'Multi-factor authentication required',
-          description: 'Complete the pending MFA challenge to continue.',
-          icon: Icons.phonelink_lock_outlined,
-        );
+        return _buildMfaStepUp();
       case ReferenceAuthPhase.error:
         return _AuthState(
           key: const Key('reference-auth-error'),
@@ -169,6 +189,9 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
 
   Widget _buildAuthenticated(BuildContext context) {
     final state = widget.state;
+    if (state.totpEnrollment != null) {
+      return _buildTotpEnrollment();
+    }
     final filteredProperties = state.properties
         .where((property) {
           if (_query.isEmpty) {
@@ -180,10 +203,11 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
         })
         .toList(growable: false);
     final canUpdate =
-        state.selectedWorkspace?.allows(
-          ReferenceSliceController.propertyUpdatePermission,
-        ) ??
-        false;
+        state.assuranceLevel == AuthenticationAssuranceLevel.aal2 &&
+        (state.selectedWorkspace?.allows(
+              ReferenceSliceController.propertyUpdatePermission,
+            ) ??
+            false);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -220,6 +244,23 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
                 breadcrumbs: const ['Reference slice', 'Properties'],
                 subtitle: 'Workspace-scoped cloud property management.',
                 trailing: _buildWorkspaceControl(),
+                secondaryActions: [
+                  if (state.assuranceLevel !=
+                      AuthenticationAssuranceLevel.aal2)
+                    OutlinedButton.icon(
+                      key: const Key('reference-start-mfa'),
+                      onPressed:
+                          _authActionBusy ? null : widget.onBeginTotpEnrollment,
+                      icon: const Icon(Icons.phonelink_lock_outlined),
+                      label: const Text('Set up MFA'),
+                    ),
+                  OutlinedButton.icon(
+                    key: const Key('reference-sign-out'),
+                    onPressed: _authActionBusy ? null : widget.onSignOut,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign out'),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.component),
               Expanded(child: content),
@@ -227,6 +268,266 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
           ),
         );
       },
+    );
+  }
+
+  bool get _authActionBusy {
+    return switch (widget.state.authActionPhase) {
+      ReferenceAuthActionPhase.sendingEmail ||
+      ReferenceAuthActionPhase.loadingFactors ||
+      ReferenceAuthActionPhase.enrolling ||
+      ReferenceAuthActionPhase.verifying ||
+      ReferenceAuthActionPhase.signingOut => true,
+      _ => false,
+    };
+  }
+
+  Widget _buildPasswordlessSignIn() {
+    final state = widget.state;
+    return _AuthFormShell(
+      key: const Key('reference-unauthenticated'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            Icons.mark_email_read_outlined,
+            size: 32,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: AppSpacing.component),
+          Text(
+            'Sign in to NexImmo',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Enter your existing account email. We will send a passwordless sign-in link.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.component),
+          TextField(
+            key: const Key('reference-auth-email'),
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.done,
+            onSubmitted:
+                _authActionBusy ? null : widget.onRequestPasswordlessSignIn,
+            decoration: const InputDecoration(labelText: 'Email'),
+          ),
+          const SizedBox(height: AppSpacing.component),
+          FilledButton.icon(
+            key: const Key('reference-auth-submit'),
+            onPressed:
+                _authActionBusy
+                    ? null
+                    : () => widget.onRequestPasswordlessSignIn(
+                      _emailController.text,
+                    ),
+            icon:
+                state.authActionPhase == ReferenceAuthActionPhase.sendingEmail
+                    ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.send_outlined),
+            label: const Text('Send sign-in link'),
+          ),
+          if (state.authMessage != null) ...[
+            const SizedBox(height: AppSpacing.component),
+            Text(
+              state.authMessage!,
+              key: const Key('reference-auth-message'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMfaStepUp() {
+    final state = widget.state;
+    if (state.authActionPhase == ReferenceAuthActionPhase.loadingFactors) {
+      return const Center(
+        key: Key('reference-mfa-loading'),
+        child: CircularProgressIndicator(),
+      );
+    }
+    final factors = state.totpFactors;
+    final selected =
+        factors.any((factor) => factor.id == _selectedFactorId)
+            ? _selectedFactorId
+            : factors.isEmpty
+            ? null
+            : factors.first.id;
+    _selectedFactorId = selected;
+    return _AuthFormShell(
+      key: const Key('reference-mfa-required'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            Icons.phonelink_lock_outlined,
+            size: 32,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: AppSpacing.component),
+          Text(
+            'Multi-factor authentication required',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Enter the current six-digit code from your authenticator.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          if (factors.length > 1) ...[
+            const SizedBox(height: AppSpacing.component),
+            DropdownButtonFormField<String>(
+              key: const Key('reference-mfa-factor'),
+              value: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Authenticator'),
+              items: [
+                for (final factor in factors)
+                  DropdownMenuItem(
+                    value: factor.id,
+                    child: Text(
+                      factor.friendlyName ?? 'Authenticator',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _selectedFactorId = value),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.component),
+          _buildTotpCodeField(),
+          const SizedBox(height: AppSpacing.component),
+          FilledButton.icon(
+            key: const Key('reference-mfa-verify'),
+            onPressed:
+                _authActionBusy || selected == null
+                    ? null
+                    : () => widget.onVerifyTotp(
+                      factorId: selected,
+                      code: _totpCodeController.text,
+                    ),
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Verify'),
+          ),
+          TextButton(
+            key: const Key('reference-mfa-sign-out'),
+            onPressed: _authActionBusy ? null : widget.onSignOut,
+            child: const Text('Sign out'),
+          ),
+          if (state.authMessage != null)
+            Text(
+              state.authMessage!,
+              key: const Key('reference-auth-message'),
+              textAlign: TextAlign.center,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotpEnrollment() {
+    final enrollment = widget.state.totpEnrollment!;
+    return _AuthFormShell(
+      key: const Key('reference-mfa-enrollment'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Set up multi-factor authentication',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Add this setup key manually to your authenticator. It is shown only for this enrollment.',
+          ),
+          const SizedBox(height: AppSpacing.component),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.component),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+            ),
+            child: SelectableText(
+              enrollment.secret,
+              key: const Key('reference-mfa-enrollment-secret'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontFamily: 'monospace'),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: enrollment.secret));
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Setup key copied.')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.copy_outlined),
+              label: const Text('Copy setup key'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.component),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: _buildTotpCodeField(),
+          ),
+          const SizedBox(height: AppSpacing.component),
+          FilledButton.icon(
+            key: const Key('reference-mfa-enrollment-verify'),
+            onPressed:
+                _authActionBusy
+                    ? null
+                    : () => widget.onVerifyTotp(
+                      factorId: enrollment.factorId,
+                      code: _totpCodeController.text,
+                    ),
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Enable MFA'),
+          ),
+          TextButton(
+            key: const Key('reference-mfa-enrollment-sign-out'),
+            onPressed: _authActionBusy ? null : widget.onSignOut,
+            child: const Text('Sign out'),
+          ),
+          if (widget.state.authMessage != null) ...[
+            const SizedBox(height: AppSpacing.component),
+            Text(
+              widget.state.authMessage!,
+              key: const Key('reference-auth-message'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotpCodeField() {
+    return TextField(
+      key: const Key('reference-mfa-code'),
+      controller: _totpCodeController,
+      keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
+      autofillHints: const [AutofillHints.oneTimeCode],
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      maxLength: 6,
+      decoration: const InputDecoration(labelText: 'Authenticator code'),
     );
   }
 
@@ -447,6 +748,34 @@ class _PropertyList extends StatelessWidget {
                       ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _AuthFormShell extends StatelessWidget {
+  const _AuthFormShell({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(context.adaptivePagePadding),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: NxCard(child: child),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

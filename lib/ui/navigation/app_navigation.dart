@@ -362,7 +362,6 @@ const List<PropertyNavigationSection> propertyNavigationSections =
       ),
     ];
 
-
 GlobalNavigationDestination navigationDestinationForPage(GlobalPage page) {
   for (final group in appNavigationGroups) {
     for (final item in group.items) {
@@ -639,16 +638,12 @@ List<String> propertyBreadcrumbs({
 }) {
   final section = propertySectionForPage(page);
   final destination = propertyDestinationForPage(page);
-  return <String>[
-    propertyName,
-    section.title,
-    destination.label,
-  ];
+  return <String>[propertyName, section.title, destination.label];
 }
 
 bool isPageAllowedForRole(GlobalPage page, String role) {
   final normalizedRole = role.trim().toLowerCase();
-  
+
   if (normalizedRole == 'admin' ||
       normalizedRole == 'administrator' ||
       normalizedRole == 'asset_manager' ||

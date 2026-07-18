@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +21,13 @@ void main() {
       supabaseUrl: 'http://127.0.0.1:54321',
       supabasePublishableKey: 'public-test-key',
     );
+    tester
+        .binding
+        .platformDispatcher
+        .defaultRouteNameTestValue = referencePropertyRoute('property-a');
+    addTearDown(
+      tester.binding.platformDispatcher.clearDefaultRouteNameTestValue,
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -36,12 +41,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    unawaited(navigator.pushNamed(referencePropertyRoute('property-a')));
-    await tester.pumpAndSettle();
-
     expect(properties.detailPropertyIds, <String>['property-a']);
     expect(find.text('Atlas House'), findsWidgets);
     expect(find.byKey(const Key('reference-detail-pane')), findsOneWidget);
+    expect(navigator.canPop(), isFalse);
   });
 }
 
@@ -54,6 +57,19 @@ class _IdentityRepository implements IdentityAccessRepository {
 
   @override
   AuthenticatedSession get currentSession => _session;
+
+  @override
+  Future<IdentityAccessResult<TotpChallenge>> challengeTotp({
+    required String factorId,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<IdentityAccessResult<TotpEnrollment>> enrollTotp() async =>
+      throw UnimplementedError();
+
+  @override
+  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async =>
+      const IdentityAccessSuccess<List<TotpFactor>>(<TotpFactor>[]);
 
   @override
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
@@ -78,6 +94,21 @@ class _IdentityRepository implements IdentityAccessRepository {
       ),
     ]);
   }
+
+  @override
+  Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
+    required String email,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<IdentityAccessResult<void>> signOut() async =>
+      const IdentityAccessSuccess<void>(null);
+
+  @override
+  Future<IdentityAccessResult<AuthenticatedSession>> verifyTotp({
+    required TotpChallenge challenge,
+    required String code,
+  }) async => throw UnimplementedError();
 
   @override
   Stream<AuthenticatedSession?> watchSession() => const Stream.empty();

@@ -29,10 +29,15 @@ void main() {
         isNotEmpty,
         reason: 'SUPABASE_PUBLISHABLE_KEY dart define is required.',
       );
+      expect(
+        Uri.tryParse(url)?.host,
+        anyOf('127.0.0.1', 'localhost', '::1'),
+        reason: 'This integration test is restricted to local Supabase.',
+      );
 
-      final observer = SupabaseClient(url, publishableKey);
-      final writerA = SupabaseClient(url, publishableKey);
-      final writerB = SupabaseClient(url, publishableKey);
+      final observer = createSupabaseTestClient(url, publishableKey);
+      final writerA = createSupabaseTestClient(url, publishableKey);
+      final writerB = createSupabaseTestClient(url, publishableKey);
       StreamSubscription<PropertyQueryInvalidation>? subscription;
       try {
         await Future.wait(<Future<AuthResponse>>[

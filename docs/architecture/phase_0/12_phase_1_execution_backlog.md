@@ -1,6 +1,6 @@
 # Phase 1 Execution Backlog
 
-Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-009` und `P1-011` bis `P1-013` sind complete.
+Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` sind complete; `P1-016` ist das naechste lokale Inkrement.
 
 ## Dependency Order
 
@@ -15,16 +15,18 @@ Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-009` und `P1-011`
 | P1-007 | Add Supabase property adapter behind explicit environment selection. | P1-001, P1-003, P1-004, P1-005 | remote adapter | integration tests pass | done |
 | P1-008 | Replace admin fallback with unauthenticated/no-permission state. | DEC-007 | security state change and tests | no privileged loading state | done |
 | P1-009 | Implement auth/workspace/property reference-slice application state. | P1-007, P1-008, DEC-016 | controllers/use cases | state tests pass | done |
-| P1-010 | Implement adaptive reference-slice UI using existing design system. | P1-009 | desktop/tablet/phone paths | screenshot and overflow tests pass | partial (feature UI and gates done; runtime wiring open) |
+| P1-010 | Implement adaptive reference-slice UI using existing design system. | P1-009 | desktop/tablet/phone paths plus stable runtime routes | screenshot, overflow and cold-start deep-link tests pass | done |
 | P1-011 | Implement Realtime invalidation for active property queries. | P1-007, P1-009 | scoped subscription lifecycle | two-client E2E passes | done |
 | P1-012 | Build SQLite-to-PostgreSQL dry-run mapper for reference entities. | P1-002, P1-004 | read-only migration report | counts and checksums reconcile | done |
 | P1-013 | Add CI gates for Dart, Flutter, SQL, RLS and migration tests. | P1-003, P1-005 | CI workflow | required checks green | done |
 | P1-014 | Add backup/restore and operational runbook for sandbox/staging. | P1-001, DEC-015, DEC-017 | tested runbook | restore drill passes | partial (local contract/drill done; remote/storage gates open) |
 | P1-015 | Run reference-slice security and performance review. | P1-001..P1-014 | gate report | Phase-1 gate accepted | partial (local review done; gate rejected) |
+| P1-016 | Add operable passwordless email auth, TOTP step-up and logout actions. | P1-009, P1-010, DEC-016 | IdentityAccess contract, Supabase adapter and adaptive reference UI | adapter/controller/widget tests plus local auth integration pass | queued |
+| P1-017 | Revalidate entitlements and clear client caches after membership/role revocation. | P1-011, GATE-SEC-004 | explicit revalidation lifecycle and revocation signal | two-client revocation test proves bounded cache clearing | queued |
 
 ## First Safe Local Increment
 
-Das lokale P1-015-Review ist abgeschlossen, das Phase-1-Gate jedoch abgelehnt. Weitere Befunde benoetigen ausdruecklich freigegebene Datenbankmigrationen, Runtime-/Navigations-Wiring oder externe Entscheidungen/Ressourcen. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; verpflichtende privilegierte MFA benoetigt `DEC-016` und serverseitige RLS/AAL-Policies. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
+Runtime/Deep Links, Property-AAL2 und Performance-Indizes/InitPlans sind lokal abgeschlossen. Das naechste sichere vertikale Inkrement ist `P1-016`; danach folgt `P1-017`. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
 
 ## P1-001 Validation
 
@@ -66,7 +68,8 @@ Das lokale P1-015-Review ist abgeschlossen, das Phase-1-Gate jedoch abgelehnt. W
 - Phone nutzt getrennte Listen-/Detailansichten mit vertikalem Formular; Desktop zeigt Liste und Detail parallel; Breakpoint-Grenzen 767/768 und 1199/1200 sind geprueft.
 - 14 Widgettests und drei Golden-Baselines bei 390x844, 1024x768 und 1440x900 bestehen.
 - Gesamtsuite 216 bestanden/5 Skips, Analyzer ohne Findings und Web-Build bestehen.
-- Status bleibt `partial`, bis Runtime-Provider, bestehende Navigation und stabile Property-Routen in einem ausdruecklich freigegebenen Integrationsschritt verbunden sind. Auth-/MFA-Aktionen fehlen weiterhin im Anwendungskontrakt.
+- Runtime-Provider, explizite Backendauswahl und stabile Property-Routen sind verbunden; ein Kaltstart-Deep-Link oeffnet genau eine Detailroute.
+- P1-010 ist `done`. Auth-/MFA-Aktionen sind als separates vertikales Inkrement `P1-016` offen.
 
 ## P1-011 Validation
 
@@ -97,8 +100,8 @@ Das lokale P1-015-Review ist abgeschlossen, das Phase-1-Gate jedoch abgelehnt. W
 - Unbekannte AAL-Werte werden fail-closed als MFA-pflichtig behandelt; Workspace- und Property-Zugriff bleiben gesperrt.
 - Realtime-Invalidierungen coalescen Bursts auf einen laufenden und hoechstens einen nachfolgenden Readback, erhalten geladene Seiten und leeren Daten bei Entitlement-Verlust.
 - 164 pgTAP-Pruefungen decken suspendierte Memberships fuer Property-/Audit-Lesen und RPC-Schreiben sowie Audit-`correlation_id` ab. Security-/Performance-Advisors laufen in CI und blockieren Error-Befunde.
-- `../phase_1/03_reference_slice_gate_review.md` weist das Gate wegen serverseitiger MFA/AAL-, Entitlement-, Entity-Scope-/Archiv-, Index-/Policy-, Runtime-, Remote- und Performance-Budget-Luecken zurueck.
-- 22 gezielte Dart-Tests und die Gesamtsuite mit 232 bestandenen Tests/6 Skips, Analyzer ohne Findings und Web-Build bestehen. P1-015 bleibt `partial`.
+- `../phase_1/03_reference_slice_gate_review.md` weist das Gate weiterhin wegen allgemeiner privilegierter MFA, Entitlements, Entity-Scope/Archiv, Remote-Betrieb und Performancebudgets zurueck.
+- Property-AAL2, Performance-Indizes/InitPlans und Runtime sind lokal geschlossen: 196 pgTAP, beide echten Clientgates, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips, Analyzer ohne Findings, DB-Lint und Web-Build bestehen. P1-015 bleibt `partial`.
 
 ## Responsive QA Validation
 

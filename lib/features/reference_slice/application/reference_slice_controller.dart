@@ -18,6 +18,18 @@ enum ReferenceAuthPhase {
   error,
 }
 
+enum ReferenceAuthActionPhase {
+  idle,
+  sendingEmail,
+  emailSent,
+  loadingFactors,
+  enrolling,
+  enrollmentReady,
+  verifying,
+  signingOut,
+  failed,
+}
+
 enum WorkspacePhase { idle, loading, empty, selectionRequired, selected, error }
 
 enum PropertyListPhase { idle, loading, empty, ready, forbidden, error }
@@ -37,6 +49,8 @@ enum PropertyMutationPhase {
 class ReferenceSliceState {
   const ReferenceSliceState({
     required this.authPhase,
+    this.authActionPhase = ReferenceAuthActionPhase.idle,
+    this.assuranceLevel = AuthenticationAssuranceLevel.unknown,
     required this.workspacePhase,
     required this.propertyListPhase,
     required this.propertyDetailPhase,
@@ -50,6 +64,9 @@ class ReferenceSliceState {
     this.failureKind,
     this.versionConflict,
     this.message,
+    this.authMessage,
+    this.totpFactors = const <TotpFactor>[],
+    this.totpEnrollment,
   });
 
   const ReferenceSliceState.loading()
@@ -62,6 +79,8 @@ class ReferenceSliceState {
       );
 
   final ReferenceAuthPhase authPhase;
+  final ReferenceAuthActionPhase authActionPhase;
+  final AuthenticationAssuranceLevel assuranceLevel;
   final WorkspacePhase workspacePhase;
   final PropertyListPhase propertyListPhase;
   final PropertyDetailPhase propertyDetailPhase;
@@ -75,6 +94,9 @@ class ReferenceSliceState {
   final PropertyRepositoryFailureKind? failureKind;
   final PropertyVersionConflict? versionConflict;
   final String? message;
+  final String? authMessage;
+  final List<TotpFactor> totpFactors;
+  final TotpEnrollment? totpEnrollment;
 
   WorkspaceAccess? get selectedWorkspace {
     final selectedId = selectedWorkspaceId;
@@ -91,6 +113,8 @@ class ReferenceSliceState {
 
   ReferenceSliceState copyWith({
     ReferenceAuthPhase? authPhase,
+    ReferenceAuthActionPhase? authActionPhase,
+    AuthenticationAssuranceLevel? assuranceLevel,
     WorkspacePhase? workspacePhase,
     PropertyListPhase? propertyListPhase,
     PropertyDetailPhase? propertyDetailPhase,
@@ -104,9 +128,14 @@ class ReferenceSliceState {
     Object? failureKind = _unchanged,
     Object? versionConflict = _unchanged,
     Object? message = _unchanged,
+    Object? authMessage = _unchanged,
+    List<TotpFactor>? totpFactors,
+    Object? totpEnrollment = _unchanged,
   }) {
     return ReferenceSliceState(
       authPhase: authPhase ?? this.authPhase,
+      authActionPhase: authActionPhase ?? this.authActionPhase,
+      assuranceLevel: assuranceLevel ?? this.assuranceLevel,
       workspacePhase: workspacePhase ?? this.workspacePhase,
       propertyListPhase: propertyListPhase ?? this.propertyListPhase,
       propertyDetailPhase: propertyDetailPhase ?? this.propertyDetailPhase,
@@ -136,6 +165,15 @@ class ReferenceSliceState {
               : versionConflict as PropertyVersionConflict?,
       message:
           identical(message, _unchanged) ? this.message : message as String?,
+      authMessage:
+          identical(authMessage, _unchanged)
+              ? this.authMessage
+              : authMessage as String?,
+      totpFactors: totpFactors ?? this.totpFactors,
+      totpEnrollment:
+          identical(totpEnrollment, _unchanged)
+              ? this.totpEnrollment
+              : totpEnrollment as TotpEnrollment?,
     );
   }
 }
@@ -169,6 +207,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   int _scopeGeneration = 0;
   int _detailGeneration = 0;
   int _mutationGeneration = 0;
+  int _identityActionGeneration = 0;
   int _propertySubscriptionGeneration = 0;
   final Map<int, _InvalidationRefreshRequest> _pendingInvalidationRefreshes =
       <int, _InvalidationRefreshRequest>{};
@@ -185,6 +224,157 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       onError: (_, __) => _setAuthenticationError(),
     );
     await _handleSession(_identityRepository.currentSession, force: true);
+  }
+
+  Future<void> requestPasswordlessSignIn(String email) async {
+    if (state.authPhase != ReferenceAuthPhase.unauthenticated ||
+        _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.sendingEmail,
+      authMessage: null,
+      totpFactors: const <TotpFactor>[],
+      totpEnrollment: null,
+    );
+    final result = await _identityRepository.requestPasswordlessSignIn(
+      email: email,
+    );
+    if (generation != _identityActionGeneration ||
+        state.authPhase != ReferenceAuthPhase.unauthenticated) {
+      return;
+    }
+    switch (result) {
+      case IdentityAccessSuccess<void>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.emailSent,
+          authMessage:
+              'If the account exists, a passwordless sign-in link was sent.',
+        );
+      case IdentityAccessFailure<void>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.failed,
+          authMessage: result.message,
+        );
+    }
+  }
+
+  Future<void> beginTotpEnrollment() async {
+    if (state.authPhase != ReferenceAuthPhase.authenticated ||
+        _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.enrolling,
+      authMessage: null,
+      totpEnrollment: null,
+    );
+    final result = await _identityRepository.enrollTotp();
+    if (generation != _identityActionGeneration ||
+        state.authPhase != ReferenceAuthPhase.authenticated) {
+      return;
+    }
+    switch (result) {
+      case IdentityAccessSuccess<TotpEnrollment>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.enrollmentReady,
+          authMessage:
+              'Add the setup key to an authenticator, then enter its code.',
+          totpEnrollment: result.value,
+        );
+      case IdentityAccessFailure<TotpEnrollment>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.failed,
+          authMessage: result.message,
+          totpEnrollment: null,
+        );
+    }
+  }
+
+  Future<void> verifyTotp({
+    required String factorId,
+    required String code,
+  }) async {
+    final knownFactor =
+        state.totpEnrollment?.factorId == factorId ||
+        state.totpFactors.any((factor) => factor.id == factorId);
+    if (!knownFactor || _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.verifying,
+      authMessage: null,
+    );
+    final challengeResult = await _identityRepository.challengeTotp(
+      factorId: factorId,
+    );
+    if (generation != _identityActionGeneration) {
+      return;
+    }
+    if (challengeResult case IdentityAccessFailure<TotpChallenge>()) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.failed,
+        authMessage: challengeResult.message,
+      );
+      return;
+    }
+    final challenge =
+        (challengeResult as IdentityAccessSuccess<TotpChallenge>).value;
+    final verification = await _identityRepository.verifyTotp(
+      challenge: challenge,
+      code: code,
+    );
+    if (generation != _identityActionGeneration) {
+      return;
+    }
+    switch (verification) {
+      case IdentityAccessSuccess<AuthenticatedSession>():
+        await _handleSession(verification.value, force: true);
+      case IdentityAccessFailure<AuthenticatedSession>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.failed,
+          authMessage: verification.message,
+        );
+    }
+  }
+
+  Future<void> signOut() async {
+    if (state.authPhase == ReferenceAuthPhase.unauthenticated ||
+        _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.signingOut,
+      authMessage: null,
+    );
+    final result = await _identityRepository.signOut();
+    if (generation != _identityActionGeneration) {
+      return;
+    }
+    switch (result) {
+      case IdentityAccessSuccess<void>():
+        await _handleSession(null, force: true);
+      case IdentityAccessFailure<void>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.failed,
+          authMessage: result.message,
+        );
+    }
+  }
+
+  bool get _identityActionBusy {
+    return switch (state.authActionPhase) {
+      ReferenceAuthActionPhase.sendingEmail ||
+      ReferenceAuthActionPhase.loadingFactors ||
+      ReferenceAuthActionPhase.enrolling ||
+      ReferenceAuthActionPhase.verifying ||
+      ReferenceAuthActionPhase.signingOut => true,
+      _ => false,
+    };
   }
 
   Future<void> refreshWorkspaces() async {
@@ -365,6 +555,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     if (access == null ||
         property == null ||
         userId == null ||
+        state.assuranceLevel != AuthenticationAssuranceLevel.aal2 ||
         !access.allows(propertyUpdatePermission)) {
       _retryCommand = null;
       state = state.copyWith(
@@ -419,6 +610,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     _scopeGeneration++;
     _detailGeneration++;
     _mutationGeneration++;
+    final identityGeneration = ++_identityActionGeneration;
     await _stopPropertyInvalidations();
     _retryCommand = null;
     if (session == null) {
@@ -435,16 +627,20 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     if (session.requiresMfaChallenge) {
       state = ReferenceSliceState(
         authPhase: ReferenceAuthPhase.mfaRequired,
+        authActionPhase: ReferenceAuthActionPhase.loadingFactors,
+        assuranceLevel: session.currentAssuranceLevel,
         workspacePhase: WorkspacePhase.idle,
         propertyListPhase: PropertyListPhase.idle,
         propertyDetailPhase: PropertyDetailPhase.idle,
         mutationPhase: PropertyMutationPhase.idle,
         userId: userId,
       );
+      await _loadTotpFactors(userId, identityGeneration);
       return;
     }
     state = ReferenceSliceState(
       authPhase: ReferenceAuthPhase.authenticated,
+      assuranceLevel: session.currentAssuranceLevel,
       workspacePhase: WorkspacePhase.loading,
       propertyListPhase: PropertyListPhase.idle,
       propertyDetailPhase: PropertyDetailPhase.idle,
@@ -452,6 +648,37 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       userId: userId,
     );
     await _loadWorkspaces(userId);
+  }
+
+  Future<void> _loadTotpFactors(String userId, int generation) async {
+    final result = await _identityRepository.listTotpFactors();
+    if (generation != _identityActionGeneration ||
+        state.authPhase != ReferenceAuthPhase.mfaRequired ||
+        state.userId != userId) {
+      return;
+    }
+    switch (result) {
+      case IdentityAccessSuccess<List<TotpFactor>>():
+        state = state.copyWith(
+          authActionPhase:
+              result.value.isEmpty
+                  ? ReferenceAuthActionPhase.failed
+                  : ReferenceAuthActionPhase.idle,
+          authMessage:
+              result.value.isEmpty
+                  ? 'No verified authenticator is available.'
+                  : null,
+          totpFactors: result.value,
+          totpEnrollment: null,
+        );
+      case IdentityAccessFailure<List<TotpFactor>>():
+        state = state.copyWith(
+          authActionPhase: ReferenceAuthActionPhase.failed,
+          authMessage: result.message,
+          totpFactors: const <TotpFactor>[],
+          totpEnrollment: null,
+        );
+    }
   }
 
   Future<void> _loadWorkspaces(

@@ -17,16 +17,113 @@ void main() {
         state: _state(authPhase: ReferenceAuthPhase.unauthenticated),
       );
 
-      expect(find.text('Sign in required'), findsOneWidget);
+      expect(find.text('Sign in to NexImmo'), findsOneWidget);
+      expect(find.byKey(const Key('reference-auth-email')), findsOneWidget);
       expect(find.byKey(const Key('reference-list-pane')), findsNothing);
 
       await _pumpView(
         tester,
-        state: _state(authPhase: ReferenceAuthPhase.mfaRequired),
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          factors: const <TotpFactor>[
+            TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+          ],
+        ),
       );
 
       expect(find.text('Multi-factor authentication required'), findsOneWidget);
+      expect(find.byKey(const Key('reference-mfa-code')), findsOneWidget);
       expect(find.byKey(const Key('reference-list-pane')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('submits passwordless email and TOTP step-up actions', (
+      tester,
+    ) async {
+      String? requestedEmail;
+      await _pumpView(
+        tester,
+        state: _state(authPhase: ReferenceAuthPhase.unauthenticated),
+        onRequestPasswordlessSignIn: (email) async => requestedEmail = email,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('reference-auth-email')),
+        'user@example.test',
+      );
+      await tester.tap(find.byKey(const Key('reference-auth-submit')));
+      await tester.pump();
+      expect(requestedEmail, 'user@example.test');
+
+      String? factorId;
+      String? code;
+      await _pumpView(
+        tester,
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          factors: const <TotpFactor>[
+            TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+          ],
+        ),
+        onVerifyTotp: ({
+          required selectedFactorId,
+          required selectedCode,
+        }) async {
+          factorId = selectedFactorId;
+          code = selectedCode;
+        },
+      );
+      await tester.enterText(
+        find.byKey(const Key('reference-mfa-code')),
+        '123456',
+      );
+      await tester.tap(find.byKey(const Key('reference-mfa-verify')));
+      await tester.pump();
+
+      expect(factorId, 'factor-a');
+      expect(code, '123456');
+    });
+
+    testWidgets('TOTP enrollment remains usable on a small phone', (
+      tester,
+    ) async {
+      String? verifiedCode;
+      await _pumpView(
+        tester,
+        viewport: const Size(320, 568),
+        state: _readyState(
+          assuranceLevel: AuthenticationAssuranceLevel.aal1,
+          totpEnrollment: const TotpEnrollment(
+            factorId: 'factor-new',
+            secret: 'ABCDEFGHIJKLMNOP',
+            uri: 'otpauth://totp/NexImmo',
+          ),
+        ),
+        onVerifyTotp: ({
+          required selectedFactorId,
+          required selectedCode,
+        }) async {
+          verifiedCode = selectedCode;
+        },
+      );
+
+      expect(
+        find.byKey(const Key('reference-mfa-enrollment-secret')),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('reference-mfa-code')),
+        '654321',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('reference-mfa-enrollment-verify')),
+      );
+      await tester.tap(
+        find.byKey(const Key('reference-mfa-enrollment-verify')),
+      );
+      await tester.pump();
+
+      expect(verifiedCode, '654321');
       expect(tester.takeException(), isNull);
     });
 
@@ -77,6 +174,10 @@ void main() {
                   onLoadNextPage: _noop,
                   onUpdateProperty: (_) async {},
                   onRetryUpdate: _noop,
+                  onRequestPasswordlessSignIn: _noopString,
+                  onBeginTotpEnrollment: _noop,
+                  onVerifyTotp: _noopVerify,
+                  onSignOut: _noop,
                 ),
               ),
         ),
@@ -182,6 +283,12 @@ Future<void> _pumpView(
   WidgetTester tester, {
   required ReferenceSliceState state,
   Size viewport = const Size(1440, 900),
+  Future<void> Function(String email)? onRequestPasswordlessSignIn,
+  Future<void> Function({
+    required String selectedFactorId,
+    required String selectedCode,
+  })?
+  onVerifyTotp,
 }) async {
   _setViewport(tester, viewport);
   await tester.pumpWidget(
@@ -197,6 +304,17 @@ Future<void> _pumpView(
         onOpenProperty: _noopString,
         onUpdateProperty: (_) async {},
         onRetryUpdate: _noop,
+        onRequestPasswordlessSignIn: onRequestPasswordlessSignIn ?? _noopString,
+        onBeginTotpEnrollment: _noop,
+        onVerifyTotp:
+            ({required factorId, required code}) =>
+                onVerifyTotp == null
+                    ? _noopVerify(factorId: factorId, code: code)
+                    : onVerifyTotp(
+                      selectedFactorId: factorId,
+                      selectedCode: code,
+                    ),
+        onSignOut: _noop,
       ),
     ),
   );
@@ -222,13 +340,22 @@ Future<void> _noop() async {}
 
 Future<void> _noopString(String _) async {}
 
-ReferenceSliceState _state({required ReferenceAuthPhase authPhase}) {
+Future<void> _noopVerify({
+  required String factorId,
+  required String code,
+}) async {}
+
+ReferenceSliceState _state({
+  required ReferenceAuthPhase authPhase,
+  List<TotpFactor> factors = const <TotpFactor>[],
+}) {
   return ReferenceSliceState(
     authPhase: authPhase,
     workspacePhase: WorkspacePhase.idle,
     propertyListPhase: PropertyListPhase.idle,
     propertyDetailPhase: PropertyDetailPhase.idle,
     mutationPhase: PropertyMutationPhase.idle,
+    totpFactors: factors,
   );
 }
 
@@ -238,10 +365,14 @@ ReferenceSliceState _readyState({
   PropertyRepositoryFailureKind? failureKind,
   PropertyVersionConflict? versionConflict,
   String? message,
+  AuthenticationAssuranceLevel assuranceLevel =
+      AuthenticationAssuranceLevel.aal2,
+  TotpEnrollment? totpEnrollment,
 }) {
   final property = _property();
   return ReferenceSliceState(
     authPhase: ReferenceAuthPhase.authenticated,
+    assuranceLevel: assuranceLevel,
     workspacePhase: WorkspacePhase.selected,
     propertyListPhase: PropertyListPhase.ready,
     propertyDetailPhase: PropertyDetailPhase.ready,
@@ -262,6 +393,7 @@ ReferenceSliceState _readyState({
     failureKind: failureKind,
     versionConflict: versionConflict,
     message: message,
+    totpEnrollment: totpEnrollment,
   );
 }
 

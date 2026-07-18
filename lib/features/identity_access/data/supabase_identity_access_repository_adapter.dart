@@ -7,6 +7,18 @@ abstract interface class IdentityAccessSupabaseGateway {
 
   Stream<AuthenticatedSession?> watchSession();
 
+  Future<void> requestPasswordlessSignIn(String email);
+
+  Future<TotpEnrollment> enrollTotp();
+
+  Future<List<TotpFactor>> listTotpFactors();
+
+  Future<TotpChallenge> challengeTotp(String factorId);
+
+  Future<void> verifyTotp(TotpChallenge challenge, String code);
+
+  Future<void> signOut();
+
   Future<List<Map<String, dynamic>>> listActiveMemberships(String userId);
 
   Future<List<Map<String, dynamic>>> listWorkspaces(List<String> workspaceIds);
@@ -38,6 +50,69 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
               previous?.currentAssuranceLevel == next?.currentAssuranceLevel &&
               previous?.nextAssuranceLevel == next?.nextAssuranceLevel,
         );
+  }
+
+  @override
+  Future<void> requestPasswordlessSignIn(String email) {
+    return _client.auth.signInWithOtp(email: email, shouldCreateUser: false);
+  }
+
+  @override
+  Future<TotpEnrollment> enrollTotp() async {
+    final enrollment = await _client.auth.mfa.enroll(
+      factorType: FactorType.totp,
+      friendlyName: 'NexImmo',
+    );
+    final totp = enrollment.totp;
+    if (totp == null || totp.secret.isEmpty || totp.uri.isEmpty) {
+      throw const FormatException('Invalid TOTP enrollment response.');
+    }
+    return TotpEnrollment(
+      factorId: enrollment.id,
+      secret: totp.secret,
+      uri: totp.uri,
+    );
+  }
+
+  @override
+  Future<List<TotpFactor>> listTotpFactors() async {
+    final factors = (await _client.auth.mfa.listFactors()).totp
+        .map(
+          (factor) =>
+              TotpFactor(id: factor.id, friendlyName: factor.friendlyName),
+        )
+        .toList(growable: false);
+    factors.sort((left, right) {
+      final byName = (left.friendlyName ?? '').compareTo(
+        right.friendlyName ?? '',
+      );
+      return byName != 0 ? byName : left.id.compareTo(right.id);
+    });
+    return factors;
+  }
+
+  @override
+  Future<TotpChallenge> challengeTotp(String factorId) async {
+    final challenge = await _client.auth.mfa.challenge(factorId: factorId);
+    return TotpChallenge(
+      factorId: factorId,
+      challengeId: challenge.id,
+      expiresAt: challenge.expiresAt,
+    );
+  }
+
+  @override
+  Future<void> verifyTotp(TotpChallenge challenge, String code) async {
+    await _client.auth.mfa.verify(
+      factorId: challenge.factorId,
+      challengeId: challenge.challengeId,
+      code: code,
+    );
+  }
+
+  @override
+  Future<void> signOut() {
+    return _client.auth.signOut(scope: SignOutScope.local);
   }
 
   AuthenticatedSession? _currentSession() {
@@ -126,6 +201,138 @@ class SupabaseIdentityAccessRepositoryAdapter
 
   @override
   Stream<AuthenticatedSession?> watchSession() => _gateway.watchSession();
+
+  @override
+  Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
+    required String email,
+  }) async {
+    final normalized = email.trim();
+    if (!_validEmail(normalized)) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'Enter a valid email address.',
+      );
+    }
+    if (_gateway.currentSession != null) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.forbidden,
+        message: 'Sign out before requesting another sign-in link.',
+      );
+    }
+    try {
+      await _gateway.requestPasswordlessSignIn(normalized);
+      return const IdentityAccessSuccess<void>(null);
+    } catch (error) {
+      return _authFailure<void>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<TotpEnrollment>> enrollTotp() async {
+    if (_gateway.currentSession == null) {
+      return const IdentityAccessFailure<TotpEnrollment>(
+        kind: IdentityAccessFailureKind.unauthenticated,
+        message: 'Sign in before setting up multi-factor authentication.',
+      );
+    }
+    try {
+      return IdentityAccessSuccess<TotpEnrollment>(await _gateway.enrollTotp());
+    } catch (error) {
+      return _authFailure<TotpEnrollment>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async {
+    if (_gateway.currentSession == null) {
+      return const IdentityAccessFailure<List<TotpFactor>>(
+        kind: IdentityAccessFailureKind.unauthenticated,
+        message: 'Sign in before loading multi-factor authentication.',
+      );
+    }
+    try {
+      return IdentityAccessSuccess<List<TotpFactor>>(
+        await _gateway.listTotpFactors(),
+      );
+    } catch (error) {
+      return _authFailure<List<TotpFactor>>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<TotpChallenge>> challengeTotp({
+    required String factorId,
+  }) async {
+    if (_gateway.currentSession == null) {
+      return const IdentityAccessFailure<TotpChallenge>(
+        kind: IdentityAccessFailureKind.unauthenticated,
+        message: 'Sign in before completing multi-factor authentication.',
+      );
+    }
+    if (factorId.trim().isEmpty) {
+      return const IdentityAccessFailure<TotpChallenge>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'Select a valid authenticator.',
+      );
+    }
+    try {
+      return IdentityAccessSuccess<TotpChallenge>(
+        await _gateway.challengeTotp(factorId),
+      );
+    } catch (error) {
+      return _authFailure<TotpChallenge>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<AuthenticatedSession>> verifyTotp({
+    required TotpChallenge challenge,
+    required String code,
+  }) async {
+    final actor = _gateway.currentSession;
+    if (actor == null) {
+      return const IdentityAccessFailure<AuthenticatedSession>(
+        kind: IdentityAccessFailureKind.unauthenticated,
+        message: 'Sign in before completing multi-factor authentication.',
+      );
+    }
+    if (challenge.factorId.trim().isEmpty ||
+        challenge.challengeId.trim().isEmpty ||
+        !RegExp(r'^\d{6}$').hasMatch(code.trim())) {
+      return const IdentityAccessFailure<AuthenticatedSession>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'Enter a valid six-digit authenticator code.',
+      );
+    }
+    try {
+      await _gateway.verifyTotp(challenge, code.trim());
+      final elevated = _gateway.currentSession;
+      if (elevated?.userId != actor.userId ||
+          elevated?.currentAssuranceLevel !=
+              AuthenticationAssuranceLevel.aal2) {
+        return const IdentityAccessFailure<AuthenticatedSession>(
+          kind: IdentityAccessFailureKind.verificationFailed,
+          message: 'The authenticator code could not be verified.',
+        );
+      }
+      return IdentityAccessSuccess<AuthenticatedSession>(elevated!);
+    } catch (error) {
+      return _authFailure<AuthenticatedSession>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<void>> signOut() async {
+    if (_gateway.currentSession == null) {
+      return const IdentityAccessSuccess<void>(null);
+    }
+    try {
+      await _gateway.signOut();
+      return const IdentityAccessSuccess<void>(null);
+    } catch (error) {
+      return _authFailure<void>(error);
+    }
+  }
 
   @override
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({
@@ -272,3 +479,58 @@ AuthenticationAssuranceLevel _mapAssurance(String? value) {
     _ => AuthenticationAssuranceLevel.unknown,
   };
 }
+
+bool _validEmail(String value) {
+  return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+}
+
+IdentityAccessFailure<T> _authFailure<T>(Object error) {
+  final kind = switch (error) {
+    AuthException(code: final code) when _rateLimitCodes.contains(code) =>
+      IdentityAccessFailureKind.rateLimited,
+    AuthException(code: final code) when _verificationCodes.contains(code) =>
+      IdentityAccessFailureKind.verificationFailed,
+    AuthException(code: final code) when _unauthenticatedCodes.contains(code) =>
+      IdentityAccessFailureKind.unauthenticated,
+    AuthException(code: final code) when _forbiddenCodes.contains(code) =>
+      IdentityAccessFailureKind.forbidden,
+    _ => IdentityAccessFailureKind.infrastructureFailure,
+  };
+  final message = switch (kind) {
+    IdentityAccessFailureKind.rateLimited =>
+      'Too many authentication attempts. Try again later.',
+    IdentityAccessFailureKind.verificationFailed =>
+      'The authenticator code could not be verified.',
+    IdentityAccessFailureKind.unauthenticated => 'The session has expired.',
+    IdentityAccessFailureKind.forbidden =>
+      'This authentication action is not permitted.',
+    _ => 'Authentication is temporarily unavailable.',
+  };
+  return IdentityAccessFailure<T>(kind: kind, message: message);
+}
+
+const _rateLimitCodes = <String?>{
+  'over_request_rate_limit',
+  'over_email_send_rate_limit',
+};
+const _verificationCodes = <String?>{
+  'otp_expired',
+  'mfa_challenge_expired',
+  'mfa_verification_failed',
+  'mfa_verification_rejected',
+  'mfa_factor_not_found',
+};
+const _unauthenticatedCodes = <String?>{
+  'session_not_found',
+  'session_expired',
+  'session_missing',
+  'no_authorization',
+  'bad_jwt',
+};
+const _forbiddenCodes = <String?>{
+  'user_banned',
+  'email_provider_disabled',
+  'mfa_totp_enroll_not_enabled',
+  'mfa_totp_verify_not_enabled',
+  'insufficient_aal',
+};

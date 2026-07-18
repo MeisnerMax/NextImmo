@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/identity_access/data/supabase_identity_access_repository_adapter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('SupabaseIdentityAccessRepositoryAdapter', () {
@@ -130,6 +131,129 @@ void main() {
       expect(failure.kind, IdentityAccessFailureKind.infrastructureFailure);
       expect(failure.message, isNot(contains('missing-permission')));
     });
+
+    test('requests passwordless sign-in without implicit signup', () async {
+      gateway.currentSession = null;
+
+      final invalid = await repository.requestPasswordlessSignIn(
+        email: 'invalid',
+      );
+      expect(
+        (invalid as IdentityAccessFailure<void>).kind,
+        IdentityAccessFailureKind.invalidInput,
+      );
+      expect(gateway.passwordlessEmails, isEmpty);
+
+      final result = await repository.requestPasswordlessSignIn(
+        email: '  user@example.test  ',
+      );
+      expect(result, isA<IdentityAccessSuccess<void>>());
+      expect(gateway.passwordlessEmails, <String>['user@example.test']);
+    });
+
+    test(
+      'maps passwordless rate limits without leaking provider details',
+      () async {
+        gateway.currentSession = null;
+        gateway.passwordlessError = const AuthApiException(
+          'provider detail',
+          code: 'over_email_send_rate_limit',
+        );
+
+        final result = await repository.requestPasswordlessSignIn(
+          email: 'user@example.test',
+        );
+        final failure = result as IdentityAccessFailure<void>;
+
+        expect(failure.kind, IdentityAccessFailureKind.rateLimited);
+        expect(failure.message, isNot(contains('provider detail')));
+        expect(failure.message, isNot(contains('user@example.test')));
+      },
+    );
+
+    test('enrolls and lists TOTP factors only for a session', () async {
+      gateway.enrollment = const TotpEnrollment(
+        factorId: 'factor-new',
+        secret: 'sensitive-secret',
+        uri: 'otpauth://sensitive',
+      );
+      gateway.factors = const <TotpFactor>[
+        TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+      ];
+
+      final enrollment = await repository.enrollTotp();
+      final factors = await repository.listTotpFactors();
+
+      expect(
+        (enrollment as IdentityAccessSuccess<TotpEnrollment>).value.factorId,
+        'factor-new',
+      );
+      expect(
+        (factors as IdentityAccessSuccess<List<TotpFactor>>).value.single.id,
+        'factor-a',
+      );
+
+      gateway.currentSession = null;
+      expect(
+        (await repository.enrollTotp() as IdentityAccessFailure<TotpEnrollment>)
+            .kind,
+        IdentityAccessFailureKind.unauthenticated,
+      );
+    });
+
+    test('challenges and verifies TOTP with an exact AAL2 result', () async {
+      gateway.challenge = TotpChallenge(
+        factorId: 'factor-a',
+        challengeId: 'challenge-a',
+        expiresAt: DateTime.utc(2026, 7, 18, 12),
+      );
+
+      final challengeResult = await repository.challengeTotp(
+        factorId: 'factor-a',
+      );
+      final challenge =
+          (challengeResult as IdentityAccessSuccess<TotpChallenge>).value;
+      final verified = await repository.verifyTotp(
+        challenge: challenge,
+        code: '123456',
+      );
+
+      expect(verified, isA<IdentityAccessSuccess<AuthenticatedSession>>());
+      expect(gateway.challengeFactorIds, <String>['factor-a']);
+      expect(gateway.verifiedCodes, <String>['123456']);
+      expect(
+        gateway.currentSession?.currentAssuranceLevel,
+        AuthenticationAssuranceLevel.aal2,
+      );
+    });
+
+    test('rejects invalid TOTP input before verification', () async {
+      final challenge = TotpChallenge(
+        factorId: 'factor-a',
+        challengeId: 'challenge-a',
+        expiresAt: DateTime.utc(2026, 7, 18, 12),
+      );
+
+      final result = await repository.verifyTotp(
+        challenge: challenge,
+        code: '12-secret',
+      );
+
+      expect(
+        (result as IdentityAccessFailure<AuthenticatedSession>).kind,
+        IdentityAccessFailureKind.invalidInput,
+      );
+      expect(gateway.verifiedCodes, isEmpty);
+    });
+
+    test('sign-out is local and idempotent', () async {
+      expect(await repository.signOut(), isA<IdentityAccessSuccess<void>>());
+      expect(gateway.signOutCalls, 1);
+      expect(gateway.currentSession, isNull);
+
+      expect(await repository.signOut(), isA<IdentityAccessSuccess<void>>());
+      expect(gateway.signOutCalls, 1);
+    });
   });
 }
 
@@ -169,10 +293,63 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   int membershipCalls = 0;
   int workspaceCalls = 0;
   List<String>? workspaceIds;
+  final List<String> passwordlessEmails = <String>[];
+  Object? passwordlessError;
+  TotpEnrollment enrollment = const TotpEnrollment(
+    factorId: 'factor-new',
+    secret: 'secret',
+    uri: 'otpauth://totp',
+  );
+  List<TotpFactor> factors = const <TotpFactor>[];
+  TotpChallenge challenge = TotpChallenge(
+    factorId: 'factor-a',
+    challengeId: 'challenge-a',
+    expiresAt: DateTime.utc(2026, 7, 18, 12),
+  );
+  final List<String> challengeFactorIds = <String>[];
+  final List<String> verifiedCodes = <String>[];
+  int signOutCalls = 0;
 
   @override
   Stream<AuthenticatedSession?> watchSession() =>
       const Stream<AuthenticatedSession?>.empty();
+
+  @override
+  Future<void> requestPasswordlessSignIn(String email) async {
+    passwordlessEmails.add(email);
+    final error = passwordlessError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<TotpEnrollment> enrollTotp() async => enrollment;
+
+  @override
+  Future<List<TotpFactor>> listTotpFactors() async => factors;
+
+  @override
+  Future<TotpChallenge> challengeTotp(String factorId) async {
+    challengeFactorIds.add(factorId);
+    return challenge;
+  }
+
+  @override
+  Future<void> verifyTotp(TotpChallenge challenge, String code) async {
+    verifiedCodes.add(code);
+    currentSession = const AuthenticatedSession(
+      userId: 'user-a',
+      currentAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+      nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+    );
+  }
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+    currentSession = null;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> listActiveMemberships(
