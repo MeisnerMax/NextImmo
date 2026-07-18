@@ -7,12 +7,15 @@ select plan(62);
 select functions_are(
   'private',
   array[
+    'broadcast_membership_entitlement_change',
+    'broadcast_role_permission_entitlement_change',
     'has_workspace_permission',
     'is_active_workspace_member',
     'is_current_active_membership',
     'prepare_audit_event',
     'reject_audit_event_change',
     'reject_protected_column_update',
+    'send_entitlement_revalidation',
     'update_property_core'
   ],
   'private function inventory is complete'

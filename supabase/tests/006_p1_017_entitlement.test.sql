@@ -22,17 +22,21 @@ select ok(
   'entitlement broadcast policy is select-only'
 );
 select ok(
-  pg_get_expr(policy.polqual, policy.polrelid) like '%realtime.topic()%'
-  from pg_policy as policy
-  where policy.polrelid = 'realtime.messages'::regclass
-    and policy.polname = 'entitlement_broadcast_receive_own',
+  (
+    select pg_get_expr(policy.polqual, policy.polrelid) like '%realtime.topic()%'
+    from pg_policy as policy
+    where policy.polrelid = 'realtime.messages'::regclass
+      and policy.polname = 'entitlement_broadcast_receive_own'
+  ),
   'entitlement broadcast policy binds the realtime topic'
 );
 select ok(
-  pg_get_expr(policy.polqual, policy.polrelid) like '%auth.uid()%'
-  from pg_policy as policy
-  where policy.polrelid = 'realtime.messages'::regclass
-    and policy.polname = 'entitlement_broadcast_receive_own',
+  (
+    select pg_get_expr(policy.polqual, policy.polrelid) like '%auth.uid()%'
+    from pg_policy as policy
+    where policy.polrelid = 'realtime.messages'::regclass
+      and policy.polname = 'entitlement_broadcast_receive_own'
+  ),
   'entitlement broadcast policy binds the authenticated user'
 );
 select has_function(
@@ -58,11 +62,13 @@ select isnt(
   'clients cannot execute the entitlement sender'
 );
 select ok(
-  procedure.prosecdef
-  from pg_proc as procedure
-  join pg_namespace as namespace on namespace.oid = procedure.pronamespace
-  where namespace.nspname = 'private'
-    and procedure.proname = 'send_entitlement_revalidation',
+  (
+    select procedure.prosecdef
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'private'
+      and procedure.proname = 'send_entitlement_revalidation'
+  ),
   'entitlement sender is security definer'
 );
 select ok(
