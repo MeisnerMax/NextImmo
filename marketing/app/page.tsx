@@ -38,19 +38,19 @@ const workflow = [
 
 const faqs = [
   {
-    question: 'Für wen ist NextImmo gedacht?',
+    question: 'Für wen ist NexImmo gedacht?',
     answer:
       'Für Bestandshalter, Asset Manager, Family Offices und kleinere bis mittlere Immobiliengesellschaften, die operative Objektarbeit und wirtschaftliche Steuerung in einem System verbinden möchten.',
   },
   {
-    question: 'Ersetzt NextImmo Excel vollständig?',
+    question: 'Ersetzt NexImmo Excel vollständig?',
     answer:
-      'NextImmo reduziert verteilte Insellösungen deutlich. Bestehende Tabellen können je nach Anwendungsfall weiterhin als Datenquelle oder Exportformat dienen, während die zentrale Logik und Historie im System geführt werden.',
+      'NexImmo reduziert verteilte Insellösungen deutlich. Bestehende Tabellen können je nach Anwendungsfall weiterhin als Datenquelle oder Exportformat dienen, während die zentrale Logik und Historie im System geführt werden.',
   },
   {
     question: 'Ist die Software bereits verfügbar?',
     answer:
-      'NextImmo befindet sich in kontrollierter Pilot- und Weiterentwicklung. Pilotzugänge und konkrete Einführungsszenarien werden individuell mit NexGen Consulting abgestimmt.',
+      'NexImmo befindet sich in kontrollierter Pilot- und Weiterentwicklung. Pilotzugänge und konkrete Einführungsszenarien werden individuell mit NexGen Consulting abgestimmt.',
   },
   {
     question: 'Wie läuft eine Einführung ab?',
@@ -104,7 +104,7 @@ export default function HomePage() {
       />
       <header className="site-header">
         <div className="shell site-header__inner">
-          <a href="#top" aria-label="NextImmo Startseite"><Logo inverse /></a>
+          <a href="#top" aria-label="NexImmo Startseite"><Logo inverse /></a>
           <nav className="desktop-nav" aria-label="Hauptnavigation">
             <a href="#produkt">Produkt</a>
             <a href="#funktionen">Funktionen</a>
@@ -142,7 +142,7 @@ export default function HomePage() {
               <p className="eyebrow eyebrow--light"><i /> Immobilien Asset Management Software</p>
               <h1>Immobilien steuern.<br /><span>Nicht Tabellen verwalten.</span></h1>
               <p className="hero__lead">
-                NextImmo verbindet Portfolio, Objekte, Mieten, Finanzierung, CapEx und Reporting
+                NexImmo verbindet Portfolio, Objekte, Mieten, Finanzierung, CapEx und Reporting
                 in einem System – für Entscheidungen mit Kontext statt Datensuche.
               </p>
               <div className="hero__actions">
@@ -191,7 +191,7 @@ export default function HomePage() {
                 <h2>Vom Portfolio bis zum einzelnen Vorgang.</h2>
               </div>
               <p>
-                NextImmo verbindet finanzielle Steuerung mit der operativen Realität Ihrer Objekte.
+                NexImmo verbindet finanzielle Steuerung mit der operativen Realität Ihrer Objekte.
                 Kennzahlen bleiben nicht abstrakt: Sie führen direkt zu Verträgen, Maßnahmen,
                 Dokumenten und Verantwortlichkeiten.
               </p>
@@ -260,7 +260,7 @@ export default function HomePage() {
           <div className="shell">
             <div className="section-head section-head--split reveal">
               <div><p className="eyebrow">Durchgängiger Arbeitsfluss</p><h2>Ein klarer Weg durch komplexe Portfolios.</h2></div>
-              <p>NextImmo übersetzt verstreute Informationen in einen wiederholbaren Steuerungsprozess – ohne die fachliche Tiefe von Immobilien zu vereinfachen.</p>
+              <p>NexImmo übersetzt verstreute Informationen in einen wiederholbaren Steuerungsprozess – ohne die fachliche Tiefe von Immobilien zu vereinfachen.</p>
             </div>
             <div className="workflow-rail">
               {workflow.map((step) => (
@@ -272,7 +272,7 @@ export default function HomePage() {
             <div className="system-note reveal">
               <div className="system-note__mark">NX</div>
               <div><span>Entwickelt mit Praxisbezug</span><h3>Immobilienlogik statt generischer Projektverwaltung.</h3></div>
-              <p>NextImmo entsteht aus realen Anforderungen im Asset Management: Portfolio-KPIs, Mietverträge, Finanzierung, Sanierung, Dokumentation und Reporting greifen fachlich ineinander.</p>
+              <p>NexImmo entsteht aus realen Anforderungen im Asset Management: Portfolio-KPIs, Mietverträge, Finanzierung, Sanierung, Dokumentation und Reporting greifen fachlich ineinander.</p>
             </div>
           </div>
         </section>
@@ -290,7 +290,7 @@ export default function HomePage() {
 
         <section className="faq section" id="faq">
           <div className="shell faq__grid">
-            <div className="faq__intro reveal"><p className="eyebrow">Häufige Fragen</p><h2>Was Sie vor einem Pilot wissen sollten.</h2><p>Noch etwas offen? Wir prüfen gemeinsam, ob NextImmo zu Ihrem Portfolio und Ihren Abläufen passt.</p><a href={siteConfig.contactUrl}>Frage stellen <ArrowIcon /></a></div>
+            <div className="faq__intro reveal"><p className="eyebrow">Häufige Fragen</p><h2>Was Sie vor einem Pilot wissen sollten.</h2><p>Noch etwas offen? Wir prüfen gemeinsam, ob NexImmo zu Ihrem Portfolio und Ihren Abläufen passt.</p><a href={siteConfig.contactUrl}>Frage stellen <ArrowIcon /></a></div>
             <div className="faq__list">
               {faqs.map((faq, index) => (
                 <details className="reveal" key={faq.question} open={index === 0}>
@@ -305,9 +305,9 @@ export default function HomePage() {
         <section className="final-cta section">
           <div className="shell final-cta__box reveal">
             <div className="final-cta__glow" aria-hidden="true" />
-            <p className="eyebrow eyebrow--light">NextImmo Pilot</p>
+            <p className="eyebrow eyebrow--light">NexImmo Pilot</p>
             <h2>Ihr Portfolio verdient<br /><span>ein echtes Steuerungssystem.</span></h2>
-            <p>Zeigen Sie uns Ihre heutigen Abläufe. Wir klären, wo NextImmo konkret Transparenz, Geschwindigkeit und Kontrolle schaffen kann.</p>
+            <p>Zeigen Sie uns Ihre heutigen Abläufe. Wir klären, wo NexImmo konkret Transparenz, Geschwindigkeit und Kontrolle schaffen kann.</p>
             <div><a className="button" href={siteConfig.contactUrl}>Pilotgespräch vereinbaren <ArrowIcon /></a><a className="button button--ghost" href={`mailto:${siteConfig.email}`}>E-Mail schreiben</a></div>
           </div>
         </section>

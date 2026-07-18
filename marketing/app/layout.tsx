@@ -5,8 +5,8 @@ import { siteConfig } from '@/lib/site';
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'NextImmo | Immobilien Asset Management Software',
-    template: '%s | NextImmo',
+    default: 'NexImmo | Immobilien Asset Management Software',
+    template: '%s | NexImmo',
   },
   description: siteConfig.description,
   keywords: [
@@ -22,17 +22,17 @@ export const metadata: Metadata = {
   publisher: 'NexGen Consulting',
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'NextImmo – Immobilien im Griff. Entscheidungen im Blick.',
+    title: 'NexImmo – Immobilien im Griff. Entscheidungen im Blick.',
     description: siteConfig.description,
     url: siteConfig.url,
     siteName: siteConfig.name,
     locale: 'de_DE',
     type: 'website',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'NextImmo' }],
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'NexImmo' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NextImmo – Immobilien Asset Management Software',
+    title: 'NexImmo – Immobilien Asset Management Software',
     description: siteConfig.description,
     images: ['/opengraph-image'],
   },

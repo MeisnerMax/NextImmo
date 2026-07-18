@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'NextImmo',
-    short_name: 'NextImmo',
+    name: 'NexImmo',
+    short_name: 'NexImmo',
     description: 'Immobilien Asset Management Software von NexGen Consulting',
     start_url: '/',
     display: 'standalone',

@@ -55,14 +55,14 @@ export default function ProductDemo() {
   const view = views[active];
 
   return (
-    <div className="demo" aria-label="Interaktive beispielhafte NextImmo Produktansicht">
+    <div className="demo" aria-label="Interaktive beispielhafte NexImmo Produktansicht">
       <div className="demo__topbar">
         <div className="demo__window-dots" aria-hidden="true">
           <i />
           <i />
           <i />
         </div>
-        <span>NextImmo Workspace</span>
+        <span>NexImmo Workspace</span>
         <span className="demo__status"><i /> Beispieldaten</span>
       </div>
       <div className="demo__body">

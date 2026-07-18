@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'NextImmo – Immobilien Asset Management Software';
+export const alt = 'NexImmo – Immobilien Asset Management Software';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -38,7 +38,7 @@ export default function OpenGraphImage() {
           >
             NX
           </div>
-          <div style={{ fontSize: 32, fontWeight: 700 }}>NextImmo</div>
+          <div style={{ fontSize: 32, fontWeight: 700 }}>NexImmo</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ maxWidth: 920, fontSize: 67, fontWeight: 750, lineHeight: 1.03 }}>

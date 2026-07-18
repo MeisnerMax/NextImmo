@@ -1,6 +1,6 @@
 export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <span className={`brand ${inverse ? 'brand--inverse' : ''}`} aria-label="NextImmo">
+    <span className={`brand ${inverse ? 'brand--inverse' : ''}`} aria-label="NexImmo">
       <span className="brand__mark" aria-hidden="true">
         NX
       </span>
