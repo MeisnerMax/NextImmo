@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:neximmo_app/ui/screens/v2/dashboard_screen_v2.dart';
+import 'package:neximmo_app/ui/screens/dashboard_screen.dart';
 import 'package:neximmo_app/ui/state/app_state.dart';
 import 'package:neximmo_app/ui/state/security_state.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
@@ -25,7 +25,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const Scaffold(body: DashboardScreenV2()),
+          home: const Scaffold(body: DashboardScreen()),
         ),
       ),
     );
@@ -60,7 +60,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const Scaffold(body: DashboardScreenV2()),
+          home: const Scaffold(body: DashboardScreen()),
         ),
       ),
     );

@@ -622,7 +622,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     required List<TenantRecord> prospects,
   }) {
     return Card(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF9F8F5),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.lg),

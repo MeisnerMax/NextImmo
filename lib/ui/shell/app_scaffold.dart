@@ -25,18 +25,13 @@ import '../screens/quick_screening_screen.dart';
 import '../screens/renovation_value_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/v2/dashboard_screen_v2.dart';
-import '../screens/v2/properties_screen_v2.dart';
 import '../screens/admin/users_screen.dart';
 import '../screens/tasks/task_templates_screen.dart';
 import '../screens/tasks/tasks_screen.dart';
 import '../state/app_state.dart';
-import '../state/ui_feature_flags.dart';
 import '../theme/app_theme.dart';
 import 'sidebar.dart';
 import 'topbar.dart';
-import 'v2/sidebar_v2.dart';
-import 'v2/topbar_v2.dart';
 
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
@@ -65,52 +60,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     final page = ref.watch(globalPageProvider);
-    final shellV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.appShellV2),
-    );
-    if (!shellV2Enabled) {
-      return _buildLegacyScaffold(context, page);
-    }
-    return _buildV2Scaffold(context, page);
+    return _buildScaffold(context, page);
   }
 
-  Widget _buildLegacyScaffold(BuildContext context, GlobalPage page) {
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            () => showCommandPalette(context),
-        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            () => showCommandPalette(context),
-      },
-      child: Focus(
-        autofocus: true,
-        child: Scaffold(
-          body: Row(
-            children: [
-              const Sidebar(),
-              const VerticalDivider(width: 1),
-              Expanded(
-                child: Column(
-                  children: [
-                    const TopBar(),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: Container(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        child: _buildPage(page),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildV2Scaffold(BuildContext context, GlobalPage page) {
+  Widget _buildScaffold(BuildContext context, GlobalPage page) {
     final semantic = context.semanticColors;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
@@ -129,7 +82,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 drawer: Drawer(
                   width: 320,
                   shape: const RoundedRectangleBorder(),
-                  child: SidebarV2(
+                  child: Sidebar(
                     forceExpanded: true,
                     drawerMode: true,
                     onDestinationSelected:
@@ -139,7 +92,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 body: SafeArea(
                   child: Column(
                     children: [
-                      const TopBarV2(showMenuButton: true),
+                      const TopBar(showMenuButton: true),
                       Divider(height: 1, color: semantic.border),
                       Expanded(
                         child: Container(
@@ -157,12 +110,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               body: SafeArea(
                 child: Row(
                   children: [
-                    const SidebarV2(),
+                    const Sidebar(),
                     Expanded(
                       child: NxContentFrame(
                         child: Column(
                           children: [
-                            const TopBarV2(),
+                            const TopBar(),
                             Divider(height: 1, color: semantic.border),
                             Expanded(
                               child: Container(
@@ -216,21 +169,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Widget _buildPage(GlobalPage page) {
-    final dashboardV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.dashboardV2),
-    );
-    final propertiesV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.propertiesV2),
-    );
     switch (page) {
       case GlobalPage.dashboard:
-        return dashboardV2Enabled
-            ? const DashboardScreenV2()
-            : const DashboardScreen();
+        return const DashboardScreen();
       case GlobalPage.properties:
-        return propertiesV2Enabled
-            ? const PropertiesScreenV2()
-            : const PropertiesScreen();
+        return const PropertiesScreen();
       case GlobalPage.ledger:
         return const LedgerScreen();
       case GlobalPage.budgets:

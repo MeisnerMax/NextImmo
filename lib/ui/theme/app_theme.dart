@@ -177,9 +177,9 @@ class AppDensityConfig extends ThemeExtension<AppDensityConfig> {
 class AppColors {
   static const Color background = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF64748B);
+  static const Color border = Color(0xFFE6E2DB);
+  static const Color textPrimary = Color(0xFF1C1A17);
+  static const Color textSecondary = Color(0xFF6A645B);
   static const Color primary = Color(0xFF2563EB);
   static const Color positive = Color(0xFF16A34A);
   static const Color negative = Color(0xFFDC2626);
@@ -278,14 +278,14 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFFF8FAFC), // Soft premium slate canvas background
+    background: Color(0xFFF9F8F5), // Warm off-white canvas (Phase 2 design system)
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF8FAFC),
-    border: Color(0xFFE2E8F0),
-    textPrimary: Color(0xFF0F172A),
-    textSecondary: Color(0xFF64748B),
+    surfaceAlt: Color(0xFFF3F1EC),
+    border: Color(0xFFE6E2DB),
+    textPrimary: Color(0xFF1C1A17),
+    textSecondary: Color(0xFF6A645B),
     primary: Color(0xFF2563EB),
-    secondary: Color(0xFF0F172A),
+    secondary: Color(0xFF1C1A17),
     accent: Color(0xFF0D9488), // Slate teal
     success: Color(0xFF16A34A),
     warning: Color(0xFFD97706),
@@ -294,14 +294,14 @@ class AppTheme {
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
-    background: Color(0xFF0A0F1D), // Dark midnight background
-    surface: Color(0xFF131A2E), // Card surface
-    surfaceAlt: Color(0xFF1E2640),
-    border: Color(0xFF2D3748),
-    textPrimary: Color(0xFFF1F5F9),
-    textSecondary: Color(0xFF94A3B8),
+    background: Color(0xFF13110D), // Warm charcoal background (Phase 2 design system)
+    surface: Color(0xFF1C1915), // Card surface
+    surfaceAlt: Color(0xFF272119),
+    border: Color(0xFF37322B),
+    textPrimary: Color(0xFFF4F1EB),
+    textSecondary: Color(0xFF9E968A),
     primary: Color(0xFF60A5FA), // High contrast premium primary blue
-    secondary: Color(0xFFCBD5E1),
+    secondary: Color(0xFFD2CCC0),
     accent: Color(0xFF2DD4BF), // Vibrant dark mode accent
     success: Color(0xFF34D399),
     warning: Color(0xFFFBBF24),

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/ui/components/nx_data_table_shell.dart';
 import 'package:neximmo_app/ui/screens/properties/create_property_dialog.dart';
-import 'package:neximmo_app/ui/screens/v2/dashboard_screen_v2.dart';
+import 'package:neximmo_app/ui/screens/dashboard_screen.dart';
 import 'package:neximmo_app/ui/state/app_state.dart';
 import 'package:neximmo_app/ui/state/security_state.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
@@ -12,7 +12,7 @@ void main() {
   const viewports = <Size>[Size(390, 844), Size(1024, 768), Size(1440, 900)];
 
   for (final viewport in viewports) {
-    testWidgets('DashboardScreenV2 has no overflow at $viewport', (
+    testWidgets('DashboardScreen has no overflow at $viewport', (
       tester,
     ) async {
       _setViewport(tester, viewport);
@@ -28,7 +28,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.light(),
-            home: const Scaffold(body: DashboardScreenV2()),
+            home: const Scaffold(body: DashboardScreen()),
           ),
         ),
       );

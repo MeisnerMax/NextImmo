@@ -1300,7 +1300,7 @@ class _OverviewScreenState extends ConsumerState<OverviewScreen> {
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF9F8F5),
         border: Border.all(color: _border),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
       ),

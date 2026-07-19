@@ -40,7 +40,7 @@ final _autoScenarioCreationInFlightProvider = StateProvider<Set<String>>(
 class PropertyShell extends ConsumerStatefulWidget {
   const PropertyShell({super.key});
 
-  static const Color _assetCanvas = Color(0xFFF8FAFC);
+  static const Color _assetCanvas = Color(0xFFF9F8F5);
   static const Color _assetSidebar = Color(0xFF0F172A);
   static const Color _assetPanel = Color(0xFFFFFFFF);
   static const Color _assetPanelHigh = Color(0xFFF1F5F9);
