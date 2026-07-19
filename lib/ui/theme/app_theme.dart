@@ -174,16 +174,66 @@ class AppDensityConfig extends ThemeExtension<AppDensityConfig> {
   }
 }
 
+/// Single source of truth for every raw color value (DEBT-TOKEN-001).
+///
+/// Both [AppColors] (legacy static access, light-only) and [AppTheme]'s
+/// light/dark token tables reference these constants — never define a color
+/// literal in either of them directly, extend this palette instead. That
+/// keeps the two access paths structurally incapable of drifting apart
+/// (guarded by test/ui/theme/token_source_sync_test.dart).
+class _Palette {
+  // Light (warm-neutral, Phase 2 design system)
+  static const Color lightBackground = Color(0xFFF9F8F5); // warm off-white canvas
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightSurfaceAlt = Color(0xFFF3F1EC);
+  static const Color lightBorder = Color(0xFFE6E2DB);
+  static const Color lightTextPrimary = Color(0xFF1C1A17);
+  static const Color lightTextSecondary = Color(0xFF6A645B);
+  static const Color lightPrimary = Color(0xFF2563EB);
+  static const Color lightSecondary = lightTextPrimary;
+  static const Color lightAccent = Color(0xFF0D9488); // slate teal
+  static const Color lightSuccess = Color(0xFF16A34A);
+  static const Color lightWarning = Color(0xFFD97706);
+  static const Color lightError = Color(0xFFDC2626);
+  static const Color lightInfo = lightPrimary;
+
+  // Dark (warm charcoal, Phase 2 design system)
+  static const Color darkBackground = Color(0xFF13110D);
+  static const Color darkSurface = Color(0xFF1C1915);
+  static const Color darkSurfaceAlt = Color(0xFF272119);
+  static const Color darkBorder = Color(0xFF37322B);
+  static const Color darkTextPrimary = Color(0xFFF4F1EB);
+  static const Color darkTextSecondary = Color(0xFF9E968A);
+  static const Color darkPrimary = Color(0xFF60A5FA); // high-contrast primary blue
+  static const Color darkSecondary = Color(0xFFD2CCC0);
+  static const Color darkAccent = Color(0xFF2DD4BF);
+  static const Color darkSuccess = Color(0xFF34D399);
+  static const Color darkWarning = Color(0xFFFBBF24);
+  static const Color darkError = Color(0xFFF87171);
+  static const Color darkInfo = darkPrimary;
+
+  // Micro-tokens used directly by AppTheme._buildTheme.
+  static const Color darkOnPrimary = Color(0xFF06224A);
+  static const Color tooltipSurfaceLight = Color(0xFF1C2733);
+  static const Color tooltipSurfaceDark = Color(0xFF1E2731);
+
+  const _Palette._();
+}
+
 class AppColors {
-  static const Color background = Color(0xFFFFFFFF);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFE6E2DB);
-  static const Color textPrimary = Color(0xFF1C1A17);
-  static const Color textSecondary = Color(0xFF6A645B);
-  static const Color primary = Color(0xFF2563EB);
-  static const Color positive = Color(0xFF16A34A);
-  static const Color negative = Color(0xFFDC2626);
-  static const Color warning = Color(0xFFD97706);
+  /// Legacy screens treat "background" as the white surface color, not the
+  /// warm canvas ([_Palette.lightBackground]). Kept that way deliberately —
+  /// migrating those screens to theme-based colors happens per screen in its
+  /// redesign wave (DEBT-TOKEN-001, waves 1/3/6).
+  static const Color background = _Palette.lightSurface;
+  static const Color surface = _Palette.lightSurface;
+  static const Color border = _Palette.lightBorder;
+  static const Color textPrimary = _Palette.lightTextPrimary;
+  static const Color textSecondary = _Palette.lightTextSecondary;
+  static const Color primary = _Palette.lightPrimary;
+  static const Color positive = _Palette.lightSuccess;
+  static const Color negative = _Palette.lightError;
+  static const Color warning = _Palette.lightWarning;
 
   const AppColors._();
 }
@@ -278,35 +328,35 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFFF9F8F5), // Warm off-white canvas (Phase 2 design system)
-    surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF3F1EC),
-    border: Color(0xFFE6E2DB),
-    textPrimary: Color(0xFF1C1A17),
-    textSecondary: Color(0xFF6A645B),
-    primary: Color(0xFF2563EB),
-    secondary: Color(0xFF1C1A17),
-    accent: Color(0xFF0D9488), // Slate teal
-    success: Color(0xFF16A34A),
-    warning: Color(0xFFD97706),
-    error: Color(0xFFDC2626),
-    info: Color(0xFF2563EB),
+    background: _Palette.lightBackground,
+    surface: _Palette.lightSurface,
+    surfaceAlt: _Palette.lightSurfaceAlt,
+    border: _Palette.lightBorder,
+    textPrimary: _Palette.lightTextPrimary,
+    textSecondary: _Palette.lightTextSecondary,
+    primary: _Palette.lightPrimary,
+    secondary: _Palette.lightSecondary,
+    accent: _Palette.lightAccent,
+    success: _Palette.lightSuccess,
+    warning: _Palette.lightWarning,
+    error: _Palette.lightError,
+    info: _Palette.lightInfo,
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
-    background: Color(0xFF13110D), // Warm charcoal background (Phase 2 design system)
-    surface: Color(0xFF1C1915), // Card surface
-    surfaceAlt: Color(0xFF272119),
-    border: Color(0xFF37322B),
-    textPrimary: Color(0xFFF4F1EB),
-    textSecondary: Color(0xFF9E968A),
-    primary: Color(0xFF60A5FA), // High contrast premium primary blue
-    secondary: Color(0xFFD2CCC0),
-    accent: Color(0xFF2DD4BF), // Vibrant dark mode accent
-    success: Color(0xFF34D399),
-    warning: Color(0xFFFBBF24),
-    error: Color(0xFFF87171),
-    info: Color(0xFF60A5FA),
+    background: _Palette.darkBackground,
+    surface: _Palette.darkSurface,
+    surfaceAlt: _Palette.darkSurfaceAlt,
+    border: _Palette.darkBorder,
+    textPrimary: _Palette.darkTextPrimary,
+    textSecondary: _Palette.darkTextSecondary,
+    primary: _Palette.darkPrimary,
+    secondary: _Palette.darkSecondary,
+    accent: _Palette.darkAccent,
+    success: _Palette.darkSuccess,
+    warning: _Palette.darkWarning,
+    error: _Palette.darkError,
+    info: _Palette.darkInfo,
   );
 
   static const AppTypographyTokens _comfortTypography = AppTypographyTokens(
@@ -393,7 +443,7 @@ class AppTheme {
         onPrimary:
             brightness == Brightness.light
                 ? Colors.white
-                : const Color(0xFF06224A),
+                : _Palette.darkOnPrimary,
         outlineVariant: tokens.border,
         surfaceContainerHighest: tokens.surfaceAlt,
       ),
@@ -529,8 +579,8 @@ class AppTheme {
         decoration: BoxDecoration(
           color:
               brightness == Brightness.dark
-                  ? const Color(0xFF1E2731)
-                  : const Color(0xFF1C2733),
+                  ? _Palette.tooltipSurfaceDark
+                  : _Palette.tooltipSurfaceLight,
           borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
         ),
       ),
@@ -550,7 +600,7 @@ class AppTheme {
           foregroundColor:
               brightness == Brightness.light
                   ? Colors.white
-                  : const Color(0xFF06224A),
+                  : _Palette.darkOnPrimary,
           elevation: 0,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 14 : 16,
