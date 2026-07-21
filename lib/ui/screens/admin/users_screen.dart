@@ -5,10 +5,20 @@ import '../../../core/models/security.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_status_badge.dart';
+import '../../navigation/app_navigation.dart';
+import '../../state/app_state.dart';
 import '../../state/security_state.dart';
 import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 
+/// User / role administration (SCR-061, Phase 2 Wave 1 / AP7c). The screen is
+/// gated on the same role check the navigation uses
+/// ([isPageAllowedForRole] for [GlobalPage.adminUsers]); a user who reaches it
+/// without permission sees an explicit "kein Zugriff" state rather than an
+/// empty surface (fail closed). Loading shows a skeleton instead of a
+/// full-surface spinner, and role changes require a confirmation. The user
+/// list stays a responsive `NxCard` list (already system-standard, and better
+/// for the rich per-row controls than a raw `DataTable`).
 class UsersScreen extends ConsumerStatefulWidget {
   const UsersScreen({super.key});
 
@@ -21,18 +31,55 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   bool _loading = true;
   String? _error;
   String _roleFilter = 'all';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  bool _requestedLoad = false;
 
   @override
   Widget build(BuildContext context) {
-    final security = ref.watch(securityControllerProvider).valueOrNull;
-    final activeWorkspace = security?.context.workspace;
-    final activeUserId = security?.context.user.id;
+    final securityAsync = ref.watch(securityControllerProvider);
+    return securityAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(AppSpacing.page),
+        child: _UsersSkeleton(),
+      ),
+      error: (error, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.page),
+        child: Center(
+          child: NxEmptyState(
+            title: 'Sicherheitskontext konnte nicht geladen werden',
+            description:
+                'Der aktuelle Workspace-Kontext ist nicht verfügbar. '
+                'Bitte versuchen Sie es erneut.',
+            icon: Icons.error_outline,
+            primaryAction: ElevatedButton.icon(
+              onPressed: () => ref.invalidate(securityControllerProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Erneut versuchen'),
+            ),
+          ),
+        ),
+      ),
+      data: (security) {
+        final role = security.context.user.role;
+        if (!isPageAllowedForRole(GlobalPage.adminUsers, role)) {
+          return const _UsersForbidden();
+        }
+        // Load the workspace users once the security context is available.
+        if (!_requestedLoad) {
+          _requestedLoad = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _load();
+            }
+          });
+        }
+        return _buildAllowed(security);
+      },
+    );
+  }
+
+  Widget _buildAllowed(SecurityState security) {
+    final activeWorkspace = security.context.workspace;
+    final activeUserId = security.context.user.id;
     final filtered = _users
         .where((user) => _roleFilter == 'all' || user.role == _roleFilter)
         .toList(growable: false);
@@ -60,6 +107,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             width: 260,
             child: DropdownButtonFormField<String>(
               value: _roleFilter,
+              isExpanded: true,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('Alle Rollen')),
                 ..._roleItems,
@@ -85,47 +133,60 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             const Icon(Icons.workspaces_outline, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('Workspace: ${activeWorkspace?.name ?? '-'}'),
+              child: Text('Workspace: ${activeWorkspace.name}'),
             ),
           ],
         ),
       ),
-      content:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? NxEmptyState(
-                    title: 'Benutzer konnten nicht geladen werden',
-                    description: _error!,
-                    icon: Icons.error_outline,
-                    primaryAction: OutlinedButton(
-                      onPressed: _load,
-                      child: const Text('Erneut laden'),
-                    ),
-                  )
-                  : filtered.isEmpty
-                      ? const NxEmptyState(
-                        title: 'Keine Benutzer',
-                        description: 'Filter ändern oder Benutzer anlegen.',
-                        icon: Icons.people_outline,
-                      )
-                      : ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder:
-                            (_, __) =>
-                                const SizedBox(height: AppSpacing.component),
-                        itemBuilder: (context, index) {
-                          final user = filtered[index];
-                          return _UserCard(
-                            user: user,
-                            isActiveUser: user.id == activeUserId,
-                            onRoleChanged:
-                                (role) => _updateRole(user: user, role: role),
-                            onSetPassword: () => _setPasswordDialog(user),
-                            onDelete: () => _confirmDelete(user),
-                          );
-                        },
-                      ),
+      content: _userListContent(activeUserId),
+    );
+  }
+
+  Widget _userListContent(String activeUserId) {
+    if (_loading) {
+      return const _UsersSkeleton();
+    }
+    if (_error != null) {
+      return SingleChildScrollView(
+        child: NxEmptyState(
+          title: 'Benutzer konnten nicht geladen werden',
+          description:
+              'Beim Laden der Benutzer ist ein Fehler aufgetreten. '
+              'Bitte versuchen Sie es erneut.',
+          icon: Icons.error_outline,
+          primaryAction: ElevatedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Erneut versuchen'),
+          ),
+        ),
+      );
+    }
+    final filtered = _users
+        .where((user) => _roleFilter == 'all' || user.role == _roleFilter)
+        .toList(growable: false);
+    if (filtered.isEmpty) {
+      return const SingleChildScrollView(
+        child: NxEmptyState(
+          title: 'Keine Benutzer',
+          description: 'Filter ändern oder Benutzer anlegen.',
+          icon: Icons.people_outline,
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.component),
+      itemBuilder: (context, index) {
+        final user = filtered[index];
+        return _UserCard(
+          user: user,
+          isActiveUser: user.id == activeUserId,
+          onRoleChanged: (role) => _updateRole(user: user, role: role),
+          onSetPassword: () => _setPasswordDialog(user),
+          onDelete: () => _confirmDelete(user),
+        );
+      },
     );
   }
 
@@ -287,6 +348,29 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     if (role == user.role) {
       return;
     }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rolle ändern'),
+        content: Text(
+          'Die Rolle von "${user.displayName}" wird auf '
+          '"${_roleLabel(role)}" geändert.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Ändern'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
     try {
       await ref
           .read(securityControllerProvider.notifier)
@@ -411,6 +495,94 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
         .replaceFirst('SecurityOperationException: ', '');
     return cleaned;
   }
+
+  String _roleLabel(String role) {
+    const labels = <String, String>{
+      'admin': 'Administrator',
+      'asset_manager': 'Asset Manager',
+      'hausmeister': 'Hausmeister',
+      'bauleiter': 'Bauleiter',
+      'bauarbeiter': 'Bauarbeiter',
+      'buchhaltung': 'Buchhaltung',
+      'vermietung': 'Vermietung',
+      'buerokraft': 'Bürokraft',
+      'housekeeping': 'Housekeeping',
+      'externer_dienstleister': 'Externer Dienstleister',
+      'viewer': 'Nur Lesen',
+    };
+    return labels[role] ?? role;
+  }
+}
+
+/// Explicit no-access state for the admin users screen (fail closed): shown
+/// when the active role is not permitted to manage users, instead of an empty
+/// surface.
+class _UsersForbidden extends StatelessWidget {
+  const _UsersForbidden();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(AppSpacing.page),
+      child: Center(
+        child: NxEmptyState(
+          title: 'Kein Zugriff',
+          description:
+              'Für die Benutzerverwaltung fehlt Ihrer Rolle die Berechtigung. '
+              'Wenden Sie sich an einen Administrator.',
+          icon: Icons.lock_outline,
+        ),
+      ),
+    );
+  }
+}
+
+/// List-shaped loading placeholder (never a full-surface spinner): a few
+/// user-card-shaped blocks mirroring the eventual layout.
+class _UsersSkeleton extends StatelessWidget {
+  const _UsersSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholderColor = context.semanticColors.surfaceAlt;
+    Widget bar(double width, double height) => Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: placeholderColor,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+          ),
+        );
+    return SingleChildScrollView(
+      child: Column(
+        key: const ValueKey<String>('users_skeleton'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: List.generate(
+          4,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.component),
+            child: NxCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        bar(180, 14),
+                        const SizedBox(height: 10),
+                        bar(120, 10),
+                      ],
+                    ),
+                  ),
+                  bar(160, 36),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _UserCard extends StatelessWidget {
@@ -472,6 +644,7 @@ class _UserCard extends StatelessWidget {
                 width: 220,
                 child: DropdownButtonFormField<String>(
                   value: user.role,
+                  isExpanded: true,
                   items: _roleItems,
                   onChanged:
                       isActiveUser
