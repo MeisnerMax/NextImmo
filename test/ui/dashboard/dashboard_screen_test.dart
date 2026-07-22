@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,33 +8,65 @@ import 'package:neximmo_app/ui/state/app_state.dart';
 import 'package:neximmo_app/ui/state/security_state.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
 
+/// Mandatory-state coverage for the redesigned `DashboardScreen`
+/// (Phase 2, Wave 1, Arbeitspaket 4 / SCR-004, BIG-007 split): dashboard-shaped
+/// loading skeleton (no full-page spinner), infrastructure error with retry and
+/// no raw exception text, the zero-property empty state leading into creation,
+/// role-based prioritization of the attention list, and a responsive smoke
+/// check at the three golden widths.
 void main() {
-  testWidgets('viewer dashboard prioritizes lease actions and browse entry', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  Future<ProviderContainer> pumpDashboard(
+    WidgetTester tester, {
+    required List<Override> overrides,
+    String role = 'admin',
+    Size size = const Size(1280, 800),
+    bool settle = true,
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final container = ProviderContainer(
+      overrides: [
+        activeUserRoleProvider.overrideWithValue(role),
+        activeSecurityContextProvider.overrideWithValue(null),
+        ...overrides,
+      ],
+    );
+    addTearDown(container.dispose);
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeUserRoleProvider.overrideWithValue('viewer'),
-          dashboardOverviewProvider.overrideWith(
-            (ref) async => _sampleOverview(),
-          ),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: MaterialApp(
           theme: AppTheme.light(),
           home: const Scaffold(body: DashboardScreen()),
         ),
       ),
     );
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
+    return container;
+  }
 
-    await tester.pumpAndSettle();
+  testWidgets('viewer prioritizes lease actions in the attention list', (
+    tester,
+  ) async {
+    await pumpDashboard(
+      tester,
+      role: 'viewer',
+      overrides: [
+        dashboardOverviewProvider.overrideWith((ref) async => _sampleOverview()),
+      ],
+    );
 
-    expect(find.text('Objekte'), findsOneWidget);
+    expect(find.text('Aktuelle Hinweise'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('dashboard-action-0')),
@@ -42,32 +76,20 @@ void main() {
     );
   });
 
-  testWidgets('admin dashboard prioritizes task actions and settings entry', (
+  testWidgets('admin prioritizes task actions and renders the frame sections', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeUserRoleProvider.overrideWithValue('admin'),
-          dashboardOverviewProvider.overrideWith(
-            (ref) async => _sampleOverview(),
-          ),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          home: const Scaffold(body: DashboardScreen()),
-        ),
-      ),
+    await pumpDashboard(
+      tester,
+      overrides: [
+        dashboardOverviewProvider.overrideWith((ref) async => _sampleOverview()),
+      ],
     );
 
-    await tester.pumpAndSettle();
-
-    expect(find.text('Vermietung & BK'), findsOneWidget);
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Aktuelle Hinweise'), findsOneWidget);
+    expect(find.text('Aktuelle Aktivität'), findsOneWidget);
+    expect(find.text('Wertentwicklung'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('dashboard-action-0')),
@@ -75,8 +97,123 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('AKTUELLE HINWEISE'), findsOneWidget);
-    expect(find.text('Aktuelle Aktivität'), findsOneWidget);
+  });
+
+  testWidgets('loading shows a dashboard skeleton, not a full-page spinner', (
+    tester,
+  ) async {
+    await pumpDashboard(
+      tester,
+      settle: false,
+      overrides: [
+        dashboardOverviewProvider.overrideWith(
+          (ref) => Completer<DashboardOverviewData>().future,
+        ),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_skeleton')),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('error shows a retry action without raw exception text', (
+    tester,
+  ) async {
+    await pumpDashboard(
+      tester,
+      overrides: [
+        dashboardOverviewProvider.overrideWith(
+          (ref) async => throw Exception('dashboard aggregation failed'),
+        ),
+      ],
+    );
+
+    expect(find.text('Dashboard konnte nicht geladen werden'), findsOneWidget);
+    expect(find.text('Erneut versuchen'), findsOneWidget);
+    expect(find.textContaining('Exception'), findsNothing);
+    expect(find.textContaining('failed'), findsNothing);
+  });
+
+  testWidgets('zero-property workspace shows the create-first-object state', (
+    tester,
+  ) async {
+    final container = await pumpDashboard(
+      tester,
+      overrides: [
+        dashboardOverviewProvider.overrideWith(
+          (ref) async => DashboardOverviewData.empty(),
+        ),
+      ],
+    );
+
+    expect(find.text('Lege dein erstes Objekt an'), findsOneWidget);
+    expect(find.text('Objekt anlegen'), findsOneWidget);
+
+    await tester.tap(find.text('Objekt anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(globalPageProvider), GlobalPage.properties);
+  });
+
+  testWidgets('desktop width renders the two-column body without overflow', (
+    tester,
+  ) async {
+    await pumpDashboard(
+      tester,
+      size: const Size(1440, 900),
+      overrides: [
+        dashboardOverviewProvider.overrideWith((ref) async => _sampleOverview()),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_wide_layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_stacked_layout')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tablet width stacks the body without overflow', (tester) async {
+    await pumpDashboard(
+      tester,
+      size: const Size(1024, 768),
+      overrides: [
+        dashboardOverviewProvider.overrideWith((ref) async => _sampleOverview()),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_stacked_layout')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('phone width stacks the body without overflow', (tester) async {
+    await pumpDashboard(
+      tester,
+      size: const Size(390, 844),
+      overrides: [
+        dashboardOverviewProvider.overrideWith((ref) async => _sampleOverview()),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_stacked_layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('dashboard_wide_layout')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 }
 
@@ -162,7 +299,7 @@ DashboardOverviewData _sampleOverview() {
         title: 'Property updated',
         detail: 'Atlas House in Berlin',
         timestamp: DateTime(2026, 3, 8),
-        target: DashboardNavigationTarget(
+        target: const DashboardNavigationTarget(
           globalPage: GlobalPage.properties,
           propertyId: 'p1',
           propertyDetailPage: PropertyDetailPage.overview,

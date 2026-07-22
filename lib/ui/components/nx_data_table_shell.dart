@@ -4,7 +4,7 @@ import '../i18n/app_strings.dart';
 import 'nx_card.dart';
 import 'nx_empty_state.dart';
 
-class NxDataTableShell extends StatelessWidget {
+class NxDataTableShell extends StatefulWidget {
   const NxDataTableShell({
     super.key,
     required this.child,
@@ -36,45 +36,66 @@ class NxDataTableShell extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   @override
+  State<NxDataTableShell> createState() => _NxDataTableShellState();
+}
+
+class _NxDataTableShellState extends State<NxDataTableShell> {
+  // Own controllers so the always-visible scrollbar never depends on an
+  // ambient PrimaryScrollController (absent inside scrollable page bodies).
+  final ScrollController _verticalController = ScrollController();
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalController.dispose();
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (widget.loading) {
       return const NxCard(child: Center(child: CircularProgressIndicator()));
     }
 
-    if (errorMessage != null) {
+    if (widget.errorMessage != null) {
       return NxEmptyState(
         title: context.strings.text('Unable to load this table'),
-        description: errorMessage!,
+        description: widget.errorMessage!,
         icon: Icons.error_outline,
       );
     }
 
-    if (isEmpty) {
+    if (widget.isEmpty) {
       return NxEmptyState(
-        title: emptyTitle,
-        description: emptyDescription,
-        icon: emptyIcon,
-        primaryAction: emptyAction,
+        title: widget.emptyTitle,
+        description: widget.emptyDescription,
+        icon: widget.emptyIcon,
+        primaryAction: widget.emptyAction,
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final showMobileLayout =
-            mobileChild != null && constraints.maxWidth < mobileBreakpoint;
+        final showMobileLayout = widget.mobileChild != null &&
+            constraints.maxWidth < widget.mobileBreakpoint;
         return NxCard(
-          padding: padding ?? EdgeInsets.zero,
+          padding: widget.padding ?? EdgeInsets.zero,
           child:
               showMobileLayout
-                  ? mobileChild!
+                  ? widget.mobileChild!
                   : Scrollbar(
+                    controller: _verticalController,
                     thumbVisibility: true,
                     child: SingleChildScrollView(
+                      controller: _verticalController,
                       child: SingleChildScrollView(
+                        controller: _horizontalController,
                         scrollDirection: Axis.horizontal,
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: minTableWidth),
-                          child: child,
+                          constraints:
+                              BoxConstraints(minWidth: widget.minTableWidth),
+                          child: widget.child,
                         ),
                       ),
                     ),

@@ -1,7 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DbMigrations {
-  static const int currentVersion = 46;
+  static const int currentVersion = 47;
 
   static Future<void> onCreate(Database db, int version) async {
     await _createV1(db);
@@ -50,6 +50,7 @@ class DbMigrations {
     await _createV44(db);
     await _createV45(db);
     await _createV46(db);
+    await _createV47(db);
   }
 
   static Future<void> onUpgrade(
@@ -194,6 +195,9 @@ class DbMigrations {
     }
     if (oldVersion < 46) {
       await _createV46(db);
+    }
+    if (oldVersion < 47) {
+      await _createV47(db);
     }
   }
 
@@ -4301,6 +4305,20 @@ class DbMigrations {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_unit_sale_details_buyer ON unit_sale_details(buyer_contact_id)',
+    );
+  }
+
+  static Future<void> _createV47(Database db) async {
+    // DEBT-012 (STM-002): soft tombstone marker for properties. `deleted_at`
+    // NULL means the property is live; a non-null epoch marks it tombstoned
+    // (row and children kept for audit/restore, hidden from active views).
+    // `deleted_by` records the actor. Tombstoning also sets `archived = 1`, so
+    // every read that already filters `archived = 0` excludes tombstoned rows
+    // without any query change.
+    await db.execute('ALTER TABLE properties ADD COLUMN deleted_at INTEGER');
+    await db.execute('ALTER TABLE properties ADD COLUMN deleted_by TEXT');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_properties_deleted_at ON properties(deleted_at)',
     );
   }
 

@@ -217,6 +217,13 @@ class _Palette {
   static const Color tooltipSurfaceLight = Color(0xFF1C2733);
   static const Color tooltipSurfaceDark = Color(0xFF1E2731);
 
+  // Shell sidebar (deliberately dark navy in both brightnesses).
+  static const Color sidebarBackground = Color(0xFF030C28);
+  static const Color sidebarSelected = Color(0xFF17417D);
+  static const Color sidebarText = Color(0xFFEAF2FF);
+  static const Color sidebarTextActive = Color(0xFFFFFFFF);
+  static const Color sidebarMuted = Color(0xFFBFD0EA);
+
   const _Palette._();
 }
 
@@ -234,6 +241,13 @@ class AppColors {
   static const Color positive = _Palette.lightSuccess;
   static const Color negative = _Palette.lightError;
   static const Color warning = _Palette.lightWarning;
+
+  // Shell sidebar tokens (theme-independent, see _Palette).
+  static const Color sidebarBackground = _Palette.sidebarBackground;
+  static const Color sidebarSelected = _Palette.sidebarSelected;
+  static const Color sidebarText = _Palette.sidebarText;
+  static const Color sidebarTextActive = _Palette.sidebarTextActive;
+  static const Color sidebarMuted = _Palette.sidebarMuted;
 
   const AppColors._();
 }

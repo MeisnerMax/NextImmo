@@ -5,6 +5,7 @@ import '../../core/models/property_creation.dart';
 import '../../data/repositories/inputs_repo.dart';
 import '../../data/repositories/property_repo.dart';
 import 'app_state.dart';
+import 'security_state.dart';
 
 class PropertiesController
     extends AutoDisposeAsyncNotifier<List<PropertyRecord>> {
@@ -145,8 +146,14 @@ class PropertiesController
     await reload();
   }
 
-  Future<void> deletePermanently(String propertyId) async {
-    await _repo.deletePermanently(propertyId);
+  /// Soft-deletes (tombstones) the property; the row and its children are kept
+  /// for audit/restore and the property disappears from active views. If it was
+  /// the open property, the detail selection is cleared. See DEBT-012/STM-002.
+  Future<void> tombstone(String propertyId) async {
+    await _repo.tombstone(
+      propertyId,
+      actorId: ref.read(activeUserIdProvider),
+    );
     final selectedPropertyId = ref.read(selectedPropertyIdProvider);
     if (selectedPropertyId == propertyId) {
       ref.read(selectedScenarioIdProvider.notifier).state = null;
@@ -154,6 +161,15 @@ class PropertiesController
       ref.read(propertyDetailPageProvider.notifier).state =
           PropertyDetailPage.overview;
     }
+    await reload();
+  }
+
+  /// Restores a tombstoned property back to an active record (DEBT-012/STM-002).
+  Future<void> restore(String propertyId) async {
+    await _repo.restore(
+      propertyId,
+      actorId: ref.read(activeUserIdProvider),
+    );
     await reload();
   }
 

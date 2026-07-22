@@ -24,10 +24,10 @@ class Sidebar extends ConsumerStatefulWidget {
 }
 
 class _SidebarState extends ConsumerState<Sidebar> {
-  static const Color _menuBlue = Color(0xFF030C28);
-  static const Color _menuSelected = Color(0xFF17417D);
-  static const Color _menuText = Color(0xFFEAF2FF);
-  static const Color _menuMuted = Color(0xFFBFD0EA);
+  static const Color _menuBlue = AppColors.sidebarBackground;
+  static const Color _menuSelected = AppColors.sidebarSelected;
+  static const Color _menuText = AppColors.sidebarText;
+  static const Color _menuMuted = AppColors.sidebarMuted;
 
   final Map<String, bool> _expanded = <String, bool>{
     'Start': true,
@@ -85,7 +85,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
         color: _menuBlue,
-        border: const Border(right: BorderSide(color: Color(0xFF17417D))),
+        border: const Border(right: BorderSide(color: _menuSelected)),
       ),
       child: Column(
         children: [
@@ -118,7 +118,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
                           ),
                           child: Icon(
                             Icons.account_balance,
-                            color: Colors.white,
+                            color: AppColors.sidebarTextActive,
                             size: 22,
                           ),
                         ),
@@ -282,7 +282,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
     AppSemanticColors semantic, {
     required bool collapsed,
   }) {
-    const primary = Colors.white;
+    const primary = AppColors.sidebarTextActive;
     final tile = ListTile(
       visualDensity: VisualDensity.compact,
       selected: isSelected,
@@ -297,7 +297,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
               ? null
               : Text(
                 context.strings.text(item.label),
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: isSelected ? primary : _menuMuted,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.4,
