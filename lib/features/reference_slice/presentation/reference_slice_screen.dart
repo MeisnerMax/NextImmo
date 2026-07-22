@@ -245,8 +245,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
                 subtitle: 'Workspace-scoped cloud property management.',
                 trailing: _buildWorkspaceControl(),
                 secondaryActions: [
-                  if (state.assuranceLevel !=
-                      AuthenticationAssuranceLevel.aal2)
+                  if (state.assuranceLevel != AuthenticationAssuranceLevel.aal2)
                     OutlinedButton.icon(
                       key: const Key('reference-start-mfa'),
                       onPressed:
@@ -573,7 +572,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     );
   }
 
-  Widget _buildPropertyList(List<PropertyDto> properties) {
+  Widget _buildPropertyList(List<PropertySummaryDto> properties) {
     final state = widget.state;
     final body = switch (state.workspacePhase) {
       WorkspacePhase.empty => const NxEmptyState(
@@ -619,7 +618,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     );
   }
 
-  Widget _buildPropertyPhase(List<PropertyDto> properties) {
+  Widget _buildPropertyPhase(List<PropertySummaryDto> properties) {
     final state = widget.state;
     return switch (state.propertyListPhase) {
       PropertyListPhase.idle => const NxEmptyState(
@@ -683,7 +682,7 @@ class _PropertyList extends StatelessWidget {
     required this.onLoadNextPage,
   });
 
-  final List<PropertyDto> properties;
+  final List<PropertySummaryDto> properties;
   final String? selectedPropertyId;
   final bool loading;
   final bool hasNextPage;

@@ -38,7 +38,9 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
   }) async {
     var query = _client
         .from('properties')
-        .select()
+        .select(
+          'id, workspace_id, name, address_line1, zip, city, status, version',
+        )
         .eq('workspace_id', workspaceId);
     if (!includeArchived) {
       query = query.neq('status', 'archived');
@@ -92,7 +94,7 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       );
       final hasNextPage = rows.length > query.page.limit;
       final pageRows = hasNextPage ? rows.take(query.page.limit) : rows;
-      final items = pageRows.map(_parseProperty).toList(growable: false);
+      final items = pageRows.map(_parsePropertySummary).toList(growable: false);
       if (items.any((property) => property.workspaceId != query.workspaceId)) {
         throw const FormatException('Property workspace mismatch.');
       }
@@ -268,6 +270,19 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       'p_reason': command.context.reason,
     };
   }
+}
+
+PropertySummaryDto _parsePropertySummary(Map<String, dynamic> json) {
+  return PropertySummaryDto(
+    id: _requiredString(json, 'id'),
+    workspaceId: _requiredString(json, 'workspace_id'),
+    name: _requiredString(json, 'name'),
+    addressLine1: _requiredString(json, 'address_line1'),
+    zip: _requiredString(json, 'zip'),
+    city: _requiredString(json, 'city'),
+    status: PropertyStatus.values.byName(_requiredString(json, 'status')),
+    version: _requiredInt(json, 'version'),
+  );
 }
 
 PropertyDto _parseProperty(Map<String, dynamic> json) {

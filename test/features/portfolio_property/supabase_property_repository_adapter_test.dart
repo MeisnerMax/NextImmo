@@ -17,9 +17,9 @@ void main() {
       'lists with workspace keyset, archived filter, and limit plus one',
       () async {
         gateway.listResult = <Map<String, dynamic>>[
-          _propertyJson(id: 'property-a'),
-          _propertyJson(id: 'property-b', status: 'archived'),
-          _propertyJson(id: 'property-c'),
+          _propertySummaryJson(id: 'property-a'),
+          _propertySummaryJson(id: 'property-b', status: 'archived'),
+          _propertySummaryJson(id: 'property-c'),
         ];
 
         final result = await repository.list(
@@ -39,6 +39,7 @@ void main() {
           'property-a',
           'property-b',
         ]);
+        expect(page.items.first, isA<PropertySummaryDto>());
         expect(page.nextCursor, 'property-b');
       },
     );
@@ -180,7 +181,7 @@ void main() {
 
     test('hides malformed response and gateway exception details', () async {
       gateway.listResult = <Map<String, dynamic>>[
-        _propertyJson()..remove('created_at'),
+        _propertySummaryJson()..remove('address_line1'),
       ];
       final malformed = await repository.list(
         const PropertyListQuery(workspaceId: 'workspace-a'),
@@ -204,6 +205,24 @@ void main() {
       }
     });
   });
+}
+
+Map<String, dynamic> _propertySummaryJson({
+  String id = 'property-a',
+  String workspaceId = 'workspace-a',
+  String status = 'active',
+  int version = 1,
+}) {
+  return <String, dynamic>{
+    'id': id,
+    'workspace_id': workspaceId,
+    'name': 'Property',
+    'address_line1': 'Street 1',
+    'zip': '10115',
+    'city': 'Berlin',
+    'status': status,
+    'version': version,
+  };
 }
 
 PropertyUpdateCommand _command() {

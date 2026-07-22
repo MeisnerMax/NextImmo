@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/identity_access/data/supabase_identity_access_repository_adapter.dart';
@@ -99,6 +101,34 @@ void main() {
         isEmpty,
       );
       expect(gateway.workspaceCalls, 0);
+    });
+
+    test('loads workspace and role-permission rows concurrently', () async {
+      gateway.memberships = <Map<String, dynamic>>[_membershipJson()];
+      gateway.workspaces = <Map<String, dynamic>>[_workspaceJson()];
+      gateway.rolePermissions = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'workspace_id': 'workspace-a',
+          'role_id': 'role-a',
+          'permission_id': 'permission-read',
+        },
+      ];
+      gateway.permissions = <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'permission-read', 'key': 'property.read'},
+      ];
+      gateway.workspaceBlocker = Completer<void>();
+      gateway.rolePermissionBlocker = Completer<void>();
+
+      final resultFuture = repository.listWorkspaceAccesses(userId: 'user-a');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(gateway.workspaceCalls, 1);
+      expect(gateway.rolePermissionCalls, 1);
+      gateway.workspaceBlocker!.complete();
+      gateway.rolePermissionBlocker!.complete();
+
+      final result = await resultFuture;
+      expect(result, isA<IdentityAccessSuccess<List<WorkspaceAccess>>>());
     });
 
     test('fails closed for malformed or foreign membership data', () async {
@@ -292,7 +322,10 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   List<Map<String, dynamic>> permissions = <Map<String, dynamic>>[];
   int membershipCalls = 0;
   int workspaceCalls = 0;
+  int rolePermissionCalls = 0;
   List<String>? workspaceIds;
+  Completer<void>? workspaceBlocker;
+  Completer<void>? rolePermissionBlocker;
   final List<String> passwordlessEmails = <String>[];
   Object? passwordlessError;
   TotpEnrollment enrollment = const TotpEnrollment(
@@ -365,6 +398,7 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   ) async {
     workspaceCalls++;
     this.workspaceIds = workspaceIds;
+    await workspaceBlocker?.future;
     return workspaces;
   }
 
@@ -372,6 +406,8 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   Future<List<Map<String, dynamic>>> listRolePermissions(
     List<String> workspaceIds,
   ) async {
+    rolePermissionCalls++;
+    await rolePermissionBlocker?.future;
     return rolePermissions;
   }
 

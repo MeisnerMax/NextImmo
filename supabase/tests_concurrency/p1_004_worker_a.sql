@@ -7,6 +7,11 @@ begin
     'ac000000-0000-0000-0000-000000000001',
     false
   );
+  perform set_config(
+    'request.jwt.claims',
+    '{"aal":"aal2"}',
+    false
+  );
   perform pg_sleep(1);
 end;
 $$;

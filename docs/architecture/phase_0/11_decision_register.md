@@ -23,6 +23,7 @@
 | DEC-019 | The legacy reference migration starts as a read-only dry run with explicit workspace/actor binding, deterministic UUIDv5 IDs and canonical SHA-256 reconciliation; reports contain no raw business or PII values. | accepted | P1-012 mapper, SQLite adapter and deterministic/negative tests | before any write-capable import executor |
 | DEC-020 | The first backup/restore gate is a local, schema-scoped logical PostgreSQL drill into a new disposable database; database-global Realtime publication state is rebuilt from versioned migrations and then reconciled. | accepted | P1-014 target/corruption guards, non-empty restore, SHA-256 and invariant fingerprint | before authorized sandbox/staging drill |
 | DEC-021 | SQLite und Supabase werden nur ueber explizite Environment-Auswahl initialisiert; der Supabase-Referenzschnitt besitzt stabile `/properties`- und `/properties/:id`-Routen. | accepted | `lib/main.dart`, `lib/app.dart`, Kaltstart-Deep-Link-Test und Web-Build | revisit only after routing-shell consolidation |
+| DEC-022 | Entitlement-Aenderungen werden ueber private, nutzergebundene Realtime-Broadcasts signalisiert; kanonische Repository-Revalidation, Reconnect und ein begrenztes Intervall bleiben autoritativ. Client-Caches werden vor der Revalidation fail-closed geleert. | accepted | P1-017 Migration, Adapter-/Controller-Tests und lokaler Zwei-Client-Entzugstest | revisit for offline/sync or measured scale limits |
 
 ## Open Decision Rule
 

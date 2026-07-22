@@ -41,7 +41,7 @@ class PropertyListQuery {
 class PropertyPageResult {
   const PropertyPageResult({required this.items, this.nextCursor});
 
-  final List<PropertyDto> items;
+  final List<PropertySummaryDto> items;
   final String? nextCursor;
 }
 

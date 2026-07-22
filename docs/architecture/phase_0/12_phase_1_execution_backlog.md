@@ -1,6 +1,6 @@
 # Phase 1 Execution Backlog
 
-Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` und `P1-016` sind complete; `P1-017` ist das naechste lokale Inkrement.
+Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013`, `P1-016` bis `P1-020` sowie `P1-021A` sind complete; `P1-021` wartet auf freigegebene Performancebudgets und Datenmengen.
 
 ## Dependency Order
 
@@ -22,11 +22,16 @@ Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013` und `P1-016`
 | P1-014 | Add backup/restore and operational runbook for sandbox/staging. | P1-001, DEC-015, DEC-017 | tested runbook | restore drill passes | partial (local contract/drill done; remote/storage gates open) |
 | P1-015 | Run reference-slice security and performance review. | P1-001..P1-014 | gate report | Phase-1 gate accepted | partial (local review done; gate rejected) |
 | P1-016 | Add operable passwordless email auth, TOTP step-up and logout actions. | P1-009, P1-010, DEC-016 | IdentityAccess contract, Supabase adapter and adaptive reference UI | adapter/controller/widget tests plus local auth integration pass | done |
-| P1-017 | Revalidate entitlements and clear client caches after membership/role revocation. | P1-011, GATE-SEC-004 | explicit revalidation lifecycle and revocation signal | two-client revocation test proves bounded cache clearing | queued |
+| P1-017 | Revalidate entitlements and clear client caches after membership/role revocation. | P1-011, GATE-SEC-004 | explicit revalidation lifecycle and revocation signal | two-client revocation test proves bounded cache clearing | done |
+| P1-018 | Verify raw PostgREST authorization parity for the reference slice. | P1-003, P1-007, AC-RLS-006 | local HTTP integration matrix for anon, viewer and cross-tenant requests | direct REST reads/mutations fail or succeed exactly like repository paths without existence leaks | done |
+| P1-019 | Parallelize independent IdentityAccess reads without changing authorization semantics. | P1-009, GATE-PERF-004 | concurrent workspace/role-permission read path and deterministic test | controlled gateway test plus real P1-007/P1-017 clientgates pass | done |
+| P1-020 | Replace the broad Property list payload with an explicit summary projection. | P1-005, P1-007, GATE-PERF-004 | list-summary contract and narrow Supabase projection; detail remains complete | adapter/controller/real-client tests prove projection separation without UI regression | done |
+| P1-021A | Add a budget-free, reproducible local query/RPC profiling contract. | P1-019, P1-020, GATE-PERF-005 | parameter guards, transacted fixtures and machine-readable p50/p95/p99/queryplan report | local smoke profile is complete, rollback is verified and report declares no acceptance | done |
+| P1-021 | Define performance budgets and run representative query, RPC and Flutter profiles. | P1-021A, GATE-PERF-005 | approved data volumes/latency budgets and local/staging benchmark evidence | representative p95/p99, queryplan and Flutter evidence meets approved budgets | blocked (budgets/data volumes not approved) |
 
 ## First Safe Local Increment
 
-Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2 und Performance-Indizes/InitPlans sind lokal abgeschlossen. Das naechste sichere vertikale Inkrement ist `P1-017`. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
+Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitlement-Revalidation, Raw-PostgREST-Paritaet, parallele Identity-Reads, schlanke Property-Listenprojektion, Performance-Indizes/InitPlans und der budgetfreie lokale Profiling-Vertrag sind abgeschlossen. `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
 
 ## P1-001 Validation
 
@@ -109,6 +114,37 @@ Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2 und Perfor
 - Controller und adaptive UI behandeln Aktions-, Fehler- und Busy-Zustaende explizit; TOTP-Secrets werden nicht persistiert und bei Sessionwechsel oder Logout verworfen.
 - Der echte lokale P1-007-Flow nutzt fluechtigen PKCE-Speicher, fordert passwordless Auth an, bestaetigt AAL1-Deny und hebt die Session per echtem TOTP auf AAL2; P1-011 bleibt mit zwei AAL2-Writern gruen.
 - 54 gezielte Tests, Gesamtsuite 245 bestanden/6 Skips, Analyzer ohne Findings, 196 pgTAP, DB-Lint und Web-Build bestehen. Allgemeine privilegierte Rollen-/AAL-Policy und Remote-E2E bleiben offen.
+
+## P1-017 Validation
+
+- Private Broadcast-Topics sind an `auth.uid()` gebunden; fremde Nutzer koennen den Entitlement-Kanal nicht abonnieren. Membership- und Role-Permission-Trigger senden nur minimale Revalidation-Payloads.
+- Realtime-Signal, Reconnect und periodischer Fallback fuehren zum kanonischen Membership-/Permission-Readback. Caches werden davor synchron geleert und spaete Ergebnisse durch Generationen verworfen.
+- Der lokale Mehrclient-E2E prueft Rollenentzug, Wiedererteilung, Membership-Suspendierung und fremdes Topic-Deny. P1-007 und Property-Realtime bleiben gruen.
+- 212 pgTAP-, 18 Rollback-Pruefungen, Gesamtsuite 248 bestanden/7 Skips, Analyzer ohne Findings, DB-Lint, Advisors ohne Error-Befund und Web-Build bestehen.
+
+## P1-018 Validation
+
+- Der Test nutzt `dart:io` direkt gegen `/rest/v1`, nicht den Supabase-Datenadapter. Anon erhaelt keinen Tabellenzugriff; bekannte Fremd-Workspace-IDs liefern fuer authentifizierte Nutzer leere Listen.
+- Viewer koennen die eigene Property lesen, aber auch auf AAL2 nicht mutieren. Direkte Tabellen-PATCHes bleiben gesperrt; der eigene Manager-RPC mutiert auf AAL2 genau einmal.
+- Das lokale Gate, Gesamtsuite 248 bestanden/8 Skips und Analyzer ohne Findings bestehen. `AC-RLS-006` und `GATE-SEC-007` sind lokal geschlossen.
+
+## P1-019 Validation
+
+- Membership bleibt der erste kanonische Read. Danach starten Workspace- und Role-Permission-Abfrage gemeinsam; Permission-IDs werden erst nach dem Role-Permission-Ergebnis aufgeloest.
+- Ein blockierbarer Fake-Gateway beweist den gleichzeitigen Start. Der echte P1-007-Workspace-Load und P1-017-Rollen-/Membership-Entzug bleiben gruen.
+- 14 gezielte Tests, Gesamtsuite 249 bestanden/8 Skips, Analyzer ohne Findings und Web-Build bestehen. `GATE-PERF-004` bleibt nur fuer die breite Property-Listenprojektion offen.
+
+## P1-020 Validation
+
+- `PropertySummaryDto` trennt die aktive Liste vom vollstaendigen Detailvertrag. Supabase selektiert exakt `id`, `workspace_id`, `name`, `address_line1`, `zip`, `city`, `status` und `version`.
+- Detail- und Mutationsergebnisse erweitern keine geladene Keyset-Seite, stufen keine neuere Summary zurueck und entfernen archivierte Properties ohne Verlust eines verbleibenden Cursors aus der aktiven Liste.
+- 64 gezielte Tests, P1-007 und P1-011/P1-017, Gesamtsuite 253 bestanden/8 Skips, Analyzer ohne Findings und Web-Build bestehen. `GATE-PERF-004` ist lokal geschlossen; Messbudgets bleiben `GATE-PERF-005`.
+
+## P1-021A Validation
+
+- Der PowerShell-Verifier verlangt explizite Property-Anzahl, Warmups und Messlaeufe; Guard-Tests sperren ungueltige oder lokal riskante Parameter vor jedem Containerzugriff.
+- Die SQL-Fixture laeuft in einer Transaktion und profiliert Property-Summary-Keyset, aktive Memberships, Workspace-Projektion, Role-Permissions und AAL2-Property-RPC unter `authenticated`-RLS. Der Verifier bestaetigt den vollstaendigen Rollback.
+- Der JSON-Report enthaelt p50/p95/p99, repraesentative Queryplaene und zwingend `acceptance_gate=false`. Der CI-identische Smoke-Lauf mit 250 Properties, 1 Warmup und 5 Samples sowie 212/212 pgTAP besteht; GATE-PERF-005 bleibt bis zu freigegebenen Budgets und repraesentativen lokalen/Staging-/Flutter-Profilen offen.
 
 ## Responsive QA Validation
 

@@ -252,6 +252,116 @@ void main() {
       expect(properties.updateCommands.single.context.expectedVersion, 1);
     });
 
+    test('detail does not downgrade a newer list summary', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property(version: 3)]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(version: 2, name: 'Stale detail'),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+
+      expect(controller.state.selectedProperty?.version, 2);
+      expect(controller.state.properties.single.version, 3);
+    });
+
+    test('deep-link detail does not extend the loaded keyset page', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(id: 'property-b'),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-b');
+
+      expect(controller.state.selectedProperty?.id, 'property-b');
+      expect(
+        controller.state.properties.map((property) => property.id),
+        <String>['property-a'],
+      );
+    });
+
+    test(
+      'archived mutation removes the property from the active list',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read', 'property.update'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+        properties.updateResults.add(
+          PropertyRepositorySuccess<PropertyDto>(
+            _property(version: 2, status: PropertyStatus.archived),
+          ),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+        await controller.updateSelectedProperty(_changes());
+
+        expect(controller.state.propertyListPhase, PropertyListPhase.empty);
+        expect(controller.state.properties, isEmpty);
+        expect(
+          controller.state.selectedProperty?.status,
+          PropertyStatus.archived,
+        );
+      },
+    );
+
+    test('archived mutation preserves a remaining keyset cursor', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(
+          items: <PropertyDto>[_property()],
+          nextCursor: 'property-b',
+        ),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+      properties.updateResults.add(
+        PropertyRepositorySuccess<PropertyDto>(
+          _property(version: 2, status: PropertyStatus.archived),
+        ),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      await controller.updateSelectedProperty(_changes());
+
+      expect(controller.state.propertyListPhase, PropertyListPhase.ready);
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.nextCursor, 'property-b');
+    });
+
     test('retries a transient failure with the identical command', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
@@ -687,6 +797,7 @@ PropertyDto _property({
   String id = 'property-a',
   int version = 1,
   String name = 'Property',
+  PropertyStatus status = PropertyStatus.active,
 }) {
   return PropertyDto(
     id: id,
@@ -698,7 +809,7 @@ PropertyDto _property({
     country: 'de',
     propertyType: 'office',
     units: 1,
-    status: PropertyStatus.active,
+    status: status,
     createdAt: DateTime.utc(2026, 7, 1),
     updatedAt: DateTime.utc(2026, 7, 1),
     createdBy: 'user-a',

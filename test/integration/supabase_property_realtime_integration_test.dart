@@ -176,6 +176,7 @@ void main() {
       );
 
       final observer = createSupabaseTestClient(url, publishableKey);
+      final probe = createSupabaseTestClient(url, publishableKey);
       final revoker = createSupabaseTestClient(url, publishableKey);
       StreamSubscription<EntitlementInvalidation>? probeSubscription;
       StreamSubscription<EntitlementInvalidation>? foreignSubscription;
@@ -184,6 +185,10 @@ void main() {
       try {
         await Future.wait(<Future<AuthResponse>>[
           observer.auth.signInWithPassword(
+            email: 'p1-007@example.test',
+            password: 'NexImmo-Test-2026!',
+          ),
+          probe.auth.signInWithPassword(
             email: 'p1-007@example.test',
             password: 'NexImmo-Test-2026!',
           ),
@@ -217,13 +222,24 @@ void main() {
         final entitlementEvents = <EntitlementInvalidation>[];
         final probeReady = Completer<void>();
         probeSubscription = SupabaseEntitlementInvalidationAdapter(
-          client: observer,
-        ).watchUser(userId: actorA).listen((event) {
-          entitlementEvents.add(event);
-          if (event.isReconciliation && !probeReady.isCompleted) {
-            probeReady.complete();
-          }
-        }, onError: probeReady.completeError);
+              client: probe,
+            )
+            .watchUser(userId: actorA)
+            .listen(
+              (event) {
+                entitlementEvents.add(event);
+                if (event.isReconciliation && !probeReady.isCompleted) {
+                  probeReady.complete();
+                }
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                if (!probeReady.isCompleted) {
+                  probeReady.completeError(error, stackTrace);
+                } else {
+                  fail('Entitlement probe failed after readiness: $error');
+                }
+              },
+            );
         await probeReady.future.timeout(
           const Duration(seconds: 10),
           onTimeout:
@@ -310,6 +326,7 @@ void main() {
         }
         await Future.wait<void>(<Future<void>>[
           observer.auth.signOut(),
+          probe.auth.signOut(),
           revoker.auth.signOut(),
         ]);
       }

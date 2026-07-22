@@ -373,7 +373,11 @@ class SupabaseIdentityAccessRepositoryAdapter
           .map((membership) => membership.workspaceId)
           .toSet()
           .toList(growable: false);
-      final workspaceRows = await _gateway.listWorkspaces(workspaceIds);
+      final accessRows = await Future.wait<List<Map<String, dynamic>>>([
+        _gateway.listWorkspaces(workspaceIds),
+        _gateway.listRolePermissions(workspaceIds),
+      ]);
+      final workspaceRows = accessRows[0];
       final workspaces = <String, WorkspaceSummary>{};
       for (final row in workspaceRows) {
         final id = _requiredString(row, 'id');
@@ -394,12 +398,17 @@ class SupabaseIdentityAccessRepositoryAdapter
       final visibleMemberships = memberships
           .where((membership) => workspaces.containsKey(membership.workspaceId))
           .toList(growable: false);
-      final rolePermissionRows = await _gateway.listRolePermissions(
-        visibleMemberships
-            .map((membership) => membership.workspaceId)
-            .toSet()
-            .toList(growable: false),
-      );
+      final visibleWorkspaceIds =
+          visibleMemberships
+              .map((membership) => membership.workspaceId)
+              .toSet();
+      final rolePermissionRows = accessRows[1]
+          .where(
+            (row) => visibleWorkspaceIds.contains(
+              _requiredString(row, 'workspace_id'),
+            ),
+          )
+          .toList(growable: false);
       final permissionIds = rolePermissionRows
           .map((row) => _requiredString(row, 'permission_id'))
           .toSet()
