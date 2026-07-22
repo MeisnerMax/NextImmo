@@ -57,6 +57,7 @@ class PropertyDto extends PropertySummaryDto {
     required this.updatedBy,
     required super.version,
     this.deletedAt,
+    this.deletedBy,
   });
 
   final String? addressLine2;
@@ -71,6 +72,11 @@ class PropertyDto extends PropertySummaryDto {
   final String createdBy;
   final String updatedBy;
   final DateTime? deletedAt;
+
+  /// User that tombstoned (archived) the property, mirroring the SQLite
+  /// `deleted_by` marker. Populated only on reads that select the row
+  /// (`getById`/`list`); the `update` RPC result does not carry it.
+  final String? deletedBy;
 }
 
 class PropertyUpdateDto {

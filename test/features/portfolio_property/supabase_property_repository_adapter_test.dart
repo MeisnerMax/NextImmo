@@ -134,6 +134,25 @@ void main() {
       expect(property.version, 2);
       expect(property.sqft, 2500.5);
       expect(property.deletedAt, DateTime.parse('2026-07-13T12:00:00Z'));
+      // The update RPC payload never carries deleted_by (DEBT-012 populates it
+      // via trigger, surfaced only through table reads).
+      expect(property.deletedBy, isNull);
+    });
+
+    test('getById surfaces the deleted_by tombstone marker', () async {
+      gateway.getResult = <Map<String, dynamic>>[
+        _propertyJson(status: 'archived', deletedBy: 'actor-a'),
+      ];
+
+      final result = await repository.getById(
+        workspaceId: 'workspace-a',
+        propertyId: 'property-a',
+      );
+
+      final property = (result as PropertyRepositorySuccess<PropertyDto>).value;
+      expect(property.status, PropertyStatus.archived);
+      expect(property.deletedBy, 'actor-a');
+      expect(property.deletedAt, DateTime.parse('2026-07-13T12:00:00Z'));
     });
 
     test('maps version conflict including current property', () async {
@@ -258,6 +277,7 @@ Map<String, dynamic> _propertyJson({
   String workspaceId = 'workspace-a',
   String status = 'active',
   int version = 1,
+  String? deletedBy,
 }) {
   return <String, dynamic>{
     'id': id,
@@ -280,6 +300,9 @@ Map<String, dynamic> _propertyJson({
     'updated_by': 'actor-a',
     'version': version,
     'deleted_at': '2026-07-13T12:00:00Z',
+    // The P1-004 update RPC result never carries deleted_by; only table reads
+    // (getById/list) do. Omitting the key mirrors the RPC payload.
+    if (deletedBy != null) 'deleted_by': deletedBy,
   };
 }
 

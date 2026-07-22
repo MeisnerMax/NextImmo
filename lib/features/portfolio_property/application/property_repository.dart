@@ -106,6 +106,15 @@ class PropertyRepositoryFailure<T> extends PropertyRepositoryResult<T> {
   final PropertyVersionConflict? versionConflict;
 }
 
+/// Backend-agnostic property contract.
+///
+/// The property tombstone (DEBT-012) is expressed through the archived status,
+/// not a dedicated delete verb: `update` with [PropertyStatus.archived] is the
+/// restorable soft-delete (it sets the `deleted_at`/`deleted_by` marker, keeps
+/// the row and its children, is hidden from active reads, and is audited
+/// append-only), and `update` back to [PropertyStatus.active] is the restore.
+/// Active reads exclude tombstoned rows by the marker; pass
+/// [PropertyListQuery.includeArchived] to surface them for the archive view.
 abstract interface class PropertyRepository {
   Future<PropertyRepositoryResult<PropertyPageResult>> list(
     PropertyListQuery query,

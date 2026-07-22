@@ -43,7 +43,11 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
         )
         .eq('workspace_id', workspaceId);
     if (!includeArchived) {
-      query = query.neq('status', 'archived');
+      // Archive is the property tombstone (DEBT-012): archiving sets the
+      // deleted_at marker, so active reads exclude tombstoned rows by that
+      // marker server-side. Passing includeArchived surfaces them for the
+      // archive/audit view, where they remain restorable by un-archiving.
+      query = query.isFilter('deleted_at', null);
     }
     if (afterId != null) {
       query = query.gt('id', afterId);
@@ -307,6 +311,7 @@ PropertyDto _parseProperty(Map<String, dynamic> json) {
     updatedBy: _requiredString(json, 'updated_by'),
     version: _requiredInt(json, 'version'),
     deletedAt: _nullableDateTime(json, 'deleted_at'),
+    deletedBy: _nullableString(json, 'deleted_by'),
   );
 }
 

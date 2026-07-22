@@ -13,6 +13,7 @@ select functions_are(
     'is_active_workspace_member',
     'is_current_active_membership',
     'prepare_audit_event',
+    'properties_apply_delete_marker',
     'reject_audit_event_change',
     'reject_protected_column_update',
     'send_entitlement_revalidation',

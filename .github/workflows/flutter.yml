@@ -59,9 +59,11 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test P1-017, P1-011 and P1-004 rollback
+      - name: Test DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/006_debt_012_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/005_p1_017_down.test.sql
           supabase migration down --local --last 3 --yes
@@ -82,6 +84,9 @@ jobs:
       - name: Test P1-018 raw PostgREST authorization parity
         shell: pwsh
         run: ./tool/verify_p1_018_postgrest.ps1
+      - name: Test DEBT-012 property tombstone parity
+        shell: pwsh
+        run: ./tool/verify_debt_012_tombstone.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1
