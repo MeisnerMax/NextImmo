@@ -9,15 +9,21 @@ select functions_are(
   array[
     'broadcast_membership_entitlement_change',
     'broadcast_role_permission_entitlement_change',
+    'claim_membership_mutation',
+    'finish_membership_mutation',
     'has_workspace_permission',
     'is_active_workspace_member',
     'is_current_active_membership',
+    'membership_command_gate',
+    'membership_invitation_snapshot',
+    'membership_snapshot',
     'prepare_audit_event',
     'properties_apply_delete_marker',
     'reject_audit_event_change',
     'reject_protected_column_update',
     'send_entitlement_revalidation',
-    'update_property_core'
+    'update_property_core',
+    'would_remove_last_security_manager'
   ],
   'private function inventory is complete'
 );
@@ -280,7 +286,14 @@ select set_config('request.jwt.claim.sub', 'c0000000-0000-0000-0000-000000000001
 
 select isnt(private.is_active_workspace_member('10000000-0000-0000-0000-000000000001'), true, 'suspended membership is inactive');
 select is((select count(*)::integer from public.workspaces), 0, 'suspended user sees no workspace');
-select is((select count(*)::integer from public.memberships), 0, 'suspended user sees no membership');
+-- P2-D01: members always see their own membership row (any status) so a
+-- suspended or invited user can see where they stand; nothing beyond it.
+select ok(
+  (select count(*) = 1
+     and bool_and(user_id = 'c0000000-0000-0000-0000-000000000001'::uuid)
+   from public.memberships),
+  'suspended user sees exactly their own membership row'
+);
 select is((select count(*)::integer from public.roles), 0, 'suspended user sees no roles');
 select is((select count(*)::integer from public.entity_scopes), 0, 'suspended user sees no scopes');
 
@@ -290,7 +303,14 @@ select set_config('request.jwt.claim.sub', 'd0000000-0000-0000-0000-000000000001
 
 select ok(private.is_active_workspace_member('10000000-0000-0000-0000-000000000001'), 'permissionless user remains an active member');
 select is((select count(*)::integer from public.workspaces), 0, 'active membership without workspace.read is denied');
-select is((select count(*)::integer from public.memberships), 0, 'active membership without required permission is hidden');
+-- P2-D01: own-row visibility does not depend on a permission; foreign
+-- memberships stay hidden without security.manage.
+select ok(
+  (select count(*) = 1
+     and bool_and(user_id = 'd0000000-0000-0000-0000-000000000001'::uuid)
+   from public.memberships),
+  'active member without permissions sees exactly their own membership row'
+);
 select is((select count(*)::integer from public.entity_scopes), 0, 'own scope without workspace.read is hidden');
 
 reset role;
