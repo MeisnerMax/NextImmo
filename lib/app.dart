@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_environment.dart';
+import 'features/reference_slice/presentation/reference_members_screen.dart';
 import 'features/reference_slice/presentation/reference_slice_screen.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
@@ -66,6 +67,12 @@ class NexImmoApp extends ConsumerWidget {
   }
 
   Route<void>? _generateReferenceRoute(RouteSettings settings) {
+    if (settings.name == referenceMembersRoute) {
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const ReferenceMembersScreen(),
+      );
+    }
     final propertyId = referencePropertyIdFromRoute(settings.name);
     if (settings.name == referencePropertiesRoute || propertyId != null) {
       return MaterialPageRoute<void>(

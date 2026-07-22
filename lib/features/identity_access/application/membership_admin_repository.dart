@@ -36,6 +36,41 @@ class WorkspaceMember {
   final int version;
 }
 
+/// One row of the workspace member directory: a [WorkspaceMember] enriched
+/// with the display name (public.user_profiles) and email (auth.users) that
+/// row-level security cannot expose to the client directly, plus the resolved
+/// role key/name. Populated by the `security.manage`-gated
+/// `list_workspace_members` RPC.
+class WorkspaceMemberDirectoryEntry {
+  const WorkspaceMemberDirectoryEntry({
+    required this.membershipId,
+    required this.workspaceId,
+    required this.userId,
+    required this.roleId,
+    required this.roleKey,
+    required this.roleName,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.version,
+    this.displayName,
+    this.email,
+  });
+
+  final String membershipId;
+  final String workspaceId;
+  final String userId;
+  final String roleId;
+  final String roleKey;
+  final String roleName;
+  final MembershipStatus status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int version;
+  final String? displayName;
+  final String? email;
+}
+
 class MembershipInvitation {
   const MembershipInvitation({
     required this.id,
@@ -248,6 +283,12 @@ abstract interface class MembershipAdminRepository {
   Future<MembershipAdminResult<List<WorkspaceMember>>> listMembers({
     required String workspaceId,
   });
+
+  /// The full member directory (name/email/role/status) for an admin console.
+  /// Server-gated on `security.manage`; a caller without it fails with
+  /// [MembershipAdminFailureKind.forbidden] rather than an empty list.
+  Future<MembershipAdminResult<List<WorkspaceMemberDirectoryEntry>>>
+  listMemberDirectory({required String workspaceId});
 
   Future<MembershipAdminResult<List<WorkspaceRole>>> listRoles({
     required String workspaceId,

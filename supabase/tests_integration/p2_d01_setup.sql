@@ -20,6 +20,9 @@ insert into auth.users (
     now(), '', '', '', '', '{}', '{}', now(), now()
   );
 
+insert into public.user_profiles (user_id, display_name)
+values ('fa000000-0000-0000-0000-000000000001', 'Directory Admin');
+
 insert into public.workspaces (id, key, name)
 values ('f1000000-0000-0000-0000-000000000001', 'p2-d01', 'P2-D01');
 

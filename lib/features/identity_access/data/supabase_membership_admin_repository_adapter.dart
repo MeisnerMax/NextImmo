@@ -110,6 +110,46 @@ class SupabaseMembershipAdminRepositoryAdapter
   }
 
   @override
+  Future<MembershipAdminResult<List<WorkspaceMemberDirectoryEntry>>>
+  listMemberDirectory({required String workspaceId}) async {
+    try {
+      final response = await _gateway.callRpc(
+        'list_workspace_members',
+        <String, Object?>{'p_workspace_id': workspaceId},
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final entity = payload['entity'];
+        if (entity is! List) {
+          throw const FormatException('Expected a directory list.');
+        }
+        final entries = entity
+            .map((row) => _parseDirectoryEntry(_asMap(row)))
+            .toList(growable: false);
+        if (entries.any((entry) => entry.workspaceId != workspaceId)) {
+          throw const FormatException('Directory workspace mismatch.');
+        }
+        return MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>(
+          entries,
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<List<WorkspaceMemberDirectoryEntry>>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>(
+        kind: MembershipAdminFailureKind.infrastructureFailure,
+        message: 'Supabase member directory could not be loaded.',
+      );
+    }
+  }
+
+  @override
   Future<MembershipAdminResult<List<WorkspaceRole>>> listRoles({
     required String workspaceId,
   }) async {
@@ -437,6 +477,23 @@ MembershipInvitation _parseInvitation(Map<String, dynamic> json) {
     updatedAt: DateTime.parse(_requiredString(json, 'updated_at')),
     version: _requiredInt(json, 'version'),
     acceptedMembershipId: _nullableString(json, 'accepted_membership_id'),
+  );
+}
+
+WorkspaceMemberDirectoryEntry _parseDirectoryEntry(Map<String, dynamic> json) {
+  return WorkspaceMemberDirectoryEntry(
+    membershipId: _requiredString(json, 'membership_id'),
+    workspaceId: _requiredString(json, 'workspace_id'),
+    userId: _requiredString(json, 'user_id'),
+    roleId: _requiredString(json, 'role_id'),
+    roleKey: _requiredString(json, 'role_key'),
+    roleName: _requiredString(json, 'role_name'),
+    status: MembershipStatus.values.byName(_requiredString(json, 'status')),
+    createdAt: DateTime.parse(_requiredString(json, 'created_at')),
+    updatedAt: DateTime.parse(_requiredString(json, 'updated_at')),
+    version: _requiredInt(json, 'version'),
+    displayName: _nullableString(json, 'display_name'),
+    email: _nullableString(json, 'email'),
   );
 }
 

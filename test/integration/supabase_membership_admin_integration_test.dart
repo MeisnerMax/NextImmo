@@ -119,6 +119,35 @@ void main() {
                 as MembershipAdminSuccess<List<WorkspaceMember>>;
         expect(members.value, hasLength(2));
 
+        // The security.manage-gated directory joins display name and email.
+        final directory =
+            (await adminRepo.listMemberDirectory(workspaceId: workspaceId))
+                as MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>;
+        expect(directory.value, hasLength(2));
+        final adminEntry = directory.value.firstWhere(
+          (entry) => entry.userId == adminId,
+        );
+        expect(adminEntry.displayName, 'Directory Admin');
+        expect(adminEntry.email, 'p2-d01-admin@example.test');
+        final inviteeEntry = directory.value.firstWhere(
+          (entry) => entry.userId == inviteeId,
+        );
+        expect(inviteeEntry.email, 'p2-d01-invitee@example.test');
+        expect(inviteeEntry.status, MembershipStatus.active);
+
+        // The invitee is a viewer without security.manage: the directory read
+        // is forbidden, distinctly from an empty result.
+        final inviteeDirectory = await inviteeRepo.listMemberDirectory(
+          workspaceId: workspaceId,
+        );
+        expect(
+          (inviteeDirectory
+                  as MembershipAdminFailure<
+                      List<WorkspaceMemberDirectoryEntry>>)
+              .kind,
+          MembershipAdminFailureKind.forbidden,
+        );
+
         final suspended =
             (await adminRepo.updateStatus(
                   UpdateMembershipStatusCommand(

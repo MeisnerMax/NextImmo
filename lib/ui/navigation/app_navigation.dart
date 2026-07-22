@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/app_state.dart';
 
 const referencePropertiesRoute = '/properties';
+const referenceMembersRoute = '/members';
 
 String referencePropertyRoute(String propertyId) {
   final normalized = propertyId.trim();

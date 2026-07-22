@@ -48,6 +48,100 @@ void main() {
       );
     });
 
+    test('lists the member directory from the RPC envelope', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': <Object?>[
+          _directoryJson(),
+          _directoryJson(
+            membershipId: 'membership-b',
+            userId: 'user-b',
+            roleKey: 'viewer',
+            roleName: 'Viewer',
+            status: 'suspended',
+            displayName: null,
+            email: null,
+            version: 2,
+          ),
+        ],
+      };
+
+      final result = await repository.listMemberDirectory(
+        workspaceId: 'workspace-a',
+      );
+
+      expect(gateway.rpcFunction, 'list_workspace_members');
+      expect(gateway.rpcParameters, <String, Object?>{
+        'p_workspace_id': 'workspace-a',
+      });
+      final entries =
+          (result
+                  as MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>)
+              .value;
+      expect(entries.first.displayName, 'Directory Admin');
+      expect(entries.first.email, 'admin@example.com');
+      expect(entries.first.status, MembershipStatus.active);
+      expect(entries.last.displayName, isNull);
+      expect(entries.last.email, isNull);
+      expect(entries.last.roleKey, 'viewer');
+      expect(entries.last.status, MembershipStatus.suspended);
+      expect(entries.last.version, 2);
+    });
+
+    test('maps a forbidden directory envelope to a forbidden failure', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'forbidden',
+          'message': 'Member directory access is not permitted',
+        },
+      };
+
+      final result = await repository.listMemberDirectory(
+        workspaceId: 'workspace-a',
+      );
+
+      expect(
+        (result
+                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+            .kind,
+        MembershipAdminFailureKind.forbidden,
+      );
+    });
+
+    test('rejects a directory entry from a foreign workspace', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': <Object?>[_directoryJson(workspaceId: 'workspace-b')],
+      };
+
+      final result = await repository.listMemberDirectory(
+        workspaceId: 'workspace-a',
+      );
+
+      expect(
+        (result
+                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+            .kind,
+        MembershipAdminFailureKind.infrastructureFailure,
+      );
+    });
+
+    test('hides a malformed directory response', () async {
+      gateway.rpcResult = <String, Object?>{'ok': true, 'entity': 'not-a-list'};
+
+      final result = await repository.listMemberDirectory(
+        workspaceId: 'workspace-a',
+      );
+
+      expect(
+        (result
+                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+            .kind,
+        MembershipAdminFailureKind.infrastructureFailure,
+      );
+    });
+
     test('lists roles scoped to the requested workspace', () async {
       gateway.rolesResult = <Map<String, dynamic>>[
         <String, dynamic>{
@@ -473,6 +567,33 @@ Map<String, dynamic> _memberJson({
     'updated_at': '2026-07-21T11:00:00Z',
     'created_by': 'actor-a',
     'updated_by': 'actor-a',
+    'version': version,
+  };
+}
+
+Map<String, dynamic> _directoryJson({
+  String membershipId = 'membership-a',
+  String workspaceId = 'workspace-a',
+  String userId = 'user-a',
+  String roleKey = 'manager',
+  String roleName = 'Manager',
+  String status = 'active',
+  int version = 1,
+  String? displayName = 'Directory Admin',
+  String? email = 'admin@example.com',
+}) {
+  return <String, dynamic>{
+    'membership_id': membershipId,
+    'workspace_id': workspaceId,
+    'user_id': userId,
+    'role_id': 'role-a',
+    'role_key': roleKey,
+    'role_name': roleName,
+    'display_name': displayName,
+    'email': email,
+    'status': status,
+    'created_at': '2026-07-20T10:00:00Z',
+    'updated_at': '2026-07-21T11:00:00Z',
     'version': version,
   };
 }

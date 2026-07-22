@@ -66,6 +66,7 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
         onBeginTotpEnrollment: controller.beginTotpEnrollment,
         onVerifyTotp: controller.verifyTotp,
         onSignOut: controller.signOut,
+        onOpenMembers: () => Navigator.of(context).pushNamed(referenceMembersRoute),
       ),
     );
   }
@@ -125,6 +126,7 @@ class ReferenceSliceView extends StatefulWidget {
     required this.onBeginTotpEnrollment,
     required this.onVerifyTotp,
     required this.onSignOut,
+    this.onOpenMembers,
   });
 
   final ReferenceSliceState state;
@@ -142,6 +144,7 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function({required String factorId, required String code})
   onVerifyTotp;
   final Future<void> Function() onSignOut;
+  final VoidCallback? onOpenMembers;
 
   @override
   State<ReferenceSliceView> createState() => _ReferenceSliceViewState();
@@ -245,6 +248,13 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
                 subtitle: 'Workspace-scoped cloud property management.',
                 trailing: _buildWorkspaceControl(),
                 secondaryActions: [
+                  if (widget.onOpenMembers != null)
+                    OutlinedButton.icon(
+                      key: const Key('reference-open-members'),
+                      onPressed: widget.onOpenMembers,
+                      icon: const Icon(Icons.group_outlined),
+                      label: const Text('Members'),
+                    ),
                   if (state.assuranceLevel != AuthenticationAssuranceLevel.aal2)
                     OutlinedButton.icon(
                       key: const Key('reference-start-mfa'),

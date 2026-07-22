@@ -64,6 +64,52 @@ class LegacySqliteMembershipAdminRepositoryAdapter
   }
 
   @override
+  Future<MembershipAdminResult<List<WorkspaceMemberDirectoryEntry>>>
+  listMemberDirectory({required String workspaceId}) async {
+    final scopeFailure =
+        _scopeFailure<List<WorkspaceMemberDirectoryEntry>>(workspaceId);
+    if (scopeFailure != null) {
+      return scopeFailure;
+    }
+
+    try {
+      final users = await _securityRepo.listUsers(_legacyWorkspaceId);
+      return MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>(
+        users
+            .map(
+              (user) => WorkspaceMemberDirectoryEntry(
+                membershipId: user.id,
+                workspaceId: _legacyWorkspaceId,
+                userId: user.id,
+                roleId: user.role,
+                roleKey: user.role,
+                roleName: user.role,
+                // The local store has no lifecycle: every user is active.
+                status: MembershipStatus.active,
+                createdAt: DateTime.fromMillisecondsSinceEpoch(
+                  user.createdAt,
+                  isUtc: true,
+                ),
+                updatedAt: DateTime.fromMillisecondsSinceEpoch(
+                  user.createdAt,
+                  isUtc: true,
+                ),
+                version: unsupportedVersion,
+                displayName: user.displayName,
+                email: user.email,
+              ),
+            )
+            .toList(growable: false),
+      );
+    } catch (_) {
+      return const MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>(
+        kind: MembershipAdminFailureKind.infrastructureFailure,
+        message: 'Legacy SQLite member directory could not be loaded.',
+      );
+    }
+  }
+
+  @override
   Future<MembershipAdminResult<List<WorkspaceRole>>> listRoles({
     required String workspaceId,
   }) async {

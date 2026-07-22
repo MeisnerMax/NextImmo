@@ -52,6 +52,41 @@ void main() {
       );
     });
 
+    test('maps local users onto directory entries with name and email', () async {
+      securityRepo.users = <LocalUserRecord>[
+        _user(id: 'user-1', role: 'admin', email: 'admin@example.test'),
+        _user(id: 'user-2', role: 'viewer'),
+      ];
+
+      final result = await adapter.listMemberDirectory(
+        workspaceId: 'workspace-a',
+      );
+
+      final entries =
+          (result
+                  as MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>)
+              .value;
+      expect(entries.map((entry) => entry.userId), <String>['user-1', 'user-2']);
+      expect(entries.first.displayName, 'user-1');
+      expect(entries.first.email, 'admin@example.test');
+      expect(entries.first.roleKey, 'admin');
+      expect(entries.first.status, MembershipStatus.active);
+      expect(entries.last.email, isNull);
+    });
+
+    test('rejects a foreign workspace directory scope fail-closed', () async {
+      final result = await adapter.listMemberDirectory(
+        workspaceId: 'workspace-b',
+      );
+
+      expect(
+        (result
+                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+            .kind,
+        MembershipAdminFailureKind.forbidden,
+      );
+    });
+
     test('derives roles from the distinct role strings in use', () async {
       securityRepo.users = <LocalUserRecord>[
         _user(id: 'user-1', role: 'viewer'),
@@ -148,11 +183,15 @@ void main() {
   });
 }
 
-LocalUserRecord _user({required String id, required String role}) {
+LocalUserRecord _user({
+  required String id,
+  required String role,
+  String? email,
+}) {
   return LocalUserRecord(
     id: id,
     workspaceId: 'workspace-a',
-    email: null,
+    email: email,
     displayName: id,
     passwordHash: null,
     passwordSalt: null,
