@@ -93,7 +93,7 @@ Schwelle: mindestens 1.000 LOC (`verified`). Prioritaet bewertet Risiko und Aend
 
 | ID | Entscheidung | Auswirkung | Default-Annahme | Spaetestens | Status |
 |---|---|---|---|---|---|
-| OPEN-001 | Kanonisches Party-Modell fuer User, Kontakt, Mieter, Dienstleister und Kaeufer | PII, Rollen, Dubletten, Migration | getrennte fachliche Rollen, gemeinsame Party-ID | vor Phase 2 Schema | open |
+| OPEN-001 | Kanonisches Party-Modell fuer User, Kontakt, Mieter, Dienstleister und Kaeufer | PII, Rollen, Dubletten, Migration | getrennte fachliche Rollen, gemeinsame Party-ID | vor Phase 2 Schema | decided (2026-07-22): Default bestaetigt (gemeinsame `parties`-ID, fachliche Rollen als `party_roles`-Zeilen, zeitlich begrenzbar) **plus** rollenspezifische Attribute in per-Rolle Satelliten-Tabellen (join auf `parties`), nicht in generischen `party_roles`-Feldern. Bindet den P2-D02-Schema-Entwurf. |
 | OPEN-002 | Disposition von Legacy `users` | Datenverlust-/Altbestandrisiko | read-only pruefen, nicht ungeprueft loeschen | vor SQLite-Import-Mapping | open |
 | OPEN-003 | Produktstatus von Search- und Rental-Overview-Screens | Navigation und Featureumfang | nicht als produktiv zugesichert | vor Phase-1-Routingvertrag | open |
 | OPEN-004 | Ein oder zwei Acquisition-Schnellpruefungsmodelle | KPI-/Historienkonsistenz | `acquisition_quick_evaluations` als Ziel, Altbestand mappen | vor Phase 5 | open |
