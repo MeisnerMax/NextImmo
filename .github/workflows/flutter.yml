@@ -89,6 +89,9 @@ jobs:
       - name: Test DEBT-012 property tombstone parity
         shell: pwsh
         run: ./tool/verify_debt_012_tombstone.ps1
+      - name: Test P2-D01 membership admin integration
+        shell: pwsh
+        run: ./tool/verify_p2_d01_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1
