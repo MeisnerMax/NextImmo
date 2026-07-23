@@ -168,10 +168,7 @@ class _PropertyDocumentsScreenState
                         children: [
                           _buildDocumentsCard(context),
                           const SizedBox(height: AppSpacing.component),
-                          SizedBox(
-                            height: 260,
-                            child: _buildComplianceCard(context),
-                          ),
+                          _buildComplianceCard(context),
                         ],
                       );
                     }
@@ -210,6 +207,8 @@ class _PropertyDocumentsScreenState
                 ),
               )
               : ListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.cardPadding),
                 children: [
                   if (imageDocuments.isNotEmpty) ...[
@@ -381,7 +380,8 @@ class _PropertyDocumentsScreenState
             Text('Compliance', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             if (_issues.isEmpty)
-              const Expanded(
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.section),
                 child: Center(
                   child: Text(
                     'No document compliance issues for this property.',
@@ -389,8 +389,9 @@ class _PropertyDocumentsScreenState
                 ),
               )
             else
-              Expanded(
-                child: ListView.separated(
+              ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: _issues.length,
                   separatorBuilder: (_, __) => const Divider(height: 16),
                   itemBuilder: (context, index) {
@@ -403,7 +404,6 @@ class _PropertyDocumentsScreenState
                     );
                   },
                 ),
-              ),
           ],
         ),
       ),
