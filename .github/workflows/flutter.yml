@@ -105,6 +105,9 @@ jobs:
       - name: Test P2-D02 party integration
         shell: pwsh
         run: ./tool/verify_p2_d02_integration.ps1
+      - name: Test P2-D03 document integration
+        shell: pwsh
+        run: ./tool/verify_p2_d03_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1

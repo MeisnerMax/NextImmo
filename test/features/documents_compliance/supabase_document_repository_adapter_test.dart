@@ -52,6 +52,7 @@ Map<String, dynamic> _versionSnapshot({
   String verificationStatus = 'pending',
   String? contentConfirmedAt,
   int? supersededByVersionNo,
+  String contentHash = _hash,
 }) => <String, dynamic>{
   'id': 'ev000000-0000-0000-0000-00000000000$versionNo',
   'workspace_id': workspaceId,
@@ -59,7 +60,7 @@ Map<String, dynamic> _versionSnapshot({
   'version_no': versionNo,
   'storage_bucket': 'documents',
   'storage_object_path': '$_workspaceId/$_documentId/$versionNo/expose.pdf',
-  'content_hash': _hash,
+  'content_hash': contentHash,
   'byte_size': 1024,
   'mime_type': 'application/pdf',
   'original_filename': 'expose.pdf',
@@ -615,6 +616,46 @@ void main() {
 
       expect(
         result,
+        isA<DocumentRepositoryFailure<List<DocumentVersionDto>>>(),
+      );
+    });
+
+    test('listVersions normalises a bytea-encoded hash to lowercase hex', () async {
+      // A direct PostgREST read of `document_versions` serialises the bytea
+      // column as `\x…`, while the RPC snapshots emit plain hex. The DTO
+      // contract is hex either way.
+      final gateway = _FakeGateway(
+        rpcResponses: const <String, Object?>{},
+        versions: <Map<String, dynamic>>[
+          _versionSnapshot(contentHash: '\\x${_hash.toUpperCase()}'),
+        ],
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result =
+          await adapter.listVersions(
+                workspaceId: _workspaceId,
+                documentId: _documentId,
+              )
+              as DocumentRepositorySuccess<List<DocumentVersionDto>>;
+
+      expect(result.value.single.contentHash, _hash);
+    });
+
+    test('listVersions rejects a hash that is not a sha256', () async {
+      final gateway = _FakeGateway(
+        rpcResponses: const <String, Object?>{},
+        versions: <Map<String, dynamic>>[
+          _versionSnapshot(contentHash: 'nicht-hex'),
+        ],
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      expect(
+        await adapter.listVersions(
+          workspaceId: _workspaceId,
+          documentId: _documentId,
+        ),
         isA<DocumentRepositoryFailure<List<DocumentVersionDto>>>(),
       );
     });

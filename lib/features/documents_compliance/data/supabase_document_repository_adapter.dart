@@ -933,8 +933,7 @@ DocumentVersionDto _parseVersion(Map<String, dynamic> json) {
     versionNo: _requiredInt(json, 'version_no'),
     storageBucket: _requiredString(json, 'storage_bucket'),
     storageObjectPath: _requiredString(json, 'storage_object_path'),
-    // Lowercase hex on the wire (`encode(content_hash, 'hex')`).
-    contentHash: _requiredString(json, 'content_hash'),
+    contentHash: _parseContentHash(json),
     byteSize: _requiredInt(json, 'byte_size'),
     mimeType: _requiredString(json, 'mime_type'),
     verificationStatus: _requiredEnum(
@@ -1047,7 +1046,7 @@ DocumentContentRef _parseContentRef(Map<String, dynamic> json) {
     versionNo: _requiredInt(json, 'version_no'),
     storageBucket: _requiredString(json, 'storage_bucket'),
     storageObjectPath: _requiredString(json, 'storage_object_path'),
-    contentHash: _requiredString(json, 'content_hash'),
+    contentHash: _parseContentHash(json),
     byteSize: _requiredInt(json, 'byte_size'),
     mimeType: _requiredString(json, 'mime_type'),
     verificationStatus: _requiredEnum(
@@ -1091,6 +1090,24 @@ T _requiredEnum<T>(T? value, String field) {
   }
   return value;
 }
+
+/// The DTO contract is lowercase hex, but the hash reaches this adapter in two
+/// different wire forms: the RPC snapshots emit `encode(content_hash, 'hex')`,
+/// while a direct PostgREST read of `document_versions` serialises the `bytea`
+/// column as `\x…`. Normalising here keeps that difference from leaking into
+/// the domain — and keeps the two read paths from disagreeing.
+String _parseContentHash(Map<String, dynamic> json) {
+  var value = _requiredString(json, 'content_hash').trim().toLowerCase();
+  if (value.startsWith(r'\x')) {
+    value = value.substring(2);
+  }
+  if (!_hexSha256.hasMatch(value)) {
+    throw const FormatException('Expected a hex sha256 content hash.');
+  }
+  return value;
+}
+
+final RegExp _hexSha256 = RegExp(r'^[0-9a-f]{64}$');
 
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
