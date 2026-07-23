@@ -63,6 +63,8 @@ jobs:
         shell: pwsh
         run: |
           supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/010_p2_d02_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/009_p2_d02_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/008_p2_d01_directory_down.test.sql
@@ -96,6 +98,9 @@ jobs:
       - name: Test P2-D01 membership admin integration
         shell: pwsh
         run: ./tool/verify_p2_d01_integration.ps1
+      - name: Test P2-D02 party integration
+        shell: pwsh
+        run: ./tool/verify_p2_d02_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1
