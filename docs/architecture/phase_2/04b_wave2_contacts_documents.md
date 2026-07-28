@@ -22,6 +22,40 @@ Dieses Dokument ist gegen die entschiedene Variante geschrieben: im SQLite-Modus
 
 Unabhängig von der Entscheidung: **keine Datenvertrags-, Schema-, Routen- oder Navigationsänderung** ohne expliziten Auftrag; die neue Parties-Navigation ist die einzige additive Nav-Ergänzung und wird vor Umsetzung als solche bestätigt.
 
+## Nachtrag 2026-07-28 — Cloud-Host der W2-Screens (Befund + Entscheidung)
+
+Bei der Umsetzung von Arbeitspaket 1 wurde ein Plan-vs-Realität-Fehler dieses Dokuments gefunden und
+geflaggt statt umgangen: **`lib/app.dart:41` verzweigt die ganze App am Backend.** Im SQLite-Modus
+läuft `SecurityGate` → `AppScaffold` (Sidebar + alle Screens), im Supabase-Modus **ausschließlich**
+die Reference-Slice-Routen `/properties` und `/members` — `AppScaffold` hat genau eine Aufrufstelle
+(`security_gate.dart:26`) und wird in der Cloud nie gebaut.
+
+Alle vier Screens dieser Welle leben in dieser Shell. Sie liefen damit in der echten App **nur im
+SQLite-Modus**, also genau dort, wo beide Contracts per Design read-only sind — die Definition of
+done unten („manueller Golden-Path im laufenden App-Build (Supabase-Modus für Mutationen)") war für
+keinen der vier Screens erfüllbar. Die in diesem Dokument entschiedene Architektur (Backend-gewählte
+Contract-Konsumtion) ist davon **nicht** betroffen; es fehlte der Host.
+
+**Entschieden (Nutzerbestätigung 2026-07-28):** jeder W2-Screen bekommt eine **additive Cloud-Route**
+neben dem Reference-Slice. Keine bestehende Route, kein Sidebar-Eintrag und kein Shell-Verhalten
+werden geändert. Voraussetzung je Screen: keine Legacy-Provider-Reads (im SQLite-Modus über
+`databaseProvider` verdrahtet, in der Cloud nicht vorhanden). Für AP1 umgesetzt als
+`partiesRoute = '/parties'`; für AP3 (PropertyDocuments, objektbezogen) ist zusätzlich zu klären,
+woher die Objekt-ID in der Cloud kommt (Routen-Parameter oder Absprung aus dem Reference-Slice-Detail).
+
+Ebenfalls im Zuge von AP1 präzisiert (Contract-getrieben, nicht Geschmack):
+
+- **Keine Rollen-Spalte in der Parteien-Liste.** Die Listenprojektion des Contracts
+  (`PartySummaryDto`) führt keine Rollen; eine Rollen-Spalte wäre ein Read pro Zeile — genau das
+  N+1-Muster, das diese Welle beim ComplianceDashboard entfernt. Rollen stehen im Detailpanel, der
+  Rollen-**Filter** deckt die Listenebene serverseitig ab (`PartyListQuery.roleType`).
+- **Textsuche und Sortierung sind client-seitig** über die geladenen Keyset-Seiten: `PartyListQuery`
+  hat kein Text-Prädikat, und dieses Dokument schließt neue Backend-Reads für den Screen aus.
+- **`forbidden` kommt vom Server** (`PartyRepositoryFailureKind.forbidden`), nicht aus einem lokalen
+  Capability-Vorcheck: die lokale RBAC-Tabelle (`lib/core/security/rbac.dart`) kennt kein `party.*`,
+  ein Client-Vorcheck hätte also Policy erfunden. `AuthorizationPort` gated nur die
+  Mutations-Affordanz.
+
 ## Scope
 
 | SCR | Screen | Datei (Ist) | LOC (Ist) | nx_-Ist | Status in W2 |

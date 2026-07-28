@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_environment.dart';
+import 'core/security/rbac.dart';
 import 'features/contacts_parties/application/party_providers.dart';
 import 'features/contacts_parties/data/legacy_sqlite_party_repository_adapter.dart';
 import 'features/contacts_parties/data/supabase_party_query_invalidation_adapter.dart';
@@ -29,6 +30,8 @@ import 'features/documents_compliance/application/document_providers.dart';
 import 'features/documents_compliance/data/legacy_sqlite_document_repository_adapter.dart';
 import 'features/documents_compliance/data/supabase_document_query_invalidation_adapter.dart';
 import 'features/documents_compliance/data/supabase_document_repository_adapter.dart';
+import 'features/identity_access/application/workspace_session_scope.dart';
+import 'features/reference_slice/application/reference_slice_controller.dart';
 import 'ui/state/app_state.dart';
 import 'ui/state/security_state.dart';
 
@@ -89,6 +92,17 @@ List<Override> featureBackendOverrides({
       final parties = SupabasePartyRepositoryAdapter(client: client);
       final documents = SupabaseDocumentRepositoryAdapter(client: client);
       return <Override>[
+        // The authenticated reference session is the cloud host's identity.
+        workspaceSessionScopeProvider.overrideWith((ref) {
+          final session = ref.watch(referenceSliceControllerProvider);
+          final access = session.selectedWorkspace;
+          return WorkspaceSessionScope(
+            workspaceId: access?.workspace.id,
+            actorId: session.userId,
+            permissions: access?.permissions ?? const <String>{},
+            mutationsSupported: true,
+          );
+        }),
         partyRepositoryProvider.overrideWithValue(parties),
         partySearchProvider.overrideWithValue(parties),
         partyRoleProvider.overrideWithValue(parties),
@@ -109,6 +123,18 @@ List<Override> featureBackendOverrides({
     case DataBackend.sqlite:
       // The invalidation sources keep their null default: no realtime locally.
       return <Override>[
+        // Local security context is the identity; mutations are unsupported
+        // because the legacy adapters cannot honour the command envelope.
+        workspaceSessionScopeProvider.overrideWith((ref) {
+          return WorkspaceSessionScope(
+            workspaceId: ref.watch(activeWorkspaceIdProvider),
+            actorId: ref.watch(activeUserIdProvider),
+            permissions: const Rbac().permissionsForRole(
+              ref.watch(activeUserRoleProvider),
+            ),
+            mutationsSupported: false,
+          );
+        }),
         partyRepositoryProvider.overrideWith(
           (ref) => ref.watch(legacyPartyRepositoryAdapterProvider),
         ),

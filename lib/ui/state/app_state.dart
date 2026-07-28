@@ -83,6 +83,7 @@ enum GlobalPage {
   budgets,
   maintenance,
   contractors,
+  parties,
   tasks,
   taskTemplates,
   portfolios,

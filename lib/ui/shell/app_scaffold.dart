@@ -19,6 +19,7 @@ import '../screens/budgets/budgets_screen.dart';
 import '../screens/docs/documents_screen.dart';
 import '../screens/ledger/ledger_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/parties/parties_screen.dart';
 import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
 import '../screens/quick_screening_screen.dart';
@@ -182,6 +183,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const MaintenanceScreen();
       case GlobalPage.contractors:
         return const ContractorsScreen();
+      case GlobalPage.parties:
+        return const PartiesScreen();
       case GlobalPage.tasks:
         return const TasksScreen();
       case GlobalPage.taskTemplates:

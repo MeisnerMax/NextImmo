@@ -5,6 +5,11 @@ import '../state/app_state.dart';
 const referencePropertiesRoute = '/properties';
 const referenceMembersRoute = '/members';
 
+/// Wave 2 screens live in `AppScaffold`, which only mounts in local mode. So
+/// that their mutation paths can be exercised against the real backend, cloud
+/// mode reaches them through additive routes alongside the reference slice.
+const partiesRoute = '/parties';
+
 String referencePropertyRoute(String propertyId) {
   final normalized = propertyId.trim();
   if (normalized.isEmpty) {
@@ -153,6 +158,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Handwerker-Stammdaten',
         routeKey: 'daily_business.contractors',
         icon: Icons.engineering_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.parties,
+        label: 'Parteien',
+        title: 'Parteien',
+        routeKey: 'daily_business.parties',
+        icon: Icons.groups_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.budgets,

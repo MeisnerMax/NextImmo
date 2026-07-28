@@ -6,6 +6,7 @@ import 'features/reference_slice/presentation/reference_members_screen.dart';
 import 'features/reference_slice/presentation/reference_slice_screen.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
+import 'ui/screens/parties/parties_screen.dart';
 import 'ui/screens/security/security_gate.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
@@ -67,6 +68,13 @@ class NexImmoApp extends ConsumerWidget {
   }
 
   Route<void>? _generateReferenceRoute(RouteSettings settings) {
+    if (settings.name == partiesRoute) {
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder:
+            (_) => const Scaffold(body: SafeArea(child: PartiesScreen())),
+      );
+    }
     if (settings.name == referenceMembersRoute) {
       return MaterialPageRoute<void>(
         settings: settings,
