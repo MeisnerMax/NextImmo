@@ -15,6 +15,7 @@ select functions_are(
     'contractor_details_snapshot',
     'document_command_gate',
     'document_entity_ref_state',
+    'document_requirement_state',
     'document_link_snapshot',
     'document_snapshot',
     'document_storage_workspace',

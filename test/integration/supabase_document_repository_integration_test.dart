@@ -231,6 +231,47 @@ void main() {
                 >;
         expect(satisfied.value.single.state, DocumentRequirementState.satisfied);
 
+        // --- workspace-wide projection (P2-D03 follow-up increment) ----------
+        // One call covers every entity, and because both entry points share
+        // `private.document_requirement_state` server-side they must agree on
+        // the same entity — verified here against the real RPC, not a fake.
+        final workspaceWide =
+            (await adminRepo.evaluateWorkspace(
+                  const WorkspaceDocumentRequirementQuery(
+                    workspaceId: workspaceId,
+                    entityType: DocumentLinkEntityType.property,
+                    entityIds: <String>[propertyId],
+                  ),
+                ))
+                as DocumentRepositorySuccess<WorkspaceDocumentRequirements>;
+        final projected =
+            workspaceWide.value.requirements
+                .where((row) => row.entityId == propertyId)
+                .toList(growable: false);
+        expect(projected, hasLength(1));
+        expect(projected.single.state, DocumentRequirementState.satisfied);
+        expect(projected.single.requirementId, satisfied.value.single.requirementId);
+        expect(workspaceWide.value.scopedRuleCount, 0);
+        expect(workspaceWide.value.blocking, isEmpty);
+
+        // The compliance view asks only for what is outstanding.
+        final outstanding =
+            (await adminRepo.evaluateWorkspace(
+                  const WorkspaceDocumentRequirementQuery(
+                    workspaceId: workspaceId,
+                    entityType: DocumentLinkEntityType.property,
+                    entityIds: <String>[propertyId],
+                    onlyUnmet: true,
+                  ),
+                ))
+                as DocumentRepositorySuccess<WorkspaceDocumentRequirements>;
+        expect(
+          outstanding.value.requirements.where(
+            (row) => row.entityId == propertyId,
+          ),
+          isEmpty,
+        );
+
         // --- signed url: clamping, real fetch, real expiry --------------------
         final wide =
             (await adminRepo.createSignedUrl(

@@ -687,6 +687,66 @@ class SupabaseDocumentRepositoryAdapter
     }
   }
 
+  @override
+  Future<DocumentRepositoryResult<WorkspaceDocumentRequirements>>
+  evaluateWorkspace(WorkspaceDocumentRequirementQuery query) async {
+    try {
+      final response = await _gateway.callRpc(
+        'evaluate_workspace_document_requirements',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_entity_type': query.entityType?.wireName,
+          'p_entity_ids': query.entityIds.isEmpty ? null : query.entityIds,
+          'p_only_unmet': query.onlyUnmet,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final rows = payload['requirements'];
+        if (rows is! List) {
+          throw const FormatException('Expected a projection list.');
+        }
+        final projections =
+            rows.map((row) => _parseProjection(_asMap(row))).toList(
+              growable: false,
+            );
+        // The projection carries no workspace_id (it is derived, not a row), so
+        // the strongest available guard is the entity type the caller asked
+        // about — the workspace itself is enforced server-side by RLS.
+        final requestedType = query.entityType;
+        if (requestedType != null &&
+            projections.any(
+              (projection) => projection.entityType != requestedType,
+            )) {
+          throw const FormatException('Projection entity type mismatch.');
+        }
+        final scopedRuleCount = payload['scoped_rule_count'];
+        if (scopedRuleCount is! int) {
+          throw const FormatException('Missing scoped rule count.');
+        }
+        return DocumentRepositorySuccess<WorkspaceDocumentRequirements>(
+          WorkspaceDocumentRequirements(
+            requirements: projections,
+            scopedRuleCount: scopedRuleCount,
+          ),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<WorkspaceDocumentRequirements>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const DocumentRepositoryFailure<WorkspaceDocumentRequirements>(
+        kind: DocumentRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase workspace requirement evaluation failed.',
+      );
+    }
+  }
+
   // --- SignedUrlPort ---
 
   @override

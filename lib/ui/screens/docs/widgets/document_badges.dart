@@ -55,6 +55,24 @@ NxBadgeKind documentVerificationKind(DocumentVerificationStatus status) {
   };
 }
 
+/// The controlled `EntityRef` vocabulary (DEBT-006). Used by the workspace-wide
+/// workplace (SCR-051) for its level filter and for naming a document's links,
+/// so the registry reads the same everywhere and no screen ever prints the raw
+/// wire name.
+String documentEntityTypeLabel(DocumentLinkEntityType entityType) {
+  return switch (entityType) {
+    DocumentLinkEntityType.workspace => 'Arbeitsbereich',
+    DocumentLinkEntityType.property => 'Objekt',
+    DocumentLinkEntityType.portfolio => 'Portfolio',
+    DocumentLinkEntityType.unit => 'Einheit',
+    DocumentLinkEntityType.lease => 'Mietvertrag',
+    DocumentLinkEntityType.party => 'Partei',
+    DocumentLinkEntityType.maintenanceTicket => 'Instandhaltung',
+    DocumentLinkEntityType.capexProject => 'CapEx-Projekt',
+    DocumentLinkEntityType.scenario => 'Szenario',
+  };
+}
+
 String documentRequirementLabel(DocumentRequirementState state) {
   return switch (state) {
     DocumentRequirementState.satisfied => 'Erfüllt',

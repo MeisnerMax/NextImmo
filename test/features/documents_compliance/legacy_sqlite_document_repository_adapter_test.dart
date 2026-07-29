@@ -284,6 +284,178 @@ void main() {
     });
   });
 
+  group('LegacySqliteDocumentRepositoryAdapter evaluateWorkspace', () {
+    test('discovers linked entities and evaluates each of them', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          documents: <DocumentRecord>[
+            _document(id: 'doc-1'),
+            _document(id: 'doc-2', entityId: 'property-2', typeId: null),
+          ],
+          metadata: <String, Map<String, String>>{
+            'doc-1': <String, String>{'verified': 'yes'},
+          },
+          types: <DocumentTypeRecord>[_type('type-expose', 'Expose')],
+          requirements: <RequiredDocumentRecord>[_rule('type-expose')],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(workspaceId: _workspaceId),
+      );
+
+      final projection =
+          (result
+                  as DocumentRepositorySuccess<WorkspaceDocumentRequirements>)
+              .value;
+      // Both entities are known through their document links, and the one
+      // type-level rule is evaluated once for each.
+      expect(
+        projection.requirements.map((row) => row.entityId).toSet(),
+        <String>{_propertyId, 'property-2'},
+      );
+      expect(
+        projection.requirements
+            .firstWhere((row) => row.entityId == _propertyId)
+            .state,
+        DocumentRequirementState.satisfied,
+      );
+      expect(
+        projection.requirements
+            .firstWhere((row) => row.entityId == 'property-2')
+            .state,
+        DocumentRequirementState.missing,
+      );
+    });
+
+    test('caller-supplied ids extend the evaluated set', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          types: <DocumentTypeRecord>[_type('type-expose', 'Expose')],
+          requirements: <RequiredDocumentRecord>[_rule('type-expose')],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: _workspaceId,
+          entityType: DocumentLinkEntityType.property,
+          entityIds: <String>['property-7'],
+        ),
+      );
+
+      final projection =
+          (result
+                  as DocumentRepositorySuccess<WorkspaceDocumentRequirements>)
+              .value;
+      // Nothing links to property-7, so only the caller can make it visible —
+      // the local mirror of why the cloud RPC takes entity ids at all.
+      expect(projection.requirements.single.entityId, 'property-7');
+      expect(
+        projection.requirements.single.state,
+        DocumentRequirementState.missing,
+      );
+    });
+
+    test('skips scoped rules and reports how many, like the cloud RPC', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          documents: <DocumentRecord>[_document(id: 'doc-1')],
+          types: <DocumentTypeRecord>[
+            _type('type-expose', 'Expose'),
+            _type('type-plan', 'Grundriss'),
+          ],
+          requirements: <RequiredDocumentRecord>[
+            _rule('type-expose'),
+            _rule('type-plan', propertyType: 'residential'),
+          ],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(workspaceId: _workspaceId),
+      );
+
+      final projection =
+          (result
+                  as DocumentRepositorySuccess<WorkspaceDocumentRequirements>)
+              .value;
+      expect(projection.requirements.single.documentTypeId, 'type-expose');
+      expect(projection.scopedRuleCount, 1);
+      expect(projection.hasUnevaluatedScopedRules, isTrue);
+    });
+
+    test('onlyUnmet drops satisfied requirements', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          documents: <DocumentRecord>[_document(id: 'doc-1')],
+          metadata: <String, Map<String, String>>{
+            'doc-1': <String, String>{'verified': 'yes'},
+          },
+          types: <DocumentTypeRecord>[_type('type-expose', 'Expose')],
+          requirements: <RequiredDocumentRecord>[_rule('type-expose')],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: _workspaceId,
+          onlyUnmet: true,
+        ),
+      );
+
+      final projection =
+          (result
+                  as DocumentRepositorySuccess<WorkspaceDocumentRequirements>)
+              .value;
+      expect(projection.requirements, isEmpty);
+    });
+
+    test('entity ids without an entity type are refused, not ignored', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          types: <DocumentTypeRecord>[_type('type-expose', 'Expose')],
+          requirements: <RequiredDocumentRecord>[_rule('type-expose')],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: _workspaceId,
+          entityIds: <String>['property-7'],
+        ),
+      );
+
+      expect(
+        (result as DocumentRepositoryFailure<WorkspaceDocumentRequirements>)
+            .kind,
+        DocumentRepositoryFailureKind.validationFailed,
+      );
+    });
+
+    test('a foreign workspace is refused, not answered', () async {
+      final adapter = _adapter(
+        _FakeSource(
+          documents: <DocumentRecord>[_document(id: 'doc-1')],
+          types: <DocumentTypeRecord>[_type('type-expose', 'Expose')],
+          requirements: <RequiredDocumentRecord>[_rule('type-expose')],
+        ),
+      );
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: 'another-workspace',
+        ),
+      );
+
+      expect(
+        (result as DocumentRepositoryFailure<WorkspaceDocumentRequirements>)
+            .kind,
+        DocumentRepositoryFailureKind.forbidden,
+      );
+    });
+  });
+
   group('LegacySqliteDocumentRepositoryAdapter is read-only', () {
     test('every mutation is refused with dependencyConflict', () async {
       final adapter = _adapter(
@@ -437,11 +609,14 @@ DocumentTypeRecord _type(String id, String name) => DocumentTypeRecord(
   createdAt: _epoch(DateTime(2026, 1, 1)),
 );
 
-RequiredDocumentRecord _rule(String typeId, {String? expiresFieldKey}) =>
-    RequiredDocumentRecord(
+RequiredDocumentRecord _rule(
+  String typeId, {
+  String? expiresFieldKey,
+  String? propertyType,
+}) => RequiredDocumentRecord(
       id: 'req-$typeId',
       entityType: 'property',
-      propertyType: null,
+      propertyType: propertyType,
       typeId: typeId,
       required: true,
       expiresFieldKey: expiresFieldKey,

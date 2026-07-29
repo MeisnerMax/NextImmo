@@ -31,12 +31,21 @@ class DocumentDetailPanel extends StatelessWidget {
     required this.onDownload,
     required this.onClose,
     this.typeName,
+    this.links,
     this.showCloseAction = false,
   });
 
   final DocumentDto? document;
   final List<DocumentVersionDto> versions;
   final String? typeName;
+
+  /// EntityRef links of this document, loaded once per selection by the caller
+  /// (never per row). Null hides the section entirely — the property-scoped
+  /// caller leaves it null because every document there belongs to the object
+  /// in view. The workspace-wide caller passes them (an empty list included,
+  /// which is its own finding) because "what does this belong to" is the
+  /// question its flat list cannot answer.
+  final List<DocumentLinkDto>? links;
   final bool canMutate;
   final bool canVerify;
   final bool readOnlyBackend;
@@ -108,6 +117,10 @@ class DocumentDetailPanel extends StatelessWidget {
               ),
             ],
           ),
+          if (links != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_linkSummary(links!), style: secondary),
+          ],
           if ((current.notes ?? '').trim().isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
             Text(current.notes!.trim(), style: secondary),
@@ -188,6 +201,24 @@ class DocumentDetailPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Names the levels a document is linked to. Deliberately levels, not ids: an
+  /// entity id is an internal key and never belongs in UI copy, and the count
+  /// per level is what tells a user whether the document is placed at all.
+  String _linkSummary(List<DocumentLinkDto> links) {
+    if (links.isEmpty) {
+      return 'Noch keiner Entität zugeordnet — im Dokumentbereich der '
+          'betreffenden Entität verknüpfbar.';
+    }
+    final labels = <String>[];
+    for (final link in links) {
+      final label = documentEntityTypeLabel(link.entityType);
+      if (!labels.contains(label)) {
+        labels.add(label);
+      }
+    }
+    return 'Verknüpft mit: ${labels.join(', ')}';
   }
 
   DocumentVersionDto? _currentVersion(DocumentDto document) {

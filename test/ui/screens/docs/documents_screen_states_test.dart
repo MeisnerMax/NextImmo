@@ -5,29 +5,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/documents_compliance/application/document_providers.dart';
 import 'package:neximmo_app/features/documents_compliance/application/document_repository.dart';
-import 'package:neximmo_app/features/documents_compliance/application/property_documents_controller.dart';
+import 'package:neximmo_app/features/documents_compliance/application/documents_workspace_controller.dart';
 import 'package:neximmo_app/features/documents_compliance/domain/document_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
-import 'package:neximmo_app/ui/screens/property_detail/property_documents_panel.dart';
+import 'package:neximmo_app/ui/screens/docs/documents_screen.dart';
+import 'package:neximmo_app/ui/screens/docs/documents_workspace_panel.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
 
-/// Mandatory-state coverage for the rebuilt property documents surface
-/// (SCR-020, Phase 2, Wave 2, Arbeitspaket 3). Mirrors
-/// `test/ui/screens/parties/parties_screen_states_test.dart`, the pattern proof
-/// of this wave, and adds the three states that only the documents domain has:
-/// the MIG-BND-003 `rejected` outcome, the separate `document.verify`
-/// capability, and the archive confirmation that stands in for the delete path
-/// `OPN-DOM-005` deliberately does not offer.
+/// Mandatory-state coverage for the rebuilt workspace-wide documents workplace
+/// (SCR-051, Phase 2, Wave 2, Arbeitspaket 4). Mirrors
+/// `test/ui/screens/property_detail/property_documents_states_test.dart` — the
+/// property-scoped surface this one generalises — and adds the states that only
+/// exist once the scope is the whole workspace: the two distinct empty
+/// conditions, the level/type filters, and a create that deliberately does not
+/// invent an entity link.
 ///
-/// The panel is tested, not the tab host: the host only routes three
-/// `PropertyDetailPage` values into the same frame and reaches into legacy,
-/// `dart:io`-bound screens, while the panel is the whole Wave 2 rebuild and the
-/// unit the additive cloud route mounts.
+/// The panel is tested, not `DocumentsScreen`: that file is the local four-tab
+/// host whose remaining tabs still read the legacy document registries, while
+/// the panel is the whole Wave 2 rebuild and the unit the additive cloud route
+/// mounts.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const String workspace = 'ws-1';
-  const String propertyId = 'prop-1';
 
   /// `find.byType` matches the exact runtime type, so the private `*.icon`
   /// button subclasses would slip through. Match by `is` instead.
@@ -91,6 +91,7 @@ void main() {
     String title, {
     DocumentStatus status = DocumentStatus.available,
     int documentVersion = 3,
+    String? documentTypeId = 'type-1',
     DateTime? validUntil,
   }) {
     return DocumentDto(
@@ -100,28 +101,22 @@ void main() {
       status: status,
       currentVersionNo: 1,
       version: documentVersion,
-      documentTypeId: 'type-1',
+      documentTypeId: documentTypeId,
       validUntil: validUntil,
       updatedAt: DateTime.utc(2026, 6, 1),
     );
   }
 
-  DocumentRequirementProjection requirement({
-    DocumentRequirementState state = DocumentRequirementState.missing,
-    bool isMandatory = true,
-    String name = 'Energieausweis',
+  DocumentLinkDto link(
+    String documentId, {
+    DocumentLinkEntityType entityType = DocumentLinkEntityType.property,
   }) {
-    return DocumentRequirementProjection(
-      requirementId: 'req-1',
-      documentTypeId: 'type-1',
-      documentTypeKey: 'energy_certificate',
-      documentTypeName: name,
-      entityType: DocumentLinkEntityType.property,
-      entityId: propertyId,
-      isMandatory: isMandatory,
-      isInstanceRule: false,
-      state: state,
-      dueAt: DateTime.utc(2026, 9, 1),
+    return DocumentLinkDto(
+      id: '$documentId-link',
+      workspaceId: workspace,
+      documentId: documentId,
+      entityType: entityType,
+      entityId: 'entity-1',
     );
   }
 
@@ -153,11 +148,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light(densityMode: density),
-          home: const Scaffold(
-            body: SingleChildScrollView(
-              child: PropertyDocumentsPanel(propertyId: propertyId),
-            ),
-          ),
+          home: const Scaffold(body: DocumentsWorkspacePanel()),
         ),
       ),
     );
@@ -165,17 +156,15 @@ void main() {
       await tester.pumpAndSettle();
     }
     return ProviderScope.containerOf(
-      tester.element(find.byType(PropertyDocumentsPanel)),
+      tester.element(find.byType(DocumentsWorkspacePanel)),
     );
   }
 
-  PropertyDocumentsController controllerOf(ProviderContainer container) {
-    return container.read(
-      propertyDocumentsControllerProvider(propertyId).notifier,
-    );
+  DocumentsWorkspaceController controllerOf(ProviderContainer container) {
+    return container.read(documentsWorkspaceControllerProvider.notifier);
   }
 
-  testWidgets('loading shows section skeletons, not a full-page spinner', (
+  testWidgets('loading shows a table skeleton, not a full-page spinner', (
     tester,
   ) async {
     final backend = _FakeDocumentBackend()..holdSearch();
@@ -183,19 +172,110 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsWidgets);
-    // The header and its actions stay usable while the zones load.
+    // Header and filters stay usable while the table loads.
     expect(find.text('Dokumente'), findsOneWidget);
-    expect(find.text('Vorhandene Dokumente'), findsOneWidget);
+    expect(find.text('Dokumente durchsuchen'), findsOneWidget);
 
     backend.releaseSearch();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('empty archive names the next concrete action', (tester) async {
+  testWidgets('an empty workspace names the next concrete action', (
+    tester,
+  ) async {
     await pumpPanel(tester, backend: _FakeDocumentBackend());
 
     expect(find.text('Noch keine Dokumente'), findsOneWidget);
     expect(buttonWithText<FilledButton>('Dokument hinzufügen'), findsWidgets);
+    expect(find.text('Keine Dokumente für diesen Filter'), findsNothing);
+  });
+
+  testWidgets('a search without hits is its own state, not "no documents yet"', (
+    tester,
+  ) async {
+    await pumpPanel(
+      tester,
+      backend: _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'zzz');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keine Dokumente für diesen Filter'), findsOneWidget);
+    expect(find.text('Noch keine Dokumente'), findsNothing);
+    expect(find.text('Filter zurücksetzen'), findsOneWidget);
+  });
+
+  testWidgets('resetting the filters brings the documents back', (tester) async {
+    await pumpPanel(
+      tester,
+      backend: _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'zzz');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Filter zurücksetzen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kaufvertrag'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a backend-side type filter without hits also reads as a filter state',
+    (tester) async {
+      final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      );
+      final container = await pumpPanel(tester, backend: backend);
+
+      // type-2 exists in the registry but no document carries it.
+      await controllerOf(container).setDocumentTypeFilter('type-2');
+      await tester.pumpAndSettle();
+
+      expect(backend.lastQuery?.documentTypeId, 'type-2');
+      expect(find.text('Keine Dokumente für diesen Filter'), findsOneWidget);
+      expect(find.text('Noch keine Dokumente'), findsNothing);
+    },
+  );
+
+  testWidgets('the workspace search carries no entity filter', (tester) async {
+    final backend = _FakeDocumentBackend(
+      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+    );
+    await pumpPanel(tester, backend: backend);
+
+    expect(backend.lastQuery?.workspaceId, workspace);
+    expect(backend.lastQuery?.entityType, isNull);
+    expect(backend.lastQuery?.entityId, isNull);
+  });
+
+  testWidgets('the level filter narrows to the level of the document type', (
+    tester,
+  ) async {
+    await pumpPanel(
+      tester,
+      backend: _FakeDocumentBackend(
+        documents: <DocumentDto>[
+          document('d1', 'Kaufvertrag'),
+          document('d2', 'Mieterakte', documentTypeId: 'type-2'),
+        ],
+      ),
+    );
+
+    expect(find.text('Kaufvertrag'), findsOneWidget);
+    expect(find.text('Mieterakte'), findsOneWidget);
+
+    await tester.tap(find.text('Alle Ebenen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Partei').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mieterakte'), findsOneWidget);
+    expect(find.text('Kaufvertrag'), findsNothing);
   });
 
   testWidgets('infrastructure failure offers retry without raw exception text', (
@@ -232,57 +312,6 @@ void main() {
     expect(find.text('Kein Zugriff auf Dokumente'), findsOneWidget);
     expect(find.text('Noch keine Dokumente'), findsNothing);
     expect(find.text('Dokumente konnten nicht geladen werden'), findsNothing);
-  });
-
-  testWidgets('the requirement zone has its own forbidden state', (
-    tester,
-  ) async {
-    await pumpPanel(
-      tester,
-      backend: _FakeDocumentBackend(
-        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-        evaluateFailure: const DocumentRepositoryFailure<
-          List<DocumentRequirementProjection>
-        >(
-          kind: DocumentRepositoryFailureKind.forbidden,
-          message: 'no access',
-        ),
-      ),
-    );
-
-    expect(find.text('Kein Zugriff auf Anforderungen'), findsOneWidget);
-    // The documents themselves still render — the zones fail independently.
-    expect(find.text('Kaufvertrag'), findsOneWidget);
-  });
-
-  testWidgets('an unmet mandatory requirement is shown as a labelled state', (
-    tester,
-  ) async {
-    await pumpPanel(
-      tester,
-      backend: _FakeDocumentBackend(
-        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-        requirements: <DocumentRequirementProjection>[requirement()],
-      ),
-    );
-
-    expect(find.text('Energieausweis'), findsOneWidget);
-    expect(find.text('Fehlt'), findsOneWidget);
-  });
-
-  testWidgets('an optional requirement is not signalled as an alarm', (
-    tester,
-  ) async {
-    await pumpPanel(
-      tester,
-      backend: _FakeDocumentBackend(
-        requirements: <DocumentRequirementProjection>[
-          requirement(isMandatory: false),
-        ],
-      ),
-    );
-
-    expect(find.text('Fehlt (optional)'), findsOneWidget);
   });
 
   testWidgets('read-only backend explains itself and disables creating', (
@@ -432,7 +461,9 @@ void main() {
     },
   );
 
-  testWidgets('archiving requires an explicit confirmation', (tester) async {
+  testWidgets('a cancelled archive confirmation does not run the mutation', (
+    tester,
+  ) async {
     final backend = _FakeDocumentBackend(
       documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
       versions: <DocumentVersionDto>[version('d1')],
@@ -449,7 +480,9 @@ void main() {
 
     await tester.tap(find.text('Abbrechen'));
     await tester.pumpAndSettle();
+
     expect(backend.transitionCalls, 0);
+    expect(find.text('Dokument archivieren'), findsNothing);
   });
 
   testWidgets('there is no delete affordance (OPN-DOM-005 stays open)', (
@@ -465,34 +498,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Löschen'), findsNothing);
+    expect(find.textContaining('Loeschen'), findsNothing);
     expect(find.textContaining('Delete'), findsNothing);
     expect(buttonWithText<OutlinedButton>('Archivieren'), findsOneWidget);
   });
 
-  testWidgets('creating a document links it to this property', (tester) async {
-    final backend = _FakeDocumentBackend(
-      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-    );
-    final container = await pumpPanel(tester, backend: backend);
-
-    await controllerOf(container).createDocument(_draft());
-    await tester.pumpAndSettle();
-
-    expect(backend.createCalls, 1);
-    expect(backend.linkCalls, 1);
-    expect(backend.lastLinkedEntityId, propertyId);
-    expect(backend.lastLinkedEntityType, DocumentLinkEntityType.property);
-  });
-
-  testWidgets('a created but unlinked document is reported, not shown as done', (
+  testWidgets('creating in workspace scope does not invent an entity link', (
     tester,
   ) async {
     final backend = _FakeDocumentBackend(
       documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-      linkFailure: const DocumentRepositoryFailure<DocumentLinkDto>(
-        kind: DocumentRepositoryFailureKind.dependencyConflict,
-        message: 'entity not migrated',
-      ),
     );
     final container = await pumpPanel(tester, backend: backend);
 
@@ -500,7 +515,38 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(backend.createCalls, 1);
-    expect(find.textContaining('nicht mit diesem Objekt verknüpft'), findsOneWidget);
+    expect(backend.linkCalls, 0);
+  });
+
+  testWidgets('the detail names the levels a document is linked to', (
+    tester,
+  ) async {
+    final backend = _FakeDocumentBackend(
+      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      versions: <DocumentVersionDto>[version('d1')],
+      links: <DocumentLinkDto>[link('d1')],
+    );
+    await pumpPanel(tester, backend: backend);
+
+    await tester.tap(find.text('Kaufvertrag'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verknüpft mit: Objekt'), findsOneWidget);
+  });
+
+  testWidgets('an unlinked document says so instead of showing nothing', (
+    tester,
+  ) async {
+    final backend = _FakeDocumentBackend(
+      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      versions: <DocumentVersionDto>[version('d1')],
+    );
+    await pumpPanel(tester, backend: backend);
+
+    await tester.tap(find.text('Kaufvertrag'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Noch keiner Entität zugeordnet'), findsOneWidget);
   });
 
   testWidgets('content is reached through a signed URL with its expiry', (
@@ -521,6 +567,49 @@ void main() {
     expect(find.textContaining('5 Minuten'), findsOneWidget);
   });
 
+  testWidgets(
+    'the local host keeps all four document surfaces and opens the rebuilt '
+    'workplace first',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            workspaceSessionScopeProvider.overrideWithValue(cloudScope()),
+            documentRepositoryProvider.overrideWithValue(backend),
+            documentContentProvider.overrideWithValue(backend),
+            documentLinkProvider.overrideWithValue(backend),
+            requirementPolicyProvider.overrideWithValue(backend),
+            documentVerificationProvider.overrideWithValue(backend),
+            signedUrlProvider.overrideWithValue(backend),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: const Scaffold(body: DocumentsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The tab that `navigation_actions.dart` jumps into (Compliance, index 3)
+      // and the two legacy registries stay reachable.
+      expect(find.text('Typen'), findsOneWidget);
+      expect(find.text('Pflichtregeln'), findsOneWidget);
+      expect(find.text('Compliance'), findsOneWidget);
+      // Tab 0 is the rebuild, and only tab 0 is built up front — so the host
+      // reaches no legacy repository for the surface it shows first.
+      expect(find.byType(DocumentsWorkspacePanel), findsOneWidget);
+      expect(find.text('Kaufvertrag'), findsOneWidget);
+    },
+  );
+
   group('responsive', () {
     const sizes = <String, Size>{
       'phone 390x844': Size(390, 844),
@@ -540,7 +629,6 @@ void main() {
                 document('d1', 'Kaufvertrag'),
                 document('d2', 'Energieausweis 2026'),
               ],
-              requirements: <DocumentRequirementProjection>[requirement()],
             ),
             size: entry.value,
             density: density,
@@ -548,7 +636,7 @@ void main() {
 
           expect(tester.takeException(), isNull);
           expect(find.text('Kaufvertrag'), findsOneWidget);
-          expect(find.text('Energieausweis'), findsOneWidget);
+          expect(find.text('Energieausweis 2026'), findsOneWidget);
         });
       }
     }
@@ -580,22 +668,17 @@ class _FakeDocumentBackend
   _FakeDocumentBackend({
     this.documents = const <DocumentDto>[],
     this.versions = const <DocumentVersionDto>[],
-    this.requirements = const <DocumentRequirementProjection>[],
+    this.links = const <DocumentLinkDto>[],
     this.searchFailure,
-    this.evaluateFailure,
     this.transitionFailure,
-    this.linkFailure,
     this.confirmResult,
   });
 
   final List<DocumentDto> documents;
   final List<DocumentVersionDto> versions;
-  final List<DocumentRequirementProjection> requirements;
+  final List<DocumentLinkDto> links;
   final DocumentRepositoryFailure<DocumentPageResult>? searchFailure;
-  final DocumentRepositoryFailure<List<DocumentRequirementProjection>>?
-  evaluateFailure;
   final DocumentRepositoryFailure<DocumentDto>? transitionFailure;
-  final DocumentRepositoryFailure<DocumentLinkDto>? linkFailure;
   final DocumentDto? confirmResult;
 
   int createCalls = 0;
@@ -604,8 +687,7 @@ class _FakeDocumentBackend
   int verifyCalls = 0;
   int confirmCalls = 0;
   int addVersionCalls = 0;
-  String? lastLinkedEntityId;
-  DocumentLinkEntityType? lastLinkedEntityType;
+  DocumentListQuery? lastQuery;
   Completer<void>? _searchGate;
 
   void holdSearch() => _searchGate = Completer<void>();
@@ -628,13 +710,25 @@ class _FakeDocumentBackend
   Future<DocumentRepositoryResult<DocumentPageResult>> search(
     DocumentListQuery query,
   ) async {
+    lastQuery = query;
     await _searchGate?.future;
     final failure = searchFailure;
     if (failure != null) {
       return failure;
     }
+    // The document-type filter is a backend filter in the contract, so the fake
+    // honours it here instead of letting the screen fake it client-side.
+    final items =
+        query.documentTypeId == null
+            ? documents
+            : documents
+                .where(
+                  (document) =>
+                      document.documentTypeId == query.documentTypeId,
+                )
+                .toList(growable: false);
     return DocumentRepositorySuccess<DocumentPageResult>(
-      DocumentPageResult(items: documents),
+      DocumentPageResult(items: items),
     );
   }
 
@@ -725,8 +819,10 @@ class _FakeDocumentBackend
     required String workspaceId,
     required String documentId,
   }) async {
-    return const DocumentRepositorySuccess<List<DocumentLinkDto>>(
-      <DocumentLinkDto>[],
+    return DocumentRepositorySuccess<List<DocumentLinkDto>>(
+      links
+          .where((link) => link.documentId == documentId)
+          .toList(growable: false),
     );
   }
 
@@ -735,12 +831,6 @@ class _FakeDocumentBackend
     LinkDocumentCommand command,
   ) async {
     linkCalls++;
-    lastLinkedEntityId = command.entityId;
-    lastLinkedEntityType = command.entityType;
-    final failure = linkFailure;
-    if (failure != null) {
-      return failure;
-    }
     return DocumentRepositorySuccess<DocumentLinkDto>(
       DocumentLinkDto(
         id: 'link-1',
@@ -775,6 +865,15 @@ class _FakeDocumentBackend
           key: 'purchase_contract',
           name: 'Vertragsunterlage',
           entityType: DocumentLinkEntityType.property,
+          isActive: true,
+          version: 1,
+        ),
+        DocumentTypeDto(
+          id: 'type-2',
+          workspaceId: 'ws-1',
+          key: 'party_file',
+          name: 'Parteiunterlage',
+          entityType: DocumentLinkEntityType.party,
           isActive: true,
           version: 1,
         ),
@@ -817,22 +916,19 @@ class _FakeDocumentBackend
   Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>> evaluate(
     DocumentRequirementQuery query,
   ) async {
-    final failure = evaluateFailure;
-    if (failure != null) {
-      return failure;
-    }
-    return DocumentRepositorySuccess<List<DocumentRequirementProjection>>(
-      requirements,
+    return const DocumentRepositorySuccess<List<DocumentRequirementProjection>>(
+      <DocumentRequirementProjection>[],
     );
   }
 
   @override
   Future<DocumentRepositoryResult<WorkspaceDocumentRequirements>>
   evaluateWorkspace(WorkspaceDocumentRequirementQuery query) async {
-    // Not used by the property-scoped surface, which always has an entity.
-    return DocumentRepositorySuccess<WorkspaceDocumentRequirements>(
+    // SCR-051 has no requirements section; the workspace projection belongs to
+    // the compliance dashboard (SCR-052).
+    return const DocumentRepositorySuccess<WorkspaceDocumentRequirements>(
       WorkspaceDocumentRequirements(
-        requirements: requirements,
+        requirements: <DocumentRequirementProjection>[],
         scopedRuleCount: 0,
       ),
     );
@@ -868,7 +964,9 @@ class _FakeDocumentBackend
     required String documentId,
     int? versionNo,
   }) async {
-    return DocumentRepositorySuccess<DocumentContentRef>(_contentRef(documentId));
+    return DocumentRepositorySuccess<DocumentContentRef>(
+      _contentRef(documentId),
+    );
   }
 
   @override

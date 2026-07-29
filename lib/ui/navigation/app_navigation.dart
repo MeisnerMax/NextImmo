@@ -16,6 +16,12 @@ const partiesRoute = '/parties';
 /// for a property detail.
 const propertyDocumentsRoute = '/property-documents';
 
+/// The workspace-wide documents workplace (SCR-051). Needs no parameter: its
+/// scope is the workspace of the authenticated session. Mounts the panel, not
+/// the local four-tab host, whose remaining tabs read legacy repositories that
+/// do not exist in cloud mode.
+const documentsWorkspaceRoute = '/documents';
+
 String propertyDocumentsRouteFor(String propertyId) {
   final normalized = propertyId.trim();
   if (normalized.isEmpty) {

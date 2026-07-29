@@ -228,6 +228,67 @@ class DocumentRequirementQuery {
   final String? scopeKey;
 }
 
+/// Workspace-wide requirement evaluation (P2-D03 follow-up increment).
+///
+/// The per-entity [DocumentRequirementQuery] cannot serve a compliance view
+/// over the whole workspace: fanning it out is the N+1 this wave removes, and
+/// rebuilding the derivation client-side would be the second truth `DUP-011`
+/// forbids. So the derivation stays server-side and gains this entry point.
+///
+/// [entityIds] is how the caller contributes entities this module cannot
+/// discover on its own. DOM-006 declares no dependency on DOM-002, so the
+/// server must not look up which properties exist; passing ids across the
+/// module boundary is explicitly allowed, and they travel in **one** call.
+class WorkspaceDocumentRequirementQuery {
+  const WorkspaceDocumentRequirementQuery({
+    required this.workspaceId,
+    this.entityType,
+    this.entityIds = const <String>[],
+    this.onlyUnmet = false,
+  });
+
+  final String workspaceId;
+
+  /// Restricts the evaluation to one entity type. Null evaluates every type
+  /// that has rules.
+  final DocumentLinkEntityType? entityType;
+
+  /// Ids only mean something together with [entityType]; supplying them without
+  /// one is rejected with [DocumentRepositoryFailureKind.validationFailed] by
+  /// both backends rather than silently evaluating nothing. (Not a constructor
+  /// assert: this type is constructed in `const` contexts, where a list's
+  /// length cannot be inspected.)
+  final List<String> entityIds;
+
+  /// Drops requirements that are already satisfied or waived — what a
+  /// compliance surface actually shows.
+  final bool onlyUnmet;
+}
+
+/// The workspace-wide projection plus what it could not evaluate.
+///
+/// Per-entity evaluation narrows rules by `scopeKey`; workspace-wide there is
+/// no per-entity scope key to match without importing portfolio vocabulary into
+/// DOM-006. Scoped rules are therefore left to the per-entity projection and
+/// **counted** here rather than dropped silently, so a caller can say what it
+/// did not cover instead of implying full coverage.
+class WorkspaceDocumentRequirements {
+  const WorkspaceDocumentRequirements({
+    required this.requirements,
+    required this.scopedRuleCount,
+  });
+
+  final List<DocumentRequirementProjection> requirements;
+  final int scopedRuleCount;
+
+  bool get hasUnevaluatedScopedRules => scopedRuleCount > 0;
+
+  List<DocumentRequirementProjection> get blocking =>
+      requirements
+          .where((requirement) => requirement.isBlocking)
+          .toList(growable: false);
+}
+
 enum DocumentRepositoryFailureKind {
   notFound,
   forbidden,
@@ -372,6 +433,11 @@ abstract interface class RequirementPolicyRepository {
   Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>> evaluate(
     DocumentRequirementQuery query,
   );
+
+  /// The same derivation across a whole workspace, in one call. Shares its state
+  /// derivation with [evaluate] server-side, so the two can never disagree.
+  Future<DocumentRepositoryResult<WorkspaceDocumentRequirements>>
+  evaluateWorkspace(WorkspaceDocumentRequirementQuery query);
 }
 
 /// Verification of one immutable version, gated by the separate

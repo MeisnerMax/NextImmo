@@ -362,82 +362,14 @@ class LegacySqliteDocumentRepositoryAdapter
     }
 
     try {
-      final requirementRecords = await _source.listRequiredDocuments();
-      final typeRecords = await _source.listDocumentTypes();
-      final documents = await _loadAll();
-      final typesById = <String, DocumentTypeRecord>{
-        for (final record in typeRecords) record.id: record,
-      };
-
-      final linked =
-          documents.where((entry) {
-            final link = entry.link;
-            return link != null &&
-                link.entityType == query.entityType &&
-                link.entityId == query.entityId;
-          }).toList(growable: false)..sort(
-            (a, b) => b.record.createdAt.compareTo(a.record.createdAt),
-          );
-
-      final now = DateTime.now();
-      final rows = <DocumentRequirementProjection>[];
-      for (final record in requirementRecords) {
-        if (DocumentLinkEntityType.fromWire(record.entityType) !=
-            query.entityType) {
-          continue;
-        }
-        if (!_matchesScope(record.propertyType, query.scopeKey)) {
-          continue;
-        }
-
-        // `listDocuments` orders newest first; keep that reduction explicit.
-        _LegacyDocument? candidate;
-        for (final entry in linked) {
-          if (entry.record.typeId == record.typeId) {
-            candidate = entry;
-            break;
-          }
-        }
-
-        final type = typesById[record.typeId];
-        DateTime? validUntil;
-        DocumentRequirementState state;
-        if (candidate == null) {
-          state = DocumentRequirementState.missing;
-        } else {
-          validUntil = _expiryOf(candidate, record.expiresFieldKey);
-          if (validUntil != null && validUntil.isBefore(now)) {
-            state = DocumentRequirementState.expired;
-          } else if (validUntil != null &&
-              !validUntil.isAfter(now.add(expiringWindow))) {
-            state = DocumentRequirementState.expiring;
-          } else if (_isVerified(candidate.metadata)) {
-            state = DocumentRequirementState.satisfied;
-          } else {
-            state = DocumentRequirementState.pendingVerification;
-          }
-        }
-
-        rows.add(
-          DocumentRequirementProjection(
-            requirementId: record.id,
-            documentTypeId: record.typeId,
-            documentTypeKey: type == null
-                ? record.typeId
-                : typeKeyFor(type.name),
-            documentTypeName: type?.name ?? record.typeId,
-            entityType: query.entityType,
-            entityId: query.entityId,
-            isMandatory: record.required,
-            isInstanceRule: false,
-            state: state,
-            scopeKey: record.propertyType,
-            documentId: candidate?.document.id,
-            documentStatus: candidate?.document.status,
-            documentValidUntil: validUntil,
-          ),
-        );
-      }
+      final context = await _loadProjectionContext();
+      final rows = _projectForEntity(
+        context: context,
+        entityType: query.entityType,
+        entityId: query.entityId,
+        scopeKey: query.scopeKey,
+        scopeAgnosticOnly: false,
+      );
       rows.sort((a, b) => a.requirementId.compareTo(b.requirementId));
       return DocumentRepositorySuccess<List<DocumentRequirementProjection>>(
         rows,
@@ -445,6 +377,212 @@ class LegacySqliteDocumentRepositoryAdapter
     } catch (_) {
       return _loadFailure<List<DocumentRequirementProjection>>();
     }
+  }
+
+  /// The workspace-wide counterpart, mirroring
+  /// `evaluate_workspace_document_requirements`.
+  ///
+  /// Locally every rule is type-level (the legacy schema has no instance
+  /// rules), so the evaluated entity set is the linked entities plus whatever
+  /// the caller supplied — the same union the cloud RPC forms, minus the
+  /// instance-rule branch that cannot occur here. Scoped rules are skipped and
+  /// counted exactly as server-side, so both backends report the same coverage.
+  @override
+  Future<DocumentRepositoryResult<WorkspaceDocumentRequirements>>
+  evaluateWorkspace(WorkspaceDocumentRequirementQuery query) async {
+    final scopeFailure = _scopeFailure<WorkspaceDocumentRequirements>(
+      query.workspaceId,
+    );
+    if (scopeFailure != null) {
+      return scopeFailure;
+    }
+
+    final requestedType = query.entityType;
+    if (query.entityIds.isNotEmpty && requestedType == null) {
+      // Same refusal the RPC gives: ids without a type would silently evaluate
+      // nothing, which reads like "everything is fine".
+      return const DocumentRepositoryFailure<WorkspaceDocumentRequirements>(
+        kind: DocumentRepositoryFailureKind.validationFailed,
+        message: 'Entity ids require an entity type.',
+      );
+    }
+
+    try {
+      final context = await _loadProjectionContext();
+
+      final targets = <_ProjectionTarget>{};
+      for (final entry in context.documents) {
+        final link = entry.link;
+        if (link == null) {
+          continue;
+        }
+        if (requestedType != null && link.entityType != requestedType) {
+          continue;
+        }
+        targets.add(
+          _ProjectionTarget(entityType: link.entityType, entityId: link.entityId),
+        );
+      }
+      if (requestedType != null) {
+        for (final entityId in query.entityIds) {
+          targets.add(
+            _ProjectionTarget(entityType: requestedType, entityId: entityId),
+          );
+        }
+      }
+
+      final rows = <DocumentRequirementProjection>[];
+      for (final target in targets) {
+        rows.addAll(
+          _projectForEntity(
+            context: context,
+            entityType: target.entityType,
+            entityId: target.entityId,
+            scopeKey: null,
+            scopeAgnosticOnly: true,
+          ),
+        );
+      }
+      rows.sort((a, b) {
+        final byEntity = a.entityId.compareTo(b.entityId);
+        return byEntity != 0
+            ? byEntity
+            : a.requirementId.compareTo(b.requirementId);
+      });
+
+      final visible =
+          query.onlyUnmet
+              ? rows
+                  .where(
+                    (requirement) =>
+                        requirement.state !=
+                            DocumentRequirementState.satisfied &&
+                        requirement.state != DocumentRequirementState.waived,
+                  )
+                  .toList(growable: false)
+              : rows;
+
+      var scopedRuleCount = 0;
+      for (final record in context.requirementRecords) {
+        if (requestedType != null &&
+            DocumentLinkEntityType.fromWire(record.entityType) !=
+                requestedType) {
+          continue;
+        }
+        final scope = record.propertyType?.trim();
+        if (scope != null && scope.isNotEmpty) {
+          scopedRuleCount++;
+        }
+      }
+
+      return DocumentRepositorySuccess<WorkspaceDocumentRequirements>(
+        WorkspaceDocumentRequirements(
+          requirements: visible,
+          scopedRuleCount: scopedRuleCount,
+        ),
+      );
+    } catch (_) {
+      return _loadFailure<WorkspaceDocumentRequirements>();
+    }
+  }
+
+  Future<_ProjectionContext> _loadProjectionContext() async {
+    final requirementRecords = await _source.listRequiredDocuments();
+    final typeRecords = await _source.listDocumentTypes();
+    final documents = await _loadAll();
+    return _ProjectionContext(
+      requirementRecords: requirementRecords,
+      typesById: <String, DocumentTypeRecord>{
+        for (final record in typeRecords) record.id: record,
+      },
+      documents: documents,
+    );
+  }
+
+  /// One entity's requirement rows. Shared by both entry points so the derived
+  /// state cannot differ between the per-entity and the workspace-wide view —
+  /// the same guarantee `private.document_requirement_state` gives server-side.
+  List<DocumentRequirementProjection> _projectForEntity({
+    required _ProjectionContext context,
+    required DocumentLinkEntityType entityType,
+    required String entityId,
+    required String? scopeKey,
+    required bool scopeAgnosticOnly,
+  }) {
+    final linked =
+        context.documents.where((entry) {
+          final link = entry.link;
+          return link != null &&
+              link.entityType == entityType &&
+              link.entityId == entityId;
+        }).toList(growable: false)..sort(
+          (a, b) => b.record.createdAt.compareTo(a.record.createdAt),
+        );
+
+    final now = DateTime.now();
+    final typesById = context.typesById;
+    final rows = <DocumentRequirementProjection>[];
+    for (final record in context.requirementRecords) {
+      if (DocumentLinkEntityType.fromWire(record.entityType) != entityType) {
+        continue;
+      }
+      if (scopeAgnosticOnly) {
+        final scope = record.propertyType?.trim();
+        if (scope != null && scope.isNotEmpty) {
+          continue;
+        }
+      } else if (!_matchesScope(record.propertyType, scopeKey)) {
+        continue;
+      }
+
+      // `listDocuments` orders newest first; keep that reduction explicit.
+      _LegacyDocument? candidate;
+      for (final entry in linked) {
+        if (entry.record.typeId == record.typeId) {
+          candidate = entry;
+          break;
+        }
+      }
+
+      final type = typesById[record.typeId];
+      DateTime? validUntil;
+      DocumentRequirementState state;
+      if (candidate == null) {
+        state = DocumentRequirementState.missing;
+      } else {
+        validUntil = _expiryOf(candidate, record.expiresFieldKey);
+        if (validUntil != null && validUntil.isBefore(now)) {
+          state = DocumentRequirementState.expired;
+        } else if (validUntil != null &&
+            !validUntil.isAfter(now.add(expiringWindow))) {
+          state = DocumentRequirementState.expiring;
+        } else if (_isVerified(candidate.metadata)) {
+          state = DocumentRequirementState.satisfied;
+        } else {
+          state = DocumentRequirementState.pendingVerification;
+        }
+      }
+
+      rows.add(
+        DocumentRequirementProjection(
+          requirementId: record.id,
+          documentTypeId: record.typeId,
+          documentTypeKey:
+              type == null ? record.typeId : typeKeyFor(type.name),
+          documentTypeName: type?.name ?? record.typeId,
+          entityType: entityType,
+          entityId: entityId,
+          isMandatory: record.required,
+          isInstanceRule: false,
+          state: state,
+          scopeKey: record.propertyType,
+          documentId: candidate?.document.id,
+          documentStatus: candidate?.document.status,
+          documentValidUntil: validUntil,
+        ),
+      );
+    }
+    return rows;
   }
 
   // --- DocumentVerificationPort ---
@@ -725,6 +863,37 @@ class LegacySqliteDocumentRepositoryAdapter
       message: 'Legacy SQLite documents could not be loaded.',
     );
   }
+}
+
+/// Everything both requirement projections read, loaded once. Without this the
+/// workspace-wide pass would re-read the whole legacy store per entity — the
+/// N+1 the cloud increment exists to remove, just moved into the adapter.
+class _ProjectionContext {
+  const _ProjectionContext({
+    required this.requirementRecords,
+    required this.typesById,
+    required this.documents,
+  });
+
+  final List<RequiredDocumentRecord> requirementRecords;
+  final Map<String, DocumentTypeRecord> typesById;
+  final List<_LegacyDocument> documents;
+}
+
+class _ProjectionTarget {
+  const _ProjectionTarget({required this.entityType, required this.entityId});
+
+  final DocumentLinkEntityType entityType;
+  final String entityId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ProjectionTarget &&
+      other.entityType == entityType &&
+      other.entityId == entityId;
+
+  @override
+  int get hashCode => Object.hash(entityType, entityId);
 }
 
 class _LegacyDocument {

@@ -87,6 +87,29 @@ Map<String, dynamic> _ok(Object entity) => <String, dynamic>{
   'entity': entity,
 };
 
+Map<String, dynamic> _workspaceRequirementRow({
+  required String entityId,
+  required String state,
+  String entityType = 'property',
+}) => <String, dynamic>{
+  'requirement_id': 'er-$entityId',
+  'document_type_id': 'et000000-0000-0000-0000-000000000001',
+  'document_type_key': 'grundbuchauszug',
+  'document_type_name': 'Grundbuchauszug',
+  'entity_type': entityType,
+  'entity_id': entityId,
+  'scope_key': null,
+  'is_mandatory': true,
+  'is_instance_rule': false,
+  'due_at': null,
+  'owner_user_id': null,
+  'note': null,
+  'document_id': null,
+  'document_status': null,
+  'document_valid_until': null,
+  'state': state,
+};
+
 Map<String, dynamic> _error(String code, [Map<String, dynamic>? extra]) =>
     <String, dynamic>{
       'ok': false,
@@ -598,6 +621,129 @@ void main() {
       expect(rows.last.isInstanceRule, isTrue);
       // A SQL `date` is a calendar date: local midnight, never shifted.
       expect(rows.last.dueAt, DateTime(2026, 8, 1));
+    });
+
+    test('evaluateWorkspace sends one call and reports skipped scoped rules', () async {
+      final gateway = _FakeGateway(
+        rpcResponses: <String, Object?>{
+          'evaluate_workspace_document_requirements': <String, dynamic>{
+            'ok': true,
+            'scoped_rule_count': 2,
+            'requirements': <Object>[
+              _workspaceRequirementRow(
+                entityId: 'e5000000-0000-0000-0000-000000000001',
+                state: 'missing',
+              ),
+              _workspaceRequirementRow(
+                entityId: 'e5000000-0000-0000-0000-000000000002',
+                state: 'expiring',
+              ),
+            ],
+          },
+        },
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: _workspaceId,
+          entityType: DocumentLinkEntityType.property,
+          entityIds: <String>[
+            'e5000000-0000-0000-0000-000000000001',
+            'e5000000-0000-0000-0000-000000000002',
+          ],
+          onlyUnmet: true,
+        ),
+      );
+
+      final projection =
+          (result
+                  as DocumentRepositorySuccess<WorkspaceDocumentRequirements>)
+              .value;
+      expect(projection.requirements, hasLength(2));
+      // The whole point of the increment: one round trip for every entity, not
+      // one per entity.
+      expect(gateway.rpcCalls, hasLength(1));
+      final call = gateway.rpcCalls.single;
+      expect(call.function, 'evaluate_workspace_document_requirements');
+      expect(call.parameters['p_entity_type'], 'property');
+      expect(call.parameters['p_entity_ids'], hasLength(2));
+      expect(call.parameters['p_only_unmet'], isTrue);
+      // Scoped rules are surfaced, so a caller can say what it did not cover.
+      expect(projection.scopedRuleCount, 2);
+      expect(projection.hasUnevaluatedScopedRules, isTrue);
+      expect(projection.blocking, hasLength(1));
+    });
+
+    test('evaluateWorkspace omits empty entity ids instead of sending []', () async {
+      final gateway = _FakeGateway(
+        rpcResponses: <String, Object?>{
+          'evaluate_workspace_document_requirements': <String, dynamic>{
+            'ok': true,
+            'scoped_rule_count': 0,
+            'requirements': <Object>[],
+          },
+        },
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(workspaceId: _workspaceId),
+      );
+
+      final call = gateway.rpcCalls.single;
+      expect(call.parameters['p_entity_type'], isNull);
+      expect(call.parameters['p_entity_ids'], isNull);
+    });
+
+    test('evaluateWorkspace rejects a projection outside the requested type', () async {
+      final gateway = _FakeGateway(
+        rpcResponses: <String, Object?>{
+          'evaluate_workspace_document_requirements': <String, dynamic>{
+            'ok': true,
+            'scoped_rule_count': 0,
+            'requirements': <Object>[
+              _workspaceRequirementRow(
+                entityId: 'e5000000-0000-0000-0000-000000000001',
+                state: 'missing',
+                entityType: 'lease',
+              ),
+            ],
+          },
+        },
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(
+          workspaceId: _workspaceId,
+          entityType: DocumentLinkEntityType.property,
+        ),
+      );
+
+      expect(
+        result,
+        isA<DocumentRepositoryFailure<WorkspaceDocumentRequirements>>(),
+      );
+    });
+
+    test('evaluateWorkspace maps a server refusal to forbidden', () async {
+      final gateway = _FakeGateway(
+        rpcResponses: <String, Object?>{
+          'evaluate_workspace_document_requirements': _error('forbidden'),
+        },
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.evaluateWorkspace(
+        const WorkspaceDocumentRequirementQuery(workspaceId: _workspaceId),
+      );
+
+      expect(
+        (result as DocumentRepositoryFailure<WorkspaceDocumentRequirements>)
+            .kind,
+        DocumentRepositoryFailureKind.forbidden,
+      );
     });
 
     test('listVersions rejects a version from another workspace', () async {
