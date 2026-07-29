@@ -101,23 +101,28 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen>
   }
 }
 
-/// The compliance dashboard (SCR-052) is Arbeitspaket 2 and still unrebuilt, so
-/// it keeps its own legacy loading path here.
+/// The compliance dashboard (SCR-052), rebuilt in Arbeitspaket 2 on the
+/// server-side requirement projection.
 ///
-/// Its "Fix" callback is deliberately not wired: it used to open the legacy
-/// document dialog of this screen's first tab, and that dialog is gone with the
-/// wave decision that local document editing ends (`04b`, decision of
-/// 2026-07-24). Handing it a jump into a read-only surface would pretend to fix
-/// something; the real fix flow belongs to the SCR-052 rebuild, whose plan
-/// already specifies it.
-class _ComplianceTab extends StatelessWidget {
+/// The jump AP4 had to leave disabled is wired again here, now that it has an
+/// honest destination: a finding opens the affected object's document surface
+/// in this shell, rather than the removed legacy dialog.
+class _ComplianceTab extends ConsumerWidget {
   const _ComplianceTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: EdgeInsets.all(context.adaptivePagePadding),
-      child: const ComplianceDashboardScreen(),
+      child: ComplianceDashboardScreen(
+        onOpenRequirement: (requirement) {
+          ref.read(selectedPropertyIdProvider.notifier).state =
+              requirement.entityId;
+          ref.read(propertyDetailPageProvider.notifier).state =
+              PropertyDetailPage.documents;
+          ref.read(globalPageProvider.notifier).state = GlobalPage.properties;
+        },
+      ),
     );
   }
 }

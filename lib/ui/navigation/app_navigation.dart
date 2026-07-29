@@ -22,6 +22,11 @@ const propertyDocumentsRoute = '/property-documents';
 /// do not exist in cloud mode.
 const documentsWorkspaceRoute = '/documents';
 
+/// The workspace compliance dashboard (SCR-052). Workspace-scoped like the
+/// documents workplace, so it needs no parameter; its finding rows jump to
+/// [propertyDocumentsRoute].
+const complianceRoute = '/compliance';
+
 String propertyDocumentsRouteFor(String propertyId) {
   final normalized = propertyId.trim();
   if (normalized.isEmpty) {

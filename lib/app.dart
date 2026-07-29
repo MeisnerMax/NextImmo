@@ -6,6 +6,7 @@ import 'features/reference_slice/presentation/reference_members_screen.dart';
 import 'features/reference_slice/presentation/reference_slice_screen.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
+import 'ui/screens/docs/compliance_dashboard_screen.dart';
 import 'ui/screens/docs/documents_workspace_panel.dart';
 import 'ui/screens/parties/parties_screen.dart';
 import 'ui/screens/property_detail/property_documents_panel.dart';
@@ -75,6 +76,27 @@ class NexImmoApp extends ConsumerWidget {
         settings: settings,
         builder:
             (_) => const Scaffold(body: SafeArea(child: PartiesScreen())),
+      );
+    }
+    if (settings.name == complianceRoute) {
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder:
+            (context) => Scaffold(
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  child: ComplianceDashboardScreen(
+                    // A finding leads to the object's documents, which in cloud
+                    // mode is its own additive route.
+                    onOpenRequirement:
+                        (requirement) => Navigator.of(context).pushNamed(
+                          propertyDocumentsRouteFor(requirement.entityId),
+                        ),
+                  ),
+                ),
+              ),
+            ),
       );
     }
     if (settings.name == documentsWorkspaceRoute) {
