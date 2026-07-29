@@ -10,6 +10,34 @@ const referenceMembersRoute = '/members';
 /// mode reaches them through additive routes alongside the reference slice.
 const partiesRoute = '/parties';
 
+/// The property-scoped documents panel is the one Wave 2 surface that needs an
+/// object, and in cloud mode there is no `PropertyShell` to take it from — so
+/// the id travels in the route, the same shape the reference slice already uses
+/// for a property detail.
+const propertyDocumentsRoute = '/property-documents';
+
+String propertyDocumentsRouteFor(String propertyId) {
+  final normalized = propertyId.trim();
+  if (normalized.isEmpty) {
+    throw ArgumentError.value(propertyId, 'propertyId', 'must not be empty');
+  }
+  return '$propertyDocumentsRoute/${Uri.encodeComponent(normalized)}';
+}
+
+String? propertyDocumentsPropertyIdFromRoute(String? routeName) {
+  if (routeName == null) {
+    return null;
+  }
+  final segments = Uri.tryParse(routeName)?.pathSegments;
+  if (segments == null ||
+      segments.length != 2 ||
+      segments.first != 'property-documents' ||
+      segments.last.trim().isEmpty) {
+    return null;
+  }
+  return segments.last;
+}
+
 String referencePropertyRoute(String propertyId) {
   final normalized = propertyId.trim();
   if (normalized.isEmpty) {

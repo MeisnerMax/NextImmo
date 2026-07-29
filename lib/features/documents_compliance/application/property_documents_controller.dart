@@ -159,6 +159,7 @@ class PropertyDocumentsController
   PropertyDocumentsController({
     required DocumentRepository repository,
     required DocumentContentPort content,
+    required DocumentLinkPort links,
     required RequirementPolicyRepository requirements,
     required DocumentVerificationPort verification,
     required SignedUrlPort signedUrls,
@@ -168,6 +169,7 @@ class PropertyDocumentsController
     DocumentIdFactory? idFactory,
   }) : _repository = repository,
        _content = content,
+       _links = links,
        _requirements = requirements,
        _verification = verification,
        _signedUrls = signedUrls,
@@ -196,6 +198,7 @@ class PropertyDocumentsController
 
   final DocumentRepository _repository;
   final DocumentContentPort _content;
+  final DocumentLinkPort _links;
   final RequirementPolicyRepository _requirements;
   final DocumentVerificationPort _verification;
   final SignedUrlPort _signedUrls;
@@ -409,13 +412,45 @@ class PropertyDocumentsController
   /// Registers the document and links it to this property. The object must
   /// already be in the private bucket; the document stays `uploaded` until
   /// [confirmContent] verifies it.
+  ///
+  /// `create_document` registers the aggregate only — the EntityRef link is a
+  /// separate command, and without it the new document would never match this
+  /// screen's entity-scoped search. The contract has no combined RPC, so the
+  /// two steps are not atomic: a create that succeeds and a link that fails
+  /// leaves an unlinked document, and that is reported as its own outcome
+  /// instead of being shown as a plain success the list then contradicts.
   Future<void> createDocument(DocumentDraft draft) async {
+    DocumentRepositoryFailure<DocumentLinkDto>? linkFailure;
     await _runMutation<DocumentDto>(
       () => _repository.create(
         CreateDocumentCommand(context: _commandContext(), draft: draft),
       ),
-      onSuccess: (document) => load(),
+      onSuccess: (document) async {
+        final linkResult = await _links.link(
+          LinkDocumentCommand(
+            context: _commandContext(),
+            documentId: document.id,
+            entityType: entityType,
+            entityId: _propertyId,
+          ),
+        );
+        if (linkResult is DocumentRepositoryFailure<DocumentLinkDto>) {
+          linkFailure = linkResult;
+        }
+        await load();
+      },
       successMessage: 'Dokument angelegt. Upload jetzt bestätigen.',
+      outcomeOverride: (_) {
+        if (linkFailure == null) {
+          return null;
+        }
+        return (
+          PropertyDocumentsActionPhase.failed,
+          'Das Dokument wurde angelegt, konnte aber nicht mit diesem Objekt '
+              'verknüpft werden. Es erscheint deshalb noch nicht in dieser '
+              'Liste.',
+        );
+      },
     );
   }
 
@@ -678,6 +713,7 @@ final propertyDocumentsControllerProvider = StateNotifierProvider.autoDispose
       final controller = PropertyDocumentsController(
         repository: ref.watch(documentRepositoryProvider),
         content: ref.watch(documentContentProvider),
+        links: ref.watch(documentLinkProvider),
         requirements: ref.watch(requirementPolicyProvider),
         verification: ref.watch(documentVerificationProvider),
         signedUrls: ref.watch(signedUrlProvider),

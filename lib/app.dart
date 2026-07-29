@@ -7,6 +7,7 @@ import 'features/reference_slice/presentation/reference_slice_screen.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
 import 'ui/screens/parties/parties_screen.dart';
+import 'ui/screens/property_detail/property_documents_panel.dart';
 import 'ui/screens/security/security_gate.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
@@ -73,6 +74,25 @@ class NexImmoApp extends ConsumerWidget {
         settings: settings,
         builder:
             (_) => const Scaffold(body: SafeArea(child: PartiesScreen())),
+      );
+    }
+    final documentsPropertyId = propertyDocumentsPropertyIdFromRoute(
+      settings.name,
+    );
+    if (documentsPropertyId != null) {
+      return MaterialPageRoute<void>(
+        settings: settings,
+        builder:
+            (_) => Scaffold(
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  child: PropertyDocumentsPanel(
+                    propertyId: documentsPropertyId,
+                  ),
+                ),
+              ),
+            ),
       );
     }
     if (settings.name == referenceMembersRoute) {

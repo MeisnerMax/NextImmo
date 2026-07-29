@@ -14,6 +14,20 @@ void main() {
     expect(() => referencePropertyRoute('  '), throwsArgumentError);
   });
 
+  test('property documents route round-trips a stable encoded id', () {
+    final route = propertyDocumentsRouteFor('property / ä');
+
+    expect(route, '/property-documents/property%20%2F%20%C3%A4');
+    expect(propertyDocumentsPropertyIdFromRoute(route), 'property / ä');
+    expect(
+      propertyDocumentsPropertyIdFromRoute(propertyDocumentsRoute),
+      isNull,
+    );
+    expect(propertyDocumentsPropertyIdFromRoute('/property-documents/'), isNull);
+    expect(propertyDocumentsPropertyIdFromRoute('/properties/p-1'), isNull);
+    expect(() => propertyDocumentsRouteFor('  '), throwsArgumentError);
+  });
+
   test('unknown or missing roles cannot access navigation pages', () {
     for (final page in GlobalPage.values) {
       expect(isPageAllowedForRole(page, ''), isFalse);
