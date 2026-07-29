@@ -32,6 +32,10 @@ import 'features/documents_compliance/data/supabase_document_query_invalidation_
 import 'features/documents_compliance/data/supabase_document_repository_adapter.dart';
 import 'features/identity_access/application/workspace_session_scope.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
+import 'features/valuation/application/valuation_providers.dart';
+import 'features/valuation/data/legacy_sqlite_valuation_repository_adapter.dart';
+import 'features/valuation/data/supabase_valuation_query_invalidation_adapter.dart';
+import 'features/valuation/data/supabase_valuation_repository_adapter.dart';
 import 'ui/state/app_state.dart';
 import 'ui/state/security_state.dart';
 
@@ -78,8 +82,28 @@ final legacyDocumentRepositoryAdapterProvider =
       );
     });
 
-/// The provider overrides that bind both Wave 2 contracts to [environment]'s
-/// backend. [client] is required in cloud mode and ignored otherwise.
+final legacyValuationReadSourceProvider = Provider<LegacyValuationReadSource>((
+  ref,
+) {
+  return RepositoryLegacyValuationReadSource(
+    scenarioRepo: ref.watch(scenarioRepositoryProvider),
+    scenarioValuationRepo: ref.watch(scenarioValuationRepositoryProvider),
+  );
+});
+
+final legacyValuationRepositoryAdapterProvider =
+    Provider<LegacySqliteValuationRepositoryAdapter>((ref) {
+      return LegacySqliteValuationRepositoryAdapter(
+        source: ref.watch(legacyValuationReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
+/// The provider overrides that bind the Wave 2 and Wave 5 contracts to
+/// [environment]'s backend. [client] is required in cloud mode and ignored
+/// otherwise.
 List<Override> featureBackendOverrides({
   required AppEnvironment environment,
   SupabaseClient? client,
@@ -91,6 +115,7 @@ List<Override> featureBackendOverrides({
       }
       final parties = SupabasePartyRepositoryAdapter(client: client);
       final documents = SupabaseDocumentRepositoryAdapter(client: client);
+      final valuations = SupabaseValuationRepositoryAdapter(client: client);
       return <Override>[
         // The authenticated reference session is the cloud host's identity.
         workspaceSessionScopeProvider.overrideWith((ref) {
@@ -118,6 +143,12 @@ List<Override> featureBackendOverrides({
         signedUrlProvider.overrideWithValue(documents),
         documentQueryInvalidationSourceProvider.overrideWithValue(
           SupabaseDocumentQueryInvalidationAdapter(client: client),
+        ),
+        valuationCaseRepositoryProvider.overrideWithValue(valuations),
+        valuationFactorProvider.overrideWithValue(valuations),
+        valuationReportProvider.overrideWithValue(valuations),
+        valuationQueryInvalidationSourceProvider.overrideWithValue(
+          SupabaseValuationQueryInvalidationAdapter(client: client),
         ),
       ];
     case DataBackend.sqlite:
@@ -164,6 +195,15 @@ List<Override> featureBackendOverrides({
         ),
         signedUrlProvider.overrideWith(
           (ref) => ref.watch(legacyDocumentRepositoryAdapterProvider),
+        ),
+        valuationCaseRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyValuationRepositoryAdapterProvider),
+        ),
+        valuationFactorProvider.overrideWith(
+          (ref) => ref.watch(legacyValuationRepositoryAdapterProvider),
+        ),
+        valuationReportProvider.overrideWith(
+          (ref) => ref.watch(legacyValuationRepositoryAdapterProvider),
         ),
       ];
   }

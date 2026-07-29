@@ -9,9 +9,11 @@ select functions_are(
   array[
     'broadcast_membership_entitlement_change',
     'broadcast_role_permission_entitlement_change',
+    'apply_valuation_factors',
     'claim_document_mutation',
     'claim_membership_mutation',
     'claim_party_mutation',
+    'claim_valuation_mutation',
     'contractor_details_snapshot',
     'document_command_gate',
     'document_entity_ref_state',
@@ -26,6 +28,7 @@ select functions_are(
     'finish_document_mutation',
     'finish_membership_mutation',
     'finish_party_mutation',
+    'finish_valuation_mutation',
     'has_workspace_permission',
     'import_job_snapshot',
     'import_job_status_can_transition',
@@ -55,6 +58,13 @@ select functions_are(
     'task_snapshot',
     'task_status_can_transition',
     'update_property_core',
+    'validate_valuation_factor_payload',
+    'valuation_case_detail',
+    'valuation_case_snapshot',
+    'valuation_command_gate',
+    'valuation_factor_set',
+    'valuation_factor_snapshot',
+    'valuation_status_can_transition',
     'would_remove_last_security_manager'
   ],
   'private function inventory is complete'

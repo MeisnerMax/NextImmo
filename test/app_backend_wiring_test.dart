@@ -18,6 +18,12 @@ import 'package:neximmo_app/features/documents_compliance/data/legacy_sqlite_doc
 import 'package:neximmo_app/features/documents_compliance/data/supabase_document_query_invalidation_adapter.dart';
 import 'package:neximmo_app/features/documents_compliance/data/supabase_document_repository_adapter.dart';
 import 'package:neximmo_app/features/documents_compliance/domain/document_dto.dart';
+import 'package:neximmo_app/features/valuation/application/valuation_providers.dart';
+import 'package:neximmo_app/features/valuation/application/valuation_repository.dart';
+import 'package:neximmo_app/features/valuation/data/legacy_sqlite_valuation_repository_adapter.dart';
+import 'package:neximmo_app/features/valuation/data/supabase_valuation_query_invalidation_adapter.dart';
+import 'package:neximmo_app/features/valuation/data/supabase_valuation_repository_adapter.dart';
+import 'package:neximmo_app/features/valuation/domain/valuation_case.dart';
 import 'package:neximmo_app/ui/state/security_state.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -44,6 +50,9 @@ ProviderContainer _sqliteContainer() {
       ),
       legacyDocumentReadSourceProvider.overrideWithValue(
         _EmptyLegacyDocumentReadSource(),
+      ),
+      legacyValuationReadSourceProvider.overrideWithValue(
+        _EmptyLegacyValuationReadSource(),
       ),
       ...featureBackendOverrides(environment: _sqliteEnvironment),
     ],
@@ -110,11 +119,57 @@ void main() {
       expect(adapter, isA<LegacySqliteDocumentRepositoryAdapter>());
     });
 
-    test('leaves both realtime invalidation sources unbound', () {
+    test('binds every valuation port to the one read-only legacy adapter', () {
+      final container = _sqliteContainer();
+      final adapter = container.read(legacyValuationRepositoryAdapterProvider);
+
+      expect(container.read(valuationCaseRepositoryProvider), same(adapter));
+      expect(container.read(valuationFactorProvider), same(adapter));
+      expect(container.read(valuationReportProvider), same(adapter));
+      expect(adapter, isA<LegacySqliteValuationRepositoryAdapter>());
+    });
+
+    test('leaves every realtime invalidation source unbound', () {
       final container = _sqliteContainer();
 
       expect(container.read(partyQueryInvalidationSourceProvider), isNull);
       expect(container.read(documentQueryInvalidationSourceProvider), isNull);
+      expect(container.read(valuationQueryInvalidationSourceProvider), isNull);
+    });
+
+    test('valuation reads succeed while its mutations report unsupported',
+        () async {
+      final container = _sqliteContainer();
+
+      final read = await container
+          .read(valuationCaseRepositoryProvider)
+          .searchValuationCases(
+            const ValuationCaseListQuery(workspaceId: _workspace),
+          );
+      expect(
+        read,
+        isA<ValuationRepositorySuccess<ValuationPageResult<Object?>>>(),
+      );
+
+      final mutation = await container
+          .read(valuationCaseRepositoryProvider)
+          .createValuationCase(
+            const CreateValuationCaseCommand(
+              context: ValuationCommandContext(
+                workspaceId: _workspace,
+                actorId: 'actor',
+                mutationId: 'mutation',
+                correlationId: 'correlation',
+              ),
+              propertyId: 'prop-1',
+              title: 'Musterfall',
+              kind: ValuationCaseKind.holding,
+            ),
+          );
+      expect(
+        (mutation as ValuationRepositoryFailure).kind,
+        ValuationRepositoryFailureKind.unsupportedByBackend,
+      );
     });
 
     test('reads succeed while party mutations report read-only-until-migrated',
@@ -213,6 +268,19 @@ void main() {
       );
     });
 
+    test('binds every valuation port to the Supabase adapter', () {
+      final container = _supabaseContainer();
+      final adapter = container.read(valuationCaseRepositoryProvider);
+
+      expect(adapter, isA<SupabaseValuationRepositoryAdapter>());
+      expect(container.read(valuationFactorProvider), same(adapter));
+      expect(container.read(valuationReportProvider), same(adapter));
+      expect(
+        container.read(valuationQueryInvalidationSourceProvider),
+        isA<SupabaseValuationQueryInvalidationAdapter>(),
+      );
+    });
+
     test('refuses to build cloud overrides without a client', () {
       expect(
         () => featureBackendOverrides(environment: _supabaseEnvironment),
@@ -238,6 +306,14 @@ void main() {
         () => container.read(signedUrlProvider),
         throwsA(isA<StateError>()),
       );
+      expect(
+        () => container.read(valuationCaseRepositoryProvider),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        () => container.read(valuationReportProvider),
+        throwsA(isA<StateError>()),
+      );
     });
   });
 }
@@ -252,6 +328,13 @@ class _EmptyLegacyPartyReadSource implements LegacyPartyReadSource {
 
   @override
   Future<List<ContactRecord>> listContacts() async => const <ContactRecord>[];
+}
+
+class _EmptyLegacyValuationReadSource implements LegacyValuationReadSource {
+  @override
+  Future<List<LegacyScenarioValuation>> listScenarioValuations({
+    String? propertyId,
+  }) async => const <LegacyScenarioValuation>[];
 }
 
 class _EmptyLegacyDocumentReadSource implements LegacyDocumentReadSource {
