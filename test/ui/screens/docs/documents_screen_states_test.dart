@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -145,6 +146,7 @@ void main() {
           requirementPolicyProvider.overrideWithValue(backend),
           documentVerificationProvider.overrideWithValue(backend),
           signedUrlProvider.overrideWithValue(backend),
+          documentUploadProvider.overrideWithValue(backend),
         ],
         child: MaterialApp(
           theme: AppTheme.light(densityMode: density),
@@ -348,7 +350,7 @@ void main() {
         scope: localScope(),
       );
 
-      await controllerOf(container).createDocument(_draft());
+      await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
       await tester.pumpAndSettle();
 
       expect(backend.createCalls, 0);
@@ -399,7 +401,7 @@ void main() {
       scope: cloudScope(permissions: const <String>{'document.read'}),
     );
 
-    await controllerOf(container).createDocument(_draft());
+    await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
     await tester.pumpAndSettle();
 
     expect(backend.createCalls, 0);
@@ -511,7 +513,7 @@ void main() {
     );
     final container = await pumpPanel(tester, backend: backend);
 
-    await controllerOf(container).createDocument(_draft());
+    await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
     await tester.pumpAndSettle();
 
     expect(backend.createCalls, 1);
@@ -589,6 +591,7 @@ void main() {
             requirementPolicyProvider.overrideWithValue(backend),
             documentVerificationProvider.overrideWithValue(backend),
             signedUrlProvider.overrideWithValue(backend),
+            documentUploadProvider.overrideWithValue(backend),
           ],
           child: MaterialApp(
             theme: AppTheme.light(),
@@ -643,15 +646,13 @@ void main() {
   });
 }
 
-DocumentDraft _draft() {
-  return DocumentDraft(
-    title: 'Neuer Nachweis',
-    content: DocumentContentDraft(
-      storageObjectPath: 'ws-1/new.pdf',
-      contentHash: 'b' * 64,
-      byteSize: 1024,
-      mimeType: 'application/pdf',
-    ),
+/// A picked file, not a storage declaration: since the upload port exists, the
+/// controller is what turns bytes into coordinates.
+DocumentFileSelection _selection() {
+  return DocumentFileSelection(
+    bytes: Uint8List.fromList(<int>[1, 2, 3, 4]),
+    filename: 'nachweis.pdf',
+    mimeType: 'application/pdf',
   );
 }
 
@@ -664,7 +665,8 @@ class _FakeDocumentBackend
         DocumentLinkPort,
         RequirementPolicyRepository,
         DocumentVerificationPort,
-        SignedUrlPort {
+        SignedUrlPort,
+        DocumentUploadPort {
   _FakeDocumentBackend({
     this.documents = const <DocumentDto>[],
     this.versions = const <DocumentVersionDto>[],
@@ -682,6 +684,9 @@ class _FakeDocumentBackend
   final DocumentDto? confirmResult;
 
   int createCalls = 0;
+  int uploadCalls = 0;
+  String? lastUploadPath;
+  DocumentRepositoryFailure<DocumentContentDraft>? uploadFailure;
   int linkCalls = 0;
   int transitionCalls = 0;
   int verifyCalls = 0;
@@ -966,6 +971,37 @@ class _FakeDocumentBackend
   }) async {
     return DocumentRepositorySuccess<DocumentContentRef>(
       _contentRef(documentId),
+    );
+  }
+
+  @override
+  Future<DocumentRepositoryResult<DocumentContentDraft>> upload({
+    required String workspaceId,
+    required String scopeId,
+    required int versionNo,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    uploadCalls++;
+    lastUploadPath = DocumentUploadPort.storageObjectPath(
+      workspaceId: workspaceId,
+      scopeId: scopeId,
+      versionNo: versionNo,
+      filename: filename,
+    );
+    final failure = uploadFailure;
+    if (failure != null) {
+      return failure;
+    }
+    return DocumentRepositorySuccess<DocumentContentDraft>(
+      DocumentContentDraft(
+        storageObjectPath: lastUploadPath!,
+        contentHash: DocumentUploadPort.contentHashOf(bytes),
+        byteSize: bytes.length,
+        mimeType: mimeType,
+        originalFilename: filename,
+      ),
     );
   }
 

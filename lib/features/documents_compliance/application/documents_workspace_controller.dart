@@ -180,6 +180,7 @@ class DocumentsWorkspaceController
   DocumentsWorkspaceController({
     required DocumentRepository repository,
     required DocumentContentPort content,
+    required DocumentUploadPort upload,
     required DocumentLinkPort links,
     required DocumentVerificationPort verification,
     required SignedUrlPort signedUrls,
@@ -188,6 +189,7 @@ class DocumentsWorkspaceController
     DocumentsWorkspaceIdFactory? idFactory,
   }) : _repository = repository,
        _content = content,
+       _upload = upload,
        _links = links,
        _verification = verification,
        _signedUrls = signedUrls,
@@ -209,6 +211,7 @@ class DocumentsWorkspaceController
 
   final DocumentRepository _repository;
   final DocumentContentPort _content;
+  final DocumentUploadPort _upload;
   final DocumentLinkPort _links;
   final DocumentVerificationPort _verification;
   final SignedUrlPort _signedUrls;
@@ -400,11 +403,40 @@ class DocumentsWorkspaceController
   /// No EntityRef link is created: this scope has no entity, and inventing one
   /// would attach the document to something the user never chose. Linking to an
   /// object happens on that object's document surface (SCR-020).
-  Future<void> createDocument(DocumentDraft draft) async {
+  Future<void> createDocument({
+    required String title,
+    required DocumentFileSelection file,
+    String? documentTypeId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+    String? notes,
+  }) async {
+    if (!_guardMutation(requiredPermission: managePermission)) {
+      return;
+    }
+    final content = await _uploadContent(
+      scopeId: _idFactory(),
+      versionNo: 1,
+      file: file,
+    );
+    if (content == null) {
+      return;
+    }
     await _runMutation<DocumentDto>(
       () => _repository.create(
-        CreateDocumentCommand(context: _commandContext(), draft: draft),
+        CreateDocumentCommand(
+          context: _commandContext(),
+          draft: DocumentDraft(
+            title: title,
+            content: content,
+            documentTypeId: documentTypeId,
+            validFrom: validFrom,
+            validUntil: validUntil,
+            notes: notes,
+          ),
+        ),
       ),
+      permissionAlreadyChecked: true,
       onSuccess: (_) => load(),
       successMessage:
           'Dokument angelegt. Upload jetzt bestätigen. Die Verknüpfung mit '
@@ -415,8 +447,20 @@ class DocumentsWorkspaceController
   Future<void> addVersion({
     required String documentId,
     required int expectedVersion,
-    required DocumentContentDraft content,
+    required int nextVersionNo,
+    required DocumentFileSelection file,
   }) async {
+    if (!_guardMutation(requiredPermission: managePermission)) {
+      return;
+    }
+    final content = await _uploadContent(
+      scopeId: documentId,
+      versionNo: nextVersionNo,
+      file: file,
+    );
+    if (content == null) {
+      return;
+    }
     await _runMutation<DocumentVersionDto>(
       () => _content.addVersion(
         AddDocumentVersionCommand(
@@ -426,6 +470,7 @@ class DocumentsWorkspaceController
           content: content,
         ),
       ),
+      permissionAlreadyChecked: true,
       onSuccess: (_) async {
         await load();
         await selectDocument(documentId);
@@ -562,6 +607,56 @@ class DocumentsWorkspaceController
     }
   }
 
+  /// Uploads the picked bytes and reports failure in the same visible phases as
+  /// any other mutation. Null means the upload failed, so the caller stops
+  /// before registering a document whose content is not there.
+  Future<DocumentContentDraft?> _uploadContent({
+    required String scopeId,
+    required int versionNo,
+    required DocumentFileSelection file,
+  }) async {
+    state = state.copyWith(
+      actionPhase: DocumentsWorkspaceActionPhase.submitting,
+      actionMessage: null,
+      versionConflict: null,
+    );
+    final result = await _upload.upload(
+      workspaceId: _scope.workspaceId!,
+      scopeId: scopeId,
+      versionNo: versionNo,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      bytes: file.bytes,
+    );
+    switch (result) {
+      case DocumentRepositorySuccess<DocumentContentDraft>(:final value):
+        return value;
+      case DocumentRepositoryFailure<DocumentContentDraft>(
+        :final kind,
+        :final message,
+      ):
+        state = state.copyWith(
+          actionPhase: _phaseForFailure(kind),
+          actionMessage: message,
+        );
+        return null;
+    }
+  }
+
+  static DocumentsWorkspaceActionPhase _phaseForFailure(
+    DocumentRepositoryFailureKind kind,
+  ) {
+    return switch (kind) {
+      DocumentRepositoryFailureKind.versionConflict =>
+        DocumentsWorkspaceActionPhase.conflict,
+      DocumentRepositoryFailureKind.forbidden =>
+        DocumentsWorkspaceActionPhase.forbidden,
+      DocumentRepositoryFailureKind.dependencyConflict =>
+        DocumentsWorkspaceActionPhase.readOnly,
+      _ => DocumentsWorkspaceActionPhase.failed,
+    };
+  }
+
   bool _guardMutation({required String requiredPermission}) {
     if (isReadOnlyBackend) {
       state = state.copyWith(
@@ -616,15 +711,7 @@ class DocumentsWorkspaceController
         :final versionConflict,
       ):
         state = state.copyWith(
-          actionPhase: switch (kind) {
-            DocumentRepositoryFailureKind.versionConflict =>
-              DocumentsWorkspaceActionPhase.conflict,
-            DocumentRepositoryFailureKind.forbidden =>
-              DocumentsWorkspaceActionPhase.forbidden,
-            DocumentRepositoryFailureKind.dependencyConflict =>
-              DocumentsWorkspaceActionPhase.readOnly,
-            _ => DocumentsWorkspaceActionPhase.failed,
-          },
+          actionPhase: _phaseForFailure(kind),
           actionMessage: message,
           versionConflict: versionConflict,
         );
@@ -670,6 +757,7 @@ final documentsWorkspaceControllerProvider = StateNotifierProvider.autoDispose<
   final controller = DocumentsWorkspaceController(
     repository: ref.watch(documentRepositoryProvider),
     content: ref.watch(documentContentProvider),
+    upload: ref.watch(documentUploadProvider),
     links: ref.watch(documentLinkProvider),
     verification: ref.watch(documentVerificationProvider),
     signedUrls: ref.watch(signedUrlProvider),

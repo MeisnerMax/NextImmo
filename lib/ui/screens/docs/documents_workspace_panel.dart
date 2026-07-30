@@ -560,7 +560,14 @@ class _DocumentsWorkspacePanelState
     if (result == null) {
       return;
     }
-    await controller.createDocument(result.toDraft());
+    await controller.createDocument(
+      title: result.title,
+      file: result.file,
+      documentTypeId: result.documentTypeId,
+      validFrom: result.validFrom,
+      validUntil: result.validUntil,
+      notes: result.notes,
+    );
   }
 
   Future<void> _addVersion(
@@ -570,17 +577,18 @@ class _DocumentsWorkspacePanelState
     if (document == null) {
       return;
     }
-    final content = await showDocumentVersionDialog(
+    final file = await showDocumentVersionDialog(
       context: context,
       documentTitle: document.title,
     );
-    if (content == null) {
+    if (file == null) {
       return;
     }
     await controller.addVersion(
       documentId: document.id,
       expectedVersion: document.version,
-      content: content.toDraft(),
+      nextVersionNo: document.currentVersionNo + 1,
+      file: file,
     );
   }
 

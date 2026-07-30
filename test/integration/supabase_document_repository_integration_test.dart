@@ -109,20 +109,26 @@ void main() {
         expect(missing.value, hasLength(1));
         expect(missing.value.single.state, DocumentRequirementState.missing);
 
-        // --- upload the real bytes into the private bucket -------------------
+        // --- upload the real bytes through the port --------------------------
+        // Not the raw SDK: this is the path a screen actually takes, so the
+        // test proves the port satisfies the storage policy and produces a
+        // declaration `confirm_document_content` will accept.
         final bytes = Uint8List.fromList(
           utf8.encode('P2-D03 Mietvertrag, Fassung 1'),
         );
-        final contentHash = sha256.convert(bytes).toString();
-        const objectPath =
-            '$workspaceId/f0000000-0000-0000-0000-000000000001/1/vertrag.pdf';
-        await adminClient.storage
-            .from(bucket)
-            .uploadBinary(
-              objectPath,
-              bytes,
-              fileOptions: const FileOptions(contentType: 'application/pdf'),
-            );
+        final uploaded =
+            (await adminRepo.upload(
+                  workspaceId: workspaceId,
+                  scopeId: 'f0000000-0000-0000-0000-000000000001',
+                  versionNo: 1,
+                  filename: 'vertrag.pdf',
+                  mimeType: 'application/pdf',
+                  bytes: bytes,
+                ))
+                as DocumentRepositorySuccess<DocumentContentDraft>;
+        final objectPath = uploaded.value.storageObjectPath;
+        final contentHash = uploaded.value.contentHash;
+        expect(contentHash, sha256.convert(bytes).toString());
 
         // --- create -> confirm ----------------------------------------------
         final created =
@@ -132,13 +138,9 @@ void main() {
                     draft: DocumentDraft(
                       title: 'Mietvertrag Wohnung 1',
                       documentTypeId: type.value.id,
-                      content: DocumentContentDraft(
-                        storageObjectPath: objectPath,
-                        contentHash: contentHash,
-                        byteSize: bytes.length,
-                        mimeType: 'application/pdf',
-                        originalFilename: 'vertrag.pdf',
-                      ),
+                      // Exactly what the port returned — no hand-built
+                      // declaration anywhere in the workflow.
+                      content: uploaded.value,
                     ),
                   ),
                 ))

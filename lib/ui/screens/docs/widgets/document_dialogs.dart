@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../features/documents_compliance/application/document_repository.dart';
@@ -14,46 +15,21 @@ import 'document_formatting.dart';
 ///
 /// Two contract facts shape every dialog in this file:
 ///
-/// * **The client cannot upload bytes.** `DocumentContentDraft` *declares* an
-///   object that is already in the private bucket, and the only storage call
-///   the adapter makes is `createSignedUrl` (download). So the content form
-///   collects the declared coordinates and says so plainly, instead of
-///   pretending to be a file picker it cannot back.
+/// * **The file is picked here and uploaded by the controller.** The dialog
+///   only carries the chosen bytes; `DocumentUploadPort` puts them in the
+///   private bucket and returns the declaration the create/add-version commands
+///   take. Until that port existed this form could only ask a user to type a
+///   storage path and a sha256 by hand, which no real workflow could satisfy.
 /// * **There is no delete.** `OPN-DOM-005` is open and `archived` is terminal,
 ///   so the destructive-looking action is archiving — behind a confirmation,
 ///   never a single click.
-
-/// Storage coordinates the caller declares for an object already in the bucket.
-class DocumentContentResult {
-  const DocumentContentResult({
-    required this.storageObjectPath,
-    required this.contentHash,
-    required this.byteSize,
-    required this.mimeType,
-    this.originalFilename,
-  });
-
-  final String storageObjectPath;
-  final String contentHash;
-  final int byteSize;
-  final String mimeType;
-  final String? originalFilename;
-
-  DocumentContentDraft toDraft() => DocumentContentDraft(
-    storageObjectPath: storageObjectPath,
-    contentHash: contentHash,
-    byteSize: byteSize,
-    mimeType: mimeType,
-    originalFilename: originalFilename,
-  );
-}
 
 /// Identity and validity fields of the create form, kept free of the command
 /// shapes so the dialog can serve more than one caller.
 class DocumentFormResult {
   const DocumentFormResult({
     required this.title,
-    required this.content,
+    required this.file,
     this.documentTypeId,
     this.validFrom,
     this.validUntil,
@@ -61,20 +37,11 @@ class DocumentFormResult {
   });
 
   final String title;
-  final DocumentContentResult content;
+  final DocumentFileSelection file;
   final String? documentTypeId;
   final DateTime? validFrom;
   final DateTime? validUntil;
   final String? notes;
-
-  DocumentDraft toDraft() => DocumentDraft(
-    title: title,
-    content: content.toDraft(),
-    documentTypeId: documentTypeId,
-    validFrom: validFrom,
-    validUntil: validUntil,
-    notes: notes,
-  );
 }
 
 /// Outcome of the verification dialog. Rejecting is as legitimate an outcome as
@@ -96,11 +63,11 @@ Future<DocumentFormResult?> showDocumentFormDialog({
   );
 }
 
-Future<DocumentContentResult?> showDocumentVersionDialog({
+Future<DocumentFileSelection?> showDocumentVersionDialog({
   required BuildContext context,
   required String documentTitle,
 }) {
-  return showDialog<DocumentContentResult>(
+  return showDialog<DocumentFileSelection>(
     context: context,
     builder:
         (dialogContext) => _DocumentVersionDialog(documentTitle: documentTitle),
@@ -347,7 +314,7 @@ class _DocumentFormDialogState extends State<_DocumentFormDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _title = TextEditingController();
   final TextEditingController _notes = TextEditingController();
-  final _ContentFieldGroup _content = _ContentFieldGroup();
+  DocumentFileSelection? _file;
   String? _documentTypeId;
   DateTime? _validFrom;
   DateTime? _validUntil;
@@ -356,18 +323,18 @@ class _DocumentFormDialogState extends State<_DocumentFormDialog> {
   void dispose() {
     _title.dispose();
     _notes.dispose();
-    _content.dispose();
     super.dispose();
   }
 
   void _submit() {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    final file = _file;
+    if (!(_formKey.currentState?.validate() ?? false) || file == null) {
       return;
     }
     Navigator.of(context).pop(
       DocumentFormResult(
         title: _title.text.trim(),
-        content: _content.toResult(),
+        file: file,
         documentTypeId: _documentTypeId,
         validFrom: _validFrom,
         validUntil: _validUntil,
@@ -435,8 +402,9 @@ class _DocumentFormDialogState extends State<_DocumentFormDialog> {
                   decoration: const InputDecoration(labelText: 'Notiz'),
                 ),
                 const SizedBox(height: AppSpacing.component),
-                const _ContentSectionLabel(),
-                _content.build(context),
+                _FilePickerField(
+                  onChanged: (file) => setState(() => _file = file),
+                ),
               ],
             ),
           ),
@@ -447,7 +415,12 @@ class _DocumentFormDialogState extends State<_DocumentFormDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Abbrechen'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Anlegen')),
+        FilledButton(
+          // Disabled until a file is chosen: a document without content is not
+          // a state this contract has.
+          onPressed: _file == null ? null : _submit,
+          child: const Text('Anlegen'),
+        ),
       ],
     );
   }
@@ -463,38 +436,30 @@ class _DocumentVersionDialog extends StatefulWidget {
 }
 
 class _DocumentVersionDialogState extends State<_DocumentVersionDialog> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final _ContentFieldGroup _content = _ContentFieldGroup();
-
-  @override
-  void dispose() {
-    _content.dispose();
-    super.dispose();
-  }
+  DocumentFileSelection? _file;
 
   @override
   Widget build(BuildContext context) {
+    final file = _file;
     return AlertDialog(
       title: const Text('Neue Version hinzufügen'),
       content: SizedBox(
         width: ResponsiveConstraints.dialogWidth(context, maxWidth: 560),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Die bisherige Version von "${widget.documentTitle}" bleibt '
-                  'unverändert erhalten und wird als ersetzt markiert.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: AppSpacing.component),
-                const _ContentSectionLabel(),
-                _content.build(context),
-              ],
-            ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Die bisherige Version von "${widget.documentTitle}" bleibt '
+                'unverändert erhalten und wird als ersetzt markiert.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.component),
+              _FilePickerField(
+                onChanged: (selection) => setState(() => _file = selection),
+              ),
+            ],
           ),
         ),
       ),
@@ -504,12 +469,7 @@ class _DocumentVersionDialogState extends State<_DocumentVersionDialog> {
           child: const Text('Abbrechen'),
         ),
         FilledButton(
-          onPressed: () {
-            if (!(_formKey.currentState?.validate() ?? false)) {
-              return;
-            }
-            Navigator.of(context).pop(_content.toResult());
-          },
+          onPressed: file == null ? null : () => Navigator.of(context).pop(file),
           child: const Text('Version hinzufügen'),
         ),
       ],
@@ -679,125 +639,142 @@ class _DocumentSupersedeDialogState extends State<_DocumentSupersedeDialog> {
   }
 }
 
-class _ContentSectionLabel extends StatelessWidget {
-  const _ContentSectionLabel();
+/// The file picker shared by the create and add-version dialogs.
+///
+/// Bytes are read here and uploaded by the controller through
+/// [DocumentUploadPort]; the size limit is checked eagerly so a user learns
+/// about an oversized file before waiting for a failed upload.
+class _FilePickerField extends StatefulWidget {
+  const _FilePickerField({required this.onChanged});
+
+  final ValueChanged<DocumentFileSelection?> onChanged;
+
+  @override
+  State<_FilePickerField> createState() => _FilePickerFieldState();
+}
+
+class _FilePickerFieldState extends State<_FilePickerField> {
+  DocumentFileSelection? _selection;
+  String? _error;
+  bool _busy = false;
+
+  Future<void> _pick() async {
+    setState(() => _busy = true);
+    try {
+      final file = await openFile();
+      if (file == null) {
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.length > DocumentUploadPort.maxByteSize) {
+        setState(() {
+          _selection = null;
+          _error = 'Die Datei ist größer als 50 MB.';
+        });
+        widget.onChanged(null);
+        return;
+      }
+      if (bytes.isEmpty) {
+        setState(() {
+          _selection = null;
+          _error = 'Die Datei ist leer.';
+        });
+        widget.onChanged(null);
+        return;
+      }
+      final selection = DocumentFileSelection(
+        bytes: bytes,
+        filename: file.name,
+        mimeType: _mimeTypeOf(file.mimeType, file.name),
+      );
+      setState(() {
+        _selection = selection;
+        _error = null;
+      });
+      widget.onChanged(selection);
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final selection = _selection;
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text('Datei im Dokumentenspeicher',
-            style: Theme.of(context).textTheme.titleSmall),
+        Text('Datei', style: theme.textTheme.titleSmall),
         const SizedBox(height: 2),
         Text(
-          'Die Datei muss bereits im geschützten Dokumentenspeicher liegen. '
-          'Hier wird sie registriert; der Server prüft die Angaben gegen die '
-          'tatsächlich gespeicherte Datei.',
-          style: Theme.of(context).textTheme.bodySmall,
+          'Die Datei wird in den geschützten Dokumentenspeicher geladen. Der '
+          'Server prüft anschließend, ob dort wirklich dieselbe Datei liegt.',
+          style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: <Widget>[
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _pick,
+              icon: const Icon(Icons.attach_file),
+              label: Text(selection == null ? 'Datei wählen' : 'Andere Datei'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                selection == null
+                    ? 'Keine Datei gewählt'
+                    : '${selection.filename} '
+                        '(${formatDocumentByteSize(selection.byteSize)})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.semanticColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_error != null) ...<Widget>[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _error!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.semanticColors.error,
+            ),
+          ),
+        ],
       ],
     );
   }
 }
 
-/// The five declared-object fields, shared by the create and add-version
-/// dialogs so the validation rules exist once.
-class _ContentFieldGroup {
-  final TextEditingController path = TextEditingController();
-  final TextEditingController hash = TextEditingController();
-  final TextEditingController size = TextEditingController();
-  final TextEditingController mimeType = TextEditingController(
-    text: 'application/pdf',
-  );
-  final TextEditingController filename = TextEditingController();
-
-  static final RegExp _sha256 = RegExp(r'^[0-9a-f]{64}$');
-
-  void dispose() {
-    path.dispose();
-    hash.dispose();
-    size.dispose();
-    mimeType.dispose();
-    filename.dispose();
+/// `XFile.mimeType` is null on most desktop pickers, so the extension is the
+/// fallback. The server records what it is told here; it never sniffs.
+String _mimeTypeOf(String? reported, String filename) {
+  final declared = reported?.trim();
+  if (declared != null && declared.isNotEmpty) {
+    return declared;
   }
-
-  DocumentContentResult toResult() {
-    return DocumentContentResult(
-      storageObjectPath: path.text.trim(),
-      contentHash: hash.text.trim().toLowerCase(),
-      byteSize: int.parse(size.text.trim()),
-      mimeType: mimeType.text.trim(),
-      originalFilename:
-          filename.text.trim().isEmpty ? null : filename.text.trim(),
-    );
-  }
-
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        TextFormField(
-          controller: path,
-          decoration: const InputDecoration(labelText: 'Pfad im Speicher'),
-          validator:
-              (value) =>
-                  (value ?? '').trim().isEmpty
-                      ? 'Bitte den Pfad der gespeicherten Datei angeben.'
-                      : null,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextFormField(
-          controller: hash,
-          decoration: const InputDecoration(
-            labelText: 'Prüfsumme (SHA-256)',
-          ),
-          validator: (value) {
-            final normalized = (value ?? '').trim().toLowerCase();
-            if (normalized.isEmpty) {
-              return 'Bitte die Prüfsumme der Datei angeben.';
-            }
-            if (!_sha256.hasMatch(normalized)) {
-              return 'Eine SHA-256-Prüfsumme hat 64 Zeichen (0–9, a–f).';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextFormField(
-          controller: size,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Größe in Bytes'),
-          validator: (value) {
-            final parsed = int.tryParse((value ?? '').trim());
-            if (parsed == null) {
-              return 'Bitte die Dateigröße als ganze Zahl angeben.';
-            }
-            if (parsed < 0) {
-              return 'Die Dateigröße kann nicht negativ sein.';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextFormField(
-          controller: mimeType,
-          decoration: const InputDecoration(labelText: 'Dateityp (MIME)'),
-          validator:
-              (value) =>
-                  (value ?? '').trim().isEmpty
-                      ? 'Bitte den Dateityp angeben, z. B. application/pdf.'
-                      : null,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextFormField(
-          controller: filename,
-          decoration: const InputDecoration(labelText: 'Ursprünglicher Dateiname'),
-        ),
-      ],
-    );
-  }
+  final dot = filename.lastIndexOf('.');
+  final extension = dot < 0 ? '' : filename.substring(dot + 1).toLowerCase();
+  return switch (extension) {
+    'pdf' => 'application/pdf',
+    'png' => 'image/png',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'webp' => 'image/webp',
+    'txt' => 'text/plain',
+    'csv' => 'text/csv',
+    'doc' => 'application/msword',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls' => 'application/vnd.ms-excel',
+    'xlsx' =>
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    _ => 'application/octet-stream',
+  };
 }
 
 class _DateField extends StatelessWidget {

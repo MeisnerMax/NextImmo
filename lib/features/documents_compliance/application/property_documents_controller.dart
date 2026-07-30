@@ -159,6 +159,7 @@ class PropertyDocumentsController
   PropertyDocumentsController({
     required DocumentRepository repository,
     required DocumentContentPort content,
+    required DocumentUploadPort upload,
     required DocumentLinkPort links,
     required RequirementPolicyRepository requirements,
     required DocumentVerificationPort verification,
@@ -169,6 +170,7 @@ class PropertyDocumentsController
     DocumentIdFactory? idFactory,
   }) : _repository = repository,
        _content = content,
+       _upload = upload,
        _links = links,
        _requirements = requirements,
        _verification = verification,
@@ -198,6 +200,7 @@ class PropertyDocumentsController
 
   final DocumentRepository _repository;
   final DocumentContentPort _content;
+  final DocumentUploadPort _upload;
   final DocumentLinkPort _links;
   final RequirementPolicyRepository _requirements;
   final DocumentVerificationPort _verification;
@@ -419,12 +422,42 @@ class PropertyDocumentsController
   /// two steps are not atomic: a create that succeeds and a link that fails
   /// leaves an unlinked document, and that is reported as its own outcome
   /// instead of being shown as a plain success the list then contradicts.
-  Future<void> createDocument(DocumentDraft draft) async {
+  Future<void> createDocument({
+    required String title,
+    required DocumentFileSelection file,
+    String? documentTypeId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+    String? notes,
+  }) async {
+    if (!_guardMutation(requiredPermission: managePermission)) {
+      return;
+    }
+    // The bytes must be in the bucket before the aggregate can reference them.
+    // `create_document` mints the real id, so the object path carries a
+    // caller-generated scope id instead.
+    final content = await _uploadContent(
+      scopeId: _idFactory(),
+      versionNo: 1,
+      file: file,
+    );
+    if (content == null) {
+      return;
+    }
+    final draft = DocumentDraft(
+      title: title,
+      content: content,
+      documentTypeId: documentTypeId,
+      validFrom: validFrom,
+      validUntil: validUntil,
+      notes: notes,
+    );
     DocumentRepositoryFailure<DocumentLinkDto>? linkFailure;
     await _runMutation<DocumentDto>(
       () => _repository.create(
         CreateDocumentCommand(context: _commandContext(), draft: draft),
       ),
+      permissionAlreadyChecked: true,
       onSuccess: (document) async {
         final linkResult = await _links.link(
           LinkDocumentCommand(
@@ -457,8 +490,20 @@ class PropertyDocumentsController
   Future<void> addVersion({
     required String documentId,
     required int expectedVersion,
-    required DocumentContentDraft content,
+    required int nextVersionNo,
+    required DocumentFileSelection file,
   }) async {
+    if (!_guardMutation(requiredPermission: managePermission)) {
+      return;
+    }
+    final content = await _uploadContent(
+      scopeId: documentId,
+      versionNo: nextVersionNo,
+      file: file,
+    );
+    if (content == null) {
+      return;
+    }
     await _runMutation<DocumentVersionDto>(
       () => _content.addVersion(
         AddDocumentVersionCommand(
@@ -468,6 +513,7 @@ class PropertyDocumentsController
           content: content,
         ),
       ),
+      permissionAlreadyChecked: true,
       onSuccess: (_) async {
         await load();
         await selectDocument(documentId);
@@ -604,6 +650,56 @@ class PropertyDocumentsController
     }
   }
 
+  /// Uploads the picked bytes and reports failure in the same visible phases as
+  /// any other mutation. Returns null when the upload failed, so callers stop
+  /// before registering a document whose content is not there.
+  Future<DocumentContentDraft?> _uploadContent({
+    required String scopeId,
+    required int versionNo,
+    required DocumentFileSelection file,
+  }) async {
+    state = state.copyWith(
+      actionPhase: PropertyDocumentsActionPhase.submitting,
+      actionMessage: null,
+      versionConflict: null,
+    );
+    final result = await _upload.upload(
+      workspaceId: _scope.workspaceId!,
+      scopeId: scopeId,
+      versionNo: versionNo,
+      filename: file.filename,
+      mimeType: file.mimeType,
+      bytes: file.bytes,
+    );
+    switch (result) {
+      case DocumentRepositorySuccess<DocumentContentDraft>(:final value):
+        return value;
+      case DocumentRepositoryFailure<DocumentContentDraft>(
+        :final kind,
+        :final message,
+      ):
+        state = state.copyWith(
+          actionPhase: _phaseForFailure(kind),
+          actionMessage: message,
+        );
+        return null;
+    }
+  }
+
+  static PropertyDocumentsActionPhase _phaseForFailure(
+    DocumentRepositoryFailureKind kind,
+  ) {
+    return switch (kind) {
+      DocumentRepositoryFailureKind.versionConflict =>
+        PropertyDocumentsActionPhase.conflict,
+      DocumentRepositoryFailureKind.forbidden =>
+        PropertyDocumentsActionPhase.forbidden,
+      DocumentRepositoryFailureKind.dependencyConflict =>
+        PropertyDocumentsActionPhase.readOnly,
+      _ => PropertyDocumentsActionPhase.failed,
+    };
+  }
+
   bool _guardMutation({required String requiredPermission}) {
     if (isReadOnlyBackend) {
       state = state.copyWith(
@@ -658,15 +754,7 @@ class PropertyDocumentsController
         :final versionConflict,
       ):
         state = state.copyWith(
-          actionPhase: switch (kind) {
-            DocumentRepositoryFailureKind.versionConflict =>
-              PropertyDocumentsActionPhase.conflict,
-            DocumentRepositoryFailureKind.forbidden =>
-              PropertyDocumentsActionPhase.forbidden,
-            DocumentRepositoryFailureKind.dependencyConflict =>
-              PropertyDocumentsActionPhase.readOnly,
-            _ => PropertyDocumentsActionPhase.failed,
-          },
+          actionPhase: _phaseForFailure(kind),
           actionMessage: message,
           versionConflict: versionConflict,
         );
@@ -713,6 +801,7 @@ final propertyDocumentsControllerProvider = StateNotifierProvider.autoDispose
       final controller = PropertyDocumentsController(
         repository: ref.watch(documentRepositoryProvider),
         content: ref.watch(documentContentProvider),
+        upload: ref.watch(documentUploadProvider),
         links: ref.watch(documentLinkProvider),
         requirements: ref.watch(requirementPolicyProvider),
         verification: ref.watch(documentVerificationProvider),

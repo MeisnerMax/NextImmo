@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../../core/models/documents.dart';
 import '../../../data/repositories/document_types_repo.dart';
 import '../../../data/repositories/documents_repo.dart';
@@ -68,7 +70,8 @@ class LegacySqliteDocumentRepositoryAdapter
         DocumentLinkPort,
         RequirementPolicyRepository,
         DocumentVerificationPort,
-        SignedUrlPort {
+        SignedUrlPort,
+        DocumentUploadPort {
   LegacySqliteDocumentRepositoryAdapter({
     required LegacyDocumentReadSource source,
     required String legacyWorkspaceId,
@@ -591,6 +594,21 @@ class LegacySqliteDocumentRepositoryAdapter
   Future<DocumentRepositoryResult<DocumentVersionDto>> verify(
     VerifyDocumentVersionCommand command,
   ) => _blockedMutation<DocumentVersionDto>(command.context.workspaceId);
+
+  // --- DocumentUploadPort ---
+
+  /// There is no local private bucket, and a local file copy would be a second
+  /// storage model for the same document. Refused like every other mutation
+  /// until this domain is migrated.
+  @override
+  Future<DocumentRepositoryResult<DocumentContentDraft>> upload({
+    required String workspaceId,
+    required String scopeId,
+    required int versionNo,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+  }) => _blockedMutation<DocumentContentDraft>(workspaceId);
 
   // --- SignedUrlPort ---
 

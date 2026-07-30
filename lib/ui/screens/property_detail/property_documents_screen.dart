@@ -5,7 +5,6 @@ import '../../theme/app_theme.dart';
 import 'property_audit_screen.dart';
 import 'property_documents_panel.dart';
 import 'reports_screen.dart';
-import 'widgets/property_images_section.dart';
 
 /// The property workspace's documents area (SCR-020).
 ///
@@ -14,9 +13,16 @@ import 'widgets/property_images_section.dart';
 /// (`property_page_router.dart`), so the archive, the audit history and the
 /// reports share one frame. Wave 2 rebuilt the archive tab onto the
 /// `documents_compliance` contract ([PropertyDocumentsPanel]); the other two
-/// tabs keep hosting their own screens untouched, and the object images keep
-/// their local path-based implementation ([PropertyImagesSection]) because the
-/// contract has no image-role concept and no upload port.
+/// tabs keep hosting their own screens untouched.
+///
+/// The local object-image gallery that used to sit under the archive was removed
+/// on the user's decision (2026-07-29): it was the last place a Wave 2 screen
+/// read a legacy document repository, which this wave's definition of done
+/// forbids. Consequence, stated rather than left to be discovered: images
+/// already stored still display on the property card and the overview header
+/// through `propertyTitleImageProvider`, but nothing adds new ones until
+/// property media is migrated as its own concern — the documents contract has no
+/// image-role vocabulary to carry them.
 class PropertyDocumentsScreen extends ConsumerStatefulWidget {
   const PropertyDocumentsScreen({
     super.key,
@@ -119,15 +125,6 @@ class _PropertyDocumentsScreenState
     );
   }
 
-  Widget _buildArchiveTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        PropertyDocumentsPanel(propertyId: widget.propertyId),
-        const SizedBox(height: AppSpacing.section),
-        PropertyImagesSection(propertyId: widget.propertyId),
-      ],
-    );
-  }
+  Widget _buildArchiveTab() =>
+      PropertyDocumentsPanel(propertyId: widget.propertyId);
 }

@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/documents_compliance/application/document_repository.dart';
 import 'package:neximmo_app/features/documents_compliance/data/supabase_document_repository_adapter.dart';
@@ -746,6 +750,109 @@ void main() {
       );
     });
 
+    test('upload puts the bytes in the private bucket and declares them', () async {
+      final gateway = _FakeGateway(rpcResponses: const <String, Object?>{});
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+      final bytes = Uint8List.fromList(utf8.encode('Mietvertrag'));
+
+      final result = await adapter.upload(
+        workspaceId: _workspaceId,
+        scopeId: 'scope-1',
+        versionNo: 1,
+        filename: 'mietvertrag.pdf',
+        mimeType: 'application/pdf',
+        bytes: bytes,
+      );
+
+      final draft =
+          (result as DocumentRepositorySuccess<DocumentContentDraft>).value;
+      final call = gateway.uploadCalls.single;
+      expect(call.bucket, DocumentUploadPort.bucket);
+      // The path convention the storage policy and the RPC both check:
+      // {workspace}/{scope}/{version}/{file}, workspace-prefixed.
+      expect(call.path, '$_workspaceId/scope-1/1/mietvertrag.pdf');
+      expect(draft.storageObjectPath, call.path);
+      expect(draft.byteSize, bytes.length);
+      // The declaration must be the hash of what was really sent, or
+      // confirm_document_content would reject the document.
+      expect(draft.contentHash, sha256.convert(bytes).toString());
+      expect(draft.originalFilename, 'mietvertrag.pdf');
+    });
+
+    test('upload refuses a file over the bucket limit before sending it', () async {
+      final gateway = _FakeGateway(rpcResponses: const <String, Object?>{});
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.upload(
+        workspaceId: _workspaceId,
+        scopeId: 'scope-1',
+        versionNo: 1,
+        filename: 'gross.bin',
+        mimeType: 'application/octet-stream',
+        bytes: Uint8List(DocumentUploadPort.maxByteSize + 1),
+      );
+
+      expect(
+        (result as DocumentRepositoryFailure<DocumentContentDraft>).kind,
+        DocumentRepositoryFailureKind.validationFailed,
+      );
+      expect(gateway.uploadCalls, isEmpty);
+    });
+
+    test('upload refuses an empty file', () async {
+      final gateway = _FakeGateway(rpcResponses: const <String, Object?>{});
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.upload(
+        workspaceId: _workspaceId,
+        scopeId: 'scope-1',
+        versionNo: 1,
+        filename: 'leer.pdf',
+        mimeType: 'application/pdf',
+        bytes: Uint8List(0),
+      );
+
+      expect(
+        (result as DocumentRepositoryFailure<DocumentContentDraft>).kind,
+        DocumentRepositoryFailureKind.validationFailed,
+      );
+      expect(gateway.uploadCalls, isEmpty);
+    });
+
+    test('a refused upload never leaks the storage error text', () async {
+      final gateway =
+          _FakeGateway(rpcResponses: const <String, Object?>{})
+            ..throwOnUpload = StateError('duplicate key value violates …');
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.upload(
+        workspaceId: _workspaceId,
+        scopeId: 'scope-1',
+        versionNo: 1,
+        filename: 'mietvertrag.pdf',
+        mimeType: 'application/pdf',
+        bytes: Uint8List.fromList(<int>[1, 2, 3]),
+      );
+
+      final failure = result as DocumentRepositoryFailure<DocumentContentDraft>;
+      expect(failure.kind, DocumentRepositoryFailureKind.infrastructureFailure);
+      expect(failure.message, isNot(contains('duplicate key')));
+    });
+
+    test('the object path stays inside the workspace prefix', () {
+      // A traversal attempt must not escape the workspace folder, because that
+      // prefix is the whole storage isolation.
+      final path = DocumentUploadPort.storageObjectPath(
+        workspaceId: _workspaceId,
+        scopeId: 'scope-1',
+        versionNo: 2,
+        filename: '../../etc/passwd',
+      );
+
+      expect(path.startsWith('$_workspaceId/'), isTrue);
+      expect(path.contains('..'), isFalse);
+    });
+
     test('listVersions rejects a version from another workspace', () async {
       final gateway = _FakeGateway(
         rpcResponses: const <String, Object?>{},
@@ -896,6 +1003,20 @@ Map<String, dynamic> _contentRef() => <String, dynamic>{
   'verification_status': 'verified',
 };
 
+class _UploadCall {
+  const _UploadCall({
+    required this.bucket,
+    required this.path,
+    required this.mimeType,
+    required this.bytes,
+  });
+
+  final String bucket;
+  final String path;
+  final String mimeType;
+  final Uint8List bytes;
+}
+
 class _RpcCall {
   const _RpcCall(this.function, this.parameters);
 
@@ -1006,6 +1127,25 @@ class _FakeGateway implements DocumentSupabaseGateway {
       throw StateError('Unexpected RPC: $function');
     }
     return Future<Object?>.value(_rpcResponses[function]);
+  }
+
+  final List<_UploadCall> uploadCalls = <_UploadCall>[];
+  Object? throwOnUpload;
+
+  @override
+  Future<void> uploadObject({
+    required String bucket,
+    required String path,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    uploadCalls.add(
+      _UploadCall(bucket: bucket, path: path, mimeType: mimeType, bytes: bytes),
+    );
+    final failure = throwOnUpload;
+    if (failure != null) {
+      throw failure;
+    }
   }
 
   @override

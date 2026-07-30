@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/document_repository.dart';
@@ -53,6 +55,15 @@ abstract interface class DocumentSupabaseGateway {
     required String bucket,
     required String path,
     required int ttlSeconds,
+  });
+
+  /// Uploads an object. Never upserts: the bucket has no update policy, and a
+  /// silent overwrite would break the immutability of an existing version.
+  Future<void> uploadObject({
+    required String bucket,
+    required String path,
+    required String mimeType,
+    required Uint8List bytes,
   });
 }
 
@@ -202,6 +213,22 @@ class SupabaseDocumentGateway implements DocumentSupabaseGateway {
   }) {
     return _client.storage.from(bucket).createSignedUrl(path, ttlSeconds);
   }
+
+  @override
+  Future<void> uploadObject({
+    required String bucket,
+    required String path,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    await _client.storage
+        .from(bucket)
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mimeType),
+        );
+  }
 }
 
 /// Supabase-backed implementation of all six documents_compliance ports.
@@ -212,7 +239,8 @@ class SupabaseDocumentRepositoryAdapter
         DocumentLinkPort,
         RequirementPolicyRepository,
         DocumentVerificationPort,
-        SignedUrlPort {
+        SignedUrlPort,
+        DocumentUploadPort {
   SupabaseDocumentRepositoryAdapter({required SupabaseClient client})
     : _gateway = SupabaseDocumentGateway(client);
 
@@ -745,6 +773,65 @@ class SupabaseDocumentRepositoryAdapter
         message: 'Supabase workspace requirement evaluation failed.',
       );
     }
+  }
+
+  // --- DocumentUploadPort ---
+
+  @override
+  Future<DocumentRepositoryResult<DocumentContentDraft>> upload({
+    required String workspaceId,
+    required String scopeId,
+    required int versionNo,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    if (bytes.isEmpty) {
+      return const DocumentRepositoryFailure<DocumentContentDraft>(
+        kind: DocumentRepositoryFailureKind.validationFailed,
+        message: 'Die gewählte Datei ist leer.',
+      );
+    }
+    if (bytes.length > DocumentUploadPort.maxByteSize) {
+      return const DocumentRepositoryFailure<DocumentContentDraft>(
+        kind: DocumentRepositoryFailureKind.validationFailed,
+        message: 'Die Datei überschreitet das Limit von 50 MB.',
+      );
+    }
+    final path = DocumentUploadPort.storageObjectPath(
+      workspaceId: workspaceId,
+      scopeId: scopeId,
+      versionNo: versionNo,
+      filename: filename,
+    );
+    try {
+      await _gateway.uploadObject(
+        bucket: DocumentUploadPort.bucket,
+        path: path,
+        mimeType: mimeType,
+        bytes: bytes,
+      );
+    } catch (_) {
+      // Storage refuses both a policy violation and a duplicate path, and the
+      // SDK does not separate them reliably — so the message names the two
+      // real causes instead of guessing one.
+      return const DocumentRepositoryFailure<DocumentContentDraft>(
+        kind: DocumentRepositoryFailureKind.infrastructureFailure,
+        message:
+            'Die Datei konnte nicht in den Dokumentenspeicher geladen werden. '
+            'Entweder fehlt die Berechtigung, oder unter diesem Pfad liegt '
+            'bereits eine Version.',
+      );
+    }
+    return DocumentRepositorySuccess<DocumentContentDraft>(
+      DocumentContentDraft(
+        storageObjectPath: path,
+        contentHash: DocumentUploadPort.contentHashOf(bytes),
+        byteSize: bytes.length,
+        mimeType: mimeType,
+        originalFilename: filename,
+      ),
+    );
   }
 
   // --- SignedUrlPort ---

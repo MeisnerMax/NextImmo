@@ -16,6 +16,10 @@
 /// private Storage bucket, and download access is a short-lived signed URL.
 library;
 
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
+
 import '../domain/document_dto.dart';
 
 class DocumentCommandContext {
@@ -447,6 +451,85 @@ abstract interface class DocumentVerificationPort {
   Future<DocumentRepositoryResult<DocumentVersionDto>> verify(
     VerifyDocumentVersionCommand command,
   );
+}
+
+/// A file the user picked, before it exists anywhere in the backend.
+///
+/// Deliberately not a `DocumentContentDraft`: that type *declares* an object
+/// already in the bucket, and conflating the two is what made it possible to
+/// build a create dialog that could never produce a real document.
+class DocumentFileSelection {
+  const DocumentFileSelection({
+    required this.bytes,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String filename;
+  final String mimeType;
+
+  int get byteSize => bytes.length;
+}
+
+/// The bytes half of a document version (P2-D03 follow-up increment).
+///
+/// The rest of this contract deliberately keeps content out: a version *points
+/// at* an object already in the private bucket. Something has to put it there,
+/// and until now nothing did — [DocumentRepository.create] and
+/// [DocumentContentPort.addVersion] could only be handed coordinates the caller
+/// invented, so no client could actually complete upload → confirm → verify.
+/// This port closes exactly that gap: it uploads, and returns precisely the
+/// declaration those commands already take.
+///
+/// Server-side nothing changes. The bucket has no UPDATE and no DELETE policy,
+/// which is what makes "versions are never overwritten" structural, so
+/// uploading onto an existing path fails instead of silently replacing bytes.
+abstract interface class DocumentUploadPort {
+  /// The single private bucket of DOM-006.
+  static const String bucket = 'documents';
+
+  /// Mirrors the bucket's server-side `file_size_limit`. Checked client-side
+  /// only to fail fast with a sentence a user can act on, never as the
+  /// authority — the bucket enforces it regardless.
+  static const int maxByteSize = 52428800;
+
+  /// Lowercase hex sha256, the exact form the RPCs decode. Lives here so the
+  /// hashing rule has one home, like [SignedUrlPort.clampTtl].
+  static String contentHashOf(Uint8List bytes) =>
+      sha256.convert(bytes).toString().toLowerCase();
+
+  /// The `{workspace}/{scope}/{version}/{file}` convention of the bucket,
+  /// built in one place so no caller can invent a path the server will reject.
+  ///
+  /// [scopeId] is the middle segment: the document id when adding a version to
+  /// an existing document, and a caller-generated id when the document does not
+  /// exist yet — `create_document` mints the real id server-side, so the path
+  /// cannot contain it.
+  static String storageObjectPath({
+    required String workspaceId,
+    required String scopeId,
+    required int versionNo,
+    required String filename,
+  }) {
+    final safeName = filename
+        .replaceAll(RegExp(r'[\\/]+'), '_')
+        .replaceAll('..', '_')
+        .trim();
+    final resolved = safeName.isEmpty ? 'datei' : safeName;
+    return '$workspaceId/$scopeId/$versionNo/$resolved';
+  }
+
+  /// Uploads one version's bytes and returns the declaration to hand to
+  /// [DocumentRepository.create] or [DocumentContentPort.addVersion].
+  Future<DocumentRepositoryResult<DocumentContentDraft>> upload({
+    required String workspaceId,
+    required String scopeId,
+    required int versionNo,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+  });
 }
 
 /// Short-lived download access to a private-bucket object.

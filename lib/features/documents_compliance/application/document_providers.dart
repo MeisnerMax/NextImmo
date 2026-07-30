@@ -47,6 +47,10 @@ final signedUrlProvider = Provider<SignedUrlPort>(
   (ref) => throw StateError('SignedUrlPort is not configured.'),
 );
 
+final documentUploadProvider = Provider<DocumentUploadPort>(
+  (ref) => throw StateError('DocumentUploadPort is not configured.'),
+);
+
 /// Null outside cloud mode: the legacy adapter reads a local database and has
 /// no realtime channel to invalidate from.
 final documentQueryInvalidationSourceProvider =
