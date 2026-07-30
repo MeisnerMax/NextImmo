@@ -111,11 +111,32 @@ Zyklusregel: DOM-009 schreibt keine Fachdaten zurueck. DOM-010 kennt keine fachl
 | EVT-011 | `ReportRunCompleted` | DOM-009 | DOM-010 | `proposed` |
 | EVT-012 | `AuditEventRecorded` / `JobRunCompleted` | DOM-010 | Administration/Monitoring | `proposed` |
 
+## Entschieden: OPN-DOM-001 (2026-07-29, Nutzerentscheidung, Default ueberstimmt)
+
+**Eine Einheit darf mehrere gleichzeitig wirksame Vertraege haben** (Teilflaechen-Vermietung).
+Die dokumentierte Default-Annahme lautete das Gegenteil ("hoechstens ein aktiver Vertrag pro
+Einheit") und wurde ausdruecklich ueberstimmt — deshalb steht die Entscheidung hier ausgeschrieben
+und nicht nur als Statuswechsel in der Tabelle.
+
+Bindende Folgen fuer `P2-D05 leasing_operations`, die **nicht** neu verhandelt werden:
+
+- **Kein** Unique-Constraint (auch kein partieller) auf "aktiver Vertrag pro Einheit". Das Schema
+  laesst ueberlappende Vertraege einer Einheit strukturell zu.
+- **AGG-004 ist entsprechend zu formulieren**, statt es unveraendert zu uebernehmen: `occupied`
+  verlangt *mindestens einen* wirksamen Vertrag, `vacant` verlangt *keinen*. Die bisherige
+  Formulierung setzte Einzahl voraus und war damit auf den ueberstimmten Default gebaut.
+- **Rent Roll aggregiert je Einheit** ueber alle zum Stichtag wirksamen Vertraege; jede Kennzahl
+  pro Einheit ist eine Summe, kein Einzelwert. `AGG-007` (Snapshot-Unveraenderlichkeit) bleibt
+  unberuehrt.
+- Der Belegungs-Invariantentest des P2-D05-Gates muss beide Faelle abdecken: mehrere wirksame
+  Vertraege auf einer Einheit sind **gueltig**, und eine `vacant` Einheit mit irgendeinem wirksamen
+  Vertrag ist es nicht.
+
 ## Offene Domaenenentscheidungen
 
 | ID | Frage | Auswirkung | Default-Annahme | Spaetester Zeitpunkt | Status |
 |---|---|---|---|---|---|
-| OPN-DOM-001 | Darf eine Einheit gleichzeitig mehrere wirksame Vertraege haben, z. B. Teilflaechen? | Lease-Invariante, Rent Roll, Schema | Hoechstens ein aktiver Vertrag pro Einheit | vor Phase-3-Datenvertrag | `open` |
+| OPN-DOM-001 | Darf eine Einheit gleichzeitig mehrere wirksame Vertraege haben, z. B. Teilflaechen? | Lease-Invariante, Rent Roll, Schema | Hoechstens ein aktiver Vertrag pro Einheit | vor Phase-3-Datenvertrag | `decided` (2026-07-29, **Default ueberstimmt**) |
 | OPN-DOM-002 | Sind Gesellschaften nur Parteien oder eigene Eigentumsaggregate? | Portfolio-/Finance-Grenze, RLS-Scope | Gesellschaft ist `Party` mit Eigentumsbeziehung | vor Phase-2-Schema | `open` |
 | OPN-DOM-003 | Welche fachlich/rechtlich verbindlichen Mahnstufen gelten? | Forderungsautomat, Audit, Vorlagen | Nur manuelle Statuspflege; keine automatische Eskalation | vor Phase 4 | `open` |
 | OPN-DOM-004 | Welche Freigabegrenzen gelten fuer CapEx, Budget und Bewertung? | Rechte, Statusautomaten, Audit | Keine betragsspezifische Automatik; expliziter Freigeber | vor jeweiligem Modulvertrag | `open` |
