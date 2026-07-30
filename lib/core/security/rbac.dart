@@ -24,6 +24,15 @@ class Permission {
   static const String scenarioUpdate = 'scenario.update';
   static const String scenarioDelete = 'scenario.delete';
   static const String scenarioApprove = 'scenario.approve';
+
+  // Welle 5: the valuation engine is its own capability set, deliberately not
+  // folded into scenario.* — reading a scenario and reading a market-value
+  // opinion are different rights, and approving a valuation is final
+  // (AGG-014), so it needs its own approval capability. The keys match the
+  // permissions the P2-D07 RLS policies and RPCs check server-side.
+  static const String valuationRead = 'valuation.read';
+  static const String valuationManage = 'valuation.manage';
+  static const String valuationApprove = 'valuation.approve';
   static const String documentRead = 'document.read';
   static const String documentCreate = 'document.create';
   static const String documentUpdate = 'document.update';
@@ -54,6 +63,9 @@ class Permission {
     scenarioUpdate,
     scenarioDelete,
     scenarioApprove,
+    valuationRead,
+    valuationManage,
+    valuationApprove,
     documentRead,
     documentCreate,
     documentUpdate,
@@ -184,6 +196,9 @@ class Rbac {
     Permission.scenarioUpdate,
     Permission.scenarioDelete,
     Permission.scenarioApprove,
+    Permission.valuationRead,
+    Permission.valuationManage,
+    Permission.valuationApprove,
     Permission.documentRead,
     Permission.documentCreate,
     Permission.documentUpdate,
@@ -210,6 +225,10 @@ class Rbac {
     Permission.scenarioRead,
     Permission.scenarioCreate,
     Permission.scenarioUpdate,
+    // An analyst builds valuations but does not release them — the same split
+    // the role already has for scenario.update vs. scenario.approve.
+    Permission.valuationRead,
+    Permission.valuationManage,
     Permission.documentRead,
     Permission.documentCreate,
     Permission.documentUpdate,
@@ -226,6 +245,8 @@ class Rbac {
     Permission.propertyRead,
     Permission.propertyUpdate,
     Permission.scenarioRead,
+    // Reading a valuation, not building one — same shape as scenario access.
+    Permission.valuationRead,
     Permission.documentRead,
     Permission.documentCreate,
     Permission.documentUpdate,
@@ -243,6 +264,7 @@ class Rbac {
     Permission.propertyRead,
     Permission.propertyUpdate,
     Permission.scenarioRead,
+    Permission.valuationRead,
     Permission.documentRead,
     Permission.documentCreate,
     Permission.documentUpdate,
@@ -260,6 +282,7 @@ class Rbac {
     Permission.propertyRead,
     Permission.propertyExport,
     Permission.scenarioRead,
+    Permission.valuationRead,
     Permission.documentRead,
     Permission.taskRead,
     Permission.auditRead,

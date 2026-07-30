@@ -65,4 +65,57 @@ void main() {
       isFalse,
     );
   });
+
+  test('every scenario reader can read valuations', () {
+    const rbac = Rbac();
+
+    // The valuation screens gate on valuation.read. A role that may look at a
+    // scenario but not at its valuation would see "kein Zugriff" on the
+    // Wertermittlung tab — the gap this locks shut.
+    for (final role in const <String>[
+      'viewer',
+      'analyst',
+      'manager',
+      'operations',
+      'letting',
+      'admin',
+    ]) {
+      expect(
+        rbac.canPermission(role: role, permission: Permission.scenarioRead) &&
+            !rbac.canPermission(
+              role: role,
+              permission: Permission.valuationRead,
+            ),
+        isFalse,
+        reason: '$role darf Szenarien lesen, aber keine Bewertung',
+      );
+    }
+  });
+
+  test('building a valuation and releasing it are separate rights', () {
+    const rbac = Rbac();
+
+    expect(
+      rbac.canPermission(role: 'analyst', permission: Permission.valuationManage),
+      isTrue,
+    );
+    expect(
+      rbac.canPermission(
+        role: 'analyst',
+        permission: Permission.valuationApprove,
+      ),
+      isFalse,
+    );
+    expect(
+      rbac.canPermission(
+        role: 'manager',
+        permission: Permission.valuationApprove,
+      ),
+      isTrue,
+    );
+    expect(
+      rbac.canPermission(role: 'viewer', permission: Permission.valuationManage),
+      isFalse,
+    );
+  });
 }
