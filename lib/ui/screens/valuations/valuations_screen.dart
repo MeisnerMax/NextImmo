@@ -9,6 +9,7 @@ import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_page_header.dart';
 import '../property_detail/widgets/valuation/valuation_badges.dart';
+import 'valuation_create_dialog.dart';
 
 /// The workspace-wide valuation work queue (Welle 5, AP3).
 ///
@@ -41,7 +42,7 @@ class ValuationsScreen extends ConsumerWidget {
             subtitle: _subtitle(state),
             primaryAction: controller.canCreate
                 ? FilledButton.icon(
-                    onPressed: () => _announcePlanned(context),
+                    onPressed: () => _createCase(context, ref, controller),
                     icon: const Icon(Icons.add),
                     label: const Text('Neue Bewertung'),
                   )
@@ -67,17 +68,20 @@ class ValuationsScreen extends ConsumerWidget {
         : '$total Bewertungen · $open zur Prüfung';
   }
 
-  /// The create flow belongs to AP5 (case-kind templates). Saying so is better
-  /// than a button that silently does nothing.
-  void _announcePlanned(BuildContext context) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Neue Bewertung: der Anlege-Assistent mit Fallart-Vorlagen folgt im '
-          'nächsten Arbeitspaket. Bis dahin über das Objekt anlegen.',
-        ),
-      ),
+  Future<void> _createCase(
+    BuildContext context,
+    WidgetRef ref,
+    ValuationWorkspaceController controller,
+  ) async {
+    final createdId = await showDialog<String>(
+      context: context,
+      builder: (context) => ValuationCreateDialog(propertyId: propertyId),
     );
+    if (createdId == null) return;
+    // The queue reloads and lands on the new case, so creating and continuing
+    // are one movement rather than two screens.
+    await controller.load();
+    controller.select(createdId);
   }
 }
 

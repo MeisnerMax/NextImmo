@@ -15,6 +15,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../identity_access/application/workspace_session_scope.dart';
 import '../domain/valuation_case.dart';
+import '../domain/valuation_case_dto.dart';
+import '../domain/valuation_case_templates.dart';
+import '../domain/valuation_factor.dart';
 import 'valuation_case_controller.dart' show ValuationPermissions;
 import 'valuation_providers.dart';
 import 'valuation_repository.dart';
@@ -104,6 +107,73 @@ class ValuationCaseCreator {
 
   final Ref _ref;
   final String Function()? _idFactory;
+
+  /// Creates a case from a [ValuationCaseTemplate]: the template decides which
+  /// methods start enabled and how they are weighted, and may seed reference
+  /// values — as suggestions, which is why seeding is allowed at all.
+  ///
+  /// [scenarioId] is optional: a case created from the work queue belongs to a
+  /// property, not necessarily to a legacy scenario.
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createFromTemplate({
+    required String propertyId,
+    required String title,
+    required ValuationCaseTemplate template,
+    String? scenarioId,
+    List<ValuationFactor> suggestedFactors = const <ValuationFactor>[],
+  }) async {
+    final scope = _ref.read(workspaceSessionScopeProvider);
+    if (!scope.isResolved || !scope.mutationsSupported) {
+      return const ValuationRepositoryFailure(
+        kind: ValuationRepositoryFailureKind.unsupportedByBackend,
+        message:
+            'Im lokalen Bestand schreibgeschützt, bis die Bewertung migriert '
+            'ist.',
+      );
+    }
+
+    final newId = _idFactory ?? () => const Uuid().v4();
+    final result = await _ref
+        .read(valuationCaseRepositoryProvider)
+        .createValuationCase(
+          CreateValuationCaseCommand(
+            context: ValuationCommandContext(
+              workspaceId: scope.workspaceId!,
+              actorId: scope.actorId!,
+              mutationId: newId(),
+              correlationId: newId(),
+              reason: 'Bewertung aus Vorlage „${template.headline}" angelegt',
+            ),
+            propertyId: propertyId,
+            scenarioId: scenarioId,
+            title: title,
+            kind: template.kind,
+            dcfTerminal: template.dcfTerminal,
+            enabledMethods: template.enabledMethods,
+            weightOverrides: template.weights,
+            factors: suggestedFactors
+                .map(
+                  (factor) => ValuationFactorDto.fromDomain(
+                    // The server assigns the id; the payload carries the
+                    // factors, not their parent.
+                    caseId: '',
+                    factor: factor,
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        );
+
+    if (result is ValuationRepositorySuccess<ValuationCaseDetail> &&
+        scenarioId != null) {
+      _ref.invalidate(
+        valuationCaseForScenarioProvider((
+          scenarioId: scenarioId,
+          propertyId: propertyId,
+        )),
+      );
+    }
+    return result;
+  }
 
   Future<ValuationRepositoryResult<ValuationCaseDetail>> create({
     required String scenarioId,
