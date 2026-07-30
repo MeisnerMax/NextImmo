@@ -27,12 +27,28 @@
 --     leases, rent_roll_snapshots and the LeasingCase pipeline.
 --   * The rent roll does not need it. A snapshot freezes the rent that is on the
 --     lease at generation time, so a schedule of future steps changes nothing
---     about a snapshot's correctness. Where a schedule would matter is
---     forward-looking rent projection, which is a reporting concern (P2-D09) and
---     needs the indexation rules that OPN-DOM-003 has not settled.
---   * Building it "because it was mentioned" would add a table with no consumer
---     and an indexation semantic nobody has decided, which is the kind of debt
---     this whole phase exists to remove.
+--     about a snapshot's correctness. Where a schedule matters is forward-looking
+--     rent projection, which is a separate consumer.
+--
+-- CORRECTION (2026-07-30, same day): an earlier version of this header also
+-- claimed the indexation semantics were undecided and cited OPN-DOM-003. That
+-- was wrong on both counts and is retracted here rather than left to mislead the
+-- next reader. OPN-DOM-003 is about dunning levels (Mahnstufen), not indexation,
+-- and the semantics are in fact already settled and implemented locally:
+-- `lease_indexation_rules` (kind, effective_from_period_key, annual_percent,
+-- fixed_step_amount, cap_percent, floor_percent) and `lease_rent_schedule`
+-- (period_key, rent_monthly, source) exist in the SQLite schema, and
+-- LeaseRepo.rebuildRentSchedule drives them through a deterministic engine where
+-- manual overrides survive a rebuild. So the reason this increment does not carry
+-- them is scope, not an open question: they are not in the P2-D05 deliverable in
+-- 01_domain_expansion_backlog.md, and the rent roll does not depend on them.
+--
+-- One real design question does have to be answered before they are migrated,
+-- and it is NOT "what do the rules mean": the schedule is produced by a
+-- deterministic Dart engine today, so a cloud version must either port that
+-- computation into PL/pgSQL (creating a second implementation that can drift
+-- from the Dart one, the exact hazard RISK-QA-001 exists for) or keep the engine
+-- and store its output. That choice belongs to whoever migrates them.
 --
 -- Also still out: co-tenancy (several jointly liable parties per lease) remains
 -- the named gap increment 1 documented, and nothing here works around it.
