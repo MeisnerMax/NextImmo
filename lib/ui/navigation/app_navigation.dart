@@ -239,6 +239,16 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
     title: 'Bewertung & Szenarien',
     routeKey: 'valuation_scenarios',
     items: <GlobalNavigationDestination>[
+      // The work queue is the entry point of the area (Welle 5, AP3). The three
+      // legacy tools below it become case kinds and are removed in AP8; until
+      // then both ways exist, which is deliberate and temporary.
+      GlobalNavigationDestination(
+        page: GlobalPage.valuations,
+        label: 'Bewertungen',
+        title: 'Bewertungen',
+        routeKey: 'valuation_scenarios.valuations',
+        icon: Icons.calculate_outlined,
+      ),
       GlobalNavigationDestination(
         page: GlobalPage.quickScreening,
         label: 'Schnellbewertung',

@@ -93,6 +93,11 @@ enum GlobalPage {
   documents,
   audit,
   compare,
+
+  /// Welle 5: the workspace-wide valuation work queue. Deliberately a page of
+  /// its own — the valuation used to be reachable only three levels deep
+  /// (object → scenario → Underwriting → tab), which is what this replaces.
+  valuations,
   quickScreening,
   renovationValue,
   dispositionExit,

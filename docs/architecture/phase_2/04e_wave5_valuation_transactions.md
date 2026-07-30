@@ -30,6 +30,98 @@ Zweite, gleichrangige Regel: **Systemvorschläge sind sichtbar unbestätigt.** E
 bereits gültiger Wert. Erst die Bestätigung (`accepted`) macht ihn rechnend — und
 verschiebt die Konfidenz des Ergebnisses sichtbar von „hoch" auf „mittel".
 
+## Nachtrag 2026-07-30 — Bewertungen werden ein Arbeitsbereich (Nutzerentscheidung)
+
+Nach AP1 (Wertermittlungs-Tab, `done`) hat der Nutzer den Bereich als **nicht
+benutzerfreundlich** beurteilt: die eigentliche Bewertung liegt drei Klicks tief
+(Objekt → Szenario → Underwriting → Tab), im Hauptmenü stehen stattdessen fünf
+unverbundene Werkzeuge, und der Lebenszyklus, den der Contract kann, ist unsichtbar.
+Drei Entscheidungen (2026-07-30, bestätigt):
+
+1. **Bewertungen werden ein eigener Arbeitsbereich im Hauptmenü** — eine Liste aller
+   Bewertungsfälle über alle Objekte als Arbeitsvorrat und Freigabe-Warteschlange. Das
+   Objekt behält einen Absprung auf seine Fälle; der Wertermittlungs-Tab aus AP1 bleibt,
+   nutzt aber dieselben Bausteine.
+2. **„Echte Bewertungsszenarien" = Fallarten mit Vorlagen + Varianten je Fall.** Vier
+   Fallarten (Ankauf/Bestand/Sanierung/Verkauf) mit vorausgewählten Verfahren,
+   Gewichtungsvorschlag und Referenz-Vorschlägen; dazu mehrere Varianten pro Fall
+   (Base/Optimistisch/Konservativ, „vor/nach Sanierung") mit Nebeneinander-Vergleich.
+3. **Schnellbewertung, Renovierung und Verkauf/Exit werden ersetzt**, nicht ergänzt:
+   sie werden Fallarten des neuen Workflows, ihre Menüeinträge verschwinden und die
+   Screens fallen im Cutover — womit auch die dreifache IRR-Solver-Duplizierung endet.
+
+Damit ist die Navigations-Guardrail aus `CLAUDE.md` **ausdrücklich aufgehoben** für
+diesen Bereich: neue Route + geänderte Menüstruktur sind vom Nutzer beauftragt. Der
+frühere Satz „keine neue Route" unten gilt nur noch für AP1.
+
+### Zielbild der Informationsarchitektur
+
+Hauptmenü-Gruppe „Bewertung & Szenarien" nach dem Umbau:
+
+| Eintrag | Inhalt | Status |
+|---|---|---|
+| **Bewertungen** (neu) | Arbeitsvorrat aller Fälle: Objekt, Fallart, Status, Verkehrswert, Konfidenz, „Bericht veraltet"; Filter nach Status/Art/Objekt; Primäraktion „Neue Bewertung" | neu (AP3) |
+| Kriterien | unverändert (Ankaufsprofile), speist die Fallart-Vorlagen | bleibt |
+| Szenariovergleich | bleibt bis der Varianten-Vergleich (AP6) ihn fachlich ersetzt; danach Entscheidung über Rückbau | offen |
+| ~~Schnellbewertung~~ | wird Fallart „Ankauf – Schnellprüfung" | entfällt (AP8) |
+| ~~Renovierung~~ | wird Fallart „Sanierung" mit Varianten vor/nach | entfällt (AP8) |
+| ~~Verkauf / Exit~~ | wird Fallart „Verkauf" | entfällt (AP8) |
+
+Im Objekt bleibt die Sektion „Bewertung & Szenarien", verliert aber ihre Doppelrolle:
+„Bewertungen" listet die Fälle *dieses* Objekts (dieselbe Liste, vorgefiltert),
+„Underwriting" behält den Wertermittlungs-Tab, „Ankauf Intensivbewertung" wird zur
+Faktor-Eingabe des Falls (AP2).
+
+### Der Workflow, den es heute nicht gibt
+
+Ein Fall wird als **fünfstufiger Stepper** geführt, der den Lifecycle des Contracts
+sichtbar macht statt ihn zu verstecken:
+
+| Schritt | Inhalt | Fertig, wenn | Status im Contract |
+|---|---|---|---|
+| 1 Objekt & Art | Objekt, Fallart, Variante, Verfahrensauswahl aus der Vorlage | Fall existiert | `draft` |
+| 2 Faktoren | Faktor-Gruppen je Verfahren mit Provenienz, Menüs, „4 von 6" aus `ValuationFactorCatalog.progress` | jede Gruppe vollständig **oder** bewusst unvollständig quittiert | `draft` |
+| 3 Ergebnis | Verfahren, Verkehrswert-Abgleich, Annahmen-Ledger, Investmentkennzahlen | Bericht veröffentlicht | `draft` |
+| 4 Prüfung | Vier-Augen-Blick: Ledger + Streuung + offene Vorschläge; „Zur Prüfung geben" | Prüfer bestätigt | `in_review` |
+| 5 Freigabe & Bericht | Freigabe (unwiderruflich), PDF/Export, Historie | freigegeben | `approved` |
+
+Der Stepper erzwingt keine Reihenfolge — man darf jederzeit zurück —, aber er zeigt
+**pro Schritt**, was fehlt. Ein Schritt ist nie „grün", weil man ihn besucht hat,
+sondern nur, wenn seine Bedingung erfüllt ist. Schritt 3 bleibt ausdrücklich benutzbar,
+wenn Verfahren „nicht ermittelbar" melden: der Verkehrswert wird dann aus den
+verfügbaren Verfahren abgeleitet, und die fehlenden stehen mit Grund daneben.
+
+### Fallart-Vorlagen (die „echten Szenarien")
+
+Eine Vorlage setzt nichts fest, sie **schlägt vor** — alle Referenzwerte kommen als
+`suggestedDefault` und müssen bestätigt werden:
+
+| Fallart | Verfahren (aktiv) | Gewichtungsvorschlag | Fokus-Faktoren |
+|---|---|---|---|
+| Ankauf | alle fünf | Vergleich 35 / Ertrag 30 / DCF 20 / Sachwert 10 / Direktkap. 5 | Kaufpreis, Exit-Cap, Kalkulationszins |
+| Bestand | Ertrag, Sachwert, Direktkap. | Ertrag 55 / Sachwert 25 / Direktkap. 20 | Liegenschaftszins, Restnutzungsdauer, BWK |
+| Sanierung | Ertrag, Sachwert, DCF | Ertrag 40 / Sachwert 35 / DCF 25 | NHK, Alterswertminderung, Mietwachstum |
+| Verkauf | Vergleich, DCF, Direktkap. | Vergleich 45 / DCF 35 / Direktkap. 20 | Vergleichspreise, Verkaufskostenquote, Exit-Cap |
+
+Die Gewichtungen landen als `weightOverrides` auf dem Fall — der `ValuationReconciler`
+renormiert sie ohnehin über die *verfügbaren* Verfahren, eine Vorlage kann also nichts
+kaputt gewichten.
+
+### Varianten — mit einer offenen Schemafrage
+
+Eine Variante ist ein eigener `ValuationCase` zum selben Objekt, gruppiert und
+benannt. Das Schema kennt diese Gruppierung heute **nicht**; drei Wege:
+
+1. **Neue Spalten** `variant_group_id uuid` + `variant_label text` auf
+   `valuation_cases` (eigene Migration in der P2-D07-Reihe, RLS unverändert,
+   Rollback-Test). Klar, explizit, kostet eine Migration. **Empfehlung.**
+2. `scenario_id` als Gruppierung missbrauchen — spart die Migration, verkoppelt aber
+   Varianten mit dem Legacy-Szenariobegriff, den diese Welle gerade entkoppelt.
+3. Varianten rein clientseitig über Titel-Konventionen — würde genau die Art von
+   impliziter Semantik einführen, die dieser Rewrite abschafft. Abgelehnt.
+
+Weg 1 braucht einen Eintrag im Decision-Register, bevor AP6 startet.
+
 ## Scope
 
 | Screen | Rolle in dieser Welle |
@@ -44,7 +136,36 @@ verschiebt die Konfidenz des Ergebnisses sichtbar von „hoch" auf „mittel".
 eigene Seite — das respektiert die Navigations-Guardrail aus `CLAUDE.md`. Ein
 separater Wertermittlungs-Screen bleibt optional und würde gesondert bestätigt.
 
-## Reihenfolge und Begründung
+## Arbeitspakete nach dem Nachtrag (2026-07-30)
+
+AP1 ist geliefert; AP2 läuft (Katalog steht). Alles darunter ist neu bzw. neu
+geschnitten. Die Reihenfolge folgt einer Regel: **jedes Paket ist für sich benutzbar**,
+und keines lässt einen halb umgebauten Menüpunkt zurück.
+
+| # | Paket | Inhalt | Abhängt von |
+|---|---|---|---|
+| AP1 | Wertermittlungs-Tab | geteilte Bausteine, Verkehrswert-Karte, Ledger, alle Pflichtzustände | — (`done`) |
+| AP2 | Faktor-Eingabe | `ValuationFactorCatalog` (`done`), Faktor-Zeile mit Provenienz + „Übernehmen", Gruppenkarten mit Fortschritt, Menüs die Vorschläge füllen | AP1 |
+| AP3 | Arbeitsbereich „Bewertungen" | neue Route + Menüeintrag, Keyset-Liste mit Filtern, Statusspalte, „Bericht veraltet", Primäraktion „Neue Bewertung"; im Objekt dieselbe Liste vorgefiltert | AP1 |
+| AP4 | Workflow-Stepper + Freigabe | fünf Schritte mit echten Fertig-Bedingungen, „Zur Prüfung geben", Freigabe mit Bestätigung, Prüfansicht | AP2, AP3 |
+| AP5 | Fallart-Vorlagen | vier Vorlagen (Verfahren, Gewichtung, Referenz-Vorschläge), Anlege-Dialog aus dem Arbeitsbereich | AP4 |
+| AP6 | Varianten & Vergleich | Migration (`variant_group_id`, `variant_label`) + Decision-Register-Eintrag, Varianten-Umschalter im Fall, Nebeneinander-Vergleich der Verkehrswerte | AP5 |
+| AP7 | Comps-Speisung | CompsScreen → `ComparableSale`, Eignungs-Status („3 von mindestens 3") | AP2 |
+| AP8 | Cutover | Menüeinträge Schnellbewertung/Renovierung/Verkauf-Exit entfernen, Legacy-Screens + die drei IRR/NPV-Solver löschen, Doks/Status fortschreiben | AP5, AP6, AP7 |
+
+**Reihenfolge-Begründung.** AP3 vor AP4, weil ein Stepper ohne Einstiegsliste nur den
+bestehenden tiefen Klickweg reproduziert. AP5 vor AP6, weil Varianten ohne Vorlagen
+lediglich leere Kopien wären. AP8 zuletzt und in einem Zug, damit nie ein halb
+entfernter Menüpunkt existiert — und erst, wenn die neuen Wege alles abdecken, was die
+drei Werkzeuge heute leisten (Parität wird vor dem Löschen am realen Objekt geprüft,
+nicht behauptet).
+
+**Was diese Überarbeitung ausdrücklich nicht anfasst:** die Engine (fertig und
+getestet), den P2-D07-Contract (bis auf die Varianten-Spalten), die Legacy-Daten der
+drei Modul-Tabellen (deren Übernahme ist Sache des Dry-Run-Mappers, nicht der UI) und
+`Kriterien` (bleibt, speist die Vorlagen).
+
+## Reihenfolge und Begründung (AP1-Stand, historisch)
 
 1. **AP1 — Geteilte Bewertungs-Bausteine + AnalysisScreen-Abschnitt.** Die Darstellung
    von „nicht ermittelbar", Provenienz-Badges und Verfahrenskarten wird einmal gebaut
@@ -142,7 +263,7 @@ separater Wertermittlungs-Screen bleibt optional und würde gesondert bestätigt
    `normalize.dart:77-85` verschwindet aus der Bedienung — ein Vorschlag ist ab jetzt
    ein sichtbarer, bestätigungspflichtiger Schritt.
 
-## AP3 — SCR-014 CompsScreen (Speisung des Vergleichswertverfahrens)
+## SCR-014 CompsScreen (Speisung des Vergleichswertverfahrens) — jetzt AP7
 
 1. **Zielbild**: Vergleichsobjekte sind nicht mehr nur eine Liste, sondern der
    **Input eines Verfahrens**: pro Comp der angepasste €/m²-Preis, sichtbar welche
@@ -165,7 +286,7 @@ separater Wertermittlungs-Screen bleibt optional und würde gesondert bestätigt
 6. **Debt resolved**: Der Screen bekommt erstmals eine Wirkung über die reine Ablage
    hinaus; Farbliterale/`Card`-Eigenbau → `nx_*`.
 
-## AP4 — SCR-017 Bewertungsdaten-Tab + SCR-055/SCR-057 Konsolidierung (`DUP-012`)
+## SCR-017 Bewertungsdaten-Tab + SCR-055/SCR-057 Konsolidierung (`DUP-012`) — jetzt AP5/AP8
 
 1. **Zielbild**: Ein Szenario zeigt seine Bewertungsdaten im selben Muster wie der
    AnalysisScreen; Quick-Screening und Disposition-Exit arbeiten nicht mehr auf drei

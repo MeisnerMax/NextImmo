@@ -23,6 +23,7 @@ import '../screens/parties/parties_screen.dart';
 import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
 import '../screens/quick_screening_screen.dart';
+import '../screens/valuations/valuations_screen.dart';
 import '../screens/renovation_value_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
@@ -203,6 +204,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const AuditScreen();
       case GlobalPage.compare:
         return const CompareScreen();
+      case GlobalPage.valuations:
+        return const ValuationsScreen();
       case GlobalPage.quickScreening:
         return const QuickScreeningScreen();
       case GlobalPage.renovationValue:
