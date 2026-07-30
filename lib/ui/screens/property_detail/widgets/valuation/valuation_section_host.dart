@@ -10,6 +10,7 @@ import '../../../../../features/valuation/domain/valuation_case_dto.dart';
 import '../../../../state/scenario_state.dart';
 import 'valuation_factors_section.dart';
 import 'valuation_section.dart';
+import 'valuation_workflow_stepper.dart';
 
 /// Binds [ValuationSection] to the valuation contract for one scenario.
 ///
@@ -145,15 +146,36 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        ValuationWorkflowStepper(
+          state: state,
+          onGoToFactors: () => setState(
+            () => _focusFactorId =
+                state.missingFactors.firstOrNull?.factorId ?? _focusFactorId,
+          ),
+          onPublish: canWrite ? () => controller.publishReport() : null,
+          onSubmitForReview: canWrite
+              ? () => controller.transitionStatus(
+                  ValuationCaseStatus.inReview,
+                  reason: 'Zur Prüfung gegeben',
+                )
+              : null,
+          onReturnToDraft: canWrite
+              ? () => controller.transitionStatus(
+                  ValuationCaseStatus.draft,
+                  reason: 'Zurück in Bearbeitung',
+                )
+              : null,
+          onApprove: controller.canApprove
+              ? () => _confirmApproval(context, controller)
+              : null,
+        ),
+        const SizedBox(height: 16),
+        // Publish and approve live in the stepper, which owns the workflow —
+        // offering the same two actions twice on one screen would only make it
+        // ambiguous which one is "the" step.
         ValuationSection(
           state: state,
           onRetry: controller.load,
-          onPublish: canWrite ? () => controller.publishReport() : null,
-          onApprove:
-              controller.canApprove &&
-                  state.valuationCase?.status == ValuationCaseStatus.inReview
-              ? () => _confirmApproval(context, controller)
-              : null,
           onAcceptSuggestion: canWrite ? controller.acceptSuggestion : null,
           onJumpToFactor: (factorId) {
             setState(() => _focusFactorId = factorId);
