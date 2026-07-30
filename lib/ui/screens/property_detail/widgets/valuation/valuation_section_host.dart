@@ -6,7 +6,9 @@ import '../../../../../features/identity_access/application/workspace_session_sc
 import '../../../../../features/valuation/application/valuation_case_lookup.dart';
 import '../../../../../features/valuation/application/valuation_repository.dart';
 import '../../../../../features/valuation/domain/valuation_case.dart';
+import '../../../../../features/valuation/domain/valuation_case_dto.dart';
 import '../../../../state/scenario_state.dart';
+import 'valuation_factors_section.dart';
 import 'valuation_section.dart';
 
 /// Binds [ValuationSection] to the valuation contract for one scenario.
@@ -111,14 +113,24 @@ class ValuationSectionHost extends ConsumerWidget {
   }
 }
 
-class _CaseSection extends ConsumerWidget {
+class _CaseSection extends ConsumerStatefulWidget {
   const _CaseSection({required this.valuationCaseId, this.onJumpToFactor});
 
   final String valuationCaseId;
   final void Function(String factorId)? onJumpToFactor;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CaseSection> createState() => _CaseSectionState();
+}
+
+class _CaseSectionState extends ConsumerState<_CaseSection> {
+  /// The factor a missing-value reason pointed at. Held here because the
+  /// results and the entry form are two widgets that have to agree on it.
+  String? _focusFactorId;
+
+  @override
+  Widget build(BuildContext context) {
+    final valuationCaseId = widget.valuationCaseId;
     final provider = valuationCaseControllerProvider(valuationCaseId);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
@@ -130,17 +142,44 @@ class _CaseSection extends ConsumerWidget {
         state.valuationCase?.status == ValuationCaseStatus.archived;
     final canWrite = controller.canManage && !isClosed;
 
-    return ValuationSection(
-      state: state,
-      onRetry: controller.load,
-      onPublish: canWrite ? () => controller.publishReport() : null,
-      onApprove:
-          controller.canApprove &&
-              state.valuationCase?.status == ValuationCaseStatus.inReview
-          ? () => _confirmApproval(context, controller)
-          : null,
-      onAcceptSuggestion: canWrite ? controller.acceptSuggestion : null,
-      onJumpToFactor: onJumpToFactor,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ValuationSection(
+          state: state,
+          onRetry: controller.load,
+          onPublish: canWrite ? () => controller.publishReport() : null,
+          onApprove:
+              controller.canApprove &&
+                  state.valuationCase?.status == ValuationCaseStatus.inReview
+              ? () => _confirmApproval(context, controller)
+              : null,
+          onAcceptSuggestion: canWrite ? controller.acceptSuggestion : null,
+          onJumpToFactor: (factorId) {
+            setState(() => _focusFactorId = factorId);
+            widget.onJumpToFactor?.call(factorId);
+          },
+        ),
+        const SizedBox(height: 24),
+        ValuationFactorsSection(
+          state: state,
+          focusFactorId: _focusFactorId,
+          onSave: canWrite
+              ? (changed) => controller.saveFactors(
+                  changed,
+                  reason: 'Faktoren erfasst',
+                )
+              : null,
+          onAcceptSuggestion: canWrite ? controller.acceptSuggestion : null,
+          onClearFactor: canWrite
+              ? (factorId) => controller.saveFactors(
+                  const <ValuationFactorDto>[],
+                  removeFactorIds: <String>[factorId],
+                  reason: 'Faktor entfernt',
+                )
+              : null,
+        ),
+      ],
     );
   }
 
