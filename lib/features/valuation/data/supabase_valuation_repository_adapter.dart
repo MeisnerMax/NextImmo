@@ -310,6 +310,26 @@ class SupabaseValuationRepositoryAdapter
   }
 
   @override
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createValuationVariant(
+    CreateValuationVariantCommand command,
+  ) {
+    return _dispatchDetail(
+      function: 'create_valuation_variant',
+      workspaceId: command.context.workspaceId,
+      parameters: {
+        'p_workspace_id': command.context.workspaceId,
+        'p_source_valuation_case_id': command.sourceValuationCaseId,
+        'p_variant_label': command.variantLabel,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_source_variant_label': command.sourceVariantLabel,
+        'p_title': command.title,
+        'p_reason': command.context.reason,
+      },
+    );
+  }
+
+  @override
   Future<ValuationRepositoryResult<ValuationCaseDto>>
   transitionValuationCaseStatus(
     TransitionValuationCaseStatusCommand command,

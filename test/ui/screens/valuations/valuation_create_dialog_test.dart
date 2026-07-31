@@ -86,6 +86,11 @@ class _CapturingRepository implements ValuationCaseRepository {
   ) async => throw UnimplementedError();
 
   @override
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createValuationVariant(
+    CreateValuationVariantCommand command,
+  ) async => throw UnimplementedError();
+
+  @override
   Future<ValuationRepositoryResult<ValuationCaseDto>>
   transitionValuationCaseStatus(
     TransitionValuationCaseStatusCommand command,

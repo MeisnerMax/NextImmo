@@ -252,6 +252,35 @@ class UpsertValuationFactorsCommand {
   final List<String> removeFactorIds;
 }
 
+/// Copies a case into a named sibling variant (`DEC-023`).
+///
+/// The command carries no factors and no report: the server copies the source's
+/// configuration and factors, and deliberately leaves the report behind — a
+/// variant that arrived with somebody else's published result would be a
+/// borrowed number.
+class CreateValuationVariantCommand {
+  const CreateValuationVariantCommand({
+    required this.context,
+    required this.sourceValuationCaseId,
+    required this.variantLabel,
+    this.sourceVariantLabel = 'Basis',
+    this.title,
+  });
+
+  final ValuationCommandContext context;
+  final String sourceValuationCaseId;
+
+  /// Name of the new variant inside the group.
+  final String variantLabel;
+
+  /// Name the source takes when this call is what forms the group. Ignored once
+  /// the source already belongs to one.
+  final String sourceVariantLabel;
+
+  /// Null keeps the source's title.
+  final String? title;
+}
+
 class TransitionValuationCaseStatusCommand {
   const TransitionValuationCaseStatusCommand({
     required this.context,
@@ -372,6 +401,12 @@ abstract interface class ValuationCaseRepository {
 
   Future<ValuationRepositoryResult<ValuationCaseDetail>> updateValuationCase(
     UpdateValuationCaseCommand command,
+  );
+
+  /// Creates a sibling variant of an existing case. The returned detail is the
+  /// new variant — a draft with the source's factors and no report of its own.
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createValuationVariant(
+    CreateValuationVariantCommand command,
   );
 
   /// Approving requires `valuation.approve`; the server rejects any transition

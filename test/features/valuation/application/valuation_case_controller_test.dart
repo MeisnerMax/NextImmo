@@ -187,6 +187,11 @@ class _FakePorts
   ) async => throw UnimplementedError();
 
   @override
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createValuationVariant(
+    CreateValuationVariantCommand command,
+  ) async => throw UnimplementedError();
+
+  @override
   Future<ValuationRepositoryResult<ValuationPageResult<ValuationCaseDto>>>
   searchValuationCases(ValuationCaseListQuery query) async =>
       throw UnimplementedError();

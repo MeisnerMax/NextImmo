@@ -36,7 +36,12 @@ class ValuationCaseDto {
     this.scenarioId,
     this.weightOverrides = const {},
     this.minimumComparables = 3,
-  });
+    this.variantGroupId,
+    this.variantLabel,
+  }) : assert(
+         (variantGroupId == null) == (variantLabel == null),
+         'Varianten-Gruppe und -Name gehören zusammen (DEC-023).',
+       );
 
   final String id;
   final String workspaceId;
@@ -49,6 +54,12 @@ class ValuationCaseDto {
   final Set<ValuationMethodKind> enabledMethods;
   final Map<ValuationMethodKind, double> weightOverrides;
   final int minimumComparables;
+
+  /// Set together with [variantLabel] when this case is one named variant among
+  /// siblings (`DEC-023`); both null for a standalone case.
+  final String? variantGroupId;
+  final String? variantLabel;
+
   final DateTime createdAt;
   final DateTime updatedAt;
   final String createdBy;
@@ -86,6 +97,8 @@ class ValuationCaseDto {
       enabledMethods: _methodSet(json['enabled_methods']),
       weightOverrides: _weightMap(json['weight_overrides']),
       minimumComparables: (json['minimum_comparables'] as num?)?.toInt() ?? 3,
+      variantGroupId: _variantGroupId(json),
+      variantLabel: _variantLabel(json),
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: json['created_by'] as String? ?? '',
@@ -110,6 +123,8 @@ class ValuationCaseDto {
         entry.key.wireName: entry.value,
     },
     'minimum_comparables': minimumComparables,
+    'variant_group_id': variantGroupId,
+    'variant_label': variantLabel,
     'created_at': createdAt.toUtc().toIso8601String(),
     'updated_at': updatedAt.toUtc().toIso8601String(),
     'created_by': createdBy,
@@ -137,6 +152,21 @@ class ValuationCaseDto {
     weightOverrides: weightOverrides,
     minimumComparables: minimumComparables,
   );
+
+  /// Both variant fields are read as a pair: a row that carries only one of
+  /// them cannot exist (check constraint), and treating a half-pair as a
+  /// grouping would invent a variant the database does not have.
+  static String? _variantGroupId(Map<String, dynamic> json) {
+    final group = json['variant_group_id'];
+    final label = json['variant_label'];
+    return group is String && label is String ? group : null;
+  }
+
+  static String? _variantLabel(Map<String, dynamic> json) {
+    final group = json['variant_group_id'];
+    final label = json['variant_label'];
+    return group is String && label is String ? label : null;
+  }
 
   static Set<ValuationMethodKind> _methodSet(Object? raw) {
     if (raw is! List) return ValuationCase.allMethodKinds;

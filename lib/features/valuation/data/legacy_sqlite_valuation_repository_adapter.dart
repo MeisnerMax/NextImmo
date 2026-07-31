@@ -233,6 +233,11 @@ class LegacySqliteValuationRepositoryAdapter
   ) async => _unsupported<ValuationCaseDetail>('Bewertungsfall ändern');
 
   @override
+  Future<ValuationRepositoryResult<ValuationCaseDetail>> createValuationVariant(
+    CreateValuationVariantCommand command,
+  ) async => _unsupported<ValuationCaseDetail>('Variante anlegen');
+
+  @override
   Future<ValuationRepositoryResult<ValuationCaseDto>>
   transitionValuationCaseStatus(
     TransitionValuationCaseStatusCommand command,

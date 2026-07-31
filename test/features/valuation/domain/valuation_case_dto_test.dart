@@ -49,6 +49,36 @@ void main() {
       expect(restored.updatedAt, DateTime.utc(2026, 7, 28, 11, 30));
     });
 
+    test('carries the variant grouping when the row has one', () {
+      final json = _caseDto().toJson()
+        ..['variant_group_id'] = 'group-1'
+        ..['variant_label'] = 'Konservativ';
+
+      final restored = ValuationCaseDto.fromJson(json)!;
+
+      expect(restored.variantGroupId, 'group-1');
+      expect(restored.variantLabel, 'Konservativ');
+    });
+
+    test('a standalone case carries no grouping', () {
+      final restored = ValuationCaseDto.fromJson(_caseDto().toJson())!;
+
+      expect(restored.variantGroupId, isNull);
+      expect(restored.variantLabel, isNull);
+    });
+
+    test('half a grouping is read as none, never as a variant', () {
+      // The database cannot produce this (check constraint), so a row that
+      // looks like it is not a variant — it is a broken row, and inventing a
+      // group from it would show a variant that does not exist.
+      final json = _caseDto().toJson()..['variant_group_id'] = 'group-1';
+
+      final restored = ValuationCaseDto.fromJson(json)!;
+
+      expect(restored.variantGroupId, isNull);
+      expect(restored.variantLabel, isNull);
+    });
+
     test('returns null for a row with an unknown status', () {
       final json = _caseDto().toJson()..['status'] = 'freigegeben';
 

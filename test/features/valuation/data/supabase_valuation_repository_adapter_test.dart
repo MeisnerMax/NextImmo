@@ -250,6 +250,69 @@ void main() {
     });
   });
 
+  group('createValuationVariant', () {
+    test('sends the source case and both labels', () async {
+      final gateway = _FakeGateway(
+        rpcResponse: {
+          'ok': true,
+          'entity': {
+            ..._caseRow(),
+            'id': 'case-2',
+            'variant_group_id': 'group-1',
+            'variant_label': 'Konservativ',
+            'factors': <Object>[],
+          },
+        },
+      );
+      final adapter = SupabaseValuationRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.createValuationVariant(
+        const CreateValuationVariantCommand(
+          context: _context,
+          sourceValuationCaseId: 'case-1',
+          variantLabel: 'Konservativ',
+        ),
+      );
+
+      final detail =
+          (result as ValuationRepositorySuccess<ValuationCaseDetail>).value;
+      expect(detail.valuationCase.variantLabel, 'Konservativ');
+      expect(detail.valuationCase.variantGroupId, 'group-1');
+
+      final call = gateway.calls.single;
+      expect(call.function, 'create_valuation_variant');
+      expect(call.parameters['p_source_valuation_case_id'], 'case-1');
+      expect(call.parameters['p_variant_label'], 'Konservativ');
+      expect(call.parameters['p_source_variant_label'], 'Basis');
+    });
+
+    test('a duplicate label comes back as a validation failure', () async {
+      final gateway = _FakeGateway(
+        rpcResponse: {
+          'ok': false,
+          'error': {
+            'code': 'validation_failed',
+            'message': 'A variant with this name already exists in the group',
+          },
+        },
+      );
+      final adapter = SupabaseValuationRepositoryAdapter.withGateway(gateway);
+
+      final result = await adapter.createValuationVariant(
+        const CreateValuationVariantCommand(
+          context: _context,
+          sourceValuationCaseId: 'case-1',
+          variantLabel: 'Konservativ',
+        ),
+      );
+
+      expect(
+        (result as ValuationRepositoryFailure).kind,
+        ValuationRepositoryFailureKind.validationFailed,
+      );
+    });
+  });
+
   group('publishReport', () {
     test('serializes an unavailable method without an amount', () async {
       final gateway = _FakeGateway(
