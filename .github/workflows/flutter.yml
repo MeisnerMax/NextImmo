@@ -63,6 +63,8 @@ jobs:
         shell: pwsh
         run: |
           supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/023_p2_d07_variants_down.test.sql
+          supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/022_p2_d05_leasing_cases_rent_roll_realtime_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/021_p2_d05_leasing_cases_rent_roll_down.test.sql

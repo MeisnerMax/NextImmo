@@ -25,6 +25,8 @@
 | DEC-021 | SQLite und Supabase werden nur ueber explizite Environment-Auswahl initialisiert; der Supabase-Referenzschnitt besitzt stabile `/properties`- und `/properties/:id`-Routen. | accepted | `lib/main.dart`, `lib/app.dart`, Kaltstart-Deep-Link-Test und Web-Build | revisit only after routing-shell consolidation |
 | DEC-022 | Entitlement-Aenderungen werden ueber private, nutzergebundene Realtime-Broadcasts signalisiert; kanonische Repository-Revalidation, Reconnect und ein begrenztes Intervall bleiben autoritativ. Client-Caches werden vor der Revalidation fail-closed geleert. | accepted | P1-017 Migration, Adapter-/Controller-Tests und lokaler Zwei-Client-Entzugstest | revisit for offline/sync or measured scale limits |
 
+| DEC-023 | Bewertungsvarianten werden über zwei eigene Spalten auf `valuation_cases` gruppiert (`variant_group_id`, `variant_label`), nicht über den Legacy-Szenariobegriff und nicht über Titel-Konventionen. Eine Variante ist ein vollwertiger Fall mit eigener Version, eigenem Status und eigenem Bericht. | accepted | Nutzerentscheidung 2026-07-30; `scenario_id` als Gruppierung würde die gerade entkoppelte Legacy-Semantik wieder einführen, Titel-Konventionen wären implizite Semantik ohne Constraint | revisit only if variants ever need to differ structurally from a case |
+
 ## Open Decision Rule
 
 Open decisions do not block independent local work. Each implementation backlog item must name any decision that must be resolved before merge or deployment.
