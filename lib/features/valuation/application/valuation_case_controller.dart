@@ -385,6 +385,55 @@ class ValuationCaseController extends StateNotifier<ValuationCaseState> {
     }
   }
 
+  /// Copies this case into a named sibling variant and returns the new case id,
+  /// or null when the command did not run. The variant is a draft with the same
+  /// factors and no report of its own (`DEC-023`).
+  Future<String?> createVariant({
+    required String variantLabel,
+    String sourceVariantLabel = 'Basis',
+  }) async {
+    final guard = _guardMutation();
+    if (guard != null) {
+      state = guard;
+      return null;
+    }
+
+    final detail = state.detail!;
+    state = state.copyWith(
+      actionPhase: ValuationActionPhase.submitting,
+      clearActionMessage: true,
+      clearVersionConflict: true,
+    );
+
+    final result = await _repository.createValuationVariant(
+      CreateValuationVariantCommand(
+        context: _context('Variante „$variantLabel" angelegt'),
+        sourceValuationCaseId: detail.valuationCase.id,
+        variantLabel: variantLabel,
+        sourceVariantLabel: sourceVariantLabel,
+      ),
+    );
+    if (!mounted) return null;
+
+    switch (result) {
+      case ValuationRepositorySuccess(:final value):
+        state = state.copyWith(
+          actionPhase: ValuationActionPhase.succeeded,
+          actionMessage: 'Variante „$variantLabel" angelegt.',
+        );
+        // The source now carries its own variant name, so reload it too.
+        await load();
+        return value.valuationCase.id;
+      case ValuationRepositoryFailure(
+        :final kind,
+        :final message,
+        :final versionConflict,
+      ):
+        state = _applyFailure(kind, message, versionConflict);
+        return null;
+    }
+  }
+
   /// Moves the case through its lifecycle. Approving needs `valuation.approve`
   /// and is final: an approved case is a record, and the server enforces that
   /// with `approved_immutable`.

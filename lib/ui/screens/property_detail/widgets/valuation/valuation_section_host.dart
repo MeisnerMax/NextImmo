@@ -4,13 +4,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../features/valuation/application/valuation_case_controller.dart';
 import '../../../../../features/identity_access/application/workspace_session_scope.dart';
 import '../../../../../features/valuation/application/valuation_case_lookup.dart';
+import '../../../../../features/valuation/application/valuation_variant_group.dart';
 import '../../../../../features/valuation/application/valuation_repository.dart';
 import '../../../../../features/valuation/domain/valuation_case.dart';
 import '../../../../../features/valuation/domain/valuation_case_dto.dart';
 import '../../../../state/scenario_state.dart';
 import 'valuation_factors_section.dart';
 import 'valuation_section.dart';
+import 'valuation_variant_bar.dart';
 import 'valuation_workflow_stepper.dart';
+
+/// Renders the variant group of the open case. It stays out of the way when a
+/// case stands alone: one tile, plus the action that would create a sibling.
+class _VariantBar extends ConsumerWidget {
+  const _VariantBar({
+    required this.state,
+    required this.activeCaseId,
+    required this.canWrite,
+    required this.onSelect,
+    required this.onCreateVariant,
+  });
+
+  final ValuationCaseState state;
+  final String activeCaseId;
+  final bool canWrite;
+  final void Function(ValuationCaseDto valuationCase) onSelect;
+  final VoidCallback onCreateVariant;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final valuationCase = state.valuationCase;
+    if (valuationCase == null) return const SizedBox.shrink();
+
+    final groupId = valuationCase.variantGroupId;
+    final entries = groupId == null
+        ? const AsyncValue<List<ValuationVariantEntry>>.data(
+            <ValuationVariantEntry>[],
+          )
+        : ref.watch(
+            valuationVariantGroupProvider((
+              propertyId: valuationCase.propertyId,
+              groupId: groupId,
+            )),
+          );
+
+    return ValuationVariantBar(
+      entries: entries.valueOrNull ?? const <ValuationVariantEntry>[],
+      activeCaseId: activeCaseId,
+      onSelect: onSelect,
+      onCreateVariant: canWrite ? onCreateVariant : null,
+    );
+  }
+}
 
 /// Binds [ValuationSection] to the valuation contract for one scenario.
 ///
@@ -129,9 +174,13 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
   /// results and the entry form are two widgets that have to agree on it.
   String? _focusFactorId;
 
+  /// The variant currently open, when the user switched away from the case the
+  /// scenario lookup resolved.
+  String? _selectedVariantCaseId;
+
   @override
   Widget build(BuildContext context) {
-    final valuationCaseId = widget.valuationCaseId;
+    final valuationCaseId = _selectedVariantCaseId ?? widget.valuationCaseId;
     final provider = valuationCaseControllerProvider(valuationCaseId);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
@@ -170,6 +219,15 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
               : null,
         ),
         const SizedBox(height: 16),
+        _VariantBar(
+          state: state,
+          activeCaseId: valuationCaseId,
+          canWrite: canWrite,
+          onSelect: (selected) =>
+              setState(() => _selectedVariantCaseId = selected.id),
+          onCreateVariant: () => _createVariant(context, controller, state),
+        ),
+        const SizedBox(height: 16),
         // Publish and approve live in the stepper, which owns the workflow —
         // offering the same two actions twice on one screen would only make it
         // ambiguous which one is "the" step.
@@ -203,6 +261,62 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
         ),
       ],
     );
+  }
+
+  /// Asks for the variant's name, then copies the case. The copy is a draft
+  /// with the same factors and no report — the dialog says so, because a
+  /// variant that looked pre-computed would invite trusting a number nobody
+  /// derived for it.
+  Future<void> _createVariant(
+    BuildContext context,
+    ValuationCaseController controller,
+    ValuationCaseState state,
+  ) async {
+    final valuationCase = state.valuationCase;
+    if (valuationCase == null) return;
+
+    final labelController = TextEditingController();
+    final label = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Variante anlegen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              'Die Variante übernimmt Faktoren und Verfahren, aber keinen '
+              'Bericht — sie wird eigenständig gerechnet und veröffentlicht.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: labelController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Name der Variante',
+                hintText: 'z. B. Konservativ',
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(labelController.text),
+            child: const Text('Anlegen'),
+          ),
+        ],
+      ),
+    );
+    labelController.dispose();
+    if (label == null || label.trim().isEmpty) return;
+
+    final created = await controller.createVariant(variantLabel: label.trim());
+    if (!mounted || created == null) return;
+    setState(() => _selectedVariantCaseId = created);
   }
 
   /// Approval is irreversible (`AGG-014`): the case becomes a record and the
