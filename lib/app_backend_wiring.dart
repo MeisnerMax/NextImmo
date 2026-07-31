@@ -31,8 +31,18 @@ import 'features/documents_compliance/data/legacy_sqlite_document_repository_ada
 import 'features/documents_compliance/data/supabase_document_query_invalidation_adapter.dart';
 import 'features/documents_compliance/data/supabase_document_repository_adapter.dart';
 import 'features/identity_access/application/workspace_session_scope.dart';
+// Prefixed: the leasing seam names its port `leaseRepositoryProvider`, which
+// collides with the legacy `LeaseRepo` provider of the same name in
+// `ui/state/app_state.dart`. Screens import only one of the two, so the prefix
+// stays local to this composition root.
+import 'features/leasing_operations/application/leasing_providers.dart'
+    as leasing;
+import 'features/leasing_operations/data/legacy_sqlite_leasing_repository_adapter.dart';
+import 'features/leasing_operations/data/supabase_leasing_query_invalidation_adapter.dart';
+import 'features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
 import 'features/valuation/application/valuation_providers.dart';
+import 'features/valuation/data/legacy_comps_comparable_source.dart';
 import 'features/valuation/data/legacy_sqlite_valuation_repository_adapter.dart';
 import 'features/valuation/data/supabase_valuation_query_invalidation_adapter.dart';
 import 'features/valuation/data/supabase_valuation_repository_adapter.dart';
@@ -91,6 +101,14 @@ final legacyValuationReadSourceProvider = Provider<LegacyValuationReadSource>((
   );
 });
 
+/// Both backend modes read comparables from the legacy comps store: the P2-D07
+/// comps aggregate is not migrated yet, so there is no cloud source to bind.
+/// Stated here rather than hidden behind a mode switch that pretends otherwise.
+final valuationComparableSourceOverride =
+    valuationComparableSourceProvider.overrideWith(
+      (ref) => LegacyCompsComparableSource(ref.watch(compsRepositoryProvider)),
+    );
+
 final legacyValuationRepositoryAdapterProvider =
     Provider<LegacySqliteValuationRepositoryAdapter>((ref) {
       return LegacySqliteValuationRepositoryAdapter(
@@ -101,7 +119,58 @@ final legacyValuationRepositoryAdapterProvider =
       );
     });
 
-/// The provider overrides that bind the Wave 2 and Wave 5 contracts to
+final legacyLeasingReadSourceProvider = Provider<LegacyLeasingReadSource>((ref) {
+  return RepositoryLegacyLeasingReadSource(
+    propertyRepo: ref.watch(propertyRepositoryProvider),
+    rentRollRepo: ref.watch(rentRollRepositoryProvider),
+    leaseRepo: ref.watch(leaseRepositoryProvider),
+  );
+});
+
+/// Four legacy adapters rather than one, because the four leasing aggregates
+/// share the natural method names — the same reason the Supabase side builds
+/// four. They share one read source, so they still read one database.
+final legacyUnitRepositoryAdapterProvider =
+    Provider<LegacySqliteUnitRepositoryAdapter>((ref) {
+      return LegacySqliteUnitRepositoryAdapter(
+        source: ref.watch(legacyLeasingReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
+final legacyLeaseRepositoryAdapterProvider =
+    Provider<LegacySqliteLeaseRepositoryAdapter>((ref) {
+      return LegacySqliteLeaseRepositoryAdapter(
+        source: ref.watch(legacyLeasingReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
+final legacyLeasingCaseRepositoryAdapterProvider =
+    Provider<LegacySqliteLeasingCaseRepositoryAdapter>((ref) {
+      return LegacySqliteLeasingCaseRepositoryAdapter(
+        source: ref.watch(legacyLeasingReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
+final legacyRentRollAdapterProvider = Provider<LegacySqliteRentRollAdapter>((
+  ref,
+) {
+  return LegacySqliteRentRollAdapter(
+    source: ref.watch(legacyLeasingReadSourceProvider),
+    legacyWorkspaceId:
+        ref.watch(activeWorkspaceIdProvider) ?? _unresolvedLegacyWorkspaceId,
+  );
+});
+
+/// The provider overrides that bind the Wave 2, Wave 3 and Wave 5 contracts to
 /// [environment]'s backend. [client] is required in cloud mode and ignored
 /// otherwise.
 List<Override> featureBackendOverrides({
@@ -116,6 +185,10 @@ List<Override> featureBackendOverrides({
       final parties = SupabasePartyRepositoryAdapter(client: client);
       final documents = SupabaseDocumentRepositoryAdapter(client: client);
       final valuations = SupabaseValuationRepositoryAdapter(client: client);
+      final leasingUnits = SupabaseUnitRepositoryAdapter(client: client);
+      final leasingLeases = SupabaseLeaseRepositoryAdapter(client: client);
+      final leasingCases = SupabaseLeasingCaseRepositoryAdapter(client: client);
+      final leasingRentRoll = SupabaseRentRollAdapter(client: client);
       return <Override>[
         // The authenticated reference session is the cloud host's identity.
         workspaceSessionScopeProvider.overrideWith((ref) {
@@ -141,6 +214,7 @@ List<Override> featureBackendOverrides({
         requirementPolicyProvider.overrideWithValue(documents),
         documentVerificationProvider.overrideWithValue(documents),
         signedUrlProvider.overrideWithValue(documents),
+        documentUploadProvider.overrideWithValue(documents),
         documentQueryInvalidationSourceProvider.overrideWithValue(
           SupabaseDocumentQueryInvalidationAdapter(client: client),
         ),
@@ -149,6 +223,17 @@ List<Override> featureBackendOverrides({
         valuationReportProvider.overrideWithValue(valuations),
         valuationQueryInvalidationSourceProvider.overrideWithValue(
           SupabaseValuationQueryInvalidationAdapter(client: client),
+        ),
+        valuationComparableSourceOverride,
+        leasing.unitRepositoryProvider.overrideWithValue(leasingUnits),
+        leasing.unitSearchProvider.overrideWithValue(leasingUnits),
+        leasing.leaseRepositoryProvider.overrideWithValue(leasingLeases),
+        leasing.leaseSearchProvider.overrideWithValue(leasingLeases),
+        leasing.leasingCaseRepositoryProvider.overrideWithValue(leasingCases),
+        leasing.leasingCaseSearchProvider.overrideWithValue(leasingCases),
+        leasing.rentRollProvider.overrideWithValue(leasingRentRoll),
+        leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
+          SupabaseLeasingQueryInvalidationAdapter(client: client),
         ),
       ];
     case DataBackend.sqlite:
@@ -196,6 +281,9 @@ List<Override> featureBackendOverrides({
         signedUrlProvider.overrideWith(
           (ref) => ref.watch(legacyDocumentRepositoryAdapterProvider),
         ),
+        documentUploadProvider.overrideWith(
+          (ref) => ref.watch(legacyDocumentRepositoryAdapterProvider),
+        ),
         valuationCaseRepositoryProvider.overrideWith(
           (ref) => ref.watch(legacyValuationRepositoryAdapterProvider),
         ),
@@ -204,6 +292,28 @@ List<Override> featureBackendOverrides({
         ),
         valuationReportProvider.overrideWith(
           (ref) => ref.watch(legacyValuationRepositoryAdapterProvider),
+        ),
+        valuationComparableSourceOverride,
+        leasing.unitRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyUnitRepositoryAdapterProvider),
+        ),
+        leasing.unitSearchProvider.overrideWith(
+          (ref) => ref.watch(legacyUnitRepositoryAdapterProvider),
+        ),
+        leasing.leaseRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyLeaseRepositoryAdapterProvider),
+        ),
+        leasing.leaseSearchProvider.overrideWith(
+          (ref) => ref.watch(legacyLeaseRepositoryAdapterProvider),
+        ),
+        leasing.leasingCaseRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyLeasingCaseRepositoryAdapterProvider),
+        ),
+        leasing.leasingCaseSearchProvider.overrideWith(
+          (ref) => ref.watch(legacyLeasingCaseRepositoryAdapterProvider),
+        ),
+        leasing.rentRollProvider.overrideWith(
+          (ref) => ref.watch(legacyRentRollAdapterProvider),
         ),
       ];
   }

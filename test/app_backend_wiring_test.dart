@@ -17,13 +17,17 @@ import 'package:neximmo_app/features/documents_compliance/application/document_r
 import 'package:neximmo_app/features/documents_compliance/data/legacy_sqlite_document_repository_adapter.dart';
 import 'package:neximmo_app/features/documents_compliance/data/supabase_document_query_invalidation_adapter.dart';
 import 'package:neximmo_app/features/documents_compliance/data/supabase_document_repository_adapter.dart';
+import 'package:neximmo_app/core/models/comps.dart';
+import 'package:neximmo_app/data/repositories/comps_repo.dart';
 import 'package:neximmo_app/features/documents_compliance/domain/document_dto.dart';
 import 'package:neximmo_app/features/valuation/application/valuation_providers.dart';
 import 'package:neximmo_app/features/valuation/application/valuation_repository.dart';
+import 'package:neximmo_app/features/valuation/data/legacy_comps_comparable_source.dart';
 import 'package:neximmo_app/features/valuation/data/legacy_sqlite_valuation_repository_adapter.dart';
 import 'package:neximmo_app/features/valuation/data/supabase_valuation_query_invalidation_adapter.dart';
 import 'package:neximmo_app/features/valuation/data/supabase_valuation_repository_adapter.dart';
 import 'package:neximmo_app/features/valuation/domain/valuation_case.dart';
+import 'package:neximmo_app/ui/state/app_state.dart';
 import 'package:neximmo_app/ui/state/security_state.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -127,6 +131,42 @@ void main() {
       expect(container.read(valuationFactorProvider), same(adapter));
       expect(container.read(valuationReportProvider), same(adapter));
       expect(adapter, isA<LegacySqliteValuationRepositoryAdapter>());
+    });
+
+    test('comparables come from the legacy comps store in both modes', () {
+      // The P2-D07 comps aggregate is not migrated, so there is no cloud
+      // source to bind — both modes read the same legacy store, stated rather
+      // than hidden behind a mode switch.
+      for (final environment in <AppEnvironment>[
+        _sqliteEnvironment,
+        _supabaseEnvironment,
+      ]) {
+        final client = environment.dataBackend == DataBackend.supabase
+            ? SupabaseClient(
+                environment.supabaseUrl!,
+                environment.supabasePublishableKey!,
+              )
+            : null;
+        if (client != null) {
+          addTearDown(() async => client.dispose());
+        }
+        final container = ProviderContainer(
+          overrides: <Override>[
+            compsRepositoryProvider.overrideWithValue(_StubCompsRepository()),
+            ...featureBackendOverrides(
+              environment: environment,
+              client: client,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        expect(
+          container.read(valuationComparableSourceProvider),
+          isA<LegacyCompsComparableSource>(),
+          reason: 'Backend ${environment.dataBackend}',
+        );
+      }
     });
 
     test('leaves every realtime invalidation source unbound', () {
@@ -328,6 +368,17 @@ class _EmptyLegacyPartyReadSource implements LegacyPartyReadSource {
 
   @override
   Future<List<ContactRecord>> listContacts() async => const <ContactRecord>[];
+}
+
+/// Stands in for the legacy comps repository, which would otherwise pull the
+/// whole SQLite database into a wiring test.
+class _StubCompsRepository implements CompsRepository {
+  @override
+  Future<List<CompSale>> listSales(String propertyId) async =>
+      const <CompSale>[];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _EmptyLegacyValuationReadSource implements LegacyValuationReadSource {

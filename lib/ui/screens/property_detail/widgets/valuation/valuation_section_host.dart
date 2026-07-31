@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../features/valuation/application/valuation_case_controller.dart';
 import '../../../../../features/identity_access/application/workspace_session_scope.dart';
 import '../../../../../features/valuation/application/valuation_case_lookup.dart';
+import '../../../../../features/valuation/application/valuation_providers.dart';
 import '../../../../../features/valuation/application/valuation_variant_group.dart';
 import '../../../../../features/valuation/application/valuation_repository.dart';
 import '../../../../../features/valuation/domain/valuation_case.dart';
@@ -184,6 +185,21 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
     final provider = valuationCaseControllerProvider(valuationCaseId);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
+
+    // The Vergleichswertverfahren runs on the property's comparables. They are
+    // handed to the engine as they arrive; until then the method reports how
+    // many suitable comps are still missing, which is the honest state rather
+    // than a hidden method.
+    final propertyId = state.valuationCase?.propertyId;
+    if (propertyId != null) {
+      final comparables = ref.watch(valuationComparablesProvider(propertyId));
+      final loaded = comparables.valueOrNull;
+      if (loaded != null && loaded.length != state.comparables.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) controller.setComparables(loaded);
+        });
+      }
+    }
 
     // A closed record offers no write affordances at all — the notice explains
     // why, instead of a button that is certain to fail.

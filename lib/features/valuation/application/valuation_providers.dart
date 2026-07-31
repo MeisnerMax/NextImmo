@@ -18,6 +18,8 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/methods/comparison_approach_method.dart';
+import 'valuation_comparable_source.dart';
 import 'valuation_query_invalidation_source.dart';
 import 'valuation_repository.dart';
 
@@ -37,3 +39,18 @@ final valuationReportProvider = Provider<ValuationReportPort>(
 /// no realtime channel to invalidate from.
 final valuationQueryInvalidationSourceProvider =
     Provider<ValuationQueryInvalidationSource?>((ref) => null);
+
+/// Comparables for the Vergleichswertverfahren. Bound in the composition root
+/// to the legacy comps store in both backend modes, because the P2-D07 comps
+/// aggregate has not been migrated yet — that is a stated gap, not a default.
+final valuationComparableSourceProvider = Provider<ValuationComparableSource>(
+  (ref) => throw StateError('ValuationComparableSource is not configured.'),
+);
+
+/// The comparables of one property, ready for the engine.
+final valuationComparablesProvider = FutureProvider.autoDispose
+    .family<List<ComparableSale>, String>((ref, propertyId) {
+      return ref
+          .watch(valuationComparableSourceProvider)
+          .listForProperty(propertyId);
+    });
