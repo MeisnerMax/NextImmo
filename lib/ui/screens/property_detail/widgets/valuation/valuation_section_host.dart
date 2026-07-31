@@ -109,7 +109,15 @@ class ValuationSectionHost extends ConsumerWidget {
           onJumpToFactor: onJumpToFactor,
         ),
         ValuationCaseAbsent() => ValuationSection(
-          state: const ValuationCaseState(loadPhase: ValuationLoadPhase.empty),
+          state: ValuationCaseState(
+            loadPhase: ValuationLoadPhase.empty,
+            // Without a create path the empty state has to say why, otherwise
+            // the screen is a dead end that looks like a missing feature.
+            message: canCreate
+                ? null
+                : 'Der lokale Bestand kann Bewertungen nur lesen — zum '
+                      'Anlegen die App im Supabase-Modus starten.',
+          ),
           onCreateCase: canCreate ? () => _createCase(context, ref) : null,
         ),
         ValuationCaseLookupForbidden(:final message) => ValuationSection(
@@ -179,6 +187,32 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
   /// scenario lookup resolved.
   String? _selectedVariantCaseId;
 
+  /// Anchor of the entry form. "Zu den Faktoren" scrolls to *this* rather than
+  /// relying on a focused factor: there is not always one to focus (a method
+  /// can be unavailable for a non-factor reason), and tapping twice with the
+  /// same factor would otherwise do nothing at all.
+  final GlobalKey _factorsAnchor = GlobalKey();
+
+  void _goToFactors() {
+    final missing = ref
+        .read(valuationCaseControllerProvider(
+          _selectedVariantCaseId ?? widget.valuationCaseId,
+        ))
+        .missingFactors
+        .firstOrNull
+        ?.factorId;
+    setState(() => _focusFactorId = missing ?? _focusFactorId);
+
+    final anchor = _factorsAnchor.currentContext;
+    if (anchor != null) {
+      Scrollable.ensureVisible(
+        anchor,
+        duration: kThemeAnimationDuration,
+        alignment: 0.1,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final valuationCaseId = _selectedVariantCaseId ?? widget.valuationCaseId;
@@ -213,10 +247,7 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
       children: <Widget>[
         ValuationWorkflowStepper(
           state: state,
-          onGoToFactors: () => setState(
-            () => _focusFactorId =
-                state.missingFactors.firstOrNull?.factorId ?? _focusFactorId,
-          ),
+          onGoToFactors: _goToFactors,
           onPublish: canWrite ? () => controller.publishReport() : null,
           onSubmitForReview: canWrite
               ? () => controller.transitionStatus(
@@ -258,6 +289,7 @@ class _CaseSectionState extends ConsumerState<_CaseSection> {
         ),
         const SizedBox(height: 24),
         ValuationFactorsSection(
+          key: _factorsAnchor,
           state: state,
           focusFactorId: _focusFactorId,
           onSave: canWrite

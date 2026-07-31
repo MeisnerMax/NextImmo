@@ -91,9 +91,12 @@ class ValuationSection extends StatelessWidget {
         return NxEmptyState(
           icon: Icons.calculate_outlined,
           title: 'Noch keine Bewertung',
+          // The caller supplies a reason when creating is not possible here;
+          // without one the state is the ordinary invitation.
           description:
+              state.message ??
               'Lege einen Bewertungsfall an, um Ertrags-, Sach- und '
-              'Vergleichswert sowie DCF zu rechnen.',
+                  'Vergleichswert sowie DCF zu rechnen.',
           primaryAction: onCreateCase == null
               ? null
               : FilledButton(

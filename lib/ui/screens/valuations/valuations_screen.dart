@@ -8,6 +8,7 @@ import '../../components/nx_content_frame.dart';
 import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
 import '../../components/nx_page_header.dart';
+import '../../components/nx_status_badge.dart';
 import '../property_detail/widgets/valuation/valuation_badges.dart';
 import 'valuation_create_dialog.dart';
 
@@ -48,10 +49,27 @@ class ValuationsScreen extends ConsumerWidget {
                   )
                 : null,
           ),
+          if (!controller.canCreate)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: NxStatusBadge(
+                label:
+                    'Lokaler Bestand: Bewertungen sind schreibgeschützt — '
+                    'Anlegen im Supabase-Modus',
+                kind: NxBadgeKind.warning,
+              ),
+            ),
           const SizedBox(height: 12),
           _Filters(state: state, controller: controller),
           const SizedBox(height: 12),
-          Expanded(child: _Body(state: state, controller: controller, onOpenCase: onOpenCase)),
+          Expanded(
+            child: _Body(
+              state: state,
+              controller: controller,
+              onOpenCase: onOpenCase,
+              onCreateCase: () => _createCase(context, ref, controller),
+            ),
+          ),
         ],
       ),
     );
@@ -142,8 +160,11 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.state,
     required this.controller,
+    required this.onCreateCase,
     this.onOpenCase,
   });
+
+  final VoidCallback onCreateCase;
 
   final ValuationWorkspaceState state;
   final ValuationWorkspaceController controller;
@@ -177,10 +198,23 @@ class _Body extends StatelessWidget {
           title: state.isFiltered
               ? 'Keine Bewertung für diesen Filter'
               : 'Noch keine Bewertungen',
+          // A screen that invites creating something the bound backend cannot
+          // create is a dead end; it says which backend can instead.
           description: state.isFiltered
               ? 'Setz den Filter zurück, um alle Bewertungen zu sehen.'
-              : 'Lege die erste Bewertung an — Ertrags-, Sach- und '
-                    'Vergleichswert sowie DCF werden daraus gerechnet.',
+              : controller.canCreate
+              ? 'Lege die erste Bewertung an — Ertrags-, Sach- und '
+                    'Vergleichswert sowie DCF werden daraus gerechnet.'
+              : 'Der lokale Bestand kann Bewertungen nur lesen: ihm fehlen '
+                    'Versionierung, Idempotenz und Audit-Envelope. Zum Anlegen '
+                    'die App im Supabase-Modus starten '
+                    '(NEXIMMO_DATA_BACKEND=supabase).',
+          primaryAction: controller.canCreate
+              ? FilledButton(
+                  onPressed: onCreateCase,
+                  child: const Text('Bewertung anlegen'),
+                )
+              : null,
         );
       case ValuationWorkspacePhase.idle:
       case ValuationWorkspacePhase.loading:

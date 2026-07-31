@@ -270,6 +270,26 @@ void main() {
     expect(find.text('Kein Zugriff auf Bewertungen'), findsOneWidget);
   });
 
+  testWidgets('the read-only backend says why nothing can be created',
+      (tester) async {
+    // Regression: the screen used to hide the action and leave an empty
+    // surface, which reads as a missing feature rather than a bound backend
+    // that cannot write.
+    final repository = _FakeRepository(
+      pages: <ValuationPageResult<ValuationCaseDto>>[
+        const ValuationPageResult<ValuationCaseDto>(
+          items: <ValuationCaseDto>[],
+        ),
+      ],
+    );
+
+    await _pump(tester, repository: repository, mutationsSupported: false);
+
+    expect(find.textContaining('schreibgeschützt'), findsOneWidget);
+    expect(find.textContaining('Supabase-Modus'), findsWidgets);
+    expect(find.text('Bewertung anlegen'), findsNothing);
+  });
+
   testWidgets('the read-only backend offers no create action', (tester) async {
     final repository = _FakeRepository(
       pages: <ValuationPageResult<ValuationCaseDto>>[
