@@ -18,7 +18,12 @@ void main() {
     final theme = AppTheme.light();
     final semantic = theme.extension<AppSemanticColors>()!;
 
-    expect(theme.cardTheme.color, AppColors.surface);
+    // The card surface is the translucent depth token, not the opaque surface
+    // token, since Liquid Enterprise cards are glass. Pinned to the extension
+    // rather than to a literal so a reintroduced hex in either source still
+    // fails loudly — which is what this guard exists for.
+    expect(theme.cardTheme.color, semantic.glassFill);
+    expect(theme.colorScheme.surface, AppColors.surface);
     expect(semantic.border, AppColors.border);
     expect(theme.colorScheme.onSurface, AppColors.textPrimary);
     expect(semantic.textSecondary, AppColors.textSecondary);

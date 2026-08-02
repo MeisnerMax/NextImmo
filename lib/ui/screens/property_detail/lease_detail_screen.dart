@@ -71,21 +71,21 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
     String label;
     switch (source) {
       case 'manual_override':
-        color = Colors.orange;
+        color = context.semanticColors.warning;
         label = 'Manuell';
         break;
       case 'index':
       case 'cpi':
-        color = Colors.blue;
+        color = AppChartPalette.at(2);
         label = 'Index';
         break;
       case 'fixed_step':
-        color = Colors.purple;
+        color = AppChartPalette.at(1);
         label = 'Staffel';
         break;
       case 'base_rent':
       default:
-        color = Colors.green;
+        color = context.semanticColors.success;
         label = 'Vertrag';
         break;
     }
@@ -497,7 +497,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                                 style: context.tabularNumericStyle,
                               ),
                               trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                icon: Icon(Icons.delete_outline, color: context.semanticColors.error, size: 18),
                                 onPressed: () => _deleteIndexRule(rule.id),
                               ),
                             ),
@@ -543,7 +543,7 @@ class _LeaseDetailScreenState extends ConsumerState<LeaseDetailScreen> {
                                   children: [
                                     if (isOverride)
                                       IconButton(
-                                        icon: const Icon(Icons.undo, color: Colors.orange, size: 18),
+                                        icon: Icon(Icons.undo, color: context.semanticColors.warning, size: 18),
                                         tooltip: 'Manuelle Miete aufheben',
                                         onPressed: () => _deleteManualOverride(row.periodKey),
                                       )

@@ -452,7 +452,7 @@ class _AlertCard extends StatelessWidget {
               children: [
                 Icon(
                   _severityIcon(alert.severity),
-                  color: _severityColor(alert.severity),
+                  color: _severityColor(context, alert.severity),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -538,14 +538,17 @@ class _AlertCard extends StatelessWidget {
     }
   }
 
-  Color _severityColor(String severity) {
+  /// Severity colour. Takes a [BuildContext] because the mapping resolves
+  /// through the theme — a helper that hardcodes colours cannot follow the
+  /// design system.
+  Color _severityColor(BuildContext context, String severity) {
     switch (severity) {
       case 'critical':
-        return Colors.red;
+        return context.semanticColors.error;
       case 'warning':
-        return Colors.orange;
+        return context.semanticColors.warning;
       default:
-        return Colors.blueGrey;
+        return context.semanticColors.textSecondary;
     }
   }
 
@@ -590,10 +593,10 @@ class _SeverityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         severity == 'critical'
-            ? Colors.red
+            ? context.semanticColors.error
             : severity == 'warning'
-            ? Colors.orange
-            : Colors.blueGrey;
+            ? context.semanticColors.warning
+            : context.semanticColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

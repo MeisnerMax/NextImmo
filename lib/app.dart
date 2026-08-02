@@ -35,7 +35,7 @@ class NexImmoApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(densityMode: densityMode),
       darkTheme: AppTheme.dark(densityMode: densityMode),
-      themeMode: AppTheme.resolveThemeMode(settings?.uiThemeMode ?? 'system'),
+      themeMode: AppTheme.resolveThemeMode(settings?.uiThemeMode ?? 'dark'),
       locale: AppStrings.localeFromLanguageCode(settings?.uiLanguageCode),
       supportedLocales: AppStrings.supportedLocales,
       localizationsDelegates: AppStrings.localizationsDelegates,

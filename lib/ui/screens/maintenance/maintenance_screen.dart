@@ -752,7 +752,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
                                 color: isRenovation 
-                                    ? Colors.orangeAccent 
+                                    ? context.semanticColors.warning 
                                     : Theme.of(context).colorScheme.primary,
                                 backgroundColor: Theme.of(context).colorScheme.outlineVariant,
                               ),
@@ -956,7 +956,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                 'Abweichung: ${_formatCurrency(dev)}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: dev > 0 ? Colors.red : Colors.green,
+                  color: dev > 0 ? context.semanticColors.error : context.semanticColors.success,
                 ),
               );
             }),

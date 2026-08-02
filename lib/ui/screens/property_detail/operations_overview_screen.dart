@@ -157,10 +157,10 @@ class _OperationsOverviewScreenState
                                 : Icons.info_outline,
                             color:
                                 alert.severity == 'critical'
-                                    ? Colors.red
+                                    ? context.semanticColors.error
                                     : alert.severity == 'warning'
-                                    ? Colors.orange
-                                    : Colors.blueGrey,
+                                    ? context.semanticColors.warning
+                                    : context.semanticColors.textSecondary,
                           ),
                           title: Text(alert.message),
                           subtitle: Text(alert.type),

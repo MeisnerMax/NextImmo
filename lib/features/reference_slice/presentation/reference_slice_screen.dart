@@ -713,32 +713,14 @@ class _PropertyList extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: ListView.separated(
+            child: ListView.builder(
               itemCount: properties.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final property = properties[index];
-                return ListTile(
-                  key: Key('reference-property-${property.id}'),
+                return _PropertyRow(
+                  property: property,
                   selected: property.id == selectedPropertyId,
-                  title: Text(
-                    property.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '${property.addressLine1}, ${property.zip} ${property.city}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: NxStatusBadge(
-                    label: property.status.name,
-                    kind: switch (property.status) {
-                      PropertyStatus.active => NxBadgeKind.success,
-                      PropertyStatus.draft => NxBadgeKind.warning,
-                      PropertyStatus.archived => NxBadgeKind.neutral,
-                    },
-                  ),
+                  alternate: index.isOdd,
                   onTap: () => onOpenProperty(property.id),
                 );
               },
@@ -757,6 +739,111 @@ class _PropertyList extends StatelessWidget {
                       ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// High-density list row in the Liquid Enterprise register.
+///
+/// Selection is a left bracket rather than an enclosing fill, rows are
+/// separated by background alternates rather than divider lines, and the
+/// postal code is set in the mono face so codes line up down the column.
+class _PropertyRow extends StatelessWidget {
+  const _PropertyRow({
+    required this.property,
+    required this.selected,
+    required this.alternate,
+    required this.onTap,
+  });
+
+  final PropertySummaryDto property;
+  final bool selected;
+  final bool alternate;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic = context.semanticColors;
+    final primary = theme.colorScheme.primary;
+    final bodySmall = theme.textTheme.bodySmall;
+
+    return Material(
+      key: Key('reference-property-${property.id}'),
+      color:
+          selected
+              ? primary.withValues(alpha: 0.08)
+              : alternate
+              ? semantic.surfaceAlt.withValues(alpha: 0.35)
+              : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              // Reserved even when unselected so the text never shifts.
+              left: BorderSide(
+                color: selected ? primary : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            AppSpacing.xs,
+            AppSpacing.sm,
+            AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      property.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: selected ? primary : null,
+                      ),
+                    ),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: '${property.addressLine1}, '),
+                          TextSpan(
+                            text: property.zip,
+                            style: context.dataMonoStyle.copyWith(
+                              fontSize: bodySmall?.fontSize,
+                              color: bodySmall?.color,
+                            ),
+                          ),
+                          TextSpan(text: ' ${property.city}'),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              NxStatusBadge(
+                label: property.status.name,
+                kind: switch (property.status) {
+                  PropertyStatus.active => NxBadgeKind.success,
+                  PropertyStatus.draft => NxBadgeKind.warning,
+                  PropertyStatus.archived => NxBadgeKind.neutral,
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

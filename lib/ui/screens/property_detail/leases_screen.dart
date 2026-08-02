@@ -166,7 +166,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(_status!, style: const TextStyle(color: Colors.red)),
+              child: Text(_status!, style: TextStyle(color: context.semanticColors.error)),
             ),
           ],
           const SizedBox(height: AppSpacing.component),
@@ -206,7 +206,6 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
 
   Widget _buildLeaseListItem(BuildContext context, LeaseRecord lease, bool isSelected) {
     final semantic = context.semanticColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color statusColor = switch (lease.status) {
       'active' => semantic.success,
@@ -222,25 +221,18 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
+        // Selection tint comes from the accent token, not from two hardcoded
+        // hex values behind a Brightness check, and carries no drop shadow —
+        // the design system builds depth without shadows.
         color: isSelected
-            ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF))
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
             : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadiusTokens.md),
         border: Border.all(
           color: isSelected
               ? Theme.of(context).colorScheme.primary
               : semantic.border,
-          width: isSelected ? 1.5 : 1.0,
         ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                )
-              ]
-            : null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadiusTokens.md - 1),
@@ -305,11 +297,11 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                               ),
                             ),
                             if (isMissingDeposit)
-                              const Tooltip(
+                              Tooltip(
                                 message: 'Kaution ausstehend / fehlt',
                                 child: Icon(
                                   Icons.warning_amber_outlined,
-                                  color: Colors.orange,
+                                  color: context.semanticColors.warning,
                                   size: 20,
                                 ),
                               ),
@@ -336,7 +328,7 @@ class _LeasesScreenState extends ConsumerState<LeasesScreen> {
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               onPressed: () => _deleteLease(lease.id),
-                              child: const Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red)),
+                              child: Text('Löschen', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: context.semanticColors.error)),
                             ),
                           ],
                         ),

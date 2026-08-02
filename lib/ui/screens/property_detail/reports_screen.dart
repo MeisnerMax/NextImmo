@@ -124,7 +124,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   ),
                 ),
               if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
+                Text(_error!, style: TextStyle(color: context.semanticColors.error)),
             ],
           ),
         );

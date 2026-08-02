@@ -5,6 +5,7 @@ import 'package:neximmo_app/core/models/property.dart';
 import 'package:neximmo_app/core/models/scenario.dart';
 import 'package:neximmo_app/core/models/task.dart';
 import 'package:neximmo_app/data/repositories/tasks_repo.dart';
+import 'package:neximmo_app/ui/components/nx_breadcrumbs.dart';
 import 'package:neximmo_app/ui/screens/property_detail/property_shell.dart';
 import 'package:neximmo_app/ui/state/app_state.dart';
 import 'package:neximmo_app/ui/state/property_state.dart';
@@ -53,12 +54,23 @@ void main() {
 
     expect(find.text('ANSICHT'), findsAtLeastNWidgets(1));
     expect(find.text('TAGESGESCHAEFT'), findsAtLeastNWidgets(1));
-    expect(
-      find.text(
-        'Asset Alpha / Tagesgeschaeft / Aufgaben',
-      ),
-      findsOneWidget,
-    );
+    // Breadcrumbs render as separate uppercase crumbs with chevron
+    // separators (NxBreadcrumbs), not as one slash-joined string. Scoped to
+    // the breadcrumb widget so a matching label elsewhere in the shell
+    // navigation cannot satisfy this on its own.
+    final breadcrumbs = find.byType(NxBreadcrumbs);
+    expect(breadcrumbs, findsOneWidget);
+    for (final crumb in const [
+      'ASSET ALPHA',
+      'TAGESGESCHAEFT',
+      'AUFGABEN',
+    ]) {
+      expect(
+        find.descendant(of: breadcrumbs, matching: find.text(crumb)),
+        findsOneWidget,
+        reason: 'breadcrumb trail should contain $crumb',
+      );
+    }
     expect(find.text('New Task'), findsOneWidget);
   });
 

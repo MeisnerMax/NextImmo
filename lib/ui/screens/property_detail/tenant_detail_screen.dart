@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/nx_empty_state.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -68,11 +69,29 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(child: Text(_error!));
+      // Mandatory error state: a retry path and no raw exception text. The
+      // message is kept out of the UI deliberately — `_error` carries backend
+      // strings that mean nothing to a property manager.
+      return NxEmptyState(
+        title: 'Mieterdaten konnten nicht geladen werden',
+        description:
+            'Die Stammdaten dieses Mieters sind aktuell nicht abrufbar. '
+            'Bitte versuchen Sie es erneut.',
+        icon: Icons.error_outline,
+        primaryAction: OutlinedButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Erneut versuchen'),
+        ),
+      );
     }
     final bundle = _bundle;
     if (bundle == null) {
-      return const Center(child: Text('Mieter auswaehlen.'));
+      return const NxEmptyState(
+        title: 'Kein Mieter ausgewählt',
+        description: 'Wählen Sie einen Mieter, um seine Stammdaten zu sehen.',
+        icon: Icons.person_search_outlined,
+      );
     }
 
     return Padding(
@@ -165,15 +184,15 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: contactOk ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                        color: contactOk ? context.semanticColors.success.withValues(alpha: 0.1) : context.semanticColors.warning.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: contactOk ? Colors.green.withValues(alpha: 0.3) : Colors.orange.withValues(alpha: 0.3)),
+                        border: Border.all(color: contactOk ? context.semanticColors.success.withValues(alpha: 0.3) : context.semanticColors.warning.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             contactOk ? Icons.check_circle_outline : Icons.warning_amber_outlined,
-                            color: contactOk ? Colors.green : Colors.orange,
+                            color: contactOk ? context.semanticColors.success : context.semanticColors.warning,
                             size: 16,
                           ),
                           const SizedBox(width: 8),
@@ -181,7 +200,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                             child: Text(
                               contactOk ? 'Kontaktdaten vollständig' : 'Kontaktdaten unvollständig',
                               style: TextStyle(
-                                color: contactOk ? Colors.green : Colors.orange,
+                                color: contactOk ? context.semanticColors.success : context.semanticColors.warning,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -202,7 +221,7 @@ class _TenantDetailScreenState extends ConsumerState<TenantDetailScreen> {
                       ...bundle.duplicateWarnings.map(
                         (w) => Text(
                           w,
-                          style: const TextStyle(fontSize: 11, color: Colors.red),
+                          style: TextStyle(fontSize: 11, color: context.semanticColors.error),
                         ),
                       ),
                     ],

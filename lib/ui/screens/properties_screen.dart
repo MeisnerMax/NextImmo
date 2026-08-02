@@ -82,6 +82,18 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
         ),
       ],
       filters: ListFilterBar(
+        trailing: propertiesAsync.maybeWhen(
+          data: (properties) {
+            final shown = _visibleProperties(properties).length;
+            return Text(
+              shown == properties.length
+                  ? '$shown Objekte'
+                  : '$shown von ${properties.length} Objekten',
+              style: Theme.of(context).textTheme.labelMedium,
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
         children: [
           SizedBox(
             width: context.viewport == AppViewport.mobile ? 180 : 260,
@@ -166,19 +178,27 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
     );
   }
 
+  bool _matchesQuery(PropertyRecord property) {
+    if (_query.isEmpty) {
+      return true;
+    }
+    final haystack =
+        '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
+            .toLowerCase();
+    return haystack.contains(_query);
+  }
+
+  /// Result set the filter bar reports on — the same predicate the content
+  /// uses, so the count can never disagree with what is on screen.
+  List<PropertyRecord> _visibleProperties(List<PropertyRecord> properties) {
+    return properties.where(_matchesQuery).toList(growable: false);
+  }
+
   Widget _buildLoadedContent(
     BuildContext context,
     List<PropertyRecord> properties,
   ) {
-    bool matchesQuery(PropertyRecord property) {
-      if (_query.isEmpty) {
-        return true;
-      }
-      final haystack =
-          '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
-              .toLowerCase();
-      return haystack.contains(_query);
-    }
+    bool matchesQuery(PropertyRecord property) => _matchesQuery(property);
 
     final activeProperties = properties
         .where((property) => !property.archived)
@@ -357,41 +377,39 @@ class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
     List<PropertyRecord> properties,
     PortfolioMetricsSnapshot metrics,
   ) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final crossAxisCount = width < 640 ? 1 : (width < 900 ? 2 : 4);
-        final childAspectRatio =
-            width < 640 ? 0.62 : (width < 900 ? 0.58 : 0.54);
-
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: AppSpacing.component,
-            mainAxisSpacing: AppSpacing.component,
-            childAspectRatio: childAspectRatio,
-          ),
-          itemCount: properties.length,
-          itemBuilder: (context, index) {
-            final property = properties[index];
-            final kpis = metrics.propertyKpis[property.id];
-            return PropertyCard(
-              property: property,
-              kpis: kpis,
-              onOpen: () => _openProperty(property, ref),
-              onImages: () => _openPropertyImages(property, ref),
-              onArchiveToggle: () => ref
-                  .read(propertiesControllerProvider.notifier)
-                  .archive(property.id, !property.archived),
-              onDelete: () => _confirmDelete(context, property),
-              onRestore: () => ref
-                  .read(propertiesControllerProvider.notifier)
-                  .restore(property.id),
-            );
-          },
+    // Fixed card height instead of an aspect ratio: the ratio had to be
+    // re-guessed per breakpoint and still produced a different card height at
+    // every viewport width. A max extent plus a fixed main-axis extent gives
+    // the same card everywhere and simply fits more of them as space allows.
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 360,
+        crossAxisSpacing: AppSpacing.component,
+        mainAxisSpacing: AppSpacing.component,
+        // Cover (16:9) + name/address + KPI row + actions. Verified against
+        // the widest card the max extent allows; leave headroom when adding
+        // a row to the card body.
+        mainAxisExtent: 364,
+      ),
+      itemCount: properties.length,
+      itemBuilder: (context, index) {
+        final property = properties[index];
+        final kpis = metrics.propertyKpis[property.id];
+        return PropertyCard(
+          property: property,
+          kpis: kpis,
+          onOpen: () => _openProperty(property, ref),
+          onImages: () => _openPropertyImages(property, ref),
+          onArchiveToggle: () => ref
+              .read(propertiesControllerProvider.notifier)
+              .archive(property.id, !property.archived),
+          onDelete: () => _confirmDelete(context, property),
+          onRestore: () => ref
+              .read(propertiesControllerProvider.notifier)
+              .restore(property.id),
         );
       },
     );

@@ -85,7 +85,11 @@ class _OverviewCashflowChartState extends State<OverviewCashflowChart> {
                 values: values,
                 spots: spots,
                 minY: overviewMinAxisValue(values),
-                lineColor: Theme.of(context).colorScheme.primary,
+                // Series colour comes from the validated chart palette, not
+                // from `colorScheme.primary`: the accent is reserved for
+                // interaction, and palette steps are checked for chroma and
+                // CVD separation against the chart surface.
+                lineColor: AppChartPalette.at(0),
                 bottomLabel: (period) => useMonthly ? 'M$period' : 'Y$period',
               ),
             ),
@@ -139,7 +143,10 @@ class OverviewRentProjectionChart extends StatelessWidget {
                 values: values,
                 spots: spots,
                 minY: 0,
-                lineColor: Theme.of(context).colorScheme.secondary,
+                // Was `colorScheme.secondary`, which resolves to #CBD5E1 in
+                // dark — a near-neutral slate that fails the chart palette's
+                // chroma floor and drew this projection in grey.
+                lineColor: AppChartPalette.at(1),
                 bottomLabel: (period) => 'M$period',
               ),
             ),

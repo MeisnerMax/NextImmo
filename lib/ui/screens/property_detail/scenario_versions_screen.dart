@@ -76,7 +76,7 @@ class _ScenarioVersionsScreenState
               ),
               if (state.error != null) ...[
                 const SizedBox(height: 8),
-                Text(state.error!, style: const TextStyle(color: Colors.red)),
+                Text(state.error!, style: TextStyle(color: context.semanticColors.error)),
               ],
               const SizedBox(height: 12),
               Expanded(

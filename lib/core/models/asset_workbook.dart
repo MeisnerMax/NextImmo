@@ -284,6 +284,8 @@ class HotelKpiRecord {
     this.fbRevenue,
     this.roomRevenue,
     this.totalRevenue,
+    this.totalCosts,
+    this.profitLoss,
     this.gopPercent,
     this.notes,
     required this.createdAt,
@@ -301,6 +303,8 @@ class HotelKpiRecord {
   final double? fbRevenue;
   final double? roomRevenue;
   final double? totalRevenue;
+  final double? totalCosts;
+  final double? profitLoss;
   final double? gopPercent;
   final String? notes;
   final int createdAt;
@@ -312,6 +316,19 @@ class HotelKpiRecord {
       return null;
     }
     return roomsOccupied! / available;
+  }
+
+  /// Profit or loss for the period. Uses the stored figure when present, else
+  /// derives it from revenue minus costs so callers always see a consistent
+  /// result.
+  double? get effectiveProfitLoss {
+    if (profitLoss != null) {
+      return profitLoss;
+    }
+    if (totalRevenue == null || totalCosts == null) {
+      return null;
+    }
+    return totalRevenue! - totalCosts!;
   }
 
   factory HotelKpiRecord.fromMap(Map<String, Object?> map) {
@@ -327,6 +344,8 @@ class HotelKpiRecord {
       fbRevenue: (map['fb_revenue'] as num?)?.toDouble(),
       roomRevenue: (map['room_revenue'] as num?)?.toDouble(),
       totalRevenue: (map['total_revenue'] as num?)?.toDouble(),
+      totalCosts: (map['total_costs'] as num?)?.toDouble(),
+      profitLoss: (map['profit_loss'] as num?)?.toDouble(),
       gopPercent: (map['gop_percent'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
       createdAt: (map['created_at']! as num).toInt(),

@@ -808,7 +808,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10, color: Colors.grey),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10, color: context.semanticColors.textSecondary),
               ),
             ],
           ),
@@ -949,7 +949,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                                           tooltip: 'Verlauf',
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                          icon: Icon(Icons.delete_outline, color: context.semanticColors.error, size: 18),
                                           onPressed: () => _deleteOperatingCost(cost.id),
                                           tooltip: 'Löschen',
                                         ),
@@ -1116,9 +1116,11 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
                       ),
                       if (isAllocatedCostWarning) ...[
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Achtung: Dies ist eine gebäudeübergreifende Kostenposition. Änderungen wirken sich auf die Abrechnung aller Einheiten aus!',
-                          style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.normal),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.semanticColors.warning,
+                          ),
                         ),
                       ],
                     ],
@@ -1299,7 +1301,7 @@ class _UnitDetailScreenState extends ConsumerState<UnitDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Löschen', style: TextStyle(color: Colors.red)),
+            child: Text('Löschen', style: TextStyle(color: context.semanticColors.error)),
           ),
         ],
       ),

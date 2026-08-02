@@ -110,7 +110,7 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               _error!,
-                              style: const TextStyle(color: Colors.red),
+                              style: TextStyle(color: context.semanticColors.error),
                             ),
                           ),
                       ],

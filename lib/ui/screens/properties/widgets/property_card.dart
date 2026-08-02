@@ -291,7 +291,10 @@ class _PropertyCover extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final titleImageAsync = ref.watch(propertyTitleImageProvider(property.id));
     return AspectRatio(
-      aspectRatio: 1,
+      // Landscape, not square. A 1:1 cover ate ~290px of a ~320px-wide card
+      // and pushed the whole tile past 590px tall, which is what made the
+      // grid unreadable. Real-estate imagery is landscape anyway.
+      aspectRatio: 16 / 9,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
         child: titleImageAsync.when(

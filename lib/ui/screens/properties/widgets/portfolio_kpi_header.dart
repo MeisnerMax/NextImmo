@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/models/portfolio_analytics.dart';
-import '../../../components/nx_card.dart';
+import '../../../components/nx_kpi_tile.dart';
 import '../../../theme/app_theme.dart';
 import 'property_formatters.dart';
 
 /// Portfolio-level KPI tiles shown above the properties list.
+///
+/// Structure and the label/value/caption rules live in [NxKpiTile]; this file
+/// only decides which four figures the portfolio band shows and when each one
+/// counts as a warning.
 class PortfolioKpiHeader extends StatelessWidget {
   const PortfolioKpiHeader({super.key, required this.metrics});
 
@@ -13,97 +17,41 @@ class PortfolioKpiHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ltvColor = metrics.ltv < 0.60
-        ? context.semanticColors.success
-        : (metrics.ltv <= 0.75
-            ? context.semanticColors.warning
-            : context.semanticColors.error);
+    final semantic = context.semanticColors;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double width = constraints.maxWidth < 640
-            ? constraints.maxWidth
-            : (constraints.maxWidth - 3 * AppSpacing.component) / 4;
-
-        final cardList = [
-          _KpiCardSpec(
-            title: 'PORTFOLIO-GESAMTWERT',
-            value:
-                '${formatCompactCurrency(metrics.totalValue)} / ${formatCompactCurrency(metrics.totalAcquisitionCosts)}',
-            valueStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          _KpiCardSpec(
-            title: 'Ø MIETRENDITE',
-            value: formatPercentOneDecimal(metrics.netYield),
-            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-          ),
-          _KpiCardSpec(
-            title: 'GESAMT-LEERSTAND',
-            value: formatPercentOneDecimal(metrics.vacancyRate),
-            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: metrics.vacancyRate > 0.10
-                      ? context.semanticColors.warning
-                      : context.semanticColors.success,
-                ),
-          ),
-          _KpiCardSpec(
-            title: 'PORTFOLIO-LTV',
-            value: formatPercentOneDecimal(metrics.ltv),
-            valueStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: ltvColor,
-                ),
-          ),
-        ];
-
-        return Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
-          children: cardList
-              .map(
-                (spec) => SizedBox(
-                  width: width,
-                  child: NxCard(
-                    variant: NxCardVariant.kpi,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          spec.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
-                              ?.copyWith(
-                                color: context.semanticColors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            spec.value,
-                            style: (spec.valueStyle ??
-                                    Theme.of(context).textTheme.titleLarge ??
-                                    const TextStyle())
-                                .merge(context.tabularNumericStyle),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
+    return NxKpiRow(
+      children: [
+        NxKpiTile(
+          label: 'PORTFOLIO-GESAMTWERT',
+          value: formatCompactCurrency(metrics.totalValue),
+          caption: 'AK ${formatCompactCurrency(metrics.totalAcquisitionCosts)}',
+        ),
+        NxKpiTile(
+          label: 'Ø MIETRENDITE',
+          value: formatPercentOneDecimal(metrics.netYield),
+          caption: 'netto p. a.',
+          status:
+              metrics.netYield >= 0.04 ? semantic.success : semantic.warning,
+        ),
+        NxKpiTile(
+          label: 'GESAMT-LEERSTAND',
+          value: formatPercentOneDecimal(metrics.vacancyRate),
+          caption: 'der Mietfläche',
+          status:
+              metrics.vacancyRate > 0.10 ? semantic.warning : semantic.success,
+        ),
+        NxKpiTile(
+          label: 'PORTFOLIO-LTV',
+          value: formatPercentOneDecimal(metrics.ltv),
+          caption: formatCompactCurrency(metrics.totalLoanPrincipal),
+          status:
+              metrics.ltv < 0.60
+                  ? semantic.success
+                  : (metrics.ltv <= 0.75
+                      ? semantic.warning
+                      : semantic.error),
+        ),
+      ],
     );
   }
 }
@@ -114,54 +62,13 @@ class PortfolioKpiHeaderSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholderColor = context.semanticColors.surfaceAlt;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double width = constraints.maxWidth < 640
-            ? constraints.maxWidth
-            : (constraints.maxWidth - 3 * AppSpacing.component) / 4;
-        Widget bar(double barWidth, double height) => Container(
-              width: barWidth,
-              height: height,
-              decoration: BoxDecoration(
-                color: placeholderColor,
-                borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
-              ),
-            );
-        return Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
-          children: List.generate(
-            4,
-            (_) => SizedBox(
-              width: width,
-              child: NxCard(
-                variant: NxCardVariant.kpi,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    bar(120, 10),
-                    const SizedBox(height: 12),
-                    bar(80, 18),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return const NxKpiRow(
+      children: [
+        NxKpiTileSkeleton(),
+        NxKpiTileSkeleton(),
+        NxKpiTileSkeleton(),
+        NxKpiTileSkeleton(),
+      ],
     );
   }
-}
-
-class _KpiCardSpec {
-  const _KpiCardSpec({
-    required this.title,
-    required this.value,
-    this.valueStyle,
-  });
-
-  final String title;
-  final String value;
-  final TextStyle? valueStyle;
 }

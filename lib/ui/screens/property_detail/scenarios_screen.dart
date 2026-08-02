@@ -995,7 +995,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                           height: 36,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.shade200,
+                            color: context.semanticColors.textSecondary,
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -1005,7 +1005,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (payoffPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.red.shade400,
+                                      color: context.semanticColors.error,
                                       child: const Center(
                                         child: Text(
                                           'Kredit',
@@ -1019,7 +1019,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (costsPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.orange.shade400,
+                                      color: context.semanticColors.warning,
                                       child: const Center(
                                         child: Text(
                                           'Kosten',
@@ -1033,7 +1033,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (taxPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.grey.shade600,
+                                      color: context.semanticColors.textSecondary,
                                       child: const Center(
                                         child: Text(
                                           'Steuer',
@@ -1047,7 +1047,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (netProceedsPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.green.shade500,
+                                      color: context.semanticColors.success,
                                       child: const Center(
                                         child: Text(
                                           'Netto',
@@ -1067,10 +1067,10 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                           runSpacing: 8,
                           alignment: WrapAlignment.center,
                           children: [
-                            _LegendItem(color: Colors.red.shade400, label: 'Darlehensablösung (${(payoffPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.orange.shade400, label: 'Verkaufskosten (${(costsPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.grey.shade600, label: 'Spekulationssteuer (${(taxPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.green.shade500, label: 'Nettoerlös n. St. (${(netProceedsPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.error, label: 'Darlehensablösung (${(payoffPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.warning, label: 'Verkaufskosten (${(costsPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.textSecondary, label: 'Spekulationssteuer (${(taxPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.success, label: 'Nettoerlös n. St. (${(netProceedsPct * 100).toStringAsFixed(1)}%)'),
                           ],
                         ),
                       ],
@@ -1162,7 +1162,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                               DataCell(Text(
                                 _formatCurrency(year.cashflowBeforeTax),
                                 style: context.tabularNumericStyle.copyWith(
-                                  color: year.cashflowBeforeTax >= 0 ? Colors.green : Colors.red,
+                                  color: year.cashflowBeforeTax >= 0 ? context.semanticColors.success : context.semanticColors.error,
                                   fontWeight: FontWeight.bold,
                                 ),
                               )),
@@ -1227,7 +1227,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                           child: ListTile(
                             leading: Icon(
                               rule.unknown ? Icons.help_outline : (pass ? Icons.check_circle_outline : Icons.cancel_outlined),
-                              color: rule.unknown ? Colors.grey : (pass ? Colors.green : Colors.red),
+                              color: rule.unknown ? context.semanticColors.textSecondary : (pass ? context.semanticColors.success : context.semanticColors.error),
                             ),
                             title: Text('${rule.rule.fieldKey} ${rule.rule.operator} ${rule.rule.targetValue}'),
                             subtitle: Text('Ist-Wert: ${rule.actualValue?.toStringAsFixed(4) ?? 'N/A'}'),
@@ -1269,7 +1269,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                     contentPadding: EdgeInsets.zero,
                                     leading: Icon(
                                       check.pass ? Icons.verified : Icons.warning_amber,
-                                      color: check.pass ? Colors.green : Colors.orange,
+                                      color: check.pass ? context.semanticColors.success : context.semanticColors.warning,
                                     ),
                                     title: Text('Zeitraum: ${check.periodKey}'),
                                     subtitle: Text(check.notes ?? 'Auflage erfüllt.'),
@@ -1377,7 +1377,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
   Color _statusColor(String status) {
     switch (status) {
       case ScenarioWorkflowStatus.inReview:
-        return const Color(0xFF2B78B8);
+        return AppColors.primary;
       case ScenarioWorkflowStatus.approved:
         return AppColors.positive;
       case ScenarioWorkflowStatus.rejected:
@@ -1540,7 +1540,7 @@ class _SummaryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
+              Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.semanticColors.textSecondary)),
               const SizedBox(height: 6),
               Text(
                 value,

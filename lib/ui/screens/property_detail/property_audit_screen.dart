@@ -156,7 +156,7 @@ class _PropertyAuditScreenState extends ConsumerState<PropertyAuditScreen> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            Text(_error!, style: TextStyle(color: context.semanticColors.error)),
           ],
           const SizedBox(height: 8),
           Expanded(
@@ -452,7 +452,7 @@ class _JsonCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: context.semanticColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

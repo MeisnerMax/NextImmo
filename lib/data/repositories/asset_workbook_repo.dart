@@ -608,6 +608,7 @@ class AssetWorkbookRepo {
     double? adr,
     double? fbRevenue,
     double? roomRevenue,
+    double? totalCosts,
     double? gopPercent,
     String? notes,
   }) async {
@@ -617,7 +618,12 @@ class AssetWorkbookRepo {
             ? null
             : roomsOccupied / roomsAvailable;
     final revPar = adr == null || occupancy == null ? null : adr * occupancy;
-    final totalRevenue = (fbRevenue ?? 0) + (roomRevenue ?? 0);
+    final revenueSum = (fbRevenue ?? 0) + (roomRevenue ?? 0);
+    final totalRevenue = revenueSum == 0 ? null : revenueSum;
+    final profitLoss =
+        totalRevenue == null || totalCosts == null
+            ? null
+            : totalRevenue - totalCosts;
     await _db.insert(
       'hotel_kpis',
       <String, Object?>{
@@ -631,7 +637,9 @@ class AssetWorkbookRepo {
         'revpar': revPar,
         'fb_revenue': fbRevenue,
         'room_revenue': roomRevenue,
-        'total_revenue': totalRevenue == 0 ? null : totalRevenue,
+        'total_revenue': totalRevenue,
+        'total_costs': totalCosts,
+        'profit_loss': profitLoss,
         'gop_percent': gopPercent,
         'notes': notes,
         'created_at': now,

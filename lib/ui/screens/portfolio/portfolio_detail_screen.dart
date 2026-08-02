@@ -26,7 +26,7 @@ import 'portfolio_analytics_screen.dart';
 /// (Dashboard / Analyse / Objekte / Notizen), the PDF export and the
 /// `FutureBuilder`-based load are preserved verbatim; only the infrastructure
 /// states were lifted (skeleton instead of a bare spinner, `NxEmptyState` with
-/// retry instead of raw exception text) and the raw `Colors.blue/red` chart
+/// retry instead of raw exception text) and the raw `AppChartPalette.at(2)/red` chart
 /// literals plus two `TextStyle` literals were moved onto theme tokens.
 class PortfolioDetailScreen extends ConsumerStatefulWidget {
   const PortfolioDetailScreen({

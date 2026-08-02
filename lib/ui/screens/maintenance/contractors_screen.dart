@@ -133,7 +133,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                                           ),
                                         ),
                                         if (overallRating != null) ...[
-                                          const Icon(Icons.star, color: Colors.amber, size: 14),
+                                          Icon(Icons.star, color: context.semanticColors.warning, size: 14),
                                           const SizedBox(width: 4),
                                           Text(
                                             overallRating.toStringAsFixed(1),
@@ -327,7 +327,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                             onPressed: () => _showEditContractorDialog(contractor),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            icon: Icon(Icons.delete_outline, color: context.semanticColors.error),
                             onPressed: () => _showDeleteConfirmDialog(contractor),
                           ),
                         ],
@@ -370,7 +370,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 child: _statCard(
                   title: 'Umsatz (Ist)',
                   value: '€ ${actualCostsSum.toStringAsFixed(2)}',
-                  color: Colors.teal,
+                  color: AppChartPalette.at(0),
                   icon: Icons.payments_outlined,
                   subtitle: 'Aus erledigten Aufträgen',
                 ),
@@ -380,7 +380,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 child: _statCard(
                   title: 'Ausstehend (Plan)',
                   value: '€ ${estimateCostsSum.toStringAsFixed(2)}',
-                  color: Colors.blue,
+                  color: AppChartPalette.at(2),
                   icon: Icons.hourglass_empty_outlined,
                   subtitle: 'Erwartetes Volumen gesamt',
                 ),
@@ -390,7 +390,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 child: _statCard(
                   title: 'Aufträge',
                   value: '${tickets.length} gesamt',
-                  color: Colors.indigo,
+                  color: AppChartPalette.at(2),
                   icon: Icons.assignment_outlined,
                   subtitle: '${activeTickets.length} aktiv, ${completedTickets.length} erledigt',
                 ),
@@ -526,13 +526,13 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
     final String label;
 
     if (remainingDays < 0) {
-      color = Colors.red;
+      color = context.semanticColors.error;
       label = 'Versicherungsnachweis abgelaufen ($expiryDate)';
     } else if (remainingDays < 30) {
-      color = Colors.orange;
+      color = context.semanticColors.warning;
       label = 'Versicherung läuft bald ab ($expiryDate)';
     } else {
-      color = Colors.green;
+      color = context.semanticColors.success;
       label = 'Versicherung gültig bis $expiryDate';
     }
 
@@ -588,7 +588,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 12, color: context.semanticColors.textSecondary, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -598,7 +598,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold).merge(context.tabularNumericStyle),
             ),
             const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(subtitle, style: TextStyle(fontSize: 10, color: context.semanticColors.textSecondary)),
           ],
         ),
       ),
@@ -611,13 +611,13 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
+          Icon(icon, size: 18, color: context.semanticColors.textSecondary),
           const SizedBox(width: 12),
           Expanded(
             flex: 3,
             child: Text(
               label,
-              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+              style: TextStyle(color: context.semanticColors.textSecondary, fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
@@ -656,7 +656,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ] else
-                  const Text('Keine Bewertung', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text('Keine Bewertung', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
@@ -676,7 +676,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
             i < fullStars
                 ? Icons.star
                 : (i == fullStars && hasHalf ? Icons.star_half : Icons.star_border),
-            color: Colors.amber,
+            color: context.semanticColors.warning,
             size: size,
           ),
       ],
@@ -899,7 +899,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
             child: const Text('Abbrechen'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: context.semanticColors.error, foregroundColor: Colors.white),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Löschen'),
           ),
@@ -1001,7 +1001,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 constraints: const BoxConstraints(),
                 icon: Icon(
                   value >= starValue ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
+                  color: context.semanticColors.warning,
                   size: 26,
                 ),
                 onPressed: () => onChanged(starValue),

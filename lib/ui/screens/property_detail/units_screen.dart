@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
+import '../../components/nx_kpi_tile.dart';
+import '../../components/nx_status_badge.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -54,7 +56,9 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Material(
-          color: Colors.white,
+          // Was hardcoded white, which painted a white bar across the top of
+          // the screen in dark mode.
+          color: Theme.of(context).colorScheme.surface,
           child: Align(
             alignment: Alignment.centerLeft,
             child: TabBar(
@@ -76,7 +80,9 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
             padding: const EdgeInsets.all(8.0),
             child: Text(
               _status!,
-              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.semanticColors.error,
+              ),
             ),
           ),
         const SizedBox(height: AppSpacing.component),
@@ -156,42 +162,39 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // KPI Metric Row
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
+          // KPI band. Was five private `_KpiTile`s at a fixed 190px in a Wrap
+          // — the fifth independent copy of this tile in the app.
+          NxKpiRow(
             children: [
-              _KpiTile(
-                title: 'Belegungsquote',
+              NxKpiTile(
+                label: 'BELEGUNGSQUOTE',
                 value: '${occupancyRate.toStringAsFixed(1)} %',
-                subtitle: '$occupiedCount von $totalCount Einheiten',
-                icon: Icons.pie_chart_outline,
-                color: context.semanticColors.success,
+                caption: '$occupiedCount von $totalCount Einheiten',
+                status: context.semanticColors.success,
               ),
-              _KpiTile(
-                title: 'Einheiten gesamt',
+              NxKpiTile(
+                label: 'EINHEITEN GESAMT',
                 value: '$totalCount',
-                icon: Icons.business_outlined,
-                color: Theme.of(context).colorScheme.primary,
+                caption: 'im Objekt',
               ),
-              _KpiTile(
-                title: 'Leerstand',
+              NxKpiTile(
+                label: 'LEERSTAND',
                 value: '$vacantCount',
-                subtitle: '${(totalCount == 0 ? 0.0 : (vacantCount / totalCount) * 100).toStringAsFixed(1)} % Quote',
-                icon: Icons.door_sliding_outlined,
-                color: vacantCount > 0 ? context.semanticColors.warning : context.semanticColors.success,
+                caption:
+                    '${(totalCount == 0 ? 0.0 : (vacantCount / totalCount) * 100).toStringAsFixed(1)} % Quote',
+                status: vacantCount > 0
+                    ? context.semanticColors.warning
+                    : context.semanticColors.success,
               ),
-              _KpiTile(
-                title: 'Ø Soll-Miete',
+              NxKpiTile(
+                label: 'Ø SOLL-MIETE',
                 value: '${avgTargetRent.toStringAsFixed(2)} €',
-                icon: Icons.euro_outlined,
-                color: context.semanticColors.info,
+                caption: 'pro Einheit',
               ),
-              _KpiTile(
-                title: 'Ø Marktmiete',
+              NxKpiTile(
+                label: 'Ø MARKTMIETE',
                 value: '${avgMarketRent.toStringAsFixed(2)} €',
-                icon: Icons.show_chart_outlined,
-                color: context.semanticColors.info,
+                caption: 'pro Einheit',
               ),
             ],
           ),
@@ -272,18 +275,24 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     );
   }
 
-  Widget _buildUnitListItem(BuildContext context, UnitRecord unit, bool isSelected) {
+  /// High-density unit row.
+  ///
+  /// Same treatment as the tenants list: selection owns the left bracket,
+  /// status owns the badge, and rows separate by background alternate. The
+  /// previous version signalled status twice (a 5px colour bar *and* the
+  /// badge) and wrapped every row in its own bordered card with a 10px
+  /// margin, which is what made a floor of units read as a stack of boxes
+  /// rather than a list.
+  Widget _buildUnitListItem(
+    BuildContext context,
+    UnitRecord unit,
+    bool isSelected, {
+    required bool alternate,
+  }) {
     final semantic = context.semanticColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    Color statusColor = switch (unit.status) {
-      'occupied' => semantic.success,
-      'vacant' => semantic.warning,
-      'offline' => semantic.error,
-      'archived' => Theme.of(context).colorScheme.outlineVariant,
-      _ => semantic.border,
-    };
-
+    // No status colour variable here any more: the 5px bar it fed is gone,
+    // and the status badge is the single carrier of that signal.
     IconData typeIcon = switch (unit.unitType?.toLowerCase() ?? '') {
       'apartment' || 'wohnung' => Icons.apartment_outlined,
       'commercial' || 'gewerbe' || 'büro' || 'office' => Icons.business_outlined,
@@ -293,46 +302,33 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
 
     final bool isMissingVacancyDate = unit.status == 'vacant' && unit.vacancySince == null;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF))
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-        border: Border.all(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : semantic.border,
-          width: isSelected ? 1.5 : 1.0,
-        ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                )
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md - 1),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 5,
-                color: statusColor,
-              ),
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Material(
+      color: isSelected
+          ? primary.withValues(alpha: 0.08)
+          : alternate
+              ? semantic.surfaceAlt.withValues(alpha: 0.35)
+              : Colors.transparent,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              // Reserved even when unselected so the row never shifts.
+              color: isSelected ? primary : Colors.transparent,
+            ),
               Expanded(
                 child: InkWell(
                   onTap: () {
                     ref.read(selectedOperationsUnitIdProvider.notifier).state = unit.id;
                   },
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -343,7 +339,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                             Expanded(
                               child: Text(
                                 unit.unitCode,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
@@ -381,12 +377,12 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                               ),
                             ),
                             if (isMissingVacancyDate)
-                              const Tooltip(
+                              Tooltip(
                                 message: 'Leerstandsdatum fehlt',
                                 child: Icon(
                                   Icons.warning_amber_outlined,
-                                  color: Colors.orange,
-                                  size: 20,
+                                  color: context.semanticColors.warning,
+                                  size: AppIconTokens.md,
                                 ),
                               ),
                           ],
@@ -413,7 +409,7 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 onPressed: () => _deleteUnit(unit.id),
-                                child: const Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red)),
+                                child: Text('Löschen', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: context.semanticColors.error)),
                               )
                             else
                               TextButton(
@@ -432,62 +428,37 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
+  /// Unit occupancy status.
+  ///
+  /// Was the third hand-rolled status chip with the same 4px radius and 10px
+  /// bold text as the tenants and budget screens — three copies that drifted
+  /// independently. One component, per the design system.
   Widget _buildUnitStatusTag(BuildContext context, String status) {
-    final semantic = context.semanticColors;
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'occupied':
-        bgColor = semantic.success.withValues(alpha: 0.12);
-        textColor = semantic.success;
-        label = 'Vermietet';
-        break;
-      case 'vacant':
-        bgColor = semantic.warning.withValues(alpha: 0.12);
-        textColor = semantic.warning;
-        label = 'Leer';
-        break;
-      case 'offline':
-        bgColor = semantic.error.withValues(alpha: 0.12);
-        textColor = semantic.error;
-        label = 'Offline';
-        break;
-      case 'archived':
-        bgColor = Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.2);
-        textColor = Theme.of(context).colorScheme.onSurfaceVariant;
-        label = 'Archiviert';
-        break;
-      default:
-        bgColor = Theme.of(context).colorScheme.outlineVariant;
-        textColor = Theme.of(context).colorScheme.onSurface;
-        label = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: textColor.withValues(alpha: 0.2)),
+    return switch (status) {
+      'occupied' => const NxStatusBadge(
+        label: 'Vermietet',
+        kind: NxBadgeKind.success,
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
+      'vacant' => const NxStatusBadge(
+        label: 'Leer',
+        kind: NxBadgeKind.warning,
       ),
-    );
+      'offline' => const NxStatusBadge(
+        label: 'Offline',
+        kind: NxBadgeKind.error,
+      ),
+      'archived' => const NxStatusBadge(
+        label: 'Archiviert',
+        kind: NxBadgeKind.neutral,
+      ),
+      _ => NxStatusBadge(label: status, kind: NxBadgeKind.neutral),
+    };
   }
 
   Widget _unitListCard({
@@ -506,13 +477,19 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
             if (units.isEmpty)
               const Text('Keine Einheiten für diesen Filter.')
             else
-              ListView(
+              ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  for (final unit in units)
-                    _buildUnitListItem(context, unit, unit.id == selectedUnitId),
-                ],
+                itemCount: units.length,
+                itemBuilder: (context, index) {
+                  final unit = units[index];
+                  return _buildUnitListItem(
+                    context,
+                    unit,
+                    unit.id == selectedUnitId,
+                    alternate: index.isOdd,
+                  );
+                },
               ),
           ],
         ),
@@ -622,11 +599,11 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
     required List<TenantRecord> prospects,
   }) {
     return Card(
-        color: const Color(0xFFF9F8F5),
+        color: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          side: BorderSide(color: context.semanticColors.border),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -638,29 +615,29 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: context.semanticColors.border,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '${prospects.length}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.semanticColors.textSecondary),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               if (prospects.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24.0),
+                    padding: const EdgeInsets.symmetric(vertical: 24.0),
                     child: Text(
                       'Keine Interessenten',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
                 )
@@ -673,11 +650,13 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                     final prospect = prospects[index];
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
-                      color: Colors.white,
+                      // Was `Colors.white`: a white block per prospect on the
+                      // dark canvas. Dropping the override lets cardTheme —
+                      // and therefore the glass fill — apply.
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        side: BorderSide(color: context.semanticColors.border),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
@@ -686,18 +665,18 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                           children: [
                             Text(
                               prospect.displayName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
-                                color: Color(0xFF0F172A),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             if (prospect.email != null) ...[
                               const SizedBox(height: 4),
                               Text(
                                 prospect.email!,
-                                style: const TextStyle(
-                                  color: Color(0xFF64748B),
+                                style: TextStyle(
+                                  color: context.semanticColors.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -706,8 +685,8 @@ class _UnitsScreenState extends ConsumerState<UnitsScreen> with SingleTickerProv
                               const SizedBox(height: 2),
                               Text(
                                 prospect.phone!,
-                                style: const TextStyle(
-                                  color: Color(0xFF64748B),
+                                style: TextStyle(
+                                  color: context.semanticColors.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -1299,72 +1278,4 @@ class _DateField extends StatelessWidget {
   }
 }
 
-class _KpiTile extends StatelessWidget {
-  const _KpiTile({
-    required this.title,
-    required this.value,
-    this.subtitle,
-    required this.icon,
-    required this.color,
-  });
-
-  final String title;
-  final String value;
-  final String? subtitle;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 190,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(icon, size: 16, color: color),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ).merge(context.tabularNumericStyle),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 10,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 

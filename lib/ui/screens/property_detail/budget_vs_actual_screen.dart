@@ -11,6 +11,7 @@ import '../../../core/models/property.dart';
 import '../../../core/models/maintenance.dart';
 import '../../../core/models/asset_workbook.dart';
 import '../../components/nx_card.dart';
+import '../../components/nx_kpi_tile.dart';
 import '../../components/nx_status_badge.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
@@ -318,19 +319,17 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Row of KPI summaries
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
+          NxKpiRow(
             children: [
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Soll-Einnahmen (Aktuell)',
                 value: _formatCurrency(totalIncome + totalArrears),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Ist-Einnahmen ($currentPeriod)',
                 value: _formatCurrency(totalIncome),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Nettocashflow ($currentPeriod)',
                 value: _formatCurrency(netCashflow),
               ),
@@ -349,7 +348,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 context,
                 label: 'Rückstände Gesamt',
                 value: _formatCurrency(totalArrears),
-                valueColor: Colors.red.shade800,
+                valueColor: context.semanticColors.error,
               ),
               _financeSummaryCard(
                 context,
@@ -360,13 +359,13 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 context,
                 label: '> 60 Tage',
                 value: _formatCurrency(arrears60d),
-                valueColor: Colors.orange.shade800,
+                valueColor: context.semanticColors.warning,
               ),
               _financeSummaryCard(
                 context,
                 label: '> 90 Tage (Kritisch)',
                 value: _formatCurrency(arrears90d),
-                valueColor: Colors.red.shade900,
+                valueColor: context.semanticColors.error,
               ),
             ],
           ),
@@ -403,7 +402,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                 DataCell(Text(row['unit'])),
                                 DataCell(Text(_formatCurrency(row['expected']), style: context.tabularNumericStyle)),
                                 DataCell(Text(_formatCurrency(row['paid']), style: context.tabularNumericStyle)),
-                                DataCell(Text(_formatCurrency(row['outstanding']), style: context.tabularNumericStyle.copyWith(color: Colors.red, fontWeight: FontWeight.bold))),
+                                DataCell(Text(_formatCurrency(row['outstanding']), style: context.tabularNumericStyle.copyWith(color: context.semanticColors.error, fontWeight: FontWeight.bold))),
                                 DataCell(Text('${row['age']} Tage', style: context.tabularNumericStyle)),
                                 DataCell(NxStatusBadge(
                                   label: row['dunning'],
@@ -476,7 +475,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                     DataCell(Text(
                                       _formatCurrency(entry.amount),
                                       style: context.tabularNumericStyle.copyWith(
-                                        color: isIncome ? Colors.green : Colors.red,
+                                        color: isIncome ? context.semanticColors.success : context.semanticColors.error,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     )),
@@ -539,27 +538,25 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
+          NxKpiRow(
             children: [
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Soll-Vorauszahlungen p.a.',
                 value: _formatCurrency(prepaymentsPa),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Betriebskosten Gebäude',
                 value: _formatCurrency(planCostsPa),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Umlagefähig p.a.',
                 value: _formatCurrency(allocatableCostsPa),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Nicht umlagefähig p.a.',
                 value: _formatCurrency(nonAllocatableCostsPa),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: isCovered ? 'Deckung-Überschuss p.a.' : 'Deckung-Unterdeckung p.a.',
                 value: _formatCurrency(coverageDiff.abs()),
               ),
@@ -645,7 +642,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                             tooltip: 'Bearbeiten',
                                           ),
                                           IconButton(
-                                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                            icon: Icon(Icons.delete_outline, color: context.semanticColors.error, size: 18),
                                             onPressed: () => _confirmDeleteOperatingCost(cost),
                                             tooltip: 'Löschen',
                                           ),
@@ -700,7 +697,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                     DataCell(Text(
                                       _formatCurrency(balance.abs()),
                                       style: context.tabularNumericStyle.copyWith(
-                                        color: balance >= 0 ? Colors.green : Colors.red,
+                                        color: balance >= 0 ? context.semanticColors.success : context.semanticColors.error,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     )),
@@ -763,7 +760,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                     DataCell(Text(
                                       _formatCurrency(entry.amount),
                                       style: context.tabularNumericStyle.copyWith(
-                                        color: Colors.red,
+                                        color: context.semanticColors.error,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     )),
@@ -917,7 +914,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                   DataCell(Text(row.periodKey, style: context.tabularNumericStyle)),
                                   DataCell(Text(_formatCurrency(row.budgetAmount), style: context.tabularNumericStyle)),
                                   DataCell(Text(_formatCurrency(row.actualAmount), style: context.tabularNumericStyle)),
-                                  DataCell(Text(_formatCurrency(row.varianceAmount), style: context.tabularNumericStyle.copyWith(color: row.varianceAmount < 0 ? Colors.red : Colors.green))),
+                                  DataCell(Text(_formatCurrency(row.varianceAmount), style: context.tabularNumericStyle.copyWith(color: row.varianceAmount < 0 ? context.semanticColors.error : context.semanticColors.success))),
                                   DataCell(Text(
                                     row.variancePercent == null ? '-' : '${(row.variancePercent! * 100).toStringAsFixed(1)}%',
                                     style: context.tabularNumericStyle,
@@ -960,33 +957,28 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     }
     final ltv = propertyValuation > 0 ? (totalDebt / propertyValuation) * 100 : 0.0;
 
-    final Color ltvBadgeColor;
-    final Color ltvTextColor;
-    if (ltv < 60) {
-      ltvBadgeColor = const Color(0xFFDCFCE7);
-      ltvTextColor = const Color(0xFF15803D);
-    } else if (ltv <= 75) {
-      ltvBadgeColor = const Color(0xFFFEF3C7);
-      ltvTextColor = const Color(0xFFB45309);
-    } else {
-      ltvBadgeColor = const Color(0xFFFEE2E2);
-      ltvTextColor = const Color(0xFFB91C1C);
-    }
+    // Tint derived from the status token rather than a hardcoded light-mode
+    // pair: `#DCFCE7` on `#F9FAFB` reads as a soft green chip, but on the dark
+    // navy canvas it renders as a bright mint block.
+    final Color ltvTextColor = ltv < 60
+        ? context.semanticColors.success
+        : (ltv <= 75
+            ? context.semanticColors.warning
+            : context.semanticColors.error);
+    final Color ltvBadgeColor = ltvTextColor.withValues(alpha: 0.14);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
+          NxKpiRow(
             children: [
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Restschuld Gesamt',
                 value: _formatCurrency(totalDebt),
               ),
-              _SummaryTile(
+              NxKpiTile(
                 label: 'Ø Zinssatz',
                 value: '${(averageInterest * 100).toStringAsFixed(2)} %',
               ),
@@ -998,7 +990,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Objekt-LTV', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('Objekt-LTV', style: Theme.of(context).textTheme.labelMedium),
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -1163,7 +1155,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                         contentPadding: EdgeInsets.zero,
                                         leading: Icon(
                                           check.pass ? Icons.check_circle_outline : Icons.error_outline,
-                                          color: check.pass ? Colors.green : Colors.red,
+                                          color: check.pass ? context.semanticColors.success : context.semanticColors.error,
                                         ),
                                         title: Text('Zeitraum: ${check.periodKey}'),
                                         subtitle: Text(check.notes ?? 'Prüfung bestanden.'),
@@ -1411,7 +1403,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Löschen', style: TextStyle(color: Colors.red)),
+            child: Text('Löschen', style: TextStyle(color: context.semanticColors.error)),
           ),
         ],
       ),
@@ -2088,7 +2080,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey,
+                      color: context.semanticColors.textSecondary,
                     ),
               ),
               const SizedBox(height: 8),
@@ -2471,7 +2463,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               _gewinnKpiCard(
                 label: 'Jahresgewinn $currentYear',
                 value: _fmtEuro(netThis),
-                valueColor: netThis >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                valueColor: netThis >= 0 ? context.semanticColors.success : context.semanticColors.error,
                 icon: Icons.account_balance_wallet_outlined,
                 subtitle: yoyPercent != null
                     ? '${yoyDiff >= 0 ? '+' : ''}${_fmtEuro(yoyDiff)} ggü. $priorYear (${yoyPercent.toStringAsFixed(1)} %)'
@@ -2480,14 +2472,14 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               _gewinnKpiCard(
                 label: 'Gesamteinnahmen $currentYear',
                 value: _fmtEuro(incomeThis),
-                valueColor: const Color(0xFF2563EB),
+                valueColor: Theme.of(context).colorScheme.primary,
                 icon: Icons.trending_up_outlined,
                 subtitle: 'Vorjahr: ${_fmtEuro(incomePrior)}',
               ),
               _gewinnKpiCard(
                 label: 'Gesamtkosten $currentYear',
                 value: _fmtEuro(expenseThis),
-                valueColor: const Color(0xFF64748B),
+                valueColor: context.semanticColors.textSecondary,
                 icon: Icons.trending_down_outlined,
                 subtitle: 'Vorjahr: ${_fmtEuro(expensePrior)}',
               ),
@@ -2495,7 +2487,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 _gewinnKpiCard(
                   label: 'Gewinn je m²',
                   value: '${_fmtEuro(profitPerSqm)} / m²',
-                  valueColor: profitPerSqm >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  valueColor: profitPerSqm >= 0 ? context.semanticColors.success : context.semanticColors.error,
                   icon: Icons.straighten_outlined,
                   subtitle: '${sqm.toStringAsFixed(0)} m² Wohnfläche',
                 ),
@@ -2503,7 +2495,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 _gewinnKpiCard(
                   label: 'Gewinn je Einheit',
                   value: _fmtEuro(profitPerUnit),
-                  valueColor: profitPerUnit >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  valueColor: profitPerUnit >= 0 ? context.semanticColors.success : context.semanticColors.error,
                   icon: Icons.apartment_outlined,
                   subtitle: '$units Einheiten',
                 ),
@@ -2531,7 +2523,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                         final val = monthlyNet[i];
                         final maxAbs = monthlyNet.map((v) => v.abs()).fold(1.0, math.max);
                         final barHeight = (val.abs() / maxAbs * 100).clamp(4.0, 100.0);
-                        final color = val >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+                        final color = val >= 0 ? context.semanticColors.success : context.semanticColors.error;
                         const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
                         return Expanded(
                           child: Padding(
@@ -2547,7 +2539,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(months[i], style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+                                Text(months[i], style: Theme.of(context).textTheme.labelMedium),
                               ],
                             ),
                           ),
@@ -2567,7 +2559,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               title: 'Einnahmen nach Kontoart',
               items: incomeByAccount,
               total: incomeThis,
-              color: const Color(0xFF2563EB),
+              color: Theme.of(context).colorScheme.primary,
             ),
           if (incomeByAccount.isNotEmpty) const SizedBox(height: AppSpacing.component),
 
@@ -2577,7 +2569,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               title: 'Ausgaben nach Kontoart',
               items: expenseByAccount,
               total: expenseThis,
-              color: const Color(0xFFDC2626),
+              color: context.semanticColors.error,
             ),
 
           if (incomeByAccount.isEmpty && expenseByAccount.isEmpty)
@@ -2586,7 +2578,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 padding: const EdgeInsets.all(AppSpacing.cardPadding),
                 child: Column(
                   children: [
-                    const Icon(Icons.bar_chart_outlined, size: 48, color: Color(0xFF94A3B8)),
+                    Icon(Icons.bar_chart_outlined, size: 48, color: context.semanticColors.textSecondary),
                     const SizedBox(height: 12),
                     Text(
                       'Keine Ledger-Einträge für $currentYear',
@@ -2747,7 +2739,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
     final recommendedBuffer = avgMonthlyExpense * 3;
     final isBufferHealthy = currentLiquidBuffer >= recommendedBuffer;
     final bufferStatusText = isBufferHealthy ? 'Ausreichend (Gesund)' : 'Unter empfohlenem Niveau';
-    final bufferStatusColor = isBufferHealthy ? const Color(0xFF16A34A) : const Color(0xFFEAB308);
+    final bufferStatusColor = isBufferHealthy ? context.semanticColors.success : context.semanticColors.warning;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
@@ -2761,14 +2753,14 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
               _gewinnKpiCard(
                 label: 'Aktuelle Liquidität',
                 value: _fmtEuro(currentLiquidBuffer),
-                valueColor: currentLiquidBuffer >= 0 ? const Color(0xFF2563EB) : const Color(0xFFDC2626),
+                valueColor: currentLiquidBuffer >= 0 ? Theme.of(context).colorScheme.primary : context.semanticColors.error,
                 icon: Icons.account_balance,
                 subtitle: 'Freie Bank- & Kassenbestände',
               ),
               _gewinnKpiCard(
                 label: 'Empfohlener Puffer',
                 value: _fmtEuro(recommendedBuffer),
-                valueColor: const Color(0xFF64748B),
+                valueColor: context.semanticColors.textSecondary,
                 icon: Icons.security_outlined,
                 subtitle: 'Basierend auf 3x Monatskosten',
               ),
@@ -2785,16 +2777,16 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
 
           if (hasShortfall)
             Card(
-              color: const Color(0xFFFEF2F2),
+              color: context.semanticColors.error.withValues(alpha: 0.12),
               shape: RoundedRectangleBorder(
-                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                side: BorderSide(color: context.semanticColors.error.withValues(alpha: 0.4)),
                 borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 28),
+                    Icon(Icons.warning_amber_rounded, color: context.semanticColors.error, size: 28),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -2803,14 +2795,14 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                           Text(
                             'Liquiditätsengpass prognostiziert!',
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: const Color(0xFF991B1B),
+                              color: context.semanticColors.error,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Im Monat $shortfallMonth wird das kumulierte Liquiditätskonto voraussichtlich eine Unterdeckung von ${_fmtEuro(shortfallAmount)} aufweisen. Bitte prüfen Sie Einnahmen und Ausgaben oder stellen Sie eine zusätzliche Finanzierung bereit.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF7F1D1D)),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.semanticColors.error),
                           ),
                         ],
                       ),
@@ -2821,17 +2813,21 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
             )
           else
             Card(
-              color: const Color(0xFFF0FDF4),
+              color: context.semanticColors.success.withValues(alpha: 0.12),
               shape: RoundedRectangleBorder(
-                side: const BorderSide(color: Color(0xFFBBF7D0)),
+                side: BorderSide(color: context.semanticColors.success.withValues(alpha: 0.4)),
                 borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
               ),
-              child: const Padding(
-                padding: EdgeInsets.all(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 28),
-                    SizedBox(width: 16),
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: context.semanticColors.success,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2839,14 +2835,14 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                           Text(
                             'Liquidität gesichert',
                             style: TextStyle(
-                              color: Color(0xFF166534),
+                              color: context.semanticColors.success,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           SizedBox(height: 4),
                           Text(
                             'Die rollierende 12-Monats-Vorschau prognostiziert keine Liquiditätsengpässe. Der Bestand ist voll gedeckt.',
-                            style: TextStyle(color: Color(0xFF14532D), fontSize: 13),
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -2893,7 +2889,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                               Text(
                                 _fmtEuro(row.netCashflow),
                                 style: TextStyle(
-                                  color: isNetNegative ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                                  color: isNetNegative ? context.semanticColors.error : context.semanticColors.success,
                                   fontWeight: FontWeight.w600,
                                 ).merge(context.tabularNumericStyle),
                               ),
@@ -2902,7 +2898,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                               Text(
                                 _fmtEuro(row.cumulativeBalance),
                                 style: TextStyle(
-                                  color: isNegative ? const Color(0xFFDC2626) : Theme.of(context).colorScheme.onSurface,
+                                  color: isNegative ? context.semanticColors.error : Theme.of(context).colorScheme.onSurface,
                                   fontWeight: FontWeight.bold,
                                 ).merge(context.tabularNumericStyle),
                               ),
@@ -2910,7 +2906,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                             DataCell(
                               Icon(
                                 isNetNegative ? Icons.arrow_downward : Icons.arrow_upward,
-                                color: isNetNegative ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                                color: isNetNegative ? context.semanticColors.error : context.semanticColors.success,
                                 size: 16,
                               ),
                             ),
@@ -3063,11 +3059,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                   Expanded(
                     child: Text(
                       label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium,
                     ),
                   ),
                 ],
@@ -3085,7 +3077,7 @@ class _BudgetVsActualScreenState extends ConsumerState<BudgetVsActualScreen>
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  style: Theme.of(context).textTheme.labelMedium,
                   maxLines: 2,
                 ),
               ],
@@ -3285,7 +3277,7 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                             barRods: [
                               BarChartRodData(
                                 toY: planned.abs(),
-                                color: Colors.blueAccent,
+                                color: AppChartPalette.at(0),
                                 width: 28,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                               ),
@@ -3296,7 +3288,12 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                             barRods: [
                               BarChartRodData(
                                 toY: actual.abs(),
-                                color: actual.abs() > planned.abs() ? Colors.redAccent : Colors.teal,
+                                // Fixed colour per entity. The bar used to
+                                // repaint itself when it exceeded plan, which
+                                // encodes state in a slot reserved for
+                                // identity — and the over-budget signal is
+                                // already carried by the variance chip.
+                                color: AppChartPalette.at(1),
                                 width: 28,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                               ),
@@ -3307,7 +3304,7 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                             barRods: [
                               BarChartRodData(
                                 toY: forecast.abs(),
-                                color: Colors.deepPurpleAccent,
+                                color: AppChartPalette.at(2),
                                 width: 28,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                               ),
@@ -3345,30 +3342,24 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                               sections: List.generate(
                                 sortedActuals.take(4).length + (sortedActuals.length > 4 ? 1 : 0),
                                 (index) {
-                                  final colors = [
-                                    Colors.blue,
-                                    Colors.teal,
-                                    Colors.orange,
-                                    Colors.red,
-                                    Colors.grey,
-                                  ];
                                   if (index < 4) {
                                     final entry = sortedActuals[index];
                                     return PieChartSectionData(
-                                      color: colors[index],
+                                      color: AppChartPalette.at(index),
                                       value: entry.value,
-                                      title: '${((entry.value / actual) * 100).toStringAsFixed(0)}%',
+                                      // Share moved to the legend: 11px white
+                                      // on these fills is ~3:1, below AA, and
+                                      // the legend already names each slice.
+                                      showTitle: false,
                                       radius: 40,
-                                      titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                                     );
                                   } else {
                                     final otherSum = sortedActuals.skip(4).fold<double>(0, (sum, entry) => sum + entry.value);
                                     return PieChartSectionData(
-                                      color: colors[4],
+                                      color: AppChartPalette.at(4),
                                       value: otherSum,
-                                      title: '${((otherSum / actual) * 100).toStringAsFixed(0)}%',
+                                      showTitle: false,
                                       radius: 40,
-                                      titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                                     );
                                   }
                                 },
@@ -3384,20 +3375,13 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                             children: List.generate(
                               sortedActuals.take(4).length + (sortedActuals.length > 4 ? 1 : 0),
                               (index) {
-                                final colors = [
-                                  Colors.blue,
-                                  Colors.teal,
-                                  Colors.orange,
-                                  Colors.red,
-                                  Colors.grey,
-                                ];
                                 if (index < 4) {
                                   final entry = sortedActuals[index];
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                                     child: Row(
                                       children: [
-                                        Container(width: 12, height: 12, color: colors[index]),
+                                        Container(width: 12, height: 12, color: AppChartPalette.at(index)),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
@@ -3408,8 +3392,20 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                                           ),
                                         ),
                                         Text(
-                                          _formatObjectBudgetCurrency(entry.value),
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                          '${((entry.value / actual) * 100).toStringAsFixed(0)}%',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatObjectBudgetCurrency(
+                                            entry.value,
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.merge(context.dataMonoStyle),
                                         ),
                                       ],
                                     ),
@@ -3420,7 +3416,7 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                                     child: Row(
                                       children: [
-                                        Container(width: 12, height: 12, color: colors[4]),
+                                        Container(width: 12, height: 12, color: AppChartPalette.at(4)),
                                         const SizedBox(width: 8),
                                         const Expanded(
                                           child: Text(
@@ -3429,8 +3425,18 @@ class _ObjectBudgetDashboard extends StatelessWidget {
                                           ),
                                         ),
                                         Text(
+                                          '${((otherSum / actual) * 100).toStringAsFixed(0)}%',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
                                           _formatObjectBudgetCurrency(otherSum),
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.merge(context.dataMonoStyle),
                                         ),
                                       ],
                                     ),
@@ -3562,54 +3568,40 @@ class _VarianceSummary extends StatelessWidget {
     final variance =
         rows.fold<double>(0, (sum, row) => sum + row.varianceAmount);
     final percent = budget == 0 ? null : variance / budget;
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+    final semantic = context.semanticColors;
+
+    // Was a private `_SummaryTile` — the fourth independent KPI tile in the
+    // app, at a fixed 160px in a Wrap. On the shared component it spans the
+    // row and matches every other KPI band.
+    return NxKpiRow(
       children: [
-        _SummaryTile(label: 'Budget', value: budget.toStringAsFixed(0)),
-        _SummaryTile(label: 'Actual', value: actual.toStringAsFixed(0)),
-        _SummaryTile(label: 'Variance', value: variance.toStringAsFixed(0)),
-        _SummaryTile(
-          label: 'Variance %',
+        NxKpiTile(
+          label: 'BUDGET',
+          value: _formatCurrency(budget),
+          caption: 'geplant',
+        ),
+        NxKpiTile(
+          label: 'IST',
+          value: _formatCurrency(actual),
+          caption: 'gebucht',
+        ),
+        NxKpiTile(
+          label: 'ABWEICHUNG',
+          value: _formatCurrency(variance),
+          caption: variance > 0 ? 'über Budget' : 'unter Budget',
+          status: variance > 0 ? semantic.warning : semantic.success,
+        ),
+        NxKpiTile(
+          label: 'ABWEICHUNG %',
           value: percent == null
-              ? '-'
+              ? '—'
               : '${(percent * 100).toStringAsFixed(1)}%',
+          caption: 'vom Budget',
+          status: percent == null
+              ? null
+              : (percent.abs() >= 0.1 ? semantic.warning : semantic.success),
         ),
       ],
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 160,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700)
-                    .merge(context.tabularNumericStyle),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -3623,24 +3615,20 @@ class _VarianceStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final percent = row.variancePercent?.abs();
     final isMaterial = percent != null && percent >= 0.1;
-    final label =
-        isMaterial
-            ? (row.varianceAmount > 0 ? 'Over' : 'Under')
-            : 'On track';
-    final color =
-        isMaterial
-            ? (row.varianceAmount > 0 ? Colors.orange : Colors.green)
-            : Colors.blueGrey;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
-      ),
+    // Was a hand-rolled chip on raw Material colors (orange/green/blueGrey).
+    // On NxStatusBadge the shape and colour mapping follow the design system
+    // instead of drifting the next time it moves.
+    if (!isMaterial) {
+      return const NxStatusBadge(
+        label: 'Im Rahmen',
+        kind: NxBadgeKind.neutral,
+      );
+    }
+    return NxStatusBadge(
+      label: row.varianceAmount > 0 ? 'Über Budget' : 'Unter Budget',
+      kind: row.varianceAmount > 0
+          ? NxBadgeKind.warning
+          : NxBadgeKind.success,
     );
   }
 }

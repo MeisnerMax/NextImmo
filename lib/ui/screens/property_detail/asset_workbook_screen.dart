@@ -809,8 +809,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       }
                     },
                     itemBuilder:
-                        (context) => const [
-                          PopupMenuItem(
+                        (context) => [
+                          const PopupMenuItem(
                             value: 'edit',
                             child: Row(
                               children: [
@@ -820,7 +820,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                               ],
                             ),
                           ),
-                          PopupMenuItem(
+                          const PopupMenuItem(
                             value: 'history',
                             child: Row(
                               children: [
@@ -834,9 +834,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                             value: 'delete',
                             child: Row(
                               children: [
-                                Icon(Icons.delete_outline, color: Colors.red, size: 16),
-                                SizedBox(width: 8),
-                                Text('Löschen', style: TextStyle(color: Colors.red)),
+                                Icon(Icons.delete_outline, color: context.semanticColors.error, size: 16),
+                                const SizedBox(width: 8),
+                                Text('Löschen', style: TextStyle(color: context.semanticColors.error)),
                               ],
                             ),
                           ),
@@ -1404,6 +1404,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       DataColumn(label: Text('ADR')),
                       DataColumn(label: Text('RevPAR')),
                       DataColumn(label: Text('Umsatz')),
+                      DataColumn(label: Text('Kosten')),
+                      DataColumn(label: Text('Ergebnis')),
                       DataColumn(label: Text('GOP')),
                       DataColumn(label: Text('')),
                     ],
@@ -1427,6 +1429,22 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                                   DataCell(
                                     Text(
                                       _formatCurrency(kpi.totalRevenue ?? 0),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      kpi.totalCosts == null
+                                          ? '-'
+                                          : _formatCurrency(kpi.totalCosts!),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      kpi.effectiveProfitLoss == null
+                                          ? '-'
+                                          : _formatCurrency(
+                                            kpi.effectiveProfitLoss!,
+                                          ),
                                     ),
                                   ),
                                   DataCell(
@@ -1960,6 +1978,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     final adr = TextEditingController();
     final fbRevenue = TextEditingController();
     final roomRevenue = TextEditingController();
+    final totalCosts = TextEditingController();
     final gop = TextEditingController();
     final notes = TextEditingController();
 
@@ -2009,6 +2028,13 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       decoration: const InputDecoration(labelText: 'Logis Umsatz'),
                     ),
                     TextField(
+                      controller: totalCosts,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Gesamtkosten (netto)',
+                      ),
+                    ),
+                    TextField(
                       controller: gop,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'GOP %'),
@@ -2046,6 +2072,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           adr: _parseNumber(adr.text),
           fbRevenue: _parseNumber(fbRevenue.text),
           roomRevenue: _parseNumber(roomRevenue.text),
+          totalCosts: _parseNumber(totalCosts.text),
           gopPercent: _parseNumber(gop.text),
           notes: _blankToNull(notes.text),
         );

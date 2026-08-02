@@ -45,12 +45,15 @@ class PropertyTable extends StatelessWidget {
 
   Widget _buildTable(BuildContext context) {
     final theme = Theme.of(context);
+    // Financial figures run on the mono face so columns of numbers align and
+    // digits stay unambiguous down the column.
     final numericStyle = theme.textTheme.bodyMedium
-        ?.merge(context.tabularNumericStyle);
+        ?.merge(context.dataMonoStyle);
     final headerStyle = theme.textTheme.labelMedium?.copyWith(
       fontWeight: FontWeight.w600,
       color: context.semanticColors.textSecondary,
     );
+    final zebra = context.semanticColors.surfaceAlt.withValues(alpha: 0.35);
 
     DataColumn column(String label, {bool numeric = false}) => DataColumn(
           numeric: numeric,
@@ -70,12 +73,19 @@ class PropertyTable extends StatelessWidget {
         column('Aktualisiert'),
         column(''),
       ],
-      rows: properties.map((property) {
+      rows: List.generate(properties.length, (index) {
+        final property = properties[index];
         final kpis = metrics.propertyKpis[property.id];
         final cashflow = kpis?.cashflowMonthly ?? 0.0;
         final yieldVal = kpis?.propertyYield ?? 0.0;
         return DataRow(
           onSelectChanged: (_) => onOpen(property),
+          color: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return theme.colorScheme.primary.withValues(alpha: 0.06);
+            }
+            return index.isOdd ? zebra : null;
+          }),
           cells: [
             DataCell(
               Column(
@@ -130,15 +140,11 @@ class PropertyTable extends StatelessWidget {
                 style: numericStyle,
               ),
             ),
+            // Yield carries no colour: 5% is an arbitrary threshold, and a
+            // green number here competes with the cashflow sign, which is a
+            // genuine positive/negative signal.
             DataCell(
-              Text(
-                formatPercentOneDecimal(yieldVal),
-                style: numericStyle?.copyWith(
-                  color: yieldVal > 0.05
-                      ? context.semanticColors.success
-                      : null,
-                ),
-              ),
+              Text(formatPercentOneDecimal(yieldVal), style: numericStyle),
             ),
             DataCell(
               Text(
@@ -156,7 +162,14 @@ class PropertyTable extends StatelessWidget {
                 style: numericStyle,
               ),
             ),
-            DataCell(Text(formatDateFromMillis(property.updatedAt))),
+            DataCell(
+              Text(
+                formatDateFromMillis(property.updatedAt),
+                style: numericStyle?.copyWith(
+                  color: context.semanticColors.textSecondary,
+                ),
+              ),
+            ),
             DataCell(
               PropertyActions(
                 onOpen: () => onOpen(property),

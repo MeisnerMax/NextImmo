@@ -52,7 +52,11 @@ class AppSettingsRecord {
     this.securityPasswordHash,
     this.securityPasswordSalt,
     this.securityPasswordUpdatedAt,
-    this.uiThemeMode = 'system',
+    // Dark, not system: Liquid Enterprise is a dark-led identity (see
+    // docs/architecture/phase_2/03_design_system.md), and defaulting to the
+    // OS signal means most installs never show the design as intended.
+    // 'system' and 'light' remain explicit user choices.
+    this.uiThemeMode = 'dark',
     this.uiDensityMode = 'comfort',
     this.uiChartAnimationsEnabled = true,
     required this.updatedAt,
@@ -237,7 +241,7 @@ class AppSettingsRecord {
       securityPasswordSalt: map['security_password_salt'] as String?,
       securityPasswordUpdatedAt:
           (map['security_password_updated_at'] as num?)?.toInt(),
-      uiThemeMode: (map['ui_theme_mode'] as String?) ?? 'system',
+      uiThemeMode: (map['ui_theme_mode'] as String?) ?? 'dark',
       uiDensityMode: (map['ui_density_mode'] as String?) ?? 'comfort',
       uiChartAnimationsEnabled:
           ((map['ui_chart_animations_enabled'] as num?) ?? 1) == 1,
