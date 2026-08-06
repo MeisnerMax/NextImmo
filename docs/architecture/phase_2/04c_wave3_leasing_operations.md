@@ -1,7 +1,7 @@
 # Welle 3 — Detaildokument: leasing_operations (UI)
 
-Status: `active` — alle Punkte unter „Plan gegen Realität" sind am 2026-08-04 vom Nutzer entschieden, einschließlich der Folgefrage aus Befund 1 (Alert-Ableitung vollständig serverseitig). Kein Arbeitspaket dieser Welle ist mehr durch eine offene Entscheidung blockiert. **AP8 (`P2-D05a operations_signals`) ist `done` (2026-08-06, siehe W3-AP8-Zeile in `00_phase_2_status.md`)** — damit sind AP9 (OperationsOverviewScreen) und AP10 (OperationsAlertsScreen) entblockt.
-Stand: 2026-08-04
+Status: **`done` (2026-08-06) — alle zehn Arbeitspakete (AP1–AP10) abgeschlossen und verifiziert.** Wellengrenze erreicht; siehe die W3-AP*-Zeilen in `00_phase_2_status.md` für Details und Verifikation je Arbeitspaket.
+Stand: 2026-08-06
 Bezug: `04_screen_redesign_wave_plan.md` (Wellenzuordnung + zwei Worked Examples als Qualitätsmaßstab), `03_design_system.md` (Sechs-Punkte-Template, Pflicht-Komponenten, Pflicht-Zustände), `04b_wave2_contacts_documents.md` (Muster der Backend-gewählten Contract-Konsumtion), `00_phase_2_status.md` (Ist-Stand), P2-D05-Contract unter `lib/features/leasing_operations/`.
 
 ## Backend-Voraussetzungen
@@ -76,7 +76,7 @@ Der Wellenplan verortet ihn unter `portfolio/` und beschreibt `DEAD-002` als „
 | SCR-030 | RentRollScreen | `lib/ui/screens/property_detail/rent_roll_screen.dart` | 567 | 0 | Contract (Befund 2) | V9.1 Punkte 3+4 |
 | SCR-065 | RentalOverviewScreen | `lib/ui/screens/rental_overview_screen.dart` | 486 | 0 | Contract, portfolioweit (Befund 4) | `DEAD-002` |
 | SCR-022 | OperationsOverviewScreen | `lib/ui/screens/property_detail/leasing/operations_overview_panel.dart` | — | — | `done` — Contract + `P2-D05a` (Befund 3) | — |
-| SCR-032 | OperationsAlertsScreen | `lib/ui/screens/property_detail/operations_alerts_screen.dart` | 612 | 0 | `P2-D05a` (Befund 1) | V9.1 Punkt 6 |
+| SCR-032 | OperationsAlertsScreen | `lib/ui/screens/property_detail/leasing/operations_alerts_panel.dart` | — | — | `done` — `P2-D05a` (Befund 1) | V9.1 Punkt 6 |
 | — | **`P2-D05a operations_signals`** (Backend, kein Screen) | `lib/features/leasing_operations/{application,data,domain}` | 0 | — | `done` — Voraussetzung für SCR-022 + SCR-032 erfüllt | — |
 
 **Neu in dieser Welle, ohne Legacy-Vorlage:** die `LeasingCase`-Pipeline (STM-004) hat heute **keinen** Screen — sie war der UI-only-Statusstring-Teil von `FTR-024`, den P2-D05 zum echten Aggregat gemacht hat. Sie bekommt eine Fläche im Vertragsbereich (siehe Arbeitspaket 4), nicht einen eigenen SCR-Eintrag, weil der Wellenplan die Screenzahl auf 65 pinnt.
@@ -92,7 +92,7 @@ Der Wellenplan verortet ihn unter `portfolio/` und beschreibt `DEAD-002` als „
 7. **RentalOverviewScreen (AP7)** — portfolioweite Sicht auf dieselben Ports, ohne `propertyId`-Filter; sinnvoll erst, wenn die objektbezogenen Flächen stehen (Befund 4).
 8. **`P2-D05a operations_signals` (AP8, Backend) — `done`.** Eigener Increment nach der Domänen-Arbeitsordnung (Schema → pgTAP → Rollback → Contract → Adapter → Integrationstest → Realtime → CI), siehe W3-AP8-Zeile in `00_phase_2_status.md` für Details und Verifikation.
 9. **OperationsOverviewScreen (AP9) — `done`.** Aggregiert alles Vorherige, jetzt vollständig aus Cloud-Gegenstücken (Befund 3); siehe W3-AP9-Zeile in `00_phase_2_status.md`.
-10. **OperationsAlertsScreen (AP10)** zuletzt, auf dem in AP8 gebauten Contract (Befund 1).
+10. **OperationsAlertsScreen (AP10) — `done`.** Auf dem in AP8 gebauten Contract (Befund 1); siehe W3-AP10-Zeile in `00_phase_2_status.md`.
 
 `BIG-016`/`BIG-018`/`BIG-020` werden nicht durch Aufteilen „in Dateien" gelöst, sondern durch geteilte Bausteine unter `lib/ui/screens/property_detail/leasing/widgets/` (Statusabbildung, Vertragsformular, Einheitenformular, Transitions-Bestätigung) plus schlanke Orchestrierung je Screen — dieselbe Linie wie `docs/widgets/` in Welle 2.
 

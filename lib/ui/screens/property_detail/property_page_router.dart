@@ -10,12 +10,12 @@ import 'covenants_screen.dart';
 import 'criteria_check_screen.dart';
 import 'inputs_screen.dart';
 import 'leasing/leases_panel.dart';
+import 'leasing/operations_alerts_panel.dart';
 import 'leasing/operations_overview_panel.dart';
 import 'leasing/rent_roll_panel.dart';
 import 'leasing/widgets/leasing_area_gate.dart';
 import 'leasing/tenants_panel.dart';
 import 'maintenance_screen.dart';
-import 'operations_alerts_screen.dart';
 import 'offer_screen.dart';
 import 'overview_screen.dart';
 import 'property_documents_screen.dart';
@@ -149,7 +149,11 @@ Widget buildPropertyDetailPage({
     case PropertyDetailPage.assetWorkbook:
       return AssetWorkbookScreen(propertyId: propertyId);
     case PropertyDetailPage.alerts:
-      return OperationsAlertsScreen(propertyId: propertyId);
+      // Welle 3 AP10: fully on the P2-D05a contract (Befund 1).
+      return LeasingAreaGate(
+        propertyId: propertyId,
+        child: OperationsAlertsPanel(propertyId: propertyId),
+      );
     case PropertyDetailPage.budgetVsActual:
       return BudgetVsActualScreen(propertyId: propertyId);
     case PropertyDetailPage.maintenance:
