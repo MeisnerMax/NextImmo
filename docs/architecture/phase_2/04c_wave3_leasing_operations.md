@@ -75,7 +75,7 @@ Der Wellenplan verortet ihn unter `portfolio/` und beschreibt `DEAD-002` als „
 | SCR-027 | TenantDetailScreen | `lib/ui/screens/property_detail/tenant_detail_screen.dart` | 414 | 2 | **P2-D02** + Contract | `DUP-010` |
 | SCR-030 | RentRollScreen | `lib/ui/screens/property_detail/rent_roll_screen.dart` | 567 | 0 | Contract (Befund 2) | V9.1 Punkte 3+4 |
 | SCR-065 | RentalOverviewScreen | `lib/ui/screens/rental_overview_screen.dart` | 486 | 0 | Contract, portfolioweit (Befund 4) | `DEAD-002` |
-| SCR-022 | OperationsOverviewScreen | `lib/ui/screens/property_detail/operations_overview_screen.dart` | 397 | 0 | Contract + `P2-D05a` (Befund 3) | — |
+| SCR-022 | OperationsOverviewScreen | `lib/ui/screens/property_detail/leasing/operations_overview_panel.dart` | — | — | `done` — Contract + `P2-D05a` (Befund 3) | — |
 | SCR-032 | OperationsAlertsScreen | `lib/ui/screens/property_detail/operations_alerts_screen.dart` | 612 | 0 | `P2-D05a` (Befund 1) | V9.1 Punkt 6 |
 | — | **`P2-D05a operations_signals`** (Backend, kein Screen) | `lib/features/leasing_operations/{application,data,domain}` | 0 | — | `done` — Voraussetzung für SCR-022 + SCR-032 erfüllt | — |
 
@@ -91,7 +91,7 @@ Der Wellenplan verortet ihn unter `portfolio/` und beschreibt `DEAD-002` als „
 6. **RentRollScreen (AP6)** nach Einheiten und Verträgen, weil er beide summiert und die Erklärung „belegt, trägt aber 0,00 bei" nur mit korrektem Einheiten- und Vertragsbild überhaupt formulierbar ist.
 7. **RentalOverviewScreen (AP7)** — portfolioweite Sicht auf dieselben Ports, ohne `propertyId`-Filter; sinnvoll erst, wenn die objektbezogenen Flächen stehen (Befund 4).
 8. **`P2-D05a operations_signals` (AP8, Backend) — `done`.** Eigener Increment nach der Domänen-Arbeitsordnung (Schema → pgTAP → Rollback → Contract → Adapter → Integrationstest → Realtime → CI), siehe W3-AP8-Zeile in `00_phase_2_status.md` für Details und Verifikation.
-9. **OperationsOverviewScreen (AP9)** — aggregiert alles Vorherige, jetzt vollständig aus Cloud-Gegenstücken (Befund 3).
+9. **OperationsOverviewScreen (AP9) — `done`.** Aggregiert alles Vorherige, jetzt vollständig aus Cloud-Gegenstücken (Befund 3); siehe W3-AP9-Zeile in `00_phase_2_status.md`.
 10. **OperationsAlertsScreen (AP10)** zuletzt, auf dem in AP8 gebauten Contract (Befund 1).
 
 `BIG-016`/`BIG-018`/`BIG-020` werden nicht durch Aufteilen „in Dateien" gelöst, sondern durch geteilte Bausteine unter `lib/ui/screens/property_detail/leasing/widgets/` (Statusabbildung, Vertragsformular, Einheitenformular, Transitions-Bestätigung) plus schlanke Orchestrierung je Screen — dieselbe Linie wie `docs/widgets/` in Welle 2.
