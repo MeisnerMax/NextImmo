@@ -14,6 +14,13 @@
 /// acted on: null there means no acknowledgement row exists yet (the RPC's
 /// "create" path), non-null means "acknowledge exactly this version" (the
 /// RPC's optimistic-concurrency path). The controller never invents one.
+///
+/// [createTaskFrom] closes the AP10 "Create Task" gap: the legacy action
+/// wrote through the SQLite-only `tasksRepositoryProvider`, forbidden here by
+/// the Wave-3 rule; this one goes through the cloud `TaskRepository`
+/// (`platform_audit_jobs`, P2-D04) instead, linking the task to the signal's
+/// most specific entity — lease, then unit, then tenant party, then the
+/// property itself — via [PlatformEntityRef].
 library;
 
 import 'dart:async';
@@ -21,6 +28,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../identity_access/application/workspace_session_scope.dart';
+import '../../platform_audit_jobs/application/platform_providers.dart';
+import '../../platform_audit_jobs/application/platform_repository.dart';
+import '../../platform_audit_jobs/domain/platform_entity_type.dart';
+import '../../platform_audit_jobs/domain/task_dto.dart';
 import '../domain/operations_signal_dto.dart';
 import 'leasing_providers.dart';
 import 'leasing_query_invalidation_source.dart';
@@ -105,6 +116,25 @@ class OperationsAlertsState {
   }
 }
 
+/// The signal's most specific linkable entity — lease over unit over tenant
+/// over the property itself, so a task always lands on the narrowest thing
+/// it is actually about. Never null: every signal carries a `propertyId`.
+PlatformEntityRef entityRefFor(OperationsSignalDto signal) {
+  if (signal.leaseId != null) {
+    return PlatformEntityRef(type: PlatformEntityType.lease, id: signal.leaseId!);
+  }
+  if (signal.unitId != null) {
+    return PlatformEntityRef(type: PlatformEntityType.unit, id: signal.unitId!);
+  }
+  if (signal.tenantPartyId != null) {
+    return PlatformEntityRef(
+      type: PlatformEntityType.party,
+      id: signal.tenantPartyId!,
+    );
+  }
+  return PlatformEntityRef(type: PlatformEntityType.property, id: signal.propertyId);
+}
+
 /// Mirrors the legacy `_alertCategory`: a display grouping, not a server
 /// concept.
 String alertCategory(OperationsSignalDto signal) {
@@ -123,11 +153,13 @@ String alertCategory(OperationsSignalDto signal) {
 class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
   OperationsAlertsController({
     required OperationsSignalsPort signals,
+    required TaskRepository tasks,
     required WorkspaceSessionScope scope,
     required String propertyId,
     LeasingQueryInvalidationSource? invalidationSource,
     Duration invalidationCoalesceWindow = const Duration(milliseconds: 250),
   }) : _signals = signals,
+       _tasks = tasks,
        _scope = scope,
        _propertyId = propertyId,
        _invalidationSource = invalidationSource,
@@ -135,6 +167,7 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
        super(const OperationsAlertsState.loading());
 
   final OperationsSignalsPort _signals;
+  final TaskRepository _tasks;
   final WorkspaceSessionScope _scope;
   final String _propertyId;
   final LeasingQueryInvalidationSource? _invalidationSource;
@@ -233,6 +266,47 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
     }
   }
 
+  /// Creates a task linked to [signal]'s most specific entity (see
+  /// [entityRefFor]). Does not reload the signal list — a task is not a
+  /// signal property, so nothing about the list actually changed.
+  Future<bool> createTaskFrom({
+    required OperationsSignalDto signal,
+    required String title,
+    TaskPriority priority = TaskPriority.normal,
+    DateTime? dueAt,
+  }) async {
+    final workspaceId = _scope.workspaceId;
+    final actorId = _scope.actorId;
+    if (workspaceId == null || actorId == null) {
+      return false;
+    }
+    final now = DateTime.now().microsecondsSinceEpoch.toString();
+    final result = await _tasks.createTask(
+      CreateTaskCommand(
+        context: PlatformCommandContext(
+          workspaceId: workspaceId,
+          actorId: actorId,
+          mutationId: 'oa-task-mut-$now',
+          correlationId: 'oa-task-cor-$now',
+        ),
+        draft: TaskDraft(
+          title: title,
+          entity: entityRefFor(signal),
+          priority: priority,
+          dueAt: dueAt,
+          description: signal.message,
+        ),
+      ),
+    );
+    switch (result) {
+      case PlatformRepositoryFailure<TaskDto>(:final message):
+        state = state.copyWith(actionError: message);
+        return false;
+      case PlatformRepositorySuccess<TaskDto>():
+        return true;
+    }
+  }
+
   void _subscribeToInvalidation(String workspaceId) {
     final source = _invalidationSource;
     if (source == null || _invalidationSubscription != null) {
@@ -276,6 +350,7 @@ final operationsAlertsControllerProvider = StateNotifierProvider.autoDispose
     ) {
       final controller = OperationsAlertsController(
         signals: ref.watch(operationsSignalsProvider),
+        tasks: ref.watch(taskRepositoryProvider),
         scope: ref.watch(workspaceSessionScopeProvider),
         propertyId: propertyId,
         invalidationSource: ref.watch(leasingQueryInvalidationSourceProvider),

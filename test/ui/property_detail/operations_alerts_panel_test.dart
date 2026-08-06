@@ -5,6 +5,10 @@ import 'package:neximmo_app/features/identity_access/application/workspace_sessi
 import 'package:neximmo_app/features/leasing_operations/application/leasing_providers.dart';
 import 'package:neximmo_app/features/leasing_operations/application/operations_signals_contract.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/operations_signal_dto.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/platform_entity_type.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
 import 'package:neximmo_app/ui/screens/property_detail/leasing/operations_alerts_panel.dart';
 
 const String _workspace = 'workspace-a';
@@ -57,6 +61,28 @@ void main() {
 
     expect(gateway.lastCommand?.status, 'resolved');
     expect(gateway.lastCommand?.resolutionNote, 'renewed');
+  });
+
+  testWidgets('create task opens a dialog and submits with the linked entity', (
+    tester,
+  ) async {
+    final tasks = _FakeTasks();
+    await _pump(
+      tester,
+      signals: <OperationsSignalDto>[
+        _signal('lease_expiry', 'critical', status: 'open', leaseId: 'l1'),
+      ],
+      tasks: tasks,
+    );
+
+    await tester.tap(find.text('Aufgabe erstellen'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Vertrag verlängern');
+    await tester.tap(find.text('Erstellen'));
+    await tester.pumpAndSettle();
+
+    expect(tasks.lastCommand?.draft.title, 'Vertrag verlängern');
+    expect(tasks.lastCommand?.draft.entity?.type, PlatformEntityType.lease);
   });
 
   testWidgets('forbidden is its own state', (tester) async {
@@ -115,6 +141,7 @@ Future<void> _pump(
   List<OperationsSignalDto> signals = const <OperationsSignalDto>[],
   OperationsSignalsResult<List<OperationsSignalDto>>? listResult,
   _FakeSignals? gateway,
+  _FakeTasks? tasks,
   Size size = const Size(1400, 900),
 }) async {
   tester.view.physicalSize = size;
@@ -140,6 +167,7 @@ Future<void> _pump(
           ),
         ),
         operationsSignalsProvider.overrideWithValue(resolvedGateway),
+        taskRepositoryProvider.overrideWithValue(tasks ?? _FakeTasks()),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -155,6 +183,7 @@ OperationsSignalDto _signal(
   String type,
   String severity, {
   required String status,
+  String? leaseId,
 }) => OperationsSignalDto(
   signalKey: '$type:-:-:-',
   type: type,
@@ -162,6 +191,7 @@ OperationsSignalDto _signal(
   message: '$type triggered',
   recommendedAction: 'act',
   propertyId: _propertyId,
+  leaseId: leaseId,
   status: status,
 );
 
@@ -205,4 +235,51 @@ class _FakeSignals implements OperationsSignalsPort {
       ),
     );
   }
+}
+
+class _FakeTasks implements TaskRepository {
+  CreateTaskCommand? lastCommand;
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> createTask(
+    CreateTaskCommand command,
+  ) async {
+    lastCommand = command;
+    return PlatformRepositorySuccess<TaskDto>(
+      TaskDto(
+        id: 'task-1',
+        workspaceId: command.context.workspaceId,
+        title: command.draft.title,
+        priority: command.draft.priority,
+        status: TaskStatus.open,
+        createdAt: DateTime.utc(2026, 3, 31),
+        updatedAt: DateTime.utc(2026, 3, 31),
+        createdBy: command.context.actorId,
+        updatedBy: command.context.actorId,
+        version: 1,
+        entity: command.draft.entity,
+      ),
+    );
+  }
+
+  @override
+  Future<PlatformRepositoryResult<PlatformPageResult<TaskDto>>> searchTasks(
+    TaskListQuery query,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> getTaskById({
+    required String workspaceId,
+    required String taskId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> updateTask(
+    UpdateTaskCommand command,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> transitionTaskStatus(
+    TransitionTaskStatusCommand command,
+  ) => throw UnimplementedError();
 }

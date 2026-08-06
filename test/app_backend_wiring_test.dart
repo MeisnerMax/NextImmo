@@ -5,8 +5,12 @@ import 'package:neximmo_app/core/config/app_environment.dart';
 import 'package:neximmo_app/core/models/comps.dart';
 import 'package:neximmo_app/core/models/contractor.dart';
 import 'package:neximmo_app/core/models/documents.dart';
+import 'package:neximmo_app/core/models/import_job.dart';
+import 'package:neximmo_app/core/models/notification.dart';
 import 'package:neximmo_app/core/models/operations.dart';
 import 'package:neximmo_app/core/models/property_modules.dart';
+import 'package:neximmo_app/core/models/search.dart';
+import 'package:neximmo_app/core/models/task.dart';
 import 'package:neximmo_app/data/repositories/comps_repo.dart';
 import 'package:neximmo_app/data/repositories/operations_repo.dart';
 import 'package:neximmo_app/features/contacts_parties/application/party_providers.dart';
@@ -30,6 +34,11 @@ import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_qu
 import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/rent_roll_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/data/legacy_sqlite_platform_repository_adapter.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
 import 'package:neximmo_app/features/valuation/application/valuation_providers.dart';
 import 'package:neximmo_app/features/valuation/application/valuation_repository.dart';
 import 'package:neximmo_app/features/valuation/data/legacy_comps_comparable_source.dart';
@@ -77,6 +86,9 @@ ProviderContainer _sqliteContainer() {
       // needed for these wiring assertions, which only compare provider
       // identity and never call a method that touches `_database`.
       operationsRepositoryProvider.overrideWithValue(const OperationsRepo()),
+      legacyPlatformReadSourceProvider.overrideWithValue(
+        _EmptyLegacyPlatformReadSource(),
+      ),
       ...featureBackendOverrides(environment: _sqliteEnvironment),
     ],
   );
@@ -182,6 +194,37 @@ void main() {
       expect(rentRoll, isA<LegacySqliteRentRollAdapter>());
       expect(signals, isA<LegacySqliteOperationsSignalsAdapter>());
     });
+
+    test('binds the task port to the read-only legacy platform adapter', () {
+      final container = _sqliteContainer();
+      final adapter = container.read(legacyPlatformRepositoryAdapterProvider);
+
+      expect(container.read(taskRepositoryProvider), same(adapter));
+      expect(adapter, isA<LegacySqlitePlatformRepositoryAdapter>());
+    });
+
+    test(
+      'creating a task from a legacy workspace reports read-only-until-migrated',
+      () async {
+        final container = _sqliteContainer();
+
+        final result = await container.read(taskRepositoryProvider).createTask(
+          CreateTaskCommand(
+            context: PlatformCommandContext(
+              workspaceId: _workspace,
+              actorId: 'actor',
+              mutationId: 'mutation',
+              correlationId: 'correlation',
+            ),
+            draft: const TaskDraft(title: 'Review lease'),
+          ),
+        );
+        expect(
+          (result as PlatformRepositoryFailure<TaskDto>).kind,
+          PlatformRepositoryFailureKind.dependencyConflict,
+        );
+      },
+    );
 
     test('leasing reads succeed while its mutations are blocked', () async {
       final container = _sqliteContainer();
@@ -431,6 +474,15 @@ void main() {
       );
     });
 
+    test('binds the task port to the Supabase adapter', () {
+      final container = _supabaseContainer();
+
+      expect(
+        container.read(taskRepositoryProvider),
+        isA<SupabasePlatformRepositoryAdapter>(),
+      );
+    });
+
     test('does not fall back to SQLite comparables in cloud mode', () async {
       final container = _supabaseContainer();
 
@@ -491,6 +543,10 @@ void main() {
         () => container.read(leasing.operationsSignalsProvider),
         throwsA(isA<StateError>()),
       );
+      expect(
+        () => container.read(taskRepositoryProvider),
+        throwsA(isA<StateError>()),
+      );
       // The invalidation source is the one leasing provider with a default:
       // null means "no realtime here", which is a binding, not a failure.
       expect(
@@ -536,6 +592,27 @@ class _EmptyLegacyLeasingReadSource implements LegacyLeasingReadSource {
 
   @override
   Future<LeaseRecord?> findLease(String leaseId) async => null;
+}
+
+class _EmptyLegacyPlatformReadSource implements LegacyPlatformReadSource {
+  @override
+  Future<List<TaskRecord>> listTasks() async => const <TaskRecord>[];
+
+  @override
+  Future<List<NotificationRecord>> listNotifications() async =>
+      const <NotificationRecord>[];
+
+  @override
+  Future<List<ImportJobRecord>> listImportJobs() async =>
+      const <ImportJobRecord>[];
+
+  @override
+  Future<List<ImportMappingRecord>> listImportMappings() async =>
+      const <ImportMappingRecord>[];
+
+  @override
+  Future<List<SearchIndexRecord>> listSearchEntries() async =>
+      const <SearchIndexRecord>[];
 }
 
 class _EmptyLegacyValuationReadSource implements LegacyValuationReadSource {

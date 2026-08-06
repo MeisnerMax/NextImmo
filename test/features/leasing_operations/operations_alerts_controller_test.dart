@@ -3,6 +3,9 @@ import 'package:neximmo_app/features/identity_access/application/workspace_sessi
 import 'package:neximmo_app/features/leasing_operations/application/operations_alerts_controller.dart';
 import 'package:neximmo_app/features/leasing_operations/application/operations_signals_contract.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/operations_signal_dto.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/platform_entity_type.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
 
 const String _workspace = 'workspace-a';
 const String _propertyId = 'p1';
@@ -108,53 +111,68 @@ void main() {
   });
 
   group('acknowledge', () {
-    test('passes the signal statusVersion straight through as expectedVersion', () async {
-      final gateway = _FakeSignals(
-        listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
-          <OperationsSignalDto>[_signal('lease_expiry', 'critical', status: 'open')],
-        ),
-      );
-      final controller = _controllerWith(gateway);
-      await controller.load();
+    test(
+      'passes the signal statusVersion straight through as expectedVersion',
+      () async {
+        final gateway = _FakeSignals(
+          listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
+            <OperationsSignalDto>[
+              _signal('lease_expiry', 'critical', status: 'open'),
+            ],
+          ),
+        );
+        final controller = _controllerWith(gateway);
+        await controller.load();
 
-      final success = await controller.acknowledge(
-        signal: controller.state.signals.single,
-        status: 'dismissed',
-      );
+        final success = await controller.acknowledge(
+          signal: controller.state.signals.single,
+          status: 'dismissed',
+        );
 
-      expect(success, isTrue);
-      expect(gateway.lastCommand!.expectedVersion, isNull);
-      expect(gateway.lastCommand!.status, 'dismissed');
-    });
+        expect(success, isTrue);
+        expect(gateway.lastCommand!.expectedVersion, isNull);
+        expect(gateway.lastCommand!.status, 'dismissed');
+      },
+    );
 
-    test('a failed acknowledgement is surfaced without losing the list', () async {
-      final gateway = _FakeSignals(
-        listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
-          <OperationsSignalDto>[_signal('lease_expiry', 'critical', status: 'open')],
-        ),
-        updateResult: const OperationsSignalsFailure<OperationsSignalStateDto>(
-          kind: OperationsSignalsFailureKind.versionConflict,
-          message: 'stale version',
-          versionConflict: OperationsSignalVersionConflict(expectedVersion: null),
-        ),
-      );
-      final controller = _controllerWith(gateway);
-      await controller.load();
+    test(
+      'a failed acknowledgement is surfaced without losing the list',
+      () async {
+        final gateway = _FakeSignals(
+          listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
+            <OperationsSignalDto>[
+              _signal('lease_expiry', 'critical', status: 'open'),
+            ],
+          ),
+          updateResult:
+              const OperationsSignalsFailure<OperationsSignalStateDto>(
+                kind: OperationsSignalsFailureKind.versionConflict,
+                message: 'stale version',
+                versionConflict: OperationsSignalVersionConflict(
+                  expectedVersion: null,
+                ),
+              ),
+        );
+        final controller = _controllerWith(gateway);
+        await controller.load();
 
-      final success = await controller.acknowledge(
-        signal: controller.state.signals.single,
-        status: 'dismissed',
-      );
+        final success = await controller.acknowledge(
+          signal: controller.state.signals.single,
+          status: 'dismissed',
+        );
 
-      expect(success, isFalse);
-      expect(controller.state.actionError, 'stale version');
-      expect(controller.state.signals, hasLength(1));
-    });
+        expect(success, isFalse);
+        expect(controller.state.actionError, 'stale version');
+        expect(controller.state.signals, hasLength(1));
+      },
+    );
 
     test('a successful acknowledgement reloads the list', () async {
       final gateway = _FakeSignals(
         listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
-          <OperationsSignalDto>[_signal('lease_expiry', 'critical', status: 'open')],
+          <OperationsSignalDto>[
+            _signal('lease_expiry', 'critical', status: 'open'),
+          ],
         ),
       );
       final controller = _controllerWith(gateway);
@@ -169,6 +187,93 @@ void main() {
       expect(gateway.listCallCount, 2);
     });
   });
+
+  group('createTaskFrom', () {
+    test('links the task to the lease when one is present', () async {
+      final tasks = _FakeTasks();
+      final controller = _controllerWith(
+        _FakeSignals(
+          listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
+            const [],
+          ),
+        ),
+        tasks: tasks,
+      );
+
+      final signal = OperationsSignalDto(
+        signalKey: 'lease_expiry:u1:l1:t1',
+        type: 'lease_expiry',
+        severity: 'critical',
+        message: 'expires soon',
+        recommendedAction: 'renew',
+        propertyId: _propertyId,
+        unitId: 'u1',
+        leaseId: 'l1',
+        tenantPartyId: 't1',
+        status: 'open',
+      );
+      final success = await controller.createTaskFrom(
+        signal: signal,
+        title: 'Review renewal',
+      );
+
+      expect(success, isTrue);
+      expect(tasks.lastCommand!.draft.title, 'Review renewal');
+      expect(tasks.lastCommand!.draft.entity, entityRefFor(signal));
+      expect(tasks.lastCommand!.draft.entity!.type, PlatformEntityType.lease);
+    });
+
+    test('falls back to unit, then tenant, then the property itself', () {
+      expect(
+        entityRefFor(
+          _signal('vacancy_aged', 'warning', status: 'open', unitId: 'u1'),
+        ).type,
+        PlatformEntityType.unit,
+      );
+      expect(
+        entityRefFor(
+          _signal(
+            'missing_tenant_contact',
+            'warning',
+            status: 'open',
+            tenantPartyId: 't1',
+          ),
+        ).type,
+        PlatformEntityType.party,
+      );
+      expect(
+        entityRefFor(
+          _signal('stale_rent_roll', 'warning', status: 'open'),
+        ).type,
+        PlatformEntityType.property,
+      );
+    });
+
+    test('a failed creation is surfaced without crashing', () async {
+      final tasks = _FakeTasks(
+        result: const PlatformRepositoryFailure<TaskDto>(
+          kind: PlatformRepositoryFailureKind.dependencyConflict,
+          message: 'not supported locally',
+        ),
+      );
+      final controller = _controllerWith(
+        _FakeSignals(
+          listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
+            const [],
+          ),
+        ),
+        tasks: tasks,
+      );
+
+      final success = await controller.createTaskFrom(
+        signal: _signal('lease_expiry', 'critical', status: 'open'),
+        title: 'Follow up',
+      );
+
+      expect(success, isFalse);
+      expect(controller.state.actionError, 'not supported locally');
+    });
+  });
 }
 
 OperationsAlertsController _controller({
@@ -179,7 +284,8 @@ OperationsAlertsController _controller({
   return _controllerWith(
     _FakeSignals(
       listResult:
-          result ?? OperationsSignalsSuccess<List<OperationsSignalDto>>(signals),
+          result ??
+          OperationsSignalsSuccess<List<OperationsSignalDto>>(signals),
     ),
     workspaceId: workspaceId,
   );
@@ -188,9 +294,11 @@ OperationsAlertsController _controller({
 OperationsAlertsController _controllerWith(
   _FakeSignals gateway, {
   String? workspaceId = _workspace,
+  _FakeTasks? tasks,
 }) {
   final controller = OperationsAlertsController(
     signals: gateway,
+    tasks: tasks ?? _FakeTasks(),
     scope: WorkspaceSessionScope(
       workspaceId: workspaceId,
       actorId: 'actor-1',
@@ -207,6 +315,8 @@ OperationsSignalDto _signal(
   String type,
   String severity, {
   required String status,
+  String? unitId,
+  String? tenantPartyId,
 }) => OperationsSignalDto(
   signalKey: '$type:-:-:-',
   type: type,
@@ -214,6 +324,8 @@ OperationsSignalDto _signal(
   message: '$type triggered',
   recommendedAction: 'act',
   propertyId: _propertyId,
+  unitId: unitId,
+  tenantPartyId: tenantPartyId,
   status: status,
 );
 
@@ -257,4 +369,57 @@ class _FakeSignals implements OperationsSignalsPort {
           ),
         );
   }
+}
+
+class _FakeTasks implements TaskRepository {
+  _FakeTasks({this.result});
+
+  final PlatformRepositoryResult<TaskDto>? result;
+
+  CreateTaskCommand? lastCommand;
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> createTask(
+    CreateTaskCommand command,
+  ) async {
+    lastCommand = command;
+    return result ??
+        PlatformRepositorySuccess<TaskDto>(
+          TaskDto(
+            id: 'task-1',
+            workspaceId: command.context.workspaceId,
+            title: command.draft.title,
+            priority: command.draft.priority,
+            status: TaskStatus.open,
+            createdAt: DateTime.utc(2026, 3, 31),
+            updatedAt: DateTime.utc(2026, 3, 31),
+            createdBy: command.context.actorId,
+            updatedBy: command.context.actorId,
+            version: 1,
+            entity: command.draft.entity,
+            description: command.draft.description,
+          ),
+        );
+  }
+
+  @override
+  Future<PlatformRepositoryResult<PlatformPageResult<TaskDto>>> searchTasks(
+    TaskListQuery query,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> getTaskById({
+    required String workspaceId,
+    required String taskId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> updateTask(
+    UpdateTaskCommand command,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<PlatformRepositoryResult<TaskDto>> transitionTaskStatus(
+    TransitionTaskStatusCommand command,
+  ) => throw UnimplementedError();
 }

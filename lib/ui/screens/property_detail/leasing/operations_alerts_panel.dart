@@ -5,15 +5,13 @@
 /// acknowledges them, it never derives them. Alerts and data-quality issues
 /// are one list — see `operations_alerts_controller.dart`'s header.
 ///
-/// **Scope decision, named rather than silently dropped:** the legacy
-/// screen's "Create Task" action wrote through `tasksRepositoryProvider`
-/// (SQLite-only), which the Wave-3 rule ("no cloud screen reads a legacy
-/// repository") forbids here. The cloud equivalent
-/// (`platform_audit_jobs.TaskRepository.createTask`) uses a different,
-/// structured entity-linking model (`PlatformEntityType`) than this screen's
-/// unit/lease/tenant references — wiring it well is its own increment, not a
-/// rushed adaptation bolted onto this one. This screen therefore ships
-/// without a "Create Task" action.
+/// **"Create Task" goes through the cloud contract, not the legacy one:** the
+/// legacy screen wrote through `tasksRepositoryProvider` (SQLite-only), which
+/// the Wave-3 rule ("no cloud screen reads a legacy repository") forbids
+/// here. This screen instead uses `platform_audit_jobs.TaskRepository`
+/// (P2-D04) — see `OperationsAlertsController.createTaskFrom` and
+/// `entityRefFor` for how a signal's unit/lease/tenant references map onto
+/// that contract's `PlatformEntityRef`.
 library;
 
 import 'dart:async';
@@ -23,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../features/leasing_operations/application/operations_alerts_controller.dart';
 import '../../../../features/leasing_operations/domain/operations_signal_dto.dart';
+import '../../../../features/platform_audit_jobs/domain/task_dto.dart';
 import '../../../components/nx_card.dart';
 import '../../../components/nx_empty_state.dart';
 import '../../../components/nx_page_header.dart';
@@ -150,6 +149,7 @@ class OperationsAlertsPanel extends ConsumerWidget {
                       onResolve: signal.status != 'resolved'
                           ? () => _resolve(context, controller, signal)
                           : null,
+                      onCreateTask: () => _createTask(context, controller, signal),
                     );
                   },
                 ),
@@ -204,6 +204,129 @@ class OperationsAlertsPanel extends ConsumerWidget {
       status: 'resolved',
       resolutionNote: note.isEmpty ? null : note,
     );
+  }
+
+  /// Same pop-then-act shape as [_resolve]: the dialog closes synchronously
+  /// on confirm, [titleCtrl] disposes a frame later, and the actual creation
+  /// runs after the dialog route is gone.
+  Future<void> _createTask(
+    BuildContext context,
+    OperationsAlertsController controller,
+    OperationsSignalDto signal,
+  ) async {
+    final titleCtrl = TextEditingController(
+      text: signal.recommendedAction.isEmpty
+          ? signal.message
+          : signal.recommendedAction,
+    );
+    var priority = TaskPriority.normal;
+    DateTime? dueDate;
+    final draft = await showDialog<({String title, TaskPriority priority, DateTime? dueAt})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Aufgabe erstellen'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'Titel'),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<TaskPriority>(
+                  value: priority,
+                  items: const <DropdownMenuItem<TaskPriority>>[
+                    DropdownMenuItem(value: TaskPriority.low, child: Text('niedrig')),
+                    DropdownMenuItem(
+                      value: TaskPriority.normal,
+                      child: Text('normal'),
+                    ),
+                    DropdownMenuItem(value: TaskPriority.high, child: Text('hoch')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => priority = value);
+                    }
+                  },
+                  decoration: const InputDecoration(labelText: 'Priorität'),
+                ),
+                const SizedBox(height: 8),
+                InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Fälligkeit'),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(dueDate == null ? '—' : _formatDialogDate(dueDate!)),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: dialogContext,
+                            initialDate: dueDate ?? DateTime.now(),
+                            firstDate: DateTime.now().subtract(
+                              const Duration(days: 365),
+                            ),
+                            lastDate: DateTime.now().add(const Duration(days: 3650)),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => dueDate = picked);
+                          }
+                        },
+                        child: const Text('Wählen'),
+                      ),
+                      if (dueDate != null)
+                        TextButton(
+                          onPressed: () => setDialogState(() => dueDate = null),
+                          child: const Text('Löschen'),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final title = titleCtrl.text.trim();
+                if (title.isEmpty) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop((
+                  title: title,
+                  priority: priority,
+                  dueAt: dueDate,
+                ));
+              },
+              child: const Text('Erstellen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => titleCtrl.dispose());
+    if (draft == null) {
+      return;
+    }
+    await controller.createTaskFrom(
+      signal: signal,
+      title: draft.title,
+      priority: draft.priority,
+      dueAt: draft.dueAt,
+    );
+  }
+
+  String _formatDialogDate(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$day.$month.${value.year}';
   }
 
   void _openSource(WidgetRef ref, OperationsSignalDto signal) {
@@ -418,6 +541,7 @@ class _AlertCard extends StatelessWidget {
     required this.onOpen,
     required this.onDismiss,
     required this.onResolve,
+    required this.onCreateTask,
   });
 
   final OperationsSignalDto signal;
@@ -425,6 +549,7 @@ class _AlertCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback? onDismiss;
   final VoidCallback? onResolve;
+  final VoidCallback onCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -488,6 +613,12 @@ class _AlertCard extends StatelessWidget {
                   onPressed: onResolve,
                   icon: const Icon(Icons.check_circle_outline),
                   label: const Text('Auflösen'),
+                ),
+              if (canMutate)
+                TextButton.icon(
+                  onPressed: onCreateTask,
+                  icon: const Icon(Icons.add_task),
+                  label: const Text('Aufgabe erstellen'),
                 ),
             ],
           ),

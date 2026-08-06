@@ -41,6 +41,9 @@ import 'features/leasing_operations/data/legacy_operations_signals_adapter.dart'
 import 'features/leasing_operations/data/legacy_sqlite_leasing_repository_adapter.dart';
 import 'features/leasing_operations/data/supabase_leasing_query_invalidation_adapter.dart';
 import 'features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
+import 'features/platform_audit_jobs/application/platform_providers.dart';
+import 'features/platform_audit_jobs/data/legacy_sqlite_platform_repository_adapter.dart';
+import 'features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
 import 'features/valuation/application/valuation_providers.dart';
 import 'features/valuation/application/valuation_comparable_source.dart';
@@ -191,6 +194,32 @@ final legacyOperationsSignalsAdapterProvider =
       );
     });
 
+/// P2-D04. Only [TaskRepository] is consumed today (see
+/// `platform_providers.dart`'s header), so this is the one adapter instance
+/// `OperationsAlertsPanel`'s "create task" action needs — the same class also
+/// answers `NotificationPort`/`JobRepository`/`SearchIndexPort` once a screen
+/// reads one of those through the provider seam.
+final legacyPlatformReadSourceProvider = Provider<LegacyPlatformReadSource>((
+  ref,
+) {
+  return RepositoryLegacyPlatformReadSource(
+    tasksRepo: ref.watch(tasksRepositoryProvider),
+    notificationsRepo: ref.watch(notificationsRepositoryProvider),
+    importsRepo: ref.watch(importsRepositoryProvider),
+    searchRepo: ref.watch(searchRepositoryProvider),
+  );
+});
+
+final legacyPlatformRepositoryAdapterProvider =
+    Provider<LegacySqlitePlatformRepositoryAdapter>((ref) {
+      return LegacySqlitePlatformRepositoryAdapter(
+        source: ref.watch(legacyPlatformReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
 /// The provider overrides that bind the Wave 2, Wave 3 and Wave 5 contracts to
 /// [environment]'s backend. [client] is required in cloud mode and ignored
 /// otherwise.
@@ -211,6 +240,7 @@ List<Override> featureBackendOverrides({
       final leasingCases = SupabaseLeasingCaseRepositoryAdapter(client: client);
       final leasingRentRoll = SupabaseRentRollAdapter(client: client);
       final leasingSignals = SupabaseOperationsSignalsAdapter(client: client);
+      final platform = SupabasePlatformRepositoryAdapter(client: client);
       return <Override>[
         // The authenticated reference session is the cloud host's identity.
         workspaceSessionScopeProvider.overrideWith((ref) {
@@ -258,6 +288,7 @@ List<Override> featureBackendOverrides({
         leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
           SupabaseLeasingQueryInvalidationAdapter(client: client),
         ),
+        taskRepositoryProvider.overrideWithValue(platform),
       ];
     case DataBackend.sqlite:
       // The invalidation sources keep their null default: no realtime locally.
@@ -340,6 +371,9 @@ List<Override> featureBackendOverrides({
         ),
         leasing.operationsSignalsProvider.overrideWith(
           (ref) => ref.watch(legacyOperationsSignalsAdapterProvider),
+        ),
+        taskRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyPlatformRepositoryAdapterProvider),
         ),
       ];
   }
