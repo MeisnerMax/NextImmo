@@ -59,9 +59,55 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test P1-017, P1-011 and P1-004 rollback
+      - name: Test P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/028_p2_d05a_operations_signals_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/027_p2_d05a_operations_signals_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/026_p2_d05b_rent_roll_live_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/025_p2_x01_lease_deposit_status_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/024_p2_x01_property_asset_attributes_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/023_p2_d07_variants_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/022_p2_d05_leasing_cases_rent_roll_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/021_p2_d05_leasing_cases_rent_roll_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/020_p2_d05_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/019_p2_d05_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/018_p2_d03_workspace_requirements_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/017_p2_d07_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/016_p2_d07_valuation_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/015_p2_d04_import_jobs_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/014_p2_d04_tasks_notifications_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/013_p2_d04_domain_events_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/012_p2_d03_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/011_p2_d03_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/010_p2_d02_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/009_p2_d02_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/008_p2_d01_directory_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/007_p2_d01_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/006_debt_012_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/005_p1_017_down.test.sql
           supabase migration down --local --last 3 --yes
@@ -79,6 +125,30 @@ jobs:
       - name: Test P1-011 Realtime integration
         shell: pwsh
         run: ./tool/verify_p1_011_e2e.ps1
+      - name: Test P1-018 raw PostgREST authorization parity
+        shell: pwsh
+        run: ./tool/verify_p1_018_postgrest.ps1
+      - name: Test DEBT-012 property tombstone parity
+        shell: pwsh
+        run: ./tool/verify_debt_012_tombstone.ps1
+      - name: Test P2-D01 membership admin integration
+        shell: pwsh
+        run: ./tool/verify_p2_d01_integration.ps1
+      - name: Test P2-D02 party integration
+        shell: pwsh
+        run: ./tool/verify_p2_d02_integration.ps1
+      - name: Test P2-D03 document integration
+        shell: pwsh
+        run: ./tool/verify_p2_d03_integration.ps1
+      - name: Test P2-D04 platform integration
+        shell: pwsh
+        run: ./tool/verify_p2_d04_integration.ps1
+      - name: Test P2-D05 leasing concurrency and integration
+        shell: pwsh
+        run: ./tool/verify_p2_d05_integration.ps1
+      - name: Test P2-D05a operations signals integration and parity
+        shell: pwsh
+        run: ./tool/verify_p2_d05a_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1
@@ -88,6 +158,30 @@ jobs:
       - name: Test P1-014 local backup restore drill
         shell: pwsh
         run: ./tool/verify_p1_014_backup_restore.ps1
+      - name: Test P1-014 hard-exit recovery
+        shell: pwsh
+        run: ./tool/test_p1_014_crash_recovery.ps1
+      - name: Test P1-021 profile parameter guards
+        shell: pwsh
+        run: ./tool/test_p1_021_performance_profile_guard.ps1
+      - name: Collect P1-021 local calibration profile
+        shell: pwsh
+        run: |
+          ./tool/verify_p1_021_performance_profile.ps1 `
+            -PropertyCount 250 -WarmupRuns 1 -MeasuredRuns 5
+          if (-not (Test-Path build/p1_021_local_profile.json)) {
+            throw 'P1-021 profile artifact is missing.'
+          }
+      - name: Test P2-X01 cutover against the generated fixture
+        shell: pwsh
+        # The cutover reads a legacy SQLite core, which CI does not have. The
+        # fixture is generated from the real DbMigrations schema plus fixed
+        # rows, so the path stays regression-tested without committing a binary
+        # database or any real data.
+        run: |
+          dart run tool/generate_cutover_fixture.dart --output build/cutover_fixture.db
+          ./tool/verify_p2_x01_property_cutover.ps1 -Database build/cutover_fixture.db
+          ./tool/verify_p2_x01_domain_cutover.ps1 -Database build/cutover_fixture.db
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup
