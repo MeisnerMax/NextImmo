@@ -59,9 +59,13 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
+      - name: Test P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/030_p2_d06_maintenance_capex_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/029_p2_d06_maintenance_capex_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/028_p2_d05a_operations_signals_realtime_down.test.sql
           supabase migration down --local --last 1 --yes
