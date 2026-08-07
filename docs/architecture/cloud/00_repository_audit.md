@@ -128,9 +128,9 @@ Die Vorlage bleibt gültig für die Phasen A, C, J, K, M, N, O.
 ### F-09 — Getrackte `.claude/launch.json` enthält einen Supabase-Key
 
 - **Schweregrad:** niedrig · **Blocker:** nein
-- **Evidenz:** `git ls-files .claude` → `.claude/launch.json`; enthält
-  `SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH` gegen
-  `http://127.0.0.1:54321`.
+- **Evidenz:** `git ls-files .claude` → `.claude/launch.json`; enthält einen
+  `SUPABASE_PUBLISHABLE_KEY=sb_publishable_…` gegen `http://127.0.0.1:54321`
+  (Wert hier bewusst nicht wiederholt).
 - **Bewertung:** **Kein Secret.** Publishable Key des lokalen Docker-Stacks, per Design
   clientseitig und ohne Bezug zu gehosteten Umgebungen. `supabase/config.toml` enthält
   keine Secrets. Der Environment-Contract ist eingehalten.

@@ -1,0 +1,31 @@
+title = "NexImmo secret scanning"
+
+# Keep every default gitleaks rule; only carve out values that are public by
+# design or plainly fixtures. Nothing here weakens detection of the credentials
+# that actually matter -- SUPABASE_SERVICE_ROLE_KEY, SUPABASE_SECRET_KEY, the
+# database password and the Supabase access token are all still caught, and
+# none of them may ever reach the working tree (phase_1/01_environment_contract.md).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public-by-design values and test fixtures"
+regexTarget = "match"
+regexes = [
+  # Supabase publishable keys are client-side by contract -- that is what
+  # "publishable" means. They are shipped to every browser through
+  # --dart-define, so treating one as a leak is a category error. The only
+  # occurrence in the tree is the local Docker stack's key in
+  # .claude/launch.json.
+  '''sb_publishable_[A-Za-z0-9_\-]+''',
+
+  # The local Supabase stack's demo JWTs. Published verbatim in Supabase's own
+  # documentation, identical on every developer machine, and signed with the
+  # well-known "super-secret-jwt-token-with-at-least-32-characters-long".
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIi[A-Za-z0-9_\-.]+''',
+
+  # Task idempotency fixtures. `generated_key` is a deduplication key for
+  # recurring task generation, not a credential; gitleaks flags it only because
+  # the surrounding identifier contains "key".
+  '''monthly-\d{4}-\d{2}''',
+]
