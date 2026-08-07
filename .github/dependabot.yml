@@ -1,0 +1,48 @@
+version: 2
+
+# Dependency scanning for the three ecosystems the repository actually ships:
+# the Flutter app, the Next.js marketing site, and the CI workflow itself.
+# Grouped, monthly PRs keep this from competing with Phase 2 delivery; security
+# updates are exempt from grouping and arrive as soon as an advisory lands.
+updates:
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      dart-dependencies:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: 'deps(pub)'
+
+  - package-ecosystem: npm
+    directory: /marketing
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      marketing-dependencies:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: 'deps(marketing)'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'deps(actions)'

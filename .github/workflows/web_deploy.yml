@@ -1,0 +1,95 @@
+name: Web App Deploy
+
+# Deploys the Flutter web app -- the product, not the marketing site. Marketing
+# lives in its own Vercel project built from marketing/ and is never touched
+# here (see docs/architecture/cloud/01_target_cloud_architecture.md).
+#
+# This workflow is INERT until three things exist:
+#   1. a second Vercel project for the Flutter app,
+#   2. the repository secrets listed below,
+#   3. a provisioned Supabase environment (DEC-015..DEC-017).
+# Without them every job short-circuits, so merging it changes nothing.
+#
+# Required repository secrets:
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_APP
+#   SUPABASE_URL_STAGING, SUPABASE_PUBLISHABLE_KEY_STAGING
+# Only the publishable key may ever appear here. Service role key, secret key,
+# DB password and access token are server-only and must never reach a client
+# build (phase_1/01_environment_contract.md).
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID_APP: ${{ secrets.VERCEL_PROJECT_ID_APP }}
+          SUPABASE_URL_STAGING: ${{ secrets.SUPABASE_URL_STAGING }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_PROJECT_ID_APP" ] \
+             && [ -n "$SUPABASE_URL_STAGING" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Web app deploy is not configured yet; skipping.'
+          fi
+
+  deploy_preview:
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.29.2
+          channel: stable
+          cache: true
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      # Flutter is pinned to the same version the verify job uses. Building here
+      # rather than in Vercel's build image is deliberate: Vercel has no Flutter
+      # toolchain, and a drifting SDK version would deploy something CI never
+      # tested.
+      - name: Build web for staging
+        run: |
+          flutter build web --no-pub --release \
+            --dart-define=NEXIMMO_ENV=staging \
+            --dart-define=NEXIMMO_DATA_BACKEND=supabase \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL_STAGING }} \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY_STAGING }}
+      - name: Deploy preview to Vercel
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_APP }}
+        run: |
+          npx --yes vercel@latest deploy build/web \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --yes
+      # Production is intentionally absent. It stays a manual, reviewed
+      # promotion of an approved commit until Phase O -- see the cutover
+      # checklist in docs/architecture/cloud/01_target_cloud_architecture.md.
