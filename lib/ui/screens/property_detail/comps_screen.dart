@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/comps.dart';
@@ -150,7 +151,8 @@ class _CompsScreenState extends ConsumerState<CompsScreen> {
                           itemCount: comps.length,
                           itemBuilder: (context, index) {
                             final comp = comps[index];
-                            return Card(
+                            return NxCard(
+                              padding: EdgeInsets.zero,
                               child: ListTile(
                                 title: Text(comp.address),
                                 subtitle: Row(
@@ -305,7 +307,8 @@ class _CompsScreenState extends ConsumerState<CompsScreen> {
                           itemCount: comps.length,
                           itemBuilder: (context, index) {
                             final comp = comps[index];
-                            return Card(
+                            return NxCard(
+                              padding: EdgeInsets.zero,
                               child: ListTile(
                                 title: Text(comp.address),
                                 subtitle: Row(

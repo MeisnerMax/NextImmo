@@ -19,7 +19,7 @@ Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente`
 | Kritische Rechenkerne abgesichert oder geplant | PASS | GM-VAL/FIN/IRR/XIRR/SEN/COV/REN/BVA/ACQ/RNV/DSP/BKP in `09_test_baseline.md` | RISK-QA-001 |
 | Referenzschnitt spezifiziert | PASS | REF-001..REF-007 und AC-RLS/AC-REF in `10_reference_slice_spec.md` | RISK-QA-005 |
 | Offene Decisions erfasst | PASS | zentraler Index in `11_decision_register.md`; Details in den referenzierten Artefakten | DEC-014..DEC-017 |
-| Phase-1-Backlog priorisiert | PASS | P1-001..P1-015 mit Abhaengigkeiten und Status in `12_phase_1_execution_backlog.md` | externe Freigaben fuer Remote-Provisionierung |
+| Phase-1-Backlog priorisiert | PASS | P1-001..P1-021 mit Abhaengigkeiten und Status in `12_phase_1_execution_backlog.md` | externe Freigaben fuer Remote-Provisionierung |
 | Integrationspruefung erfolgt | PASS | Tabellen-/ID-/Testzaehlung, Besitz- und Widerspruchsharmonisierung, Arbeitsbaum-Diff | RISK-QA-006 |
 
 ## P1-008 Sicherheitsinkrement
@@ -60,6 +60,47 @@ Status: `done`.
 - Property-Mutation bleibt client- und serverseitig an AAL2 gebunden. Eine allgemeine privilegierte Rollen-/AAL-Matrix bleibt separat offen.
 - Abschluss: 54 gezielte Tests, echte lokale PKCE/passwordless- und TOTP-AAL2-Clientgates, Gesamtsuite 245 bestanden/6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
 
+## P1-017 Entitlement-Revalidation
+
+Status: `done`.
+
+- Private nutzergebundene Realtime-Broadcasts invalidieren Membership-/Rollenrechte; Reconnect und ein begrenztes Intervall erzwingen kanonische Repository-Revalidation.
+- Der Controller leert Workspace-, Property-, Detail-, Konflikt- und Retry-Caches fail-closed, bevor die Revalidation abgeschlossen ist; Generationen sperren spaete Antworten.
+- Der lokale Zwei-Client-E2E weist fremdes Topic-Deny, Rollenentzug, Wiedererteilung und Membership-Suspendierung mit Cache-Leerung nach.
+- Abschluss: 212 pgTAP-, 18 Rollback-Pruefungen, beide echten Clientgates, Gesamtsuite 248 bestanden/7 Skips, Analyzer ohne Findings, DB-Lint und Web-Build erfolgreich.
+
+## P1-018 Raw-PostgREST-Paritaet
+
+Status: `done`.
+
+- Ein lokaler HTTP-Test ohne Supabase-Daten-SDK prueft anon, Viewer, Manager und bekannte Fremd-Workspace-IDs direkt gegen PostgREST.
+- Anon und direkte Tabellenmutation werden verweigert; Viewer duerfen nur lesen, fremde IDs liefern leere Ergebnisse und nur der autorisierte AAL2-RPC mutiert.
+- Abschluss: echter Raw-PostgREST-Clienttest, Gesamtsuite 248 bestanden/8 Skips und Analyzer ohne Findings.
+
+## P1-019 Parallele Identity-Reads
+
+Status: `done`.
+
+- Nach dem Membership-Read laufen Workspace- und Role-Permission-Abfrage parallel; die Permission-Aufloesung bleibt abhaengig und kanonisch.
+- Ein kontrollierter Gateway-Test beweist den gleichzeitigen Start; P1-007 sowie der Entitlement-Entzugspfad bleiben im echten lokalen Stack gruen.
+- Abschluss: 14 gezielte Tests, beide relevanten Clientgates, Gesamtsuite 249 bestanden/8 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
+
+## P1-020 Schlanke Property-Listenprojektion
+
+Status: `done`.
+
+- Der Listenvertrag nutzt ein eigenes Summary-DTO; Supabase liest nur ID, Workspace, Name, Adresse, Status und Version. Details bleiben vollstaendig.
+- Detail-, Konflikt- und Mutationsergebnisse ersetzen nur bereits geladene Listeneintraege, ueberschreiben keine neuere Summary und entfernen archivierte Eintraege.
+- Abschluss: 64 gezielte Tests, beide echten Clientgates, Gesamtsuite 253 bestanden/8 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
+
+## P1-021A Lokaler Performance-Profiling-Vertrag
+
+Status: `done`.
+
+- Ein parameterisierter, transaktionaler Harness misst Property-Keyset, Membership, Workspace, Role-Permissions und Property-RPC mit expliziten Datenmengen, Warmups und Samples.
+- Der JSON-Vertrag enthaelt p50/p95/p99, vollstaendige `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`-Plaene und `acceptance_gate=false`; Fixture-Rollback und Parametergrenzen werden verifiziert.
+- Der CI-identische lokale Smoke-Lauf mit 250 Properties, 1 Warmup und 5 Samples sowie 212/212 pgTAP besteht. Freigegebene Budgets und repraesentative Volumen bleiben `P1-021`.
+
 ## P1-011 Realtime-Invalidierung
 
 Status: `done`.
@@ -94,7 +135,7 @@ Status: `partial`; lokale Review abgeschlossen, Phase-1-Gate abgelehnt.
 - Unbekannte Supabase-AAL-Werte sperren Workspace- und Property-Zugriffe fail-closed; Realtime-Bursts werden zusammengefasst und erhalten bereits geladene Seiten.
 - 196 pgTAP-Pruefungen decken zusaetzlich suspendierte Memberships, Audit-Korrelation, Performance-Indizes/InitPlans und serverseitiges Property-AAL2 ab; lokale Security-/Performance-Advisors blockieren CI bei Error-Befunden.
 - Der Gate-Report `../phase_1/03_reference_slice_gate_review.md` dokumentiert die lokalen Nachweise und offenen Security-, Performance- und Betriebsbefunde.
-- Runtime-Wiring, Property-AAL2 sowie notwendige Index-/InitPlan-Migrationen sind lokal geschlossen. Offen bleiben allgemeine privilegierte MFA/Rollenpolicy, Entitlement-Invalidierung, Entity-Scopes/Archivierung, Performancebudgets und ein autorisierter Remote-/Staging-Nachweis.
+- Runtime-Wiring, Property-AAL2, Entitlement-Revalidation sowie notwendige Index-/InitPlan-Migrationen sind lokal geschlossen. Offen bleiben allgemeine privilegierte MFA/Rollenpolicy, Entity-Scopes/Archivierung, Performancebudgets und ein autorisierter Remote-/Staging-Nachweis.
 
 ## P1-001 bis P1-004 Datenbankinkrement
 
@@ -107,7 +148,7 @@ Status: `done`.
 
 ## Phase-1-Freigabe
 
-- Freigegeben: `P1-001`, `P1-005` und Fortsetzung von `P1-008` ohne externe Ressourcen.
+- Freigegeben: lokale, reversible Phase-1-Inkremente gemaess `12_phase_1_execution_backlog.md`; der budgetfreie Messvertrag `P1-021A` ist abgeschlossen, `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen.
 - Noch nicht freigegeben: Remote-Supabase-Provisionierung und produktive Cloud-Aktionen bis DEC-015, DEC-016 und DEC-017 entschieden sind.
 - Phase-1-Gate bleibt: nachgewiesene Cross-Tenant-Isolation gemaess RLS-T001..RLS-T015.
 
@@ -117,7 +158,7 @@ Status: `done`.
 |---|---|---|
 | RISK-QA-001 | Golden-Master-Fixtures fehlen teilweise | vor Adapter-/Migrationswechsel einfrieren |
 | RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore und Cleanup; Journal, AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
-| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 196 pgTAP-, Rollback- und Concurrency-Pruefungen laufen lokal und in CI |
+| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 212 pgTAP-, 18 Rollback-, Concurrency- und reale Clientpruefungen laufen lokal und in CI |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
 | RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
-| RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets; breite Property-Projektion und serielle Identity-Reads sind ungemessen | vor Gate-Abnahme Budgets definieren und reproduzierbare Query-/Clientprofile messen |
+| RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets oder repraesentativen Lastprofile | vor Gate-Abnahme Budgets und Datenmengen definieren und reproduzierbare Query-/Clientprofile messen |

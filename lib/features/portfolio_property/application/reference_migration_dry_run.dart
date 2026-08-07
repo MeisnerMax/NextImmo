@@ -212,6 +212,29 @@ class ReferenceMigrationDryRunReport {
   }
 }
 
+/// The dry-run report together with the mapped target rows.
+///
+/// The two are kept apart on purpose. [report] is the shareable evidence
+/// artifact: it carries only counts, checksums, identifiers and issue codes,
+/// never a source value, so it can be attached to a gate review. [workspaceTargets]
+/// and [propertyTargets] are the actual rows the local AP4 import applies and
+/// therefore contain real data, so they stay local.
+///
+/// Both are derived from the same deterministic mapping pass, so a plan whose
+/// [ReferenceMigrationDryRunReport.productionImportReady] is false must never
+/// be applied.
+class ReferenceMigrationPlan {
+  const ReferenceMigrationPlan({
+    required this.report,
+    required this.workspaceTargets,
+    required this.propertyTargets,
+  });
+
+  final ReferenceMigrationDryRunReport report;
+  final List<Map<String, Object?>> workspaceTargets;
+  final List<Map<String, Object?>> propertyTargets;
+}
+
 String referenceMigrationChecksum(Object? value) {
   final canonical = canonicalReferenceMigrationJson(value);
   return sha256

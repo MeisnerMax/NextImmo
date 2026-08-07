@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/data/sqlite/db.dart';
 import 'package:neximmo_app/ui/screens/property_detail/budget_vs_actual_screen.dart';
 import 'package:neximmo_app/ui/state/app_state.dart';
+import 'package:neximmo_app/ui/theme/app_theme.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -41,32 +42,49 @@ void main() {
     await appDatabase.close();
   });
 
-  testWidgets('renders budget actions for property', (tester) async {
-    tester.view.physicalSize = const Size(1280, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  for (final size in const <Size>[
+    Size(390, 844),
+    Size(1024, 768),
+    Size(1440, 900),
+  ]) {
+    testWidgets('renders budget actions without overflow at ${size.width.toInt()} px', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(body: BudgetVsActualScreen(propertyId: 'p1')),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const Scaffold(body: BudgetVsActualScreen(propertyId: 'p1')),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    
-    // Wait for the real-time FFI database queries to complete
-    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 200)));
-    await tester.pumpAndSettle();
+      );
+      await _pumpUntilFound(tester, find.text('Finanzen & Budget'));
 
-    await tester.tap(find.text('Budget vs. Ist'));
-    await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final budgetTab = find.text('Budget vs. Ist');
+      await tester.ensureVisible(budgetTab);
+      await tester.tap(budgetTab);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Budget erstellen'), findsOneWidget);
+      expect(find.text('Budget erstellen'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+}
+
+Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
+  await tester.runAsync(() async {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      await tester.pump();
+      if (finder.evaluate().isNotEmpty) return;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
   });
 }

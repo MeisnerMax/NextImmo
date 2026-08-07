@@ -19,6 +19,9 @@ class AppColorTokens {
     required this.warning,
     required this.error,
     required this.info,
+    required this.glassFill,
+    required this.glassStroke,
+    required this.innerHighlight,
   });
 
   final Color background;
@@ -34,6 +37,9 @@ class AppColorTokens {
   final Color warning;
   final Color error;
   final Color info;
+  final Color glassFill;
+  final Color glassStroke;
+  final Color innerHighlight;
 }
 
 class AppTypographyTokens {
@@ -54,11 +60,15 @@ class AppTypographyTokens {
   final double buttonSize;
 }
 
+/// Precision-Geometric shape scale: 8px for containers, 6px for inputs
+/// (deliberately sharper/more technical), pill for status chips.
 class AppRadiusTokens {
   static const double xs = 2;
   static const double sm = 4;
   static const double md = 6;
   static const double lg = 8;
+  static const double xl = 12;
+  static const double pill = 999;
 
   const AppRadiusTokens._();
 }
@@ -81,6 +91,45 @@ class AppIconTokens {
   const AppIconTokens._();
 }
 
+/// Categorical palette for multi-series charts.
+///
+/// **Assign in fixed order, never cycled.** Colour follows the entity, not its
+/// rank — a filter that changes the series count must not repaint the
+/// survivors. Beyond five categories, fold the tail into "Sonstige" or use
+/// small multiples; a sixth generated hue is not an option, because the set
+/// below is only separable because it was solved for exactly five.
+///
+/// **Status colours are deliberately absent.** `success` / `warning` / `error`
+/// are reserved for state and never double as "series 4"; the amber slot here
+/// is yellow-700, one step off the warning token, for exactly that reason.
+///
+/// Verified with the dataviz validator against **all pairs** (not just
+/// adjacent ones — legends show every series at once) on both the dark
+/// `#020617` and the light `#F8FAFC` surface: OKLCH lightness band, chroma
+/// floor, protan/deutan/tritan separation, normal-vision separation and WCAG
+/// contrast all pass. Re-run that validator before changing any value here —
+/// several obvious-looking alternatives (violet next to blue, teal next to
+/// cyan) are indistinguishable under colour-vision deficiency and were
+/// rejected on measurement, not taste.
+///
+/// This supersedes the source design's "cyan-to-emerald gradient" note, which
+/// describes a single-series accent and says nothing about telling five
+/// categories apart.
+class AppChartPalette {
+  static const List<Color> series = <Color>[
+    Color(0xFF0891B2), // cyan-600
+    Color(0xFFDB2777), // pink-600
+    Color(0xFF2563EB), // blue-600
+    Color(0xFF65A30D), // lime-600
+    Color(0xFFA16207), // yellow-700
+  ];
+
+  /// Colour for series [index], clamped to the defined set.
+  static Color at(int index) => series[index % series.length];
+
+  const AppChartPalette._();
+}
+
 class AppBreakpoints {
   static const double mobileMax = 767;
   static const double tabletMax = 1199;
@@ -101,6 +150,9 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     required this.border,
     required this.surfaceAlt,
     required this.textSecondary,
+    required this.glassFill,
+    required this.glassStroke,
+    required this.innerHighlight,
   });
 
   final Color success;
@@ -111,6 +163,25 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
   final Color surfaceAlt;
   final Color textSecondary;
 
+  /// Translucent panel fill (Liquid Enterprise "Level 1").
+  ///
+  /// Deliberately alpha-blended rather than opaque so the same value works
+  /// behind a real [BackdropFilter] (shell chrome, overlays) and in the cheap
+  /// no-blur treatment used for the many small cards in dense grids.
+  final Color glassFill;
+
+  /// 1px panel outline — replaces the old hard border in dark.
+  final Color glassStroke;
+
+  /// Top-edge inner highlight that carries card hierarchy instead of a shadow.
+  ///
+  /// This is the *only* depth cue in the system. There is deliberately no glow
+  /// token: the accent bloom the source design specified was removed on the
+  /// author's call, so depth comes from the fill/stroke/highlight triplet and
+  /// nothing emits light. Do not reintroduce a colored `BoxShadow` — see the
+  /// elevation section of `03_design_system.md`.
+  final Color innerHighlight;
+
   @override
   ThemeExtension<AppSemanticColors> copyWith({
     Color? success,
@@ -120,6 +191,9 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     Color? border,
     Color? surfaceAlt,
     Color? textSecondary,
+    Color? glassFill,
+    Color? glassStroke,
+    Color? innerHighlight,
   }) {
     return AppSemanticColors(
       success: success ?? this.success,
@@ -129,6 +203,9 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
       border: border ?? this.border,
       surfaceAlt: surfaceAlt ?? this.surfaceAlt,
       textSecondary: textSecondary ?? this.textSecondary,
+      glassFill: glassFill ?? this.glassFill,
+      glassStroke: glassStroke ?? this.glassStroke,
+      innerHighlight: innerHighlight ?? this.innerHighlight,
     );
   }
 
@@ -148,6 +225,9 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
       border: Color.lerp(border, other.border, t)!,
       surfaceAlt: Color.lerp(surfaceAlt, other.surfaceAlt, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      glassFill: Color.lerp(glassFill, other.glassFill, t)!,
+      glassStroke: Color.lerp(glassStroke, other.glassStroke, t)!,
+      innerHighlight: Color.lerp(innerHighlight, other.innerHighlight, t)!,
     );
   }
 }
@@ -174,16 +254,109 @@ class AppDensityConfig extends ThemeExtension<AppDensityConfig> {
   }
 }
 
+/// Single source of truth for every raw color value (DEBT-TOKEN-001).
+///
+/// Both [AppColors] (legacy static access, light-only) and [AppTheme]'s
+/// light/dark token tables reference these constants — never define a color
+/// literal in either of them directly, extend this palette instead. That
+/// keeps the two access paths structurally incapable of drifting apart
+/// (guarded by test/ui/theme/token_source_sync_test.dart).
+class _Palette {
+  // Light — the same Liquid Enterprise structure, without the glass.
+  //
+  // Slate rather than the previous warm cream: the identity is now navy/cyan,
+  // and a warm light theme next to a cold dark theme reads as two products.
+  // The accent is cyan-700, not the dark theme's cyan-400 — Action Cyan on
+  // white is ~1.9:1 and unusable for text or small controls.
+  static const Color lightBackground = Color(0xFFF8FAFC);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightSurfaceAlt = Color(0xFFF1F5F9);
+  static const Color lightBorder = Color(0xFFE2E8F0);
+  static const Color lightTextPrimary = Color(0xFF0F172A);
+  static const Color lightTextSecondary = Color(0xFF475569); // 8.6:1 on white
+  static const Color lightPrimary = Color(0xFF0E7490); // cyan-700, 5.1:1
+  static const Color lightSecondary = lightTextPrimary;
+  static const Color lightAccent = Color(0xFF0D9488);
+  static const Color lightSuccess = Color(0xFF059669);
+  static const Color lightWarning = Color(0xFFB45309); // amber-700 for AA
+  static const Color lightError = Color(0xFFDC2626);
+  static const Color lightInfo = lightPrimary;
+
+  // Dark — "Liquid Enterprise", the leading identity.
+  static const Color darkBackground = Color(0xFF020617); // Deep Midnight Navy
+  static const Color darkSurface = Color(0xFF0F172A);
+  static const Color darkSurfaceAlt = Color(0xFF1E293B);
+  static const Color darkBorder = Color(0xFF1E293B);
+  static const Color darkTextPrimary = Color(0xFFF1F5F9);
+
+  /// Muted UI text.
+  ///
+  /// The source design used `#64748B` here, which is 4.24:1 on the navy
+  /// canvas and fails WCAG AA for body text. Lifted to slate-400 (7.9:1).
+  /// `#64748B` remains acceptable for non-text affordances only.
+  static const Color darkTextSecondary = Color(0xFF94A3B8);
+  static const Color darkPrimary = Color(0xFF22D3EE); // Action Cyan, 11.2:1
+  static const Color darkSecondary = Color(0xFFCBD5E1);
+
+  /// Sits between Action Cyan and Success Emerald — the midpoint of the
+  /// chart gradient the design specifies.
+  static const Color darkAccent = Color(0xFF2DD4BF);
+  static const Color darkSuccess = Color(0xFF10B981); // Success Emerald
+  static const Color darkWarning = Color(0xFFF59E0B);
+  static const Color darkError = Color(0xFFF87171);
+  static const Color darkInfo = darkPrimary;
+
+  // Depth tokens. Depth is built from a translucent fill, a hairline stroke
+  // and a top-edge highlight — no emission, no drop shadow.
+  static const Color darkGlassFill = Color(0x990F172A); // 60%
+  static const Color darkGlassStroke = Color(0x14FFFFFF); // white 8%
+  static const Color darkInnerHighlight = Color(0x0DFFFFFF); // white 5%
+
+  static const Color lightGlassFill = Color(0xCCFFFFFF); // 80%
+  static const Color lightGlassStroke = Color(0x140F172A);
+  static const Color lightInnerHighlight = Color(0x0DFFFFFF);
+
+  // Micro-tokens used directly by AppTheme._buildTheme.
+  static const Color darkOnPrimary = Color(0xFF020617); // black-on-cyan
+  static const Color tooltipSurfaceLight = Color(0xFF1C2733);
+  static const Color tooltipSurfaceDark = Color(0xFF1E2731);
+
+  // Shell sidebar (deliberately dark navy in both brightnesses).
+  //
+  // Sits one step below the canvas so the shell reads as the frame rather
+  // than as another panel. The active item is Action Cyan on a cyan-tinted
+  // fill — in the design the left bracket carries the selection, so the fill
+  // stays quiet on purpose.
+  static const Color sidebarBackground = Color(0xFF01040E);
+  static const Color sidebarSelected = Color(0xFF07202E);
+  static const Color sidebarText = Color(0xFF94A3B8);
+  static const Color sidebarTextActive = Color(0xFF22D3EE);
+  static const Color sidebarMuted = Color(0xFF64748B);
+
+  const _Palette._();
+}
+
 class AppColors {
-  static const Color background = Color(0xFFFFFFFF);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color primary = Color(0xFF2563EB);
-  static const Color positive = Color(0xFF16A34A);
-  static const Color negative = Color(0xFFDC2626);
-  static const Color warning = Color(0xFFD97706);
+  /// Legacy screens treat "background" as the white surface color, not the
+  /// warm canvas ([_Palette.lightBackground]). Kept that way deliberately —
+  /// migrating those screens to theme-based colors happens per screen in its
+  /// redesign wave (DEBT-TOKEN-001, waves 1/3/6).
+  static const Color background = _Palette.lightSurface;
+  static const Color surface = _Palette.lightSurface;
+  static const Color border = _Palette.lightBorder;
+  static const Color textPrimary = _Palette.lightTextPrimary;
+  static const Color textSecondary = _Palette.lightTextSecondary;
+  static const Color primary = _Palette.lightPrimary;
+  static const Color positive = _Palette.lightSuccess;
+  static const Color negative = _Palette.lightError;
+  static const Color warning = _Palette.lightWarning;
+
+  // Shell sidebar tokens (theme-independent, see _Palette).
+  static const Color sidebarBackground = _Palette.sidebarBackground;
+  static const Color sidebarSelected = _Palette.sidebarSelected;
+  static const Color sidebarText = _Palette.sidebarText;
+  static const Color sidebarTextActive = _Palette.sidebarTextActive;
+  static const Color sidebarMuted = _Palette.sidebarMuted;
 
   const AppColors._();
 }
@@ -278,35 +451,41 @@ class AppTheme {
   const AppTheme._();
 
   static const AppColorTokens _lightTokens = AppColorTokens(
-    background: Color(0xFFF8FAFC), // Soft premium slate canvas background
-    surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF8FAFC),
-    border: Color(0xFFE2E8F0),
-    textPrimary: Color(0xFF0F172A),
-    textSecondary: Color(0xFF64748B),
-    primary: Color(0xFF2563EB),
-    secondary: Color(0xFF0F172A),
-    accent: Color(0xFF0D9488), // Slate teal
-    success: Color(0xFF16A34A),
-    warning: Color(0xFFD97706),
-    error: Color(0xFFDC2626),
-    info: Color(0xFF2563EB),
+    background: _Palette.lightBackground,
+    surface: _Palette.lightSurface,
+    surfaceAlt: _Palette.lightSurfaceAlt,
+    border: _Palette.lightBorder,
+    textPrimary: _Palette.lightTextPrimary,
+    textSecondary: _Palette.lightTextSecondary,
+    primary: _Palette.lightPrimary,
+    secondary: _Palette.lightSecondary,
+    accent: _Palette.lightAccent,
+    success: _Palette.lightSuccess,
+    warning: _Palette.lightWarning,
+    error: _Palette.lightError,
+    info: _Palette.lightInfo,
+    glassFill: _Palette.lightGlassFill,
+    glassStroke: _Palette.lightGlassStroke,
+    innerHighlight: _Palette.lightInnerHighlight,
   );
 
   static const AppColorTokens _darkTokens = AppColorTokens(
-    background: Color(0xFF0A0F1D), // Dark midnight background
-    surface: Color(0xFF131A2E), // Card surface
-    surfaceAlt: Color(0xFF1E2640),
-    border: Color(0xFF2D3748),
-    textPrimary: Color(0xFFF1F5F9),
-    textSecondary: Color(0xFF94A3B8),
-    primary: Color(0xFF60A5FA), // High contrast premium primary blue
-    secondary: Color(0xFFCBD5E1),
-    accent: Color(0xFF2DD4BF), // Vibrant dark mode accent
-    success: Color(0xFF34D399),
-    warning: Color(0xFFFBBF24),
-    error: Color(0xFFF87171),
-    info: Color(0xFF60A5FA),
+    background: _Palette.darkBackground,
+    surface: _Palette.darkSurface,
+    surfaceAlt: _Palette.darkSurfaceAlt,
+    border: _Palette.darkBorder,
+    textPrimary: _Palette.darkTextPrimary,
+    textSecondary: _Palette.darkTextSecondary,
+    primary: _Palette.darkPrimary,
+    secondary: _Palette.darkSecondary,
+    accent: _Palette.darkAccent,
+    success: _Palette.darkSuccess,
+    warning: _Palette.darkWarning,
+    error: _Palette.darkError,
+    info: _Palette.darkInfo,
+    glassFill: _Palette.darkGlassFill,
+    glassStroke: _Palette.darkGlassStroke,
+    innerHighlight: _Palette.darkInnerHighlight,
   );
 
   static const AppTypographyTokens _comfortTypography = AppTypographyTokens(
@@ -393,30 +572,41 @@ class AppTheme {
         onPrimary:
             brightness == Brightness.light
                 ? Colors.white
-                : const Color(0xFF06224A),
+                : _Palette.darkOnPrimary,
         outlineVariant: tokens.border,
         surfaceContainerHighest: tokens.surfaceAlt,
       ),
       scaffoldBackgroundColor: tokens.background,
-      fontFamily: 'Geist',
+      fontFamily: 'Inter',
       textTheme: TextTheme(
+        // Headlines run on Hanken Grotesk, which ships as a variable font.
+        // Flutter does not map `fontWeight` onto a variable font's wght axis,
+        // so the weight has to come from `fontVariations`; `fontWeight` is
+        // kept alongside it purely so widgets that read it (and any fallback
+        // to Inter if the asset is missing) still resolve sensibly.
         displaySmall: TextStyle(
+          fontFamily: 'HankenGrotesk',
+          fontVariations: const [FontVariation('wght', 700)],
           fontSize: typography.h1Size,
-          height: 1.12,
-          fontWeight: FontWeight.w300,
+          height: 1.16,
+          fontWeight: FontWeight.w700,
           color: tokens.textPrimary,
-          letterSpacing: 0,
+          letterSpacing: -0.02 * typography.h1Size,
         ),
         headlineSmall: TextStyle(
+          fontFamily: 'HankenGrotesk',
+          fontVariations: const [FontVariation('wght', 600)],
           fontSize: typography.h2Size,
-          height: 1.3,
-          fontWeight: FontWeight.w500,
+          height: 1.25,
+          fontWeight: FontWeight.w600,
           color: tokens.textPrimary,
-          letterSpacing: 0,
+          letterSpacing: -0.01 * typography.h2Size,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'HankenGrotesk',
+          fontVariations: const [FontVariation('wght', 600)],
           fontSize: typography.h3Size,
-          height: 1.3,
+          height: 1.33,
           fontWeight: FontWeight.w600,
           color: tokens.textPrimary,
           letterSpacing: 0,
@@ -442,12 +632,15 @@ class AppTheme {
           color: tokens.textSecondary,
           letterSpacing: 0,
         ),
+        // The design's `label-sm`: uppercase-with-tracking is what separates
+        // "metadata" from "content" in this system, so the tracking lives in
+        // the token rather than being re-applied per screen.
         labelMedium: TextStyle(
           fontSize: compact ? 11 : 12,
-          height: 1.2,
+          height: 1.33,
           fontWeight: FontWeight.w600,
           color: tokens.textSecondary,
-          letterSpacing: 0,
+          letterSpacing: 0.05 * (compact ? 11 : 12),
         ),
         labelLarge: TextStyle(
           fontSize: typography.buttonSize,
@@ -455,14 +648,21 @@ class AppTheme {
           letterSpacing: 0,
         ),
       ),
+      // Aligned with NxCard so the ~180 raw Material `Card(...)` widgets still
+      // scattered across the unmigrated screens land close to the system
+      // instead of reading as a different, flatter surface next to it. The
+      // one thing that cannot be expressed here is NxCard's top-edge
+      // highlight gradient — CardThemeData takes a color, not a gradient — so
+      // migrating a screen to NxCard is still a real improvement, just no
+      // longer the difference between "designed" and "not designed".
       cardTheme: CardThemeData(
-        color: tokens.surface,
+        color: tokens.glassFill,
         elevation: 0,
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-          side: BorderSide(color: tokens.border),
+          side: BorderSide(color: tokens.glassStroke),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -474,48 +674,51 @@ class AppTheme {
           vertical: compact ? 10 : 14,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           borderSide: BorderSide(color: tokens.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           borderSide: BorderSide(color: tokens.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           borderSide: BorderSide(color: tokens.primary, width: 1),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           borderSide: BorderSide(color: tokens.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
           borderSide: BorderSide(color: tokens.error, width: 1),
         ),
       ),
+      // Maximum data density: 8px vertical padding, and rows separated by
+      // background alternates rather than divider lines. `dividerThickness: 0`
+      // is what makes the zebra treatment readable — lines plus alternates
+      // read as noise.
       dataTableTheme: DataTableThemeData(
         headingTextStyle: TextStyle(
           fontSize: compact ? 11 : 12,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: tokens.textSecondary,
+          letterSpacing: 0.05 * (compact ? 11 : 12),
         ),
         dataTextStyle: TextStyle(
           fontSize: compact ? 12 : 13,
           fontWeight: FontWeight.w500,
           color: tokens.textPrimary,
         ),
-        dividerThickness: 0.8,
-        headingRowHeight: compact ? 38 : 42,
-        dataRowMinHeight: compact ? 36 : 40,
-        dataRowMaxHeight: compact ? 40 : 44,
+        dividerThickness: 0,
+        headingRowHeight: compact ? 34 : 38,
+        dataRowMinHeight: compact ? 34 : 38,
+        dataRowMaxHeight: compact ? 38 : 44,
       ),
       chipTheme: ChipThemeData(
         backgroundColor: tokens.surfaceAlt.withValues(alpha: 0.72),
         side: BorderSide(color: tokens.border),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-        ),
+        shape: const StadiumBorder(),
         labelStyle: TextStyle(
           fontSize: compact ? 11 : 12,
           fontWeight: FontWeight.w600,
@@ -529,8 +732,8 @@ class AppTheme {
         decoration: BoxDecoration(
           color:
               brightness == Brightness.dark
-                  ? const Color(0xFF1E2731)
-                  : const Color(0xFF1C2733),
+                  ? _Palette.tooltipSurfaceDark
+                  : _Palette.tooltipSurfaceLight,
           borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
         ),
       ),
@@ -550,14 +753,15 @@ class AppTheme {
           foregroundColor:
               brightness == Brightness.light
                   ? Colors.white
-                  : const Color(0xFF06224A),
+                  : _Palette.darkOnPrimary,
+          // Flat. The accent fill alone carries primary emphasis; no bloom.
           elevation: 0,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 14 : 16,
             vertical: compact ? 10 : 12,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
           ),
         ),
       ),
@@ -570,7 +774,7 @@ class AppTheme {
           ),
           side: BorderSide(color: tokens.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+            borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
           ),
         ),
       ),
@@ -608,6 +812,9 @@ class AppTheme {
           border: tokens.border,
           surfaceAlt: tokens.surfaceAlt,
           textSecondary: tokens.textSecondary,
+          glassFill: tokens.glassFill,
+          glassStroke: tokens.glassStroke,
+          innerHighlight: tokens.innerHighlight,
         ),
         AppDensityConfig(mode: densityMode),
       ],
@@ -623,14 +830,21 @@ extension AppThemeContext on BuildContext {
       return colors;
     }
     final scheme = theme.colorScheme;
+    // Fallback for themes built without the extension (bare `ThemeData()` in
+    // tests and dialogs). Success/warning have no ColorScheme equivalent, so
+    // they come straight from the palette — deliberately *not* via
+    // `semanticColors`, which is this getter and would recurse forever.
     return AppSemanticColors(
-      success: Colors.green,
-      warning: Colors.orange,
+      success: _Palette.lightSuccess,
+      warning: _Palette.lightWarning,
       error: scheme.error,
       info: scheme.primary,
       border: scheme.outlineVariant,
       surfaceAlt: scheme.surfaceContainerHighest,
       textSecondary: scheme.onSurfaceVariant,
+      glassFill: scheme.surface,
+      glassStroke: scheme.outlineVariant,
+      innerHighlight: const Color(0x00000000),
     );
   }
 
@@ -672,9 +886,22 @@ extension AppThemeContext on BuildContext {
   }
 
   TextStyle get tabularNumericStyle {
-    return TextStyle(
-      fontFamily: 'Geist',
-      fontFeatures: const [FontFeature.tabularFigures()],
+    return const TextStyle(
+      fontFamily: 'Inter',
+      fontFeatures: [FontFeature.tabularFigures()],
+    );
+  }
+
+  /// Monospaced treatment for technical asset IDs and financial values.
+  ///
+  /// The design introduces a second font specifically so columns of numbers
+  /// align and digits stay unambiguous — use this for IDs, money, and any
+  /// figure the user compares vertically, not for prose.
+  TextStyle get dataMonoStyle {
+    return const TextStyle(
+      fontFamily: 'JetBrainsMono',
+      fontWeight: FontWeight.w500,
+      fontFeatures: [FontFeature.tabularFigures()],
     );
   }
 }

@@ -47,7 +47,12 @@ class LegacySqlitePropertyRepositoryAdapter implements PropertyRepository {
       final pageRecords = records.sublist(start, end);
       return PropertyRepositorySuccess<PropertyPageResult>(
         PropertyPageResult(
-          items: pageRecords.map(_mapProperty).toList(growable: false),
+          items: pageRecords
+              .map(
+                (record) =>
+                    PropertySummaryDto.fromProperty(_mapProperty(record)),
+              )
+              .toList(growable: false),
           nextCursor:
               end < records.length && pageRecords.isNotEmpty
                   ? pageRecords.last.id

@@ -1,6 +1,6 @@
 # P0 Reference Slice Specification
 
-Status: `partial`; lokal inklusive Runtime, Deep Links, bedienbarer passwordless Auth/TOTP und Property-AAL2 verifiziert; Entitlement-/Staging-Gates offen.
+Status: `partial`; lokal inklusive Runtime, Deep Links, bedienbarer passwordless Auth/TOTP, Property-AAL2 und Entitlement-Revalidation verifiziert; Staging-Gates offen.
 
 ## Slice
 
@@ -32,6 +32,7 @@ Status: `partial`; lokal inklusive Runtime, Deep Links, bedienbarer passwordless
 | EVD-REF-008 | `lib/ui/navigation/app_navigation.dart`, `test/app_runtime_test.dart` | Stabile `/properties`- und `/properties/:id`-Routen funktionieren auch beim Kaltstart ohne doppelten Route-Stack. | verified |
 | EVD-REF-009 | `supabase/migrations/20260718100000_p1_015_aal_hardening.sql`, `test/integration/support/supabase_mfa_test_helper.dart` | Property-Mutation verlangt serverseitig AAL2; echter lokaler TOTP-Flow weist AAL1-Deny und AAL2-Erfolg nach. | verified_local |
 | EVD-REF-010 | `lib/features/identity_access/`, `lib/features/reference_slice/`, `test/integration/supabase_property_repository_integration_test.dart` | Passwordless-PKCE-Anforderung, TOTP-Enrollment/Step-up und lokaler Logout sind bedienbar und lokal gegen Supabase verifiziert. | verified_local |
+| EVD-REF-011 | `supabase/migrations/20260718110000_p1_017_entitlement_revalidation.sql`, `lib/features/identity_access/data/supabase_entitlement_invalidation_adapter.dart`, `test/integration/supabase_property_realtime_integration_test.dart` | Private nutzergebundene Broadcasts und periodische Revalidation leeren Client-Caches nach Rollen-/Membership-Entzug fail-closed; fremde Topics werden verweigert. | verified_local |
 
 ## Cloud Contract
 
@@ -114,10 +115,10 @@ Atomic result:
 |---|---|---|
 | AC-RLS-001 | verified | Anonymous table/RPC access is denied by grants and pgTAP. |
 | AC-RLS-002 | verified | Two-workspace read/write isolation passes in pgTAP and real client tests. |
-| AC-RLS-003 | verified | Suspended membership cannot read Property/Audit or update through RPC. |
+| AC-RLS-003 | verified | Suspended membership cannot read Property/Audit or update through RPC; der aktive Client leert seine Caches nach dem Entzug. |
 | AC-RLS-004 | verified | Viewer reads but receives `forbidden` for mutation. |
 | AC-RLS-005 | verified | Manager mutation is workspace-scoped and foreign IDs fail closed. |
-| AC-RLS-006 | partial | SQL and Supabase-Flutter client paths pass; a raw PostgREST parity test is open. |
+| AC-RLS-006 | verified | SQL, Supabase-Flutter und rohe lokale PostgREST-Pfade bestehen fuer anon, Viewer, Manager und Cross-Tenant-Reads/-Mutationen. |
 | AC-REF-001 | verified | Session/AAL and active memberships are mapped fail-closed. |
 | AC-REF-002 | verified | List query filters workspace and tombstones. |
 | AC-REF-003 | verified | Stable ID detail and `/properties/:id` cold-start deep-link wiring pass in `test/app_runtime_test.dart`. |
@@ -128,7 +129,7 @@ Atomic result:
 | AC-REF-008 | verified | Exactly one audit event preserves actor and correlation ID. |
 | AC-REF-009 | verified | Controller/UI tests cover loading, empty, error, unauthenticated and forbidden states. |
 
-Der lokale Teststand umfasst 196 pgTAP, Rollback, Concurrency, echte passwordless-PKCE-/AAL2-Adapter-/Mehrclientgates, Controller-, responsive Widget-/Golden- und Kaltstart-Deep-Link-Tests. Allgemeine privilegierte MFA/Rollenpolicy, Entitlement-Revalidation, Staging-E2E und Performancebudgets bleiben offen; Details: `docs/architecture/phase_1/03_reference_slice_gate_review.md`.
+Der lokale Teststand umfasst 212 pgTAP, 18 Rollback-Pruefungen, Concurrency, echte passwordless-PKCE-/AAL2-Adapter-/Raw-PostgREST-/Mehrclient-/Entitlement-Gates, getrennte Property-Summary-/Detailprojektionen, einen budgetfreien lokalen Query-/RPC-Profiling-Vertrag, Controller-, responsive Widget-/Golden- und Kaltstart-Deep-Link-Tests. Allgemeine privilegierte MFA/Rollenpolicy, Staging-E2E und freigegebene Performancebudgets bleiben offen; Details: `docs/architecture/phase_1/03_reference_slice_gate_review.md`.
 
 ## Exclusions
 

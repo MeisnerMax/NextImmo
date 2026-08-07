@@ -29,6 +29,8 @@ class PropertyRecord {
     this.energyCertificate,
     this.insuranceDetails,
     this.taxAssignment,
+    this.deletedAt,
+    this.deletedBy,
   });
 
   final String id;
@@ -60,6 +62,16 @@ class PropertyRecord {
   final String? energyCertificate;
   final String? insuranceDetails;
   final String? taxAssignment;
+
+  /// Soft-tombstone marker (DEBT-012 / STM-002). `null` = live; a non-null epoch
+  /// marks the property as tombstoned (kept for audit/restore, hidden from
+  /// active views). Read-only here: deliberately excluded from [toMap] so the
+  /// generic create/update paths can never set or clear it — only the
+  /// repository's `tombstone`/`restore` methods write these columns directly.
+  final int? deletedAt;
+  final String? deletedBy;
+
+  bool get isDeleted => deletedAt != null;
 
   Map<String, Object?> toMap() {
     return <String, Object?>{
@@ -126,6 +138,8 @@ class PropertyRecord {
       energyCertificate: map['energy_certificate'] as String?,
       insuranceDetails: map['insurance_details'] as String?,
       taxAssignment: map['tax_assignment'] as String?,
+      deletedAt: (map['deleted_at'] as num?)?.toInt(),
+      deletedBy: map['deleted_by'] as String?,
     );
   }
 }

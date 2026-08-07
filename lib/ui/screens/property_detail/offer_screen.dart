@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/offer/offer_solver.dart';
@@ -46,7 +47,8 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
             children: [
               SizedBox(
                 width: 380,
-                child: Card(
+                child: NxCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.cardPadding),
                     child: Column(
@@ -110,7 +112,7 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               _error!,
-                              style: const TextStyle(color: Colors.red),
+                              style: TextStyle(color: context.semanticColors.error),
                             ),
                           ),
                       ],
@@ -122,7 +124,8 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
               Expanded(
                 child:
                     _result == null
-                        ? const Card(
+                        ? const NxCard(
+                          padding: EdgeInsets.zero,
                           child: Center(
                             child: Padding(
                               padding: EdgeInsets.all(AppSpacing.section),
@@ -130,7 +133,8 @@ class _OfferScreenState extends ConsumerState<OfferScreen> {
                             ),
                           ),
                         )
-                        : Card(
+                        : NxCard(
+                          padding: EdgeInsets.zero,
                           child: Padding(
                             padding: const EdgeInsets.all(
                               AppSpacing.cardPadding,

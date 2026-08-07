@@ -14,17 +14,11 @@ import '../../core/offer/offer_solver.dart';
 import '../../core/operations/lease_indexation_engine.dart';
 import '../../core/operations/rent_roll_engine.dart';
 import '../../core/quality/data_quality_service.dart';
-import '../../core/services/acquisition_calculation_service.dart';
 import '../../core/reports/export_csv.dart';
 import '../../core/reports/portfolio_pack_builder.dart';
 import '../../core/reports/report_builder.dart';
 import '../../core/reports/report_templates.dart';
-import '../../core/services/datasheet_builder_service.dart';
 import '../../core/services/datasheet_export_service.dart';
-import '../../core/services/disposition_calculation_service.dart';
-import '../../core/services/formula_audit_service.dart';
-import '../../core/services/renovation_calculation_service.dart';
-import '../../core/models/investment_modules.dart';
 import '../../core/models/settings.dart';
 import '../../core/models/valuation.dart';
 import '../../core/security/password_hasher.dart';
@@ -83,18 +77,27 @@ enum GlobalPage {
   budgets,
   maintenance,
   contractors,
+  parties,
   tasks,
   taskTemplates,
   portfolios,
+
+  /// Welle 3: the portfolio-wide rental view (SCR-065). A page of its own
+  /// because occupancy across all properties is a question nobody can answer
+  /// from inside a single object — which is why the screen that tried had
+  /// become unreachable (`DEAD-002`).
+  rentalOverview,
   imports,
   notifications,
   esg,
   documents,
   audit,
   compare,
-  quickScreening,
-  renovationValue,
-  dispositionExit,
+
+  /// Welle 5: the workspace-wide valuation work queue. Deliberately a page of
+  /// its own — the valuation used to be reachable only three levels deep
+  /// (object → scenario → Underwriting → tab), which is what this replaces.
+  valuations,
   criteriaSets,
   reportTemplates,
   adminUsers,
@@ -202,47 +205,18 @@ final valuationDataRepositoryProvider = Provider<ValuationDataRepo>((ref) {
 
 final calculationDatasheetRepositoryProvider =
     Provider<CalculationDatasheetRepo>((ref) {
-  return CalculationDatasheetRepo(ref.watch(databaseProvider));
-});
-
-final formulaAuditServiceProvider = Provider<FormulaAuditService>((ref) {
-  return const FormulaAuditService();
-});
-
-final acquisitionCalculationServiceProvider =
-    Provider<AcquisitionCalculationService>((ref) {
-  return AcquisitionCalculationService(
-    formulaAuditService: ref.watch(formulaAuditServiceProvider),
-  );
-});
-
-final renovationCalculationServiceProvider =
-    Provider<RenovationCalculationService>((ref) {
-  return RenovationCalculationService(
-    formulaAuditService: ref.watch(formulaAuditServiceProvider),
-  );
-});
-
-final dispositionCalculationServiceProvider =
-    Provider<DispositionCalculationService>((ref) {
-  return DispositionCalculationService(
-    formulaAuditService: ref.watch(formulaAuditServiceProvider),
-  );
-});
-
-final datasheetBuilderServiceProvider = Provider<DatasheetBuilderService>((ref) {
-  return const DatasheetBuilderService();
-});
+      return CalculationDatasheetRepo(ref.watch(databaseProvider));
+    });
 
 final datasheetExportServiceProvider = Provider<DatasheetExportService>((ref) {
   return const DatasheetExportService();
 });
 
-final renovationImpactTransferProvider =
-    StateProvider<RenovationImpactTransfer?>((ref) => null);
-
 final valuationPropertySnapshotProvider =
-    FutureProvider.family<ValuationPropertySnapshot?, String>((ref, scenarioId) {
+    FutureProvider.family<ValuationPropertySnapshot?, String>((
+      ref,
+      scenarioId,
+    ) {
       return ref
           .watch(valuationDataRepositoryProvider)
           .getPropertySnapshot(scenarioId);
@@ -408,12 +382,14 @@ final propertyProfileRepositoryProvider = Provider<PropertyProfileRepository>((
 final propertyModulesRepositoryProvider = Provider<PropertyModulesRepo>((ref) {
   return PropertyModulesRepo(ref.watch(databaseProvider));
 });
-final propertyHasHotelModulesProvider =
-    FutureProvider.family<bool, String>((ref, propertyId) {
-      return ref
-          .watch(propertyModulesRepositoryProvider)
-          .hasHotelModules(propertyId);
-    });
+final propertyHasHotelModulesProvider = FutureProvider.family<bool, String>((
+  ref,
+  propertyId,
+) {
+  return ref
+      .watch(propertyModulesRepositoryProvider)
+      .hasHotelModules(propertyId);
+});
 
 final analysisEngineProvider = Provider<AnalysisEngine>(
   (ref) => const AnalysisEngine(),
@@ -520,9 +496,15 @@ final dataQualityRepositoryProvider = Provider<DataQualityRepo>((ref) {
   return DataQualityRepo(ref.watch(databaseProvider));
 });
 
-final propertyTitleImageProvider = FutureProvider.family<String?, String>((ref, propertyId) async {
+final propertyTitleImageProvider = FutureProvider.family<String?, String>((
+  ref,
+  propertyId,
+) async {
   final repo = ref.read(documentsRepositoryProvider);
-  final docs = await repo.listWorkflowDocuments(entityType: 'property', entityId: propertyId);
+  final docs = await repo.listWorkflowDocuments(
+    entityType: 'property',
+    entityId: propertyId,
+  );
   for (final doc in docs) {
     if (doc.metadata['image_role'] == 'title') {
       return doc.document.filePath;

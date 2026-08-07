@@ -24,4 +24,33 @@ foreach ($invalidTarget in @(
   }
 }
 
+$invalidSwitchCases = @(
+  @('-TargetDatabase', 'neximmo_p1_014_guard', '-GuardOnly', '-RecoverOnly'),
+  @(
+    '-TargetDatabase',
+    'neximmo_p1_014_guard',
+    '-TestHardExitAfterTargetCreate'
+  ),
+  @(
+    '-TargetDatabase',
+    'neximmo_p1_014_guard',
+    '-TestRunId',
+    '0123456789abcdef0123456789abcdef'
+  ),
+  @(
+    '-TargetDatabase',
+    'neximmo_p1_014_mismatch',
+    '-TestRunId',
+    '0123456789abcdef0123456789abcdef',
+    '-TestHardExitAfterTargetCreate'
+  )
+)
+
+foreach ($arguments in $invalidSwitchCases) {
+  & pwsh -NoProfile -File $verifier @arguments 2>&1 | Out-Null
+  if ($LASTEXITCODE -eq 0) {
+    throw 'Unsafe P1-014 switch combination passed the guard.'
+  }
+}
+
 Write-Output 'P1-014 target guard tests passed.'

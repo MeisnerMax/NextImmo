@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_environment.dart';
-import 'features/reference_slice/presentation/reference_slice_screen.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
 import 'ui/screens/security/security_gate.dart';
+import 'ui/screens/security/supabase_security_gate.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/zoom/app_zoom.dart';
@@ -30,7 +30,7 @@ class NexImmoApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(densityMode: densityMode),
       darkTheme: AppTheme.dark(densityMode: densityMode),
-      themeMode: AppTheme.resolveThemeMode(settings?.uiThemeMode ?? 'system'),
+      themeMode: AppTheme.resolveThemeMode(settings?.uiThemeMode ?? 'dark'),
       locale: AppStrings.localeFromLanguageCode(settings?.uiLanguageCode),
       supportedLocales: AppStrings.supportedLocales,
       localizationsDelegates: AppStrings.localizationsDelegates,
@@ -43,36 +43,38 @@ class NexImmoApp extends ConsumerWidget {
               : null,
       onGenerateRoute:
           environment.dataBackend == DataBackend.supabase
-              ? _generateReferenceRoute
+              ? _generateCloudRoute
               : null,
       onGenerateInitialRoutes:
           environment.dataBackend == DataBackend.supabase
-              ? _generateReferenceInitialRoutes
+              ? _generateCloudInitialRoutes
               : null,
     );
   }
 
-  List<Route<void>> _generateReferenceInitialRoutes(String initialRoute) {
-    final route = _generateReferenceRoute(RouteSettings(name: initialRoute));
+  List<Route<void>> _generateCloudInitialRoutes(String initialRoute) {
+    final route = _generateCloudRoute(RouteSettings(name: initialRoute));
     if (route != null) {
       return <Route<void>>[route];
     }
     return <Route<void>>[
       MaterialPageRoute<void>(
-        settings: const RouteSettings(name: referencePropertiesRoute),
-        builder: (_) => const ReferenceSliceScreen(),
+        settings: const RouteSettings(name: '/'),
+        builder:
+            (_) => const SupabaseSecurityGate(
+              routeTarget: CloudRouteTarget.dashboard,
+            ),
       ),
     ];
   }
 
-  Route<void>? _generateReferenceRoute(RouteSettings settings) {
-    final propertyId = referencePropertyIdFromRoute(settings.name);
-    if (settings.name == referencePropertiesRoute || propertyId != null) {
-      return MaterialPageRoute<void>(
-        settings: settings,
-        builder: (_) => ReferenceSliceScreen(initialPropertyId: propertyId),
-      );
-    }
-    return null;
+  Route<void>? _generateCloudRoute(RouteSettings settings) {
+    final target = cloudRouteTargetFromName(settings.name);
+    return target == null
+        ? null
+        : MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => SupabaseSecurityGate(routeTarget: target),
+        );
   }
 }

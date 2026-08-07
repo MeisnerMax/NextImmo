@@ -4,6 +4,8 @@ Stand: 2026-07-12
 Status: `verified`  
 Scope: produktiver Dart-Code unter `lib/` und Tests unter `test/`. Primaerdomaenen: `identity_access` (IA), `portfolio_property` (PP), `contacts_parties` (CP), `leasing_operations` (LO), `maintenance_capex` (MC), `documents_compliance` (DC), `finance_debt` (FD), `valuation_transactions` (VT), `reporting_analytics` (RA), `platform_audit_jobs` (PA).
 
+Nachtrag 2026-08-02: W5-AP8 hat die drei Legacy-Ziele `QuickScreeningScreen`, `RenovationValueScreen` und `DispositionExitScreen` samt direkter Berechnungsservices entfernt. Die Tabellen unten bleiben als verifizierter Phase-0-Ausgangsstand erhalten; aktueller VT-Stand: `docs/architecture/phase_2/04e_wave5_valuation_transactions.md`.
+
 ## Laufzeit und Navigation
 
 | ID | Element | Primaerdomaene | Status | Evidenz |

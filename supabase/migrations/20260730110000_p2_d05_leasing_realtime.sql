@@ -1,0 +1,34 @@
+-- P2-D05 step 6: workspace-scoped leasing realtime invalidation, mirroring the
+-- P1-011 property, P2-D02 party and P2-D03 document realtime pattern. Clients
+-- subscribe to UPDATE events filtered by workspace_id and coalesce them into a
+-- query invalidation. RLS still gates what each subscriber may read.
+--
+-- Both aggregates are published, not just one, because they invalidate different
+-- queries and neither is reliably a proxy for the other:
+--
+--   * public.leases — every lease command bumps updated_at/version, so create
+--     (INSERT) and every transition/update (UPDATE) emit an event.
+--   * public.units — a unit's own attribute and offline transitions emit here,
+--     AND so does the derived occupancy flip performed by sync_unit_occupancy
+--     inside transition_lease_status. That second case is the one that makes
+--     publishing units necessary rather than redundant: a lease activation
+--     changes a unit row that no lease-table subscriber would learn about, and
+--     the unit list / vacancy dashboards read exactly that.
+--
+-- Consequence worth stating plainly: activating a lease emits TWO events (one
+-- per table) for one logical command. Clients coalesce per workspace anyway
+-- (the invalidation carries no payload beyond "something changed here"), so the
+-- duplicate collapses client-side. The alternative — publishing only leases and
+-- having unit consumers infer occupancy — would make the unit list silently
+-- stale, which is worse than one redundant invalidation.
+--
+-- What this deliberately does NOT cover, stated rather than implied: nothing
+-- yet, because this increment owns no child tables. lease_rent_schedule,
+-- leasing_cases and the rent-roll tables arrive in the next increment and will
+-- need the same judgement call made explicitly then — a child-table INSERT is
+-- not visible through the parent unless the command also bumps the parent, and
+-- a DELETE payload carries only replica-identity columns, so a workspace_id
+-- filter could not be applied without REPLICA IDENTITY FULL (the same
+-- constraint P2-D03 documented for document_links).
+alter publication supabase_realtime add table public.units;
+alter publication supabase_realtime add table public.leases;

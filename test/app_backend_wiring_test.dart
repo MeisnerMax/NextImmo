@@ -7,6 +7,8 @@ import 'package:neximmo_app/core/models/contractor.dart';
 import 'package:neximmo_app/core/models/documents.dart';
 import 'package:neximmo_app/core/models/import_job.dart';
 import 'package:neximmo_app/core/models/notification.dart';
+import 'package:neximmo_app/core/models/asset_workbook.dart';
+import 'package:neximmo_app/core/models/maintenance.dart';
 import 'package:neximmo_app/core/models/operations.dart';
 import 'package:neximmo_app/core/models/property_modules.dart';
 import 'package:neximmo_app/core/models/search.dart';
@@ -34,6 +36,12 @@ import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_qu
 import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/rent_roll_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
+import 'package:neximmo_app/features/maintenance_capex/application/maintenance_capex_providers.dart';
+import 'package:neximmo_app/features/maintenance_capex/application/maintenance_capex_repository.dart';
+import 'package:neximmo_app/features/maintenance_capex/data/legacy_sqlite_maintenance_capex_repository_adapter.dart';
+import 'package:neximmo_app/features/maintenance_capex/data/supabase_maintenance_capex_query_invalidation_adapter.dart';
+import 'package:neximmo_app/features/maintenance_capex/data/supabase_maintenance_capex_repository_adapter.dart';
+import 'package:neximmo_app/features/maintenance_capex/domain/maintenance_ticket_dto.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/data/legacy_sqlite_platform_repository_adapter.dart';
@@ -81,6 +89,9 @@ ProviderContainer _sqliteContainer() {
       legacyLeasingReadSourceProvider.overrideWithValue(
         _EmptyLegacyLeasingReadSource(),
       ),
+      legacyMaintenanceCapexReadSourceProvider.overrideWithValue(
+        _EmptyLegacyMaintenanceCapexReadSource(),
+      ),
       // P2-D05a's legacy adapter wraps OperationsRepo directly rather than a
       // read-source abstraction (see its header) — a real Database is not
       // needed for these wiring assertions, which only compare provider
@@ -125,6 +136,14 @@ const LeasingCommandContext _leasingContext = LeasingCommandContext(
   mutationId: 'mutation',
   correlationId: 'correlation',
 );
+
+const MaintenanceCapexCommandContext _maintenanceCapexContext =
+    MaintenanceCapexCommandContext(
+      workspaceId: _workspace,
+      actorId: 'actor',
+      mutationId: 'mutation',
+      correlationId: 'correlation',
+    );
 
 DocumentCommandContext get _documentContext => const DocumentCommandContext(
   workspaceId: _workspace,
@@ -195,6 +214,33 @@ void main() {
       expect(signals, isA<LegacySqliteOperationsSignalsAdapter>());
     });
 
+    test(
+      'binds every maintenance_capex port to its read-only legacy adapter',
+      () {
+        final container = _sqliteContainer();
+        // Two adapters rather than one, unlike the domains above: the
+        // maintenance_capex aggregates share the natural method names, so one
+        // class cannot serve them both. Each port must still land on the
+        // right one of the two.
+        final tickets = container.read(
+          legacyMaintenanceTicketRepositoryAdapterProvider,
+        );
+        final projects = container.read(
+          legacyCapexProjectRepositoryAdapterProvider,
+        );
+
+        expect(
+          container.read(maintenanceTicketRepositoryProvider),
+          same(tickets),
+        );
+        expect(container.read(maintenanceTicketSearchProvider), same(tickets));
+        expect(container.read(capexProjectRepositoryProvider), same(projects));
+        expect(container.read(capexProjectSearchProvider), same(projects));
+        expect(tickets, isA<LegacySqliteMaintenanceTicketRepositoryAdapter>());
+        expect(projects, isA<LegacySqliteCapexProjectRepositoryAdapter>());
+      },
+    );
+
     test('binds the task port to the read-only legacy platform adapter', () {
       final container = _sqliteContainer();
       final adapter = container.read(legacyPlatformRepositoryAdapterProvider);
@@ -248,6 +294,45 @@ void main() {
       );
     });
 
+    test(
+      'maintenance_capex reads succeed while its mutations are blocked',
+      () async {
+        final container = _sqliteContainer();
+
+        final read = await container
+            .read(maintenanceTicketSearchProvider)
+            .search(
+              const MaintenanceTicketListQuery(
+                workspaceId: _workspace,
+                propertyId: 'property-a',
+              ),
+            );
+        expect(
+          read,
+          isA<
+            MaintenanceCapexRepositorySuccess<List<MaintenanceTicketSummaryDto>>
+          >(),
+        );
+
+        final mutation = await container
+            .read(maintenanceTicketRepositoryProvider)
+            .create(
+              CreateMaintenanceTicketCommand(
+                context: _maintenanceCapexContext,
+                draft: const MaintenanceTicketDraft(
+                  propertyId: 'property-a',
+                  title: 'Leaking pipe',
+                ),
+              ),
+            );
+        expect(
+          (mutation as MaintenanceCapexRepositoryFailure<MaintenanceTicketDto>)
+              .kind,
+          MaintenanceCapexRepositoryFailureKind.dependencyConflict,
+        );
+      },
+    );
+
     test('the local rent roll is refused with its reason, not left empty', () async {
       final container = _sqliteContainer();
 
@@ -282,6 +367,10 @@ void main() {
       expect(container.read(documentQueryInvalidationSourceProvider), isNull);
       expect(container.read(valuationQueryInvalidationSourceProvider), isNull);
       expect(container.read(leasing.leasingQueryInvalidationSourceProvider), isNull);
+      expect(
+        container.read(maintenanceCapexQueryInvalidationSourceProvider),
+        isNull,
+      );
     });
 
     test(
@@ -400,6 +489,23 @@ void main() {
               .kind,
           LeasingRepositoryFailureKind.forbidden,
         );
+
+        final tickets = await container
+            .read(maintenanceTicketSearchProvider)
+            .search(
+              const MaintenanceTicketListQuery(
+                workspaceId: 'other-workspace',
+                propertyId: 'property-a',
+              ),
+            );
+        expect(
+          (tickets
+                  as MaintenanceCapexRepositoryFailure<
+                    List<MaintenanceTicketSummaryDto>
+                  >)
+              .kind,
+          MaintenanceCapexRepositoryFailureKind.forbidden,
+        );
       },
     );
   });
@@ -471,6 +577,21 @@ void main() {
       expect(
         container.read(leasing.leasingQueryInvalidationSourceProvider),
         isA<SupabaseLeasingQueryInvalidationAdapter>(),
+      );
+    });
+
+    test('binds every maintenance_capex port to its Supabase adapter', () {
+      final container = _supabaseContainer();
+      final tickets = container.read(maintenanceTicketRepositoryProvider);
+      final projects = container.read(capexProjectRepositoryProvider);
+
+      expect(tickets, isA<SupabaseMaintenanceTicketRepositoryAdapter>());
+      expect(projects, isA<SupabaseCapexProjectRepositoryAdapter>());
+      expect(container.read(maintenanceTicketSearchProvider), same(tickets));
+      expect(container.read(capexProjectSearchProvider), same(projects));
+      expect(
+        container.read(maintenanceCapexQueryInvalidationSourceProvider),
+        isA<SupabaseMaintenanceCapexQueryInvalidationAdapter>(),
       );
     });
 
@@ -547,10 +668,23 @@ void main() {
         () => container.read(taskRepositoryProvider),
         throwsA(isA<StateError>()),
       );
-      // The invalidation source is the one leasing provider with a default:
-      // null means "no realtime here", which is a binding, not a failure.
+      expect(
+        () => container.read(maintenanceTicketRepositoryProvider),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        () => container.read(capexProjectSearchProvider),
+        throwsA(isA<StateError>()),
+      );
+      // The invalidation source is the one leasing/maintenance_capex provider
+      // with a default: null means "no realtime here", which is a binding,
+      // not a failure.
       expect(
         container.read(leasing.leasingQueryInvalidationSourceProvider),
+        isNull,
+      );
+      expect(
+        container.read(maintenanceCapexQueryInvalidationSourceProvider),
         isNull,
       );
     });
@@ -592,6 +726,22 @@ class _EmptyLegacyLeasingReadSource implements LegacyLeasingReadSource {
 
   @override
   Future<LeaseRecord?> findLease(String leaseId) async => null;
+}
+
+class _EmptyLegacyMaintenanceCapexReadSource
+    implements LegacyMaintenanceCapexReadSource {
+  @override
+  Future<List<String>> listPropertyIds() async => const <String>[];
+
+  @override
+  Future<List<MaintenanceTicketRecord>> listMaintenanceTickets({
+    String? propertyId,
+  }) async => const <MaintenanceTicketRecord>[];
+
+  @override
+  Future<List<RenovationProjectRecord>> listCapexProjects(
+    String propertyId,
+  ) async => const <RenovationProjectRecord>[];
 }
 
 class _EmptyLegacyPlatformReadSource implements LegacyPlatformReadSource {

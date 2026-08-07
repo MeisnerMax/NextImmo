@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/notification.dart';
@@ -75,7 +76,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           itemCount: notifications.length,
                           itemBuilder: (context, index) {
                             final item = notifications[index];
-                            return Card(
+                            return NxCard(
+                              padding: EdgeInsets.zero,
                               child: ListTile(
                                 title: Text(
                                   item.message,

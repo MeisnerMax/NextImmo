@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/engine/sensitivity.dart';
@@ -8,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/data_table_widget.dart';
 import '../../widgets/kpi_card.dart';
 import '../../widgets/info_tooltip.dart';
+import 'widgets/valuation/valuation_section_host.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key, required this.scenarioId});
@@ -82,15 +84,20 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         }
 
         return DefaultTabController(
-          length: 4,
+          // The Wertermittlung is a tab of this screen rather than a route of
+          // its own (Welle 5, AP1) — the plan keeps the existing navigation.
+          length: 5,
           child: Column(
             children: [
               const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: [
                   Tab(text: 'Summary'),
                   Tab(text: 'Proforma'),
                   Tab(text: 'Amortization'),
                   Tab(text: 'Sensitivity'),
+                  Tab(text: 'Wertermittlung'),
                 ],
               ),
               Expanded(
@@ -130,7 +137,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Card(
+                          NxCard(
+                            padding: EdgeInsets.zero,
                             child: Padding(
                               padding: const EdgeInsets.all(12),
                               child: Wrap(
@@ -209,6 +217,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       config: config,
                       cacheKey: cacheKey,
                       grid: grid,
+                    ),
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSpacing.page),
+                      child: ValuationSectionHost(
+                        scenarioId: widget.scenarioId,
+                        propertyId: state.propertyId,
+                      ),
                     ),
                   ],
                 ),

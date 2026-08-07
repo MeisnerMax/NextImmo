@@ -458,7 +458,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     if (value == null && nullable) {
       return Text(
         'N/A',
-        style: TextStyle(color: Colors.grey.shade600).merge(context.tabularNumericStyle),
+        style: TextStyle(color: context.semanticColors.textSecondary).merge(context.tabularNumericStyle),
       );
     }
 
@@ -472,7 +472,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       display,
       style: TextStyle(
         fontWeight: isBest ? FontWeight.bold : FontWeight.normal,
-        color: isBest ? Colors.green : null,
+        color: isBest ? context.semanticColors.success : null,
       ).merge(context.tabularNumericStyle),
     );
   }

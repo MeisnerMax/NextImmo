@@ -41,6 +41,10 @@ import 'features/leasing_operations/data/legacy_operations_signals_adapter.dart'
 import 'features/leasing_operations/data/legacy_sqlite_leasing_repository_adapter.dart';
 import 'features/leasing_operations/data/supabase_leasing_query_invalidation_adapter.dart';
 import 'features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
+import 'features/maintenance_capex/application/maintenance_capex_providers.dart';
+import 'features/maintenance_capex/data/legacy_sqlite_maintenance_capex_repository_adapter.dart';
+import 'features/maintenance_capex/data/supabase_maintenance_capex_query_invalidation_adapter.dart';
+import 'features/maintenance_capex/data/supabase_maintenance_capex_repository_adapter.dart';
 import 'features/platform_audit_jobs/application/platform_providers.dart';
 import 'features/platform_audit_jobs/data/legacy_sqlite_platform_repository_adapter.dart';
 import 'features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
@@ -181,6 +185,39 @@ final legacyRentRollAdapterProvider = Provider<LegacySqliteRentRollAdapter>((
   );
 });
 
+final legacyMaintenanceCapexReadSourceProvider =
+    Provider<LegacyMaintenanceCapexReadSource>((ref) {
+      return RepositoryLegacyMaintenanceCapexReadSource(
+        propertyRepo: ref.watch(propertyRepositoryProvider),
+        maintenanceRepo: ref.watch(maintenanceRepositoryProvider),
+        assetWorkbookRepo: ref.watch(assetWorkbookRepositoryProvider),
+      );
+    });
+
+/// Two legacy adapters rather than one, because the two maintenance_capex
+/// aggregates share the natural method names — the same reason the Supabase
+/// side builds two. They share one read source, so they still read one
+/// database.
+final legacyMaintenanceTicketRepositoryAdapterProvider =
+    Provider<LegacySqliteMaintenanceTicketRepositoryAdapter>((ref) {
+      return LegacySqliteMaintenanceTicketRepositoryAdapter(
+        source: ref.watch(legacyMaintenanceCapexReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
+final legacyCapexProjectRepositoryAdapterProvider =
+    Provider<LegacySqliteCapexProjectRepositoryAdapter>((ref) {
+      return LegacySqliteCapexProjectRepositoryAdapter(
+        source: ref.watch(legacyMaintenanceCapexReadSourceProvider),
+        legacyWorkspaceId:
+            ref.watch(activeWorkspaceIdProvider) ??
+            _unresolvedLegacyWorkspaceId,
+      );
+    });
+
 /// P2-D05a. Wraps the existing `OperationsRepo` (`ui/state/app_state.dart`)
 /// rather than `legacyLeasingReadSourceProvider` — see the adapter's header
 /// for why this one aggregate is a thin projection, not a re-derivation.
@@ -220,9 +257,9 @@ final legacyPlatformRepositoryAdapterProvider =
       );
     });
 
-/// The provider overrides that bind the Wave 2, Wave 3 and Wave 5 contracts to
-/// [environment]'s backend. [client] is required in cloud mode and ignored
-/// otherwise.
+/// The provider overrides that bind the Wave 2, Wave 3, Wave 4 and Wave 5
+/// contracts to [environment]'s backend. [client] is required in cloud mode
+/// and ignored otherwise.
 List<Override> featureBackendOverrides({
   required AppEnvironment environment,
   SupabaseClient? client,
@@ -240,6 +277,12 @@ List<Override> featureBackendOverrides({
       final leasingCases = SupabaseLeasingCaseRepositoryAdapter(client: client);
       final leasingRentRoll = SupabaseRentRollAdapter(client: client);
       final leasingSignals = SupabaseOperationsSignalsAdapter(client: client);
+      final maintenanceTickets = SupabaseMaintenanceTicketRepositoryAdapter(
+        client: client,
+      );
+      final capexProjects = SupabaseCapexProjectRepositoryAdapter(
+        client: client,
+      );
       final platform = SupabasePlatformRepositoryAdapter(client: client);
       return <Override>[
         // The authenticated reference session is the cloud host's identity.
@@ -287,6 +330,15 @@ List<Override> featureBackendOverrides({
         leasing.operationsSignalsProvider.overrideWithValue(leasingSignals),
         leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
           SupabaseLeasingQueryInvalidationAdapter(client: client),
+        ),
+        maintenanceTicketRepositoryProvider.overrideWithValue(
+          maintenanceTickets,
+        ),
+        maintenanceTicketSearchProvider.overrideWithValue(maintenanceTickets),
+        capexProjectRepositoryProvider.overrideWithValue(capexProjects),
+        capexProjectSearchProvider.overrideWithValue(capexProjects),
+        maintenanceCapexQueryInvalidationSourceProvider.overrideWithValue(
+          SupabaseMaintenanceCapexQueryInvalidationAdapter(client: client),
         ),
         taskRepositoryProvider.overrideWithValue(platform),
       ];
@@ -371,6 +423,18 @@ List<Override> featureBackendOverrides({
         ),
         leasing.operationsSignalsProvider.overrideWith(
           (ref) => ref.watch(legacyOperationsSignalsAdapterProvider),
+        ),
+        maintenanceTicketRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyMaintenanceTicketRepositoryAdapterProvider),
+        ),
+        maintenanceTicketSearchProvider.overrideWith(
+          (ref) => ref.watch(legacyMaintenanceTicketRepositoryAdapterProvider),
+        ),
+        capexProjectRepositoryProvider.overrideWith(
+          (ref) => ref.watch(legacyCapexProjectRepositoryAdapterProvider),
+        ),
+        capexProjectSearchProvider.overrideWith(
+          (ref) => ref.watch(legacyCapexProjectRepositoryAdapterProvider),
         ),
         taskRepositoryProvider.overrideWith(
           (ref) => ref.watch(legacyPlatformRepositoryAdapterProvider),

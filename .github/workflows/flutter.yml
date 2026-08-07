@@ -153,6 +153,9 @@ jobs:
       - name: Test P2-D05a operations signals integration and parity
         shell: pwsh
         run: ./tool/verify_p2_d05a_integration.ps1
+      - name: Test P2-D06 maintenance_capex integration
+        shell: pwsh
+        run: ./tool/verify_p2_d06_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../components/nx_breadcrumbs.dart';
 import '../components/nx_page_header.dart';
 import '../theme/app_theme.dart';
 
@@ -203,16 +204,7 @@ class _PlainDetailHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (breadcrumbs.isNotEmpty)
-                Text(
-                  breadcrumbs.join(' / '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: context.semanticColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              if (breadcrumbs.isNotEmpty) NxBreadcrumbs(crumbs: breadcrumbs),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 title,

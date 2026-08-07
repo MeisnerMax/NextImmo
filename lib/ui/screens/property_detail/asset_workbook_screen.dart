@@ -8,7 +8,10 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/models/asset_workbook.dart';
 import '../../components/nx_card.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_kpi_tile.dart';
 import '../../components/nx_status_badge.dart';
+import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 
@@ -44,44 +47,78 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return NxEmptyState(
+        title: 'Asset-Workbook konnte nicht geladen werden',
+        description: 'Bitte versuchen Sie es erneut.',
+        icon: Icons.error_outline,
+        primaryAction: OutlinedButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Erneut versuchen'),
+        ),
+      );
     }
     final bundle = _bundle;
     if (bundle == null) {
-      return const Center(child: Text('Keine Vermietungs- und BK-Daten verfügbar.'));
+      return const NxEmptyState(
+        title: 'Keine Workbook-Daten',
+        description: 'Für dieses Objekt sind noch keine Vermietungs- oder Betriebskostendaten verfügbar.',
+        icon: Icons.menu_book_outlined,
+      );
     }
 
     return DefaultTabController(
       length: 4,
       initialIndex: _selectedTabIndex.clamp(0, 3).toInt(),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.page),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(context, bundle),
-            const SizedBox(height: AppSpacing.component),
-            _workflow(context),
-            const SizedBox(height: AppSpacing.component),
-            _sourceOverview(context, bundle),
-            const SizedBox(height: AppSpacing.component),
-            TabBar(
-              isScrollable: true,
-              onTap: (index) {
-                ref.read(selectedAssetWorkbookTabProvider.notifier).state =
-                    index;
-                setState(() => _selectedTabIndex = index);
-              },
-              tabs: const [
-                Tab(text: 'Vermietung'),
-                Tab(text: 'Betriebskosten'),
-                Tab(text: 'BK-Abrechnung'),
-                Tab(text: 'Hotel & Maßnahmen'),
+        padding: EdgeInsets.all(context.adaptivePagePadding),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final leading = <Widget>[
+              _header(context, bundle),
+              const SizedBox(height: AppSpacing.component),
+              _workflow(context),
+              const SizedBox(height: AppSpacing.component),
+              _sourceOverview(context, bundle),
+              const SizedBox(height: AppSpacing.component),
+              TabBar(
+                isScrollable: true,
+                onTap: (index) {
+                  ref.read(selectedAssetWorkbookTabProvider.notifier).state = index;
+                  setState(() => _selectedTabIndex = index);
+                },
+                tabs: const [
+                  Tab(text: 'Vermietung'),
+                  Tab(text: 'Betriebskosten'),
+                  Tab(text: 'BK-Abrechnung'),
+                  Tab(text: 'Hotel & Maßnahmen'),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.component),
+            ];
+
+            if (constraints.maxWidth <= AppBreakpoints.tabletMax) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.component),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [...leading, _workbookTabContent(context, bundle)],
+                ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...leading,
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.component),
+                    child: _workbookTabContent(context, bundle),
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _workbookTabContent(context, bundle),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -109,9 +146,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
       children: [
         _propertySummaryCard(context, bundle.property),
         const SizedBox(height: AppSpacing.component),
-        Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
+        NxKpiRow(
           children: [
             _metricCard('Jahresmiete', _formatCurrency(bundle.annualRent)),
             _metricCard(
@@ -137,10 +172,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     BuildContext context,
     AssetWorkbookPropertySummary property,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -151,7 +184,10 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                Chip(label: Text(property.statusLabel)),
+                NxStatusBadge(
+                  label: property.statusLabel,
+                  kind: NxBadgeKind.neutral,
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -181,7 +217,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               Text(property.notes!),
             ],
           ],
-        ),
       ),
     );
   }
@@ -223,10 +258,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
 
   Widget _sourceOverview(BuildContext context, AssetWorkbookBundle bundle) {
     final imported = bundle.sourceItems.where((item) => item.complete).length;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Wrap(
+    return NxCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Wrap(
           spacing: 8,
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -243,7 +277,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
             for (final item in bundle.sourceItems)
               _sourceItemChip(context, item),
           ],
-        ),
       ),
     );
   }
@@ -394,34 +427,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     );
   }
 
-  Widget _kpiCard(String label, String value, double width) {
-    return SizedBox(
-      width: width,
-      child: NxCard(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Widget _kpiCard(String label, String value) {
+    return NxKpiTile(label: label, value: value);
   }
 
   Widget _costsTab(BuildContext context, AssetWorkbookBundle bundle) {
@@ -486,45 +493,41 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.component),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cardWidth = constraints.maxWidth < 600
-                ? constraints.maxWidth
-                : ((constraints.maxWidth - (3 * AppSpacing.component)) / 4).clamp(180.0, 320.0);
-            return Wrap(
-              spacing: AppSpacing.component,
-              runSpacing: AppSpacing.component,
-              children: [
-                _kpiCard('Nebenkosten Gesamt (p.a.)', _formatCurrency(totalCosts), cardWidth),
-                _kpiCard('Umlagefähig p.a. (Objekt)', _formatCurrency(buildingCosts), cardWidth),
-                _kpiCard('Direkt / Zähler p.a. (Einheit)', _formatCurrency(directCosts), cardWidth),
-                _kpiCard('Ø Umlage / m² (mtl.)', _formatCurrency(opexPerSqmMonthly), cardWidth),
-              ],
-            );
-          },
+        NxKpiRow(
+          children: [
+            _kpiCard('Nebenkosten Gesamt (p.a.)', _formatCurrency(totalCosts)),
+            _kpiCard('Umlagefähig p.a. (Objekt)', _formatCurrency(buildingCosts)),
+            _kpiCard('Direkt / Zähler p.a. (Einheit)', _formatCurrency(directCosts)),
+            _kpiCard('Ø Umlage / m² (mtl.)', _formatCurrency(opexPerSqmMonthly)),
+          ],
         ),
         const SizedBox(height: AppSpacing.component),
-        Center(
-          child: SegmentedButton<int>(
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(
-                value: 0,
-                label: Text('Umlagefähige Betriebskosten'),
-                icon: Icon(Icons.business_outlined),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth <= AppBreakpoints.mobileMax;
+            return Center(
+              child: SegmentedButton<int>(
+                segments: <ButtonSegment<int>>[
+                  ButtonSegment<int>(
+                    value: 0,
+                    label: Text(compact ? 'Objektkosten' : 'Umlagefähige Betriebskosten'),
+                    icon: const Icon(Icons.business_outlined),
+                  ),
+                  ButtonSegment<int>(
+                    value: 1,
+                    label: Text(compact ? 'Einheitenkosten' : 'Direkte Einheitenkosten & Zähler'),
+                    icon: const Icon(Icons.speed_outlined),
+                  ),
+                ],
+                selected: <int>{_selectedCostsSegment},
+                onSelectionChanged: (Set<int> newSelection) {
+                  setState(() {
+                    _selectedCostsSegment = newSelection.first;
+                  });
+                },
               ),
-              ButtonSegment<int>(
-                value: 1,
-                label: Text('Direkte Einheitenkosten & Zähler'),
-                icon: Icon(Icons.speed_outlined),
-              ),
-            ],
-            selected: <int>{_selectedCostsSegment},
-            onSelectionChanged: (Set<int> newSelection) {
-              setState(() {
-                _selectedCostsSegment = newSelection.first;
-              });
-            },
-          ),
+            );
+          },
         ),
         const SizedBox(height: AppSpacing.component),
         _operatingCostsSection(
@@ -622,15 +625,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     Widget? trailing,
     required List<Widget> children,
   }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border.all(color: context.semanticColors.border),
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -666,7 +662,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               children: children,
             ),
           ],
-        ),
       ),
     );
   }
@@ -707,10 +702,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     required String emptyText,
     required List<AssetOperatingCostRecord> costs,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
@@ -736,7 +729,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 },
               ),
           ],
-        ),
       ),
     );
   }
@@ -749,9 +741,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     return SizedBox(
       width: width,
       child: NxCard(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -768,7 +759,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                                 cost.costType,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -809,8 +802,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       }
                     },
                     itemBuilder:
-                        (context) => const [
-                          PopupMenuItem(
+                        (context) => [
+                          const PopupMenuItem(
                             value: 'edit',
                             child: Row(
                               children: [
@@ -820,7 +813,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                               ],
                             ),
                           ),
-                          PopupMenuItem(
+                          const PopupMenuItem(
                             value: 'history',
                             child: Row(
                               children: [
@@ -834,9 +827,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                             value: 'delete',
                             child: Row(
                               children: [
-                                Icon(Icons.delete_outline, color: Colors.red, size: 16),
-                                SizedBox(width: 8),
-                                Text('Löschen', style: TextStyle(color: Colors.red)),
+                                Icon(Icons.delete_outline, color: context.semanticColors.error, size: 16),
+                                const SizedBox(width: 8),
+                                Text('Löschen', style: TextStyle(color: context.semanticColors.error)),
                               ],
                             ),
                           ),
@@ -845,8 +838,10 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 ],
               ),
               const Divider(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,7 +850,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       const SizedBox(height: 2),
                       Text(
                         _formatCurrency(cost.monthlyRunRate),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.merge(context.dataMonoStyle)
+                            .copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -866,7 +863,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       const SizedBox(height: 2),
                       Text(
                         _formatCurrency(cost.yearlyRunRateForYear(DateTime.now().year)),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.merge(context.dataMonoStyle)
+                            .copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -890,23 +889,24 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 ),
               ],
               const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
                   Text(
                     'Geändert: ${_formatTimestamp(cost.updatedAt)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if (cost.startDate != null)
                     Text(
                       'Gültig ab: ${_formatDateInput(cost.startDate)}'
                       '${cost.endDate != null ? ' bis ${_formatDateInput(cost.endDate)}' : ''}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                 ],
               ),
             ],
-          ),
         ),
       ),
     );
@@ -928,8 +928,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
           color: isHighlight
               ? Theme.of(context).colorScheme.onPrimaryContainer
@@ -965,9 +964,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: AppSpacing.component,
-          runSpacing: AppSpacing.component,
+        NxKpiRow(
           children: [
             _metricCard('Abrechnung gesamt', _formatCurrency(total)),
             _metricCard('Direktkosten', _formatCurrency(directCosts)),
@@ -984,11 +981,10 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
         _settlementUnitPicker(context, bundle),
         const SizedBox(height: AppSpacing.component),
         if (selectedSummary == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.cardPadding),
-              child: Text('Noch keine Einheiten für die BK-Zusammenfassung vorhanden.'),
-            ),
+          const NxEmptyState(
+            title: 'Keine Einheiten vorhanden',
+            description: 'Für die Betriebskosten-Zusammenfassung fehlen noch Einheiten.',
+            icon: Icons.apartment_outlined,
           )
         else
           _settlementUnitDetail(context, bundle, selectedSummary),
@@ -1023,10 +1019,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     BuildContext context,
     AssetWorkbookBundle bundle,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Einheit auswählen', style: Theme.of(context).textTheme.titleMedium),
@@ -1052,7 +1046,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 ],
               ),
           ],
-        ),
       ),
     );
   }
@@ -1062,10 +1055,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     AssetWorkbookBundle bundle,
     ServiceChargeSettlementSummary summary,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Wrap(
@@ -1111,7 +1102,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ],
-        ),
       ),
     );
   }
@@ -1119,14 +1109,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   Widget _settlementValueTile(String label, String value) {
     return SizedBox(
       width: 170,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
+      child: NxCard(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: Theme.of(context).textTheme.bodySmall),
@@ -1138,7 +1123,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
-          ),
         ),
       ),
     );
@@ -1149,10 +1133,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     AssetWorkbookBundle bundle,
     ServiceChargeSettlementSummary? selectedSummary,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -1185,7 +1167,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 },
               ),
           ],
-        ),
       ),
     );
   }
@@ -1200,14 +1181,9 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     final selectedAmount = line.totalYearlyCost * selectedShare;
     return SizedBox(
       width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: context.semanticColors.border),
-          borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
+      child: NxCard(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -1223,7 +1199,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
               Text('Zeitanteil: ${(line.timeShare * 100).toStringAsFixed(0)}%'),
               Text('Abrechnung: ${_formatCurrency(selectedAmount)}'),
             ],
-          ),
         ),
       ),
     );
@@ -1404,6 +1379,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       DataColumn(label: Text('ADR')),
                       DataColumn(label: Text('RevPAR')),
                       DataColumn(label: Text('Umsatz')),
+                      DataColumn(label: Text('Kosten')),
+                      DataColumn(label: Text('Ergebnis')),
                       DataColumn(label: Text('GOP')),
                       DataColumn(label: Text('')),
                     ],
@@ -1427,6 +1404,22 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                                   DataCell(
                                     Text(
                                       _formatCurrency(kpi.totalRevenue ?? 0),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      kpi.totalCosts == null
+                                          ? '-'
+                                          : _formatCurrency(kpi.totalCosts!),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      kpi.effectiveProfitLoss == null
+                                          ? '-'
+                                          : _formatCurrency(
+                                            kpi.effectiveProfitLoss!,
+                                          ),
                                     ),
                                   ),
                                   DataCell(
@@ -1514,28 +1507,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
   }
 
   Widget _metricCard(String label, String value) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return NxKpiTile(label: label, value: value);
   }
 
   Widget _tableCard({
@@ -1544,10 +1516,8 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     required Widget? child,
     bool horizontalScroll = true,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
@@ -1564,7 +1534,6 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 ),
               ),
           ],
-        ),
       ),
     );
   }
@@ -1627,7 +1596,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                         : 'Kostenposition bearbeiten',
                   ),
                   content: SizedBox(
-                    width: 520,
+                    width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1792,7 +1761,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           (context) => AlertDialog(
             title: const Text('Verlauf der Kostenposition'),
             content: SizedBox(
-              width: 620,
+              width: ResponsiveConstraints.dialogWidth(context, maxWidth: 620),
               child: FutureBuilder<List<AssetOperatingCostHistoryRecord>>(
                 future: ref
                     .read(assetWorkbookRepositoryProvider)
@@ -1873,7 +1842,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 (context, setDialogState) => AlertDialog(
                   title: const Text('Mietplan hinzufügen'),
                   content: SizedBox(
-                    width: 480,
+                    width: ResponsiveConstraints.dialogWidth(context, maxWidth: 480),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1960,6 +1929,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
     final adr = TextEditingController();
     final fbRevenue = TextEditingController();
     final roomRevenue = TextEditingController();
+    final totalCosts = TextEditingController();
     final gop = TextEditingController();
     final notes = TextEditingController();
 
@@ -1969,7 +1939,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           (context) => AlertDialog(
             title: const Text('Hotel-KPI hinzufügen'),
             content: SizedBox(
-              width: 480,
+              width: ResponsiveConstraints.dialogWidth(context, maxWidth: 480),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -2009,6 +1979,13 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                       decoration: const InputDecoration(labelText: 'Logis Umsatz'),
                     ),
                     TextField(
+                      controller: totalCosts,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Gesamtkosten (netto)',
+                      ),
+                    ),
+                    TextField(
                       controller: gop,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'GOP %'),
@@ -2046,6 +2023,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
           adr: _parseNumber(adr.text),
           fbRevenue: _parseNumber(fbRevenue.text),
           roomRevenue: _parseNumber(roomRevenue.text),
+          totalCosts: _parseNumber(totalCosts.text),
           gopPercent: _parseNumber(gop.text),
           notes: _blankToNull(notes.text),
         );
@@ -2070,7 +2048,7 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
                 (context, setDialogState) => AlertDialog(
                   title: const Text('Maßnahme hinzufügen'),
                   content: SizedBox(
-                    width: 520,
+                    width: ResponsiveConstraints.dialogWidth(context, maxWidth: 520),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -2191,12 +2169,12 @@ class _AssetWorkbookScreenState extends ConsumerState<AssetWorkbookScreen> {
         _bundle = bundle;
         _loading = false;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _error = 'Vermietung & BK konnte nicht geladen werden: $error';
+        _error = 'load_failed';
         _loading = false;
       });
     }

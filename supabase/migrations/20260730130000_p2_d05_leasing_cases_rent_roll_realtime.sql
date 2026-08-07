@@ -1,0 +1,40 @@
+-- P2-D05 increment 2, realtime invalidation for the leasing pipeline and the
+-- rent roll. Same pattern as P1-011 (properties), P2-D02 (parties), P2-D03
+-- (documents) and increment 1 (units/leases): clients subscribe filtered by
+-- workspace_id and coalesce events into a query invalidation; RLS still decides
+-- what each subscriber may actually read.
+--
+-- Increment 1's realtime migration left an explicit note that the child-table
+-- judgement call would have to be made when this increment landed. Making it
+-- rather than inheriting it:
+--
+--   * public.leasing_cases IS published. It is a parent aggregate whose every
+--     command bumps updated_at/version, so create (INSERT) and every
+--     update/transition (UPDATE) emit an event. The pipeline board is exactly
+--     the kind of shared-workspace view where a stale column is misleading —
+--     two agents moving the same case is the normal case, not the edge case.
+--
+--   * public.rent_roll_snapshots IS published. A snapshot is only ever inserted
+--     (AGG-007 forbids update and delete), so the INSERT event is the whole
+--     story: "a new rent roll exists for this workspace".
+--
+--   * public.rent_roll_snapshot_lines is deliberately NOT published, and this is
+--     the child-table call increment 1 deferred. Lines are never written
+--     independently of their header — create_rent_roll_snapshot inserts both in
+--     one transaction, and nothing can ever modify either afterwards. So the
+--     header event already covers every state change a line could signal, and
+--     publishing lines would emit one event per unit for a single logical
+--     command: a 200-unit property would produce 201 invalidations that collapse
+--     to the same client-side refetch. That is the case increment 1's note was
+--     about, and here it resolves to "parent is sufficient" rather than to the
+--     REPLICA IDENTITY FULL workaround P2-D03 needed for document_links — which
+--     that table needed only because links can be DELETEd, and a delete payload
+--     carries just the replica-identity columns. Nothing here is ever deleted,
+--     so the problem does not arise.
+--
+-- Consequence worth stating plainly, as in increment 1: a leasing case that
+-- reaches 'signed' also touches its lease, so that command emits events on two
+-- tables. Clients coalesce per workspace (the invalidation carries no payload
+-- beyond "something changed here"), so the duplicate collapses client-side.
+alter publication supabase_realtime add table public.leasing_cases;
+alter publication supabase_realtime add table public.rent_roll_snapshots;

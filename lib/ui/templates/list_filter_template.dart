@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../components/nx_action_toolbar.dart';
 import '../components/nx_page_header.dart';
 import '../theme/app_theme.dart';
 
@@ -74,13 +73,57 @@ class ListFilterTemplate extends StatelessWidget {
   }
 }
 
+/// Full-width filter strip: controls left, result context right.
+///
+/// Deliberately not an [NxActionToolbar] — that shrink-wraps to its content,
+/// which is right for an action group but left this bar stranded in the
+/// left third of the page with two thirds dead space. A filter bar spans the
+/// content it filters.
 class ListFilterBar extends StatelessWidget {
-  const ListFilterBar({super.key, required this.children});
+  const ListFilterBar({super.key, required this.children, this.trailing});
 
   final List<Widget> children;
 
+  /// Right-aligned context — typically the result count. Wraps below the
+  /// filters on narrow viewports rather than squeezing them.
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
-    return NxActionToolbar(children: children);
+    final semantic = context.semanticColors;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.alphaBlend(semantic.innerHighlight, semantic.glassFill),
+            semantic.glassFill,
+          ],
+          stops: const [0, 0.5],
+        ),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+        border: Border.all(color: semantic.glassStroke),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: children,
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpacing.component),
+            trailing!,
+          ],
+        ],
+      ),
+    );
   }
 }

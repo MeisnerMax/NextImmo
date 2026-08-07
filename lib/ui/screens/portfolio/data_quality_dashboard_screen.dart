@@ -3,9 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/quality/data_quality_rules_v2.dart';
 import '../../../core/quality/data_quality_scoring.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_data_table_shell.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_page_header.dart';
+import '../../components/nx_status_badge.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 
+/// Data-quality dashboard per portfolio (SCR-046, Phase 2 Wave 1 / AP7b):
+/// score and rule violations at a glance with a direct jump to the affected
+/// screen. The `setState`-based load (`_load`) is unchanged; the presentation
+/// was lifted to the system standard — `NxPageHeader` (with an explicit back
+/// action, this is a pushed route), `NxCard` score tiles, an `NxDataTableShell`
+/// findings table with `NxStatusBadge` per severity, a skeleton instead of a
+/// bare progress bar, an error-with-retry state instead of raw exception text,
+/// and a positive "all clear" empty state.
 class DataQualityDashboardScreen extends ConsumerStatefulWidget {
   const DataQualityDashboardScreen({
     super.key,
@@ -24,10 +37,11 @@ class DataQualityDashboardScreen extends ConsumerStatefulWidget {
 class _DataQualityDashboardScreenState
     extends ConsumerState<DataQualityDashboardScreen> {
   bool _isLoading = false;
+  bool _hasError = false;
   String _severityFilter = 'all';
   String _moduleFilter = 'all';
-  String? _status;
   DataQualityPortfolioScore? _score;
+  DateTime? _lastCheckedAt;
 
   @override
   void initState() {
@@ -38,117 +52,176 @@ class _DataQualityDashboardScreenState
   @override
   Widget build(BuildContext context) {
     final score = _score;
-    final issues = _filteredIssues();
     final modules = <String>{'all'};
     if (score != null) {
       modules.addAll(score.moduleIssueCounts.keys);
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Data Quality - ${widget.portfolioName}')),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.page),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton(
+            NxPageHeader(
+              title: 'Datenqualität — ${widget.portfolioName}',
+              secondaryActions: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Zurück'),
+                ),
+                OutlinedButton.icon(
                   onPressed: _isLoading ? null : _load,
-                  child: const Text('Refresh'),
-                ),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: _severityFilter,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'all',
-                        child: Text('Severity: all'),
-                      ),
-                      DropdownMenuItem(value: 'error', child: Text('error')),
-                      DropdownMenuItem(
-                        value: 'warning',
-                        child: Text('warning'),
-                      ),
-                      DropdownMenuItem(value: 'info', child: Text('info')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _severityFilter = value);
-                    },
-                  ),
-                ),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: _moduleFilter,
-                    items:
-                        modules
-                            .map(
-                              (module) => DropdownMenuItem(
-                                value: module,
-                                child: Text('Module: $module'),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _moduleFilter = value);
-                    },
-                  ),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Aktualisieren'),
                 ),
               ],
             ),
-            if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
-            const SizedBox(height: AppSpacing.component),
-            if (_isLoading) const LinearProgressIndicator(),
-            if (score != null) ...[
-              Wrap(
-                spacing: AppSpacing.component,
-                runSpacing: 8,
-                children: [
-                  _tile('Portfolio Score', '${score.score}'),
-                  _tile('Assets', '${score.assets.length}'),
-                  _tile('Issues', '${score.issues.length}'),
-                ],
-              ),
+            if (score != null && !_isLoading && !_hasError) ...[
               const SizedBox(height: AppSpacing.component),
+              _filterBar(modules),
             ],
-            Expanded(
-              child:
-                  score == null
-                      ? const Center(child: Text('No data yet.'))
-                      : issues.isEmpty
-                      ? const Center(
-                        child: Text('No issues for current filter.'),
-                      )
-                      : ListView.builder(
-                        itemCount: issues.length,
-                        itemBuilder: (context, index) {
-                          final issue = issues[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(issue.message),
-                              subtitle: Text(
-                                '${issue.severity.toUpperCase()} | ${issue.module} | ${issue.entityId}',
-                              ),
-                              trailing: TextButton(
-                                onPressed: () => _fix(issue),
-                                child: const Text('Fix'),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            const SizedBox(height: AppSpacing.component),
+            Expanded(child: _content()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _content() {
+    if (_hasError) {
+      return NxEmptyState(
+        title: 'Datenqualität konnte nicht geladen werden',
+        description:
+            'Beim Prüfen der Datenqualität ist ein Fehler aufgetreten. '
+            'Bitte versuchen Sie es erneut.',
+        icon: Icons.error_outline,
+        primaryAction: ElevatedButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Erneut versuchen'),
+        ),
+      );
+    }
+
+    final score = _score;
+    if (_isLoading || score == null) {
+      return const _DataQualitySkeleton();
+    }
+
+    final issues = _filteredIssues();
+    final noIssuesAtAll = score.issues.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: [
+            _kpiTile('Portfolio Score', '${score.score}'),
+            _kpiTile('Assets', '${score.assets.length}'),
+            _kpiTile('Issues', '${score.issues.length}'),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child: issues.isEmpty
+              // The empty state can be taller than its slot on short/phone
+              // viewports, so it scrolls rather than being forced into the
+              // bounded table area (which would overflow).
+              ? SingleChildScrollView(
+                  child: NxEmptyState(
+                    title: noIssuesAtAll
+                        ? 'Alles im grünen Bereich'
+                        : 'Keine Befunde für den aktuellen Filter',
+                    description: noIssuesAtAll
+                        ? 'Keine Datenqualitäts-Befunde für ${widget.portfolioName}.${_lastCheckedLabel()}'
+                        : 'Passen Sie Schwere- oder Modulfilter an, um weitere Befunde zu sehen.',
+                    icon: noIssuesAtAll
+                        ? Icons.verified_outlined
+                        : Icons.filter_alt_off_outlined,
+                  ),
+                )
+              : NxDataTableShell(
+                  minTableWidth: 720,
+                  mobileChild: _issuesMobileList(issues),
+                  child: _issuesTable(issues),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterBar(Set<String> modules) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        SizedBox(
+          width: 190,
+          child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: _severityFilter,
+            decoration: const InputDecoration(labelText: 'Schwere'),
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('Alle')),
+              DropdownMenuItem(value: 'error', child: Text('Fehler')),
+              DropdownMenuItem(value: 'warning', child: Text('Warnung')),
+              DropdownMenuItem(value: 'info', child: Text('Info')),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _severityFilter = value);
+            },
+          ),
+        ),
+        SizedBox(
+          width: 220,
+          child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: _moduleFilter,
+            decoration: const InputDecoration(labelText: 'Modul'),
+            items: modules
+                .map(
+                  (module) => DropdownMenuItem(
+                    value: module,
+                    child: Text(module == 'all' ? 'Alle Module' : module),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _moduleFilter = value);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _kpiTile(String label, String value) {
+    return SizedBox(
+      width: 200,
+      child: NxCard(
+        variant: NxCardVariant.kpi,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: context.semanticColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ).merge(context.tabularNumericStyle),
             ),
           ],
         ),
@@ -156,27 +229,102 @@ class _DataQualityDashboardScreenState
     );
   }
 
-  Widget _tile(String label, String value) {
-    return Container(
-      width: 180,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
+  Widget _issuesTable(List<DataQualityIssueV2> issues) {
+    return DataTable(
+      columns: const [
+        DataColumn(label: Text('Schwere')),
+        DataColumn(label: Text('Meldung')),
+        DataColumn(label: Text('Modul')),
+        DataColumn(label: Text('Objekt')),
+        DataColumn(label: Text('Aktion')),
+      ],
+      rows: issues.map((issue) {
+        return DataRow(
+          cells: [
+            DataCell(NxStatusBadge(
+              label: issue.severity.toUpperCase(),
+              kind: _severityKind(issue.severity),
+            )),
+            DataCell(
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Text(issue.message, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            DataCell(Text(issue.module)),
+            DataCell(Text(issue.entityId)),
+            DataCell(
+              TextButton(
+                onPressed: () => _fix(issue),
+                child: const Text('Öffnen'),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
     );
+  }
+
+  Widget _issuesMobileList(List<DataQualityIssueV2> issues) {
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: issues.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final issue = issues[index];
+        return NxCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  NxStatusBadge(
+                    label: issue.severity.toUpperCase(),
+                    kind: _severityKind(issue.severity),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => _fix(issue),
+                    child: const Text('Öffnen'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(issue.message, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 4),
+              Text(
+                '${issue.module} · ${issue.entityId}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.semanticColors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  NxBadgeKind _severityKind(String severity) {
+    switch (severity) {
+      case 'error':
+        return NxBadgeKind.error;
+      case 'warning':
+        return NxBadgeKind.warning;
+      case 'info':
+        return NxBadgeKind.info;
+      default:
+        return NxBadgeKind.neutral;
+    }
+  }
+
+  String _lastCheckedLabel() {
+    final at = _lastCheckedAt;
+    if (at == null) {
+      return '';
+    }
+    String two(int v) => v.toString().padLeft(2, '0');
+    return ' Zuletzt geprüft: ${two(at.hour)}:${two(at.minute)}.';
   }
 
   List<DataQualityIssueV2> _filteredIssues() {
@@ -200,7 +348,7 @@ class _DataQualityDashboardScreenState
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
-      _status = null;
+      _hasError = false;
     });
     try {
       final settings = await ref.read(inputsRepositoryProvider).getSettings();
@@ -245,14 +393,15 @@ class _DataQualityDashboardScreenState
       setState(() {
         _score = score;
         _isLoading = false;
+        _lastCheckedAt = DateTime.now();
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
         _isLoading = false;
-        _status = 'Quality load failed: $error';
+        _hasError = true;
       });
     }
   }
@@ -298,6 +447,58 @@ class _DataQualityDashboardScreenState
             PropertyDetailPage.overview;
         break;
     }
-    Navigator.of(context).pop();
+    Navigator.of(context).maybePop();
+  }
+}
+
+/// Dashboard-shaped loading placeholder (never a full-surface spinner): a KPI
+/// tile row plus a table block mirroring the eventual layout.
+class _DataQualitySkeleton extends StatelessWidget {
+  const _DataQualitySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholderColor = context.semanticColors.surfaceAlt;
+    Widget bar(double width, double height) => Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: placeholderColor,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+          ),
+        );
+    return Column(
+      key: const ValueKey<String>('data_quality_skeleton'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: AppSpacing.component,
+          runSpacing: AppSpacing.component,
+          children: List.generate(
+            3,
+            (_) => SizedBox(
+              width: 200,
+              child: NxCard(
+                variant: NxCardVariant.kpi,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(110, 10),
+                    const SizedBox(height: 12),
+                    bar(70, 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child: NxCard(
+            child: bar(double.infinity, double.infinity),
+          ),
+        ),
+      ],
+    );
   }
 }

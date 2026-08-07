@@ -17,9 +17,9 @@ void main() {
       'lists with workspace keyset, archived filter, and limit plus one',
       () async {
         gateway.listResult = <Map<String, dynamic>>[
-          _propertyJson(id: 'property-a'),
-          _propertyJson(id: 'property-b', status: 'archived'),
-          _propertyJson(id: 'property-c'),
+          _propertySummaryJson(id: 'property-a'),
+          _propertySummaryJson(id: 'property-b', status: 'archived'),
+          _propertySummaryJson(id: 'property-c'),
         ];
 
         final result = await repository.list(
@@ -39,6 +39,7 @@ void main() {
           'property-a',
           'property-b',
         ]);
+        expect(page.items.first, isA<PropertySummaryDto>());
         expect(page.nextCursor, 'property-b');
       },
     );
@@ -133,6 +134,25 @@ void main() {
       expect(property.version, 2);
       expect(property.sqft, 2500.5);
       expect(property.deletedAt, DateTime.parse('2026-07-13T12:00:00Z'));
+      // The update RPC payload never carries deleted_by (DEBT-012 populates it
+      // via trigger, surfaced only through table reads).
+      expect(property.deletedBy, isNull);
+    });
+
+    test('getById surfaces the deleted_by tombstone marker', () async {
+      gateway.getResult = <Map<String, dynamic>>[
+        _propertyJson(status: 'archived', deletedBy: 'actor-a'),
+      ];
+
+      final result = await repository.getById(
+        workspaceId: 'workspace-a',
+        propertyId: 'property-a',
+      );
+
+      final property = (result as PropertyRepositorySuccess<PropertyDto>).value;
+      expect(property.status, PropertyStatus.archived);
+      expect(property.deletedBy, 'actor-a');
+      expect(property.deletedAt, DateTime.parse('2026-07-13T12:00:00Z'));
     });
 
     test('maps version conflict including current property', () async {
@@ -180,7 +200,7 @@ void main() {
 
     test('hides malformed response and gateway exception details', () async {
       gateway.listResult = <Map<String, dynamic>>[
-        _propertyJson()..remove('created_at'),
+        _propertySummaryJson()..remove('address_line1'),
       ];
       final malformed = await repository.list(
         const PropertyListQuery(workspaceId: 'workspace-a'),
@@ -204,6 +224,24 @@ void main() {
       }
     });
   });
+}
+
+Map<String, dynamic> _propertySummaryJson({
+  String id = 'property-a',
+  String workspaceId = 'workspace-a',
+  String status = 'active',
+  int version = 1,
+}) {
+  return <String, dynamic>{
+    'id': id,
+    'workspace_id': workspaceId,
+    'name': 'Property',
+    'address_line1': 'Street 1',
+    'zip': '10115',
+    'city': 'Berlin',
+    'status': status,
+    'version': version,
+  };
 }
 
 PropertyUpdateCommand _command() {
@@ -239,6 +277,7 @@ Map<String, dynamic> _propertyJson({
   String workspaceId = 'workspace-a',
   String status = 'active',
   int version = 1,
+  String? deletedBy,
 }) {
   return <String, dynamic>{
     'id': id,
@@ -261,6 +300,9 @@ Map<String, dynamic> _propertyJson({
     'updated_by': 'actor-a',
     'version': version,
     'deleted_at': '2026-07-13T12:00:00Z',
+    // The P1-004 update RPC result never carries deleted_by; only table reads
+    // (getById/list) do. Omitting the key mirrors the RPC payload.
+    if (deletedBy != null) 'deleted_by': deletedBy,
   };
 }
 

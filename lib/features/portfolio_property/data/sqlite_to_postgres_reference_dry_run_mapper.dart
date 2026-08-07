@@ -5,7 +5,24 @@ import '../application/reference_migration_dry_run.dart';
 class SqliteToPostgresReferenceDryRunMapper {
   const SqliteToPostgresReferenceDryRunMapper();
 
+  /// The dry-run report on its own. Use this wherever the mapped rows are not
+  /// needed, so target values cannot leak into an artifact by accident.
   ReferenceMigrationDryRunReport map({
+    required ReferenceMigrationSourceSnapshot snapshot,
+    required ReferenceMigrationDryRunRequest request,
+    ReferenceMigrationAbortSignal abortSignal =
+        const NeverAbortReferenceMigration(),
+  }) {
+    return mapToPlan(
+      snapshot: snapshot,
+      request: request,
+      abortSignal: abortSignal,
+    ).report;
+  }
+
+  /// The same deterministic pass, additionally returning the mapped target
+  /// rows for the local AP4 import.
+  ReferenceMigrationPlan mapToPlan({
     required ReferenceMigrationSourceSnapshot snapshot,
     required ReferenceMigrationDryRunRequest request,
     ReferenceMigrationAbortSignal abortSignal =
@@ -198,10 +215,14 @@ class SqliteToPostgresReferenceDryRunMapper {
       issues: issues,
       manifestChecksum: '',
     );
-    return unsigned.withManifestChecksum(
-      referenceMigrationChecksum(
-        unsigned.toCanonicalMap(includeManifestChecksum: false),
+    return ReferenceMigrationPlan(
+      report: unsigned.withManifestChecksum(
+        referenceMigrationChecksum(
+          unsigned.toCanonicalMap(includeManifestChecksum: false),
+        ),
       ),
+      workspaceTargets: _sortProjectionRows(workspaceTargets),
+      propertyTargets: _sortProjectionRows(propertyTargets),
     );
   }
 
@@ -343,15 +364,14 @@ class SqliteToPostgresReferenceDryRunMapper {
       ReferenceMigrationEntity.property,
       issues,
     );
-    for (final field in _unmappedPropertyFields) {
+    for (final field in _excludedPropertyFields) {
       if (row[field] != null) {
         issues.add(
-          ReferenceMigrationIssue(
-            code: 'mapping.unmapped_field',
-            severity: ReferenceMigrationIssueSeverity.error,
-            entity: ReferenceMigrationEntity.property,
-            sourceId: sourceId,
-            field: field,
+          _fieldWarning(
+            'mapping.field_excluded',
+            ReferenceMigrationEntity.property,
+            sourceId,
+            field,
           ),
         );
       }
@@ -457,6 +477,118 @@ class SqliteToPostgresReferenceDryRunMapper {
       sourceId: sourceId,
       issues: issues,
     );
+    // Asset attributes (P2-X01-AP4). Text is trimmed and empty-to-null, which
+    // matches the target constraints: the legacy core tolerates whitespace-only
+    // strings, the property contract does not.
+    final landArea = _nonNegativeNumber(
+      row,
+      key: 'land_area',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final residentialArea = _nonNegativeNumber(
+      row,
+      key: 'residential_area',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final commercialArea = _nonNegativeNumber(
+      row,
+      key: 'commercial_area',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final parkingSpots = _integer(
+      row,
+      key: 'parking_spots',
+      min: 0,
+      optional: true,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final ownerCompany = _optionalText(
+      row,
+      key: 'owner_company',
+      maxLength: 200,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final purchaseDate = _optionalTimestamp(
+      row,
+      key: 'purchase_date',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final purchasePrice = _nonNegativeNumber(
+      row,
+      key: 'purchase_price',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final notary = _optionalText(
+      row,
+      key: 'notary',
+      maxLength: 200,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final seller = _optionalText(
+      row,
+      key: 'seller',
+      maxLength: 200,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final landRegistryDetails = _optionalText(
+      row,
+      key: 'land_registry_details',
+      maxLength: 10000,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final parcel = _optionalText(
+      row,
+      key: 'parcel',
+      maxLength: 200,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final energyCertificate = _optionalText(
+      row,
+      key: 'energy_certificate',
+      maxLength: 10000,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final insuranceDetails = _optionalText(
+      row,
+      key: 'insurance_details',
+      maxLength: 10000,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+    final taxAssignment = _optionalText(
+      row,
+      key: 'tax_assignment',
+      maxLength: 10000,
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
+
     final createdAt = _timestamp(
       row,
       key: 'created_at',
@@ -472,9 +604,22 @@ class SqliteToPostgresReferenceDryRunMapper {
       issues: issues,
     );
     final archived = _archiveFlag(row, sourceId, issues);
+    // The source carries a real tombstone timestamp for rows deleted through
+    // the SQLite core. Prefer it over inference: inferring from updated_at is
+    // the fallback for rows that were only flagged archived, and it still needs
+    // explicit request-level consent.
+    final sourceDeletedAt = _optionalTimestamp(
+      row,
+      key: 'deleted_at',
+      entity: ReferenceMigrationEntity.property,
+      sourceId: sourceId,
+      issues: issues,
+    );
     String? deletedAt;
     if (archived == true) {
-      if (!request.inferArchivedAtFromUpdatedAt) {
+      if (sourceDeletedAt != null) {
+        deletedAt = sourceDeletedAt;
+      } else if (!request.inferArchivedAtFromUpdatedAt) {
         issues.add(
           ReferenceMigrationIssue(
             code: 'mapping.archive_timestamp_missing',
@@ -496,6 +641,17 @@ class SqliteToPostgresReferenceDryRunMapper {
           ),
         );
       }
+    } else if (sourceDeletedAt != null) {
+      // An active row that still carries a tombstone timestamp would violate
+      // the target's archived/deleted_at invariant.
+      issues.add(
+        _fieldError(
+          'source.deleted_at_without_archive_flag',
+          ReferenceMigrationEntity.property,
+          sourceId,
+          'deleted_at',
+        ),
+      );
     }
 
     if (_hasErrors(issues) ||
@@ -529,16 +685,30 @@ class SqliteToPostgresReferenceDryRunMapper {
       'address_line1': addressLine1,
       'address_line2': addressLine2,
       'city': city,
+      'commercial_area': commercialArea,
       'country': country,
       'created_at': createdAt,
       'created_by': request.migrationActorId,
       'deleted_at': deletedAt,
+      'energy_certificate': energyCertificate,
       'id': targetId,
+      'insurance_details': insuranceDetails,
+      'land_area': landArea,
+      'land_registry_details': landRegistryDetails,
       'name': name,
+      'notary': notary,
       'notes': notes,
+      'owner_company': ownerCompany,
+      'parcel': parcel,
+      'parking_spots': parkingSpots,
       'property_type': propertyType,
+      'purchase_date': purchaseDate,
+      'purchase_price': purchasePrice,
+      'residential_area': residentialArea,
+      'seller': seller,
       'sqft': sqft,
       'status': archived ? 'archived' : 'active',
+      'tax_assignment': taxAssignment,
       'units': units,
       'updated_at': updatedAt,
       'updated_by': request.migrationActorId,
@@ -818,6 +988,48 @@ class SqliteToPostgresReferenceDryRunMapper {
     return value.toDouble();
   }
 
+  /// Areas and money differ from [_positiveNumber]: zero is a legitimate value
+  /// (an asset can genuinely have no commercial area), negatives are not.
+  double? _nonNegativeNumber(
+    Map<String, Object?> row, {
+    required String key,
+    required ReferenceMigrationEntity entity,
+    required String? sourceId,
+    required List<ReferenceMigrationIssue> issues,
+  }) {
+    final value = row[key];
+    if (value == null) {
+      return null;
+    }
+    if (value is! num || !value.isFinite || value < 0) {
+      issues.add(
+        _fieldError('source.invalid_non_negative_number', entity, sourceId, key),
+      );
+      return null;
+    }
+    return value.toDouble();
+  }
+
+  /// [_timestamp] for columns that are allowed to be absent.
+  String? _optionalTimestamp(
+    Map<String, Object?> row, {
+    required String key,
+    required ReferenceMigrationEntity entity,
+    required String? sourceId,
+    required List<ReferenceMigrationIssue> issues,
+  }) {
+    if (row[key] == null) {
+      return null;
+    }
+    return _timestamp(
+      row,
+      key: key,
+      entity: entity,
+      sourceId: sourceId,
+      issues: issues,
+    );
+  }
+
   String? _timestamp(
     Map<String, Object?> row, {
     required String key,
@@ -970,7 +1182,11 @@ int _compareIssues(
 
 final RegExp _normalizedKey = RegExp(r'^[a-z0-9]+([._-][a-z0-9]+)*$');
 
-const Set<String> _unmappedPropertyFields = <String>{
+/// The asset attributes the P2-X01-AP4 migration added to `public.properties`.
+/// Before that migration these had no target column, so a populated value was a
+/// hard `mapping.unmapped_field` rejection rather than silent data loss — which
+/// is why 19 of 20 legacy rows could not be cut over. They are now mapped.
+const Set<String> _assetAttributePropertyFields = <String>{
   'commercial_area',
   'energy_certificate',
   'insurance_details',
@@ -987,6 +1203,14 @@ const Set<String> _unmappedPropertyFields = <String>{
   'tax_assignment',
 };
 
+/// Source columns that are read but deliberately not carried into the target
+/// row, each reported as a `mapping.field_excluded` warning so the exclusion is
+/// visible in the report instead of implicit. `deleted_by` is owned by the
+/// DEBT-012 `properties_apply_delete_marker` trigger, which derives it from the
+/// tombstone transition; the legacy value is also a local user key, not a
+/// Supabase `auth.uid()`, so it cannot be carried over.
+const Set<String> _excludedPropertyFields = <String>{'deleted_by'};
+
 const Set<String> _knownPropertyFields = <String>{
   'address_line1',
   'address_line2',
@@ -994,6 +1218,7 @@ const Set<String> _knownPropertyFields = <String>{
   'city',
   'country',
   'created_at',
+  'deleted_at',
   'id',
   'name',
   'notes',
@@ -1003,5 +1228,6 @@ const Set<String> _knownPropertyFields = <String>{
   'updated_at',
   'year_built',
   'zip',
-  ..._unmappedPropertyFields,
+  ..._assetAttributePropertyFields,
+  ..._excludedPropertyFields,
 };

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 
 import '../../i18n/app_strings.dart';
+import '../../theme/app_theme.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key, required this.onUnlock});
@@ -28,7 +30,8 @@ class _LockScreenState extends State<LockScreen> {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
-        child: Card(
+        child: NxCard(
+          padding: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -51,7 +54,7 @@ class _LockScreenState extends State<LockScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                  Text(_error!, style: TextStyle(color: context.semanticColors.error)),
                 ],
                 const SizedBox(height: 16),
                 ElevatedButton(

@@ -33,3 +33,32 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Liquid Enterprise typography (docs/architecture/phase_2/03_design_system.md).
+  # Bundled, not CDN-loaded — the app is offline-first. All three families are
+  # SIL Open Font License 1.1; the license texts ship next to the files.
+  fonts:
+    # UI and body text. Static instances, so `fontWeight` resolves natively.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    # Headlines only. Variable font: weight comes from `fontVariations` in
+    # AppTheme's text theme, not from `fontWeight` (Flutter does not map
+    # fontWeight onto a variable font's wght axis).
+    - family: HankenGrotesk
+      fonts:
+        - asset: assets/fonts/HankenGrotesk-Variable.ttf
+    # Asset IDs and financial values — tabular alignment.
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700

@@ -7,6 +7,7 @@ import '../../../core/models/inputs.dart';
 import '../../../core/models/analysis_result.dart';
 import '../../../core/security/rbac.dart';
 import '../../components/nx_card.dart';
+import '../../components/nx_kpi_tile.dart';
 import '../../components/nx_status_badge.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/analysis_state.dart';
@@ -222,7 +223,9 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                     padding: const EdgeInsets.only(top: 6),
                                     child: Text(
                                       'Freigegeben von ${scenario.approvedBy} am ${_formatDateTime(scenario.approvedAt)}',
-                                      style: context.tabularNumericStyle.copyWith(fontSize: 11),
+                                      style: Theme.of(context).textTheme.bodySmall?.merge(
+                                            context.tabularNumericStyle,
+                                          ),
                                     ),
                                   ),
                               ],
@@ -995,7 +998,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                           height: 36,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
-                            color: Colors.grey.shade200,
+                            color: context.semanticColors.textSecondary,
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -1005,11 +1008,14 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (payoffPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.red.shade400,
-                                      child: const Center(
+                                      color: context.semanticColors.error,
+                                      child: Center(
                                         child: Text(
                                           'Kredit',
-                                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -1019,11 +1025,14 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (costsPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.orange.shade400,
-                                      child: const Center(
+                                      color: context.semanticColors.warning,
+                                      child: Center(
                                         child: Text(
                                           'Kosten',
-                                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -1033,11 +1042,14 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (taxPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.grey.shade600,
-                                      child: const Center(
+                                      color: context.semanticColors.textSecondary,
+                                      child: Center(
                                         child: Text(
                                           'Steuer',
-                                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -1047,11 +1059,14 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                   Expanded(
                                     flex: (netProceedsPct * 1000).toInt(),
                                     child: Container(
-                                      color: Colors.green.shade500,
-                                      child: const Center(
+                                      color: context.semanticColors.success,
+                                      child: Center(
                                         child: Text(
                                           'Netto',
-                                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -1067,10 +1082,10 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                           runSpacing: 8,
                           alignment: WrapAlignment.center,
                           children: [
-                            _LegendItem(color: Colors.red.shade400, label: 'Darlehensablösung (${(payoffPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.orange.shade400, label: 'Verkaufskosten (${(costsPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.grey.shade600, label: 'Spekulationssteuer (${(taxPct * 100).toStringAsFixed(1)}%)'),
-                            _LegendItem(color: Colors.green.shade500, label: 'Nettoerlös n. St. (${(netProceedsPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.error, label: 'Darlehensablösung (${(payoffPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.warning, label: 'Verkaufskosten (${(costsPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.textSecondary, label: 'Spekulationssteuer (${(taxPct * 100).toStringAsFixed(1)}%)'),
+                            _LegendItem(color: context.semanticColors.success, label: 'Nettoerlös n. St. (${(netProceedsPct * 100).toStringAsFixed(1)}%)'),
                           ],
                         ),
                       ],
@@ -1162,7 +1177,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                               DataCell(Text(
                                 _formatCurrency(year.cashflowBeforeTax),
                                 style: context.tabularNumericStyle.copyWith(
-                                  color: year.cashflowBeforeTax >= 0 ? Colors.green : Colors.red,
+                                  color: year.cashflowBeforeTax >= 0 ? context.semanticColors.success : context.semanticColors.error,
                                   fontWeight: FontWeight.bold,
                                 ),
                               )),
@@ -1222,18 +1237,21 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                       itemBuilder: (context, index) {
                         final rule = criteria.evaluations[index];
                         final pass = !rule.unknown && rule.pass;
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: NxCard(
+                            padding: EdgeInsets.zero,
+                            child: ListTile(
                             leading: Icon(
                               rule.unknown ? Icons.help_outline : (pass ? Icons.check_circle_outline : Icons.cancel_outlined),
-                              color: rule.unknown ? Colors.grey : (pass ? Colors.green : Colors.red),
+                              color: rule.unknown ? context.semanticColors.textSecondary : (pass ? context.semanticColors.success : context.semanticColors.error),
                             ),
                             title: Text('${rule.rule.fieldKey} ${rule.rule.operator} ${rule.rule.targetValue}'),
                             subtitle: Text('Ist-Wert: ${rule.actualValue?.toStringAsFixed(4) ?? 'N/A'}'),
                             trailing: NxStatusBadge(
                               label: rule.unknown ? 'Unbekannt' : (pass ? 'Bestanden' : 'Fehlgeschlagen'),
                               kind: rule.unknown ? NxBadgeKind.info : (pass ? NxBadgeKind.success : NxBadgeKind.error),
+                            ),
                             ),
                           ),
                         );
@@ -1269,7 +1287,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
                                     contentPadding: EdgeInsets.zero,
                                     leading: Icon(
                                       check.pass ? Icons.verified : Icons.warning_amber,
-                                      color: check.pass ? Colors.green : Colors.orange,
+                                      color: check.pass ? context.semanticColors.success : context.semanticColors.warning,
                                     ),
                                     title: Text('Zeitraum: ${check.periodKey}'),
                                     subtitle: Text(check.notes ?? 'Auflage erfüllt.'),
@@ -1377,7 +1395,7 @@ class _ScenariosScreenState extends ConsumerState<ScenariosScreen>
   Color _statusColor(String status) {
     switch (status) {
       case ScenarioWorkflowStatus.inReview:
-        return const Color(0xFF2B78B8);
+        return AppColors.primary;
       case ScenarioWorkflowStatus.approved:
         return AppColors.positive;
       case ScenarioWorkflowStatus.rejected:
@@ -1514,7 +1532,12 @@ class _LegendItem extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
       ],
     );
   }
@@ -1532,28 +1555,8 @@ class _SummaryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 90,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)
-                    .merge(context.tabularNumericStyle),
-              ),
-            ],
-          ),
-        ),
-      ),
+      width: ResponsiveConstraints.itemWidth(context, idealWidth: 240),
+      child: NxKpiTile(label: label, value: value),
     );
   }
 }

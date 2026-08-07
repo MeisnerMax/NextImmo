@@ -8,9 +8,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/models/portfolio_analytics.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_chart_container.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_page_header.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 
+/// Portfolio analytics (SCR-045, Phase 2 Wave 1 / AP7a): a calm metrics + chart
+/// page for the portfolio's IRR and cashflows. The `setState`-based compute is
+/// unchanged; the presentation was lifted to the system standard —
+/// `NxPageHeader` (with an explicit back action, this is a pushed route),
+/// `NxCard` metric tiles, the cashflow chart in an `NxChartContainer`, a
+/// skeleton instead of a bare progress bar, and an error-with-retry state
+/// instead of raw exception text. Colour literals moved onto semantic tokens.
 class PortfolioAnalyticsScreen extends ConsumerStatefulWidget {
   const PortfolioAnalyticsScreen({
     super.key,
@@ -32,7 +43,7 @@ class _PortfolioAnalyticsScreenState
   late String _toPeriod;
   PortfolioIrrResult? _result;
   bool _isLoading = false;
-  String? _status;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -45,160 +56,218 @@ class _PortfolioAnalyticsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final result = _result;
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Portfolio Analytics - ${widget.portfolioName}'),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.page),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 140,
-                  child: TextFormField(
-                    initialValue: _fromPeriod,
-                    decoration: const InputDecoration(
-                      labelText: 'From (YYYY-MM)',
-                    ),
-                    onChanged: (value) => _fromPeriod = value.trim(),
-                  ),
-                ),
-                SizedBox(
-                  width: 140,
-                  child: TextFormField(
-                    initialValue: _toPeriod,
-                    decoration: const InputDecoration(
-                      labelText: 'To (YYYY-MM)',
-                    ),
-                    onChanged: (value) => _toPeriod = value.trim(),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _load,
-                  child: const Text('Compute'),
-                ),
-                OutlinedButton(
-                  onPressed:
-                      result == null || result.datedCashflows.isEmpty
-                          ? null
-                          : _exportCsv,
-                  child: const Text('Export Cashflows CSV'),
+            NxPageHeader(
+              title: 'Portfolio Analytics — ${widget.portfolioName}',
+              secondaryActions: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Zurück'),
                 ),
               ],
             ),
-            if (_status != null) ...[const SizedBox(height: 8), Text(_status!)],
             const SizedBox(height: AppSpacing.component),
-            if (_isLoading) const LinearProgressIndicator(),
-            if (result != null) ...[
-              Wrap(
-                spacing: AppSpacing.component,
-                runSpacing: 8,
-                children: [
-                  _tile(
-                    'Portfolio IRR',
-                    result.irr == null
-                        ? 'N/A'
-                        : '${(result.irr! * 100).toStringAsFixed(2)}%',
-                  ),
-                  _tile(
-                    'Total Inflows',
-                    result.totalInflows.toStringAsFixed(2),
-                  ),
-                  _tile(
-                    'Total Outflows',
-                    result.totalOutflows.toStringAsFixed(2),
-                  ),
-                  _tile('Net Cashflow', result.netCashflow.toStringAsFixed(2)),
-                  _tile(
-                    'Avg Monthly Net',
-                    result.averageMonthlyNet.toStringAsFixed(2),
-                  ),
-                ],
-              ),
-              if (result.warning != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  result.warning!,
-                  style: const TextStyle(color: Colors.orange),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.component),
-              SizedBox(
-                height: 280,
-                child: _PortfolioCashflowChart(periodTable: result.periodTable),
-              ),
-              const SizedBox(height: AppSpacing.component),
-              Expanded(
-                child: Card(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Period')),
-                        DataColumn(label: Text('Inflows')),
-                        DataColumn(label: Text('Outflows')),
-                        DataColumn(label: Text('Net')),
-                      ],
-                      rows:
-                          result.periodTable
-                              .map(
-                                (row) => DataRow(
-                                  cells: [
-                                    DataCell(Text(row.periodKey)),
-                                    DataCell(
-                                      Text(row.totalInflows.toStringAsFixed(2)),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        row.totalOutflows.toStringAsFixed(2),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(row.netCashflow.toStringAsFixed(2)),
-                                    ),
-                                  ],
-                                ),
-                              )
-                              .toList(),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            _controlsBar(),
+            const SizedBox(height: AppSpacing.component),
+            Expanded(child: _content()),
           ],
         ),
       ),
     );
   }
 
-  Widget _tile(String label, String value) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-        color: Theme.of(context).colorScheme.surface,
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
+  Widget _controlsBar() {
+    final result = _result;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 140,
+          child: TextFormField(
+            initialValue: _fromPeriod,
+            decoration: const InputDecoration(labelText: 'Von (YYYY-MM)'),
+            onChanged: (value) => _fromPeriod = value.trim(),
+          ),
+        ),
+        SizedBox(
+          width: 140,
+          child: TextFormField(
+            initialValue: _toPeriod,
+            decoration: const InputDecoration(labelText: 'Bis (YYYY-MM)'),
+            onChanged: (value) => _toPeriod = value.trim(),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isLoading ? null : _load,
+          icon: const Icon(Icons.calculate_outlined, size: 16),
+          label: const Text('Berechnen'),
+        ),
+        OutlinedButton.icon(
+          onPressed: result == null || result.datedCashflows.isEmpty
+              ? null
+              : _exportCsv,
+          icon: const Icon(Icons.file_download_outlined, size: 16),
+          label: const Text('Cashflows CSV'),
+        ),
+      ],
+    );
+  }
+
+  Widget _content() {
+    if (_hasError) {
+      return SingleChildScrollView(
+        child: NxEmptyState(
+          title: 'Analytics konnte nicht berechnet werden',
+          description:
+              'Bei der Berechnung der Portfolio-Analytik ist ein Fehler '
+              'aufgetreten. Bitte versuchen Sie es erneut.',
+          icon: Icons.error_outline,
+          primaryAction: ElevatedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Erneut versuchen'),
+          ),
+        ),
+      );
+    }
+
+    final result = _result;
+    if (_isLoading || result == null) {
+      return const _AnalyticsSkeleton();
+    }
+
+    final hasPeriods = result.periodTable.isNotEmpty;
+    return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700).merge(
-              context.tabularNumericStyle,
-            ),
+          if (result.warning != null) ...[
+            _WarningBanner(message: result.warning!),
+            const SizedBox(height: AppSpacing.component),
+          ],
+          Wrap(
+            spacing: AppSpacing.component,
+            runSpacing: AppSpacing.component,
+            children: [
+              _kpiTile(
+                'Portfolio IRR',
+                result.irr == null
+                    ? 'N/A'
+                    : '${(result.irr! * 100).toStringAsFixed(2)}%',
+              ),
+              _kpiTile('Total Inflows', result.totalInflows.toStringAsFixed(2)),
+              _kpiTile('Total Outflows', result.totalOutflows.toStringAsFixed(2)),
+              _kpiTile('Net Cashflow', result.netCashflow.toStringAsFixed(2)),
+              _kpiTile(
+                'Avg Monthly Net',
+                result.averageMonthlyNet.toStringAsFixed(2),
+              ),
+            ],
           ),
+          const SizedBox(height: AppSpacing.component),
+          NxChartContainer(
+            title: 'Cashflow Verlauf',
+            subtitle: 'Zu- und Abflüsse sowie Netto je Periode',
+            height: 300,
+            state: hasPeriods ? NxChartState.ready : NxChartState.empty,
+            emptyText: 'Keine Cashflows im gewählten Zeitraum.',
+            child: _PortfolioCashflowChart(periodTable: result.periodTable),
+          ),
+          if (hasPeriods) ...[
+            const SizedBox(height: 8),
+            _legend(),
+          ],
+          if (hasPeriods) ...[
+            const SizedBox(height: AppSpacing.component),
+            _periodTableCard(result.periodTable),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _legend() {
+    final semantic = context.semanticColors;
+    return Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      children: [
+        _LegendItem(color: semantic.success, label: 'Zuflüsse'),
+        _LegendItem(color: semantic.error, label: 'Abflüsse'),
+        _LegendItem(
+          color: Theme.of(context).colorScheme.primary,
+          label: 'Netto-Cashflow',
+        ),
+      ],
+    );
+  }
+
+  Widget _kpiTile(String label, String value) {
+    return SizedBox(
+      width: 200,
+      child: NxCard(
+        variant: NxCardVariant.kpi,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: context.semanticColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ).merge(context.tabularNumericStyle),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _periodTableCard(List<PortfolioCashflowPeriodAggregate> periodTable) {
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: Scrollbar(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('Periode')),
+              DataColumn(label: Text('Zuflüsse')),
+              DataColumn(label: Text('Abflüsse')),
+              DataColumn(label: Text('Netto')),
+            ],
+            rows: periodTable
+                .map(
+                  (row) => DataRow(
+                    cells: [
+                      DataCell(Text(row.periodKey)),
+                      DataCell(Text(row.totalInflows.toStringAsFixed(2),
+                          style: context.tabularNumericStyle)),
+                      DataCell(Text(row.totalOutflows.toStringAsFixed(2),
+                          style: context.tabularNumericStyle)),
+                      DataCell(Text(row.netCashflow.toStringAsFixed(2),
+                          style: context.tabularNumericStyle)),
+                    ],
+                  ),
+                )
+                .toList(),
+          ),
+        ),
       ),
     );
   }
@@ -206,7 +275,7 @@ class _PortfolioAnalyticsScreenState
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
-      _status = null;
+      _hasError = false;
     });
     try {
       final result = await ref
@@ -223,13 +292,13 @@ class _PortfolioAnalyticsScreenState
         _result = result;
         _isLoading = false;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
         _isLoading = false;
-        _status = 'Analytics failed: $error';
+        _hasError = true;
       });
     }
   }
@@ -257,9 +326,9 @@ class _PortfolioAnalyticsScreenState
     if (!mounted) {
       return;
     }
-    setState(() {
-      _status = 'Cashflows exported to ${location.path}';
-    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Cashflows exportiert: ${location.path}')),
+    );
   }
 
   Future<void> _mirrorExportToWorkspace(String sourcePath) async {
@@ -274,6 +343,89 @@ class _PortfolioAnalyticsScreenState
       }
       await File(sourcePath).copy(targetPath);
     } catch (_) {}
+  }
+}
+
+class _WarningBanner extends StatelessWidget {
+  const _WarningBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final warning = context.semanticColors.warning;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        border: Border.all(color: warning.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_outlined, size: 18, color: warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: warning,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalyticsSkeleton extends StatelessWidget {
+  const _AnalyticsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholderColor = context.semanticColors.surfaceAlt;
+    Widget bar(double width, double height) => Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: placeholderColor,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.xs),
+          ),
+        );
+    return SingleChildScrollView(
+      child: Column(
+        key: const ValueKey<String>('analytics_skeleton'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: AppSpacing.component,
+            runSpacing: AppSpacing.component,
+            children: List.generate(
+              5,
+              (_) => SizedBox(
+                width: 200,
+                child: NxCard(
+                  variant: NxCardVariant.kpi,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      bar(110, 10),
+                      const SizedBox(height: 12),
+                      bar(70, 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.component),
+          NxCard(child: bar(double.infinity, 260)),
+        ],
+      ),
+    );
   }
 }
 
@@ -300,8 +452,8 @@ class _LegendItem extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+                fontWeight: FontWeight.w600,
+              ),
         ),
       ],
     );
@@ -319,6 +471,8 @@ class _PortfolioCashflowChart extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final semantic = context.semanticColors;
+    final primary = Theme.of(context).colorScheme.primary;
     final barGroups = <BarChartGroupData>[];
     for (var index = 0; index < periodTable.length; index++) {
       final row = periodTable[index];
@@ -330,8 +484,8 @@ class _PortfolioCashflowChart extends StatelessWidget {
               toY: row.totalInflows,
               width: 8,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF10B981), Color(0xFF34D399)],
+              gradient: LinearGradient(
+                colors: [semantic.success, semantic.success.withValues(alpha: 0.7)],
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
               ),
@@ -340,8 +494,8 @@ class _PortfolioCashflowChart extends StatelessWidget {
               toY: row.totalOutflows.abs(),
               width: 8,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEF4444), Color(0xFFF87171)],
+              gradient: LinearGradient(
+                colors: [semantic.error, semantic.error.withValues(alpha: 0.7)],
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
               ),
@@ -351,10 +505,7 @@ class _PortfolioCashflowChart extends StatelessWidget {
               width: 8,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
               gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
-                ],
+                colors: [primary, primary.withValues(alpha: 0.6)],
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
               ),
@@ -373,125 +524,94 @@ class _PortfolioCashflowChart extends StatelessWidget {
     final maxY = maxVal == 0 ? 1.0 : maxVal * 1.15;
     final minY = minVal >= 0 ? 0.0 : minVal * 1.15;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Cashflow Verlauf',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                const Wrap(
-                  spacing: 16,
-                  children: [
-                    _LegendItem(color: Color(0xFF10B981), label: 'Zuflüsse'),
-                    _LegendItem(color: Color(0xFFEF4444), label: 'Abflüsse'),
-                    _LegendItem(color: Colors.blue, label: 'Netto-Cashflow'),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: BarChart(
-                BarChartData(
-                  maxY: maxY,
-                  minY: minY,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (value) => FlLine(
-                      color: context.semanticColors.border.withValues(alpha: 0.4),
-                      strokeWidth: 1,
-                      dashArray: [4, 4],
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  barTouchData: BarTouchData(
-                    enabled: true,
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (group) => Theme.of(context).colorScheme.surface,
-                      tooltipBorder: BorderSide(color: context.semanticColors.border, width: 1.5),
-                      tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      tooltipRoundedRadius: AppRadiusTokens.md,
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        final row = periodTable[groupIndex];
-                        String label = '';
-                        double val = 0;
-                        if (rodIndex == 0) {
-                          label = 'Zuflüsse';
-                          val = row.totalInflows;
-                        } else if (rodIndex == 1) {
-                          label = 'Abflüsse';
-                          val = row.totalOutflows;
-                        } else {
-                          label = 'Netto-Cashflow';
-                          val = row.netCashflow;
-                        }
-                        return BarTooltipItem(
-                          '$label: € ${val.toStringAsFixed(2)}',
-                          TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ).merge(context.tabularNumericStyle),
-                        );
-                      },
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 64,
-                        getTitlesWidget: (value, _) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(
-                            '€ ${value.toStringAsFixed(0)}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: context.semanticColors.textSecondary,
-                            ).merge(context.tabularNumericStyle),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, _) {
-                          final index = value.toInt();
-                          if (index < 0 || index >= periodTable.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              periodTable[index].periodKey,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: context.semanticColors.textSecondary,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  barGroups: barGroups,
+    return BarChart(
+      BarChartData(
+        maxY: maxY,
+        minY: minY,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: semantic.border.withValues(alpha: 0.4),
+            strokeWidth: 1,
+            dashArray: [4, 4],
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => Theme.of(context).colorScheme.surface,
+            tooltipBorder: BorderSide(color: semantic.border, width: 1.5),
+            tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            tooltipRoundedRadius: AppRadiusTokens.md,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final row = periodTable[groupIndex];
+              String label = '';
+              double val = 0;
+              if (rodIndex == 0) {
+                label = 'Zuflüsse';
+                val = row.totalInflows;
+              } else if (rodIndex == 1) {
+                label = 'Abflüsse';
+                val = row.totalOutflows;
+              } else {
+                label = 'Netto-Cashflow';
+                val = row.netCashflow;
+              }
+              return BarTooltipItem(
+                '$label: € ${val.toStringAsFixed(2)}',
+                (Theme.of(context).textTheme.labelMedium ?? const TextStyle())
+                    .copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    )
+                    .merge(context.tabularNumericStyle),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 64,
+              getTitlesWidget: (value, _) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  '€ ${value.toStringAsFixed(0)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: semantic.textSecondary,
+                  ).merge(context.tabularNumericStyle),
+                  textAlign: TextAlign.right,
                 ),
               ),
             ),
-          ],
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, _) {
+                final index = value.toInt();
+                if (index < 0 || index >= periodTable.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    periodTable[index].periodKey,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: semantic.textSecondary,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
+        barGroups: barGroups,
       ),
     );
   }

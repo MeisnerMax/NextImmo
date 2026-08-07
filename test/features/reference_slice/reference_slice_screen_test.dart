@@ -276,6 +276,26 @@ void main() {
         );
       });
     }
+
+    for (final golden in const <(String, Size)>[
+      ('phone', Size(390, 844)),
+      ('tablet', Size(1024, 768)),
+      ('desktop', Size(1440, 900)),
+    ]) {
+      testWidgets('matches ready dark $golden golden', (tester) async {
+        await _pumpView(
+          tester,
+          state: _readyState(twoProperties: true),
+          viewport: golden.$2,
+          dark: true,
+        );
+
+        await expectLater(
+          find.byType(Scaffold),
+          matchesGoldenFile('goldens/reference_slice_ready_dark_${golden.$1}.png'),
+        );
+      });
+    }
   });
 }
 
@@ -283,6 +303,7 @@ Future<void> _pumpView(
   WidgetTester tester, {
   required ReferenceSliceState state,
   Size viewport = const Size(1440, 900),
+  bool dark = false,
   Future<void> Function(String email)? onRequestPasswordlessSignIn,
   Future<void> Function({
     required String selectedFactorId,
@@ -316,15 +337,16 @@ Future<void> _pumpView(
                     ),
         onSignOut: _noop,
       ),
+      dark: dark,
     ),
   );
   await tester.pumpAndSettle();
 }
 
-Widget _app(Widget child) {
+Widget _app(Widget child, {bool dark = false}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.light(),
+    theme: dark ? AppTheme.dark() : AppTheme.light(),
     home: Scaffold(body: child),
   );
 }

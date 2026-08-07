@@ -20,6 +20,16 @@ class PropertyModulesRepo {
     return PropertySaleDetailsRecord.fromMap(rows.first);
   }
 
+  /// All contacts in the local store, unscoped by property. Read-only source
+  /// for the contacts_parties (P2-D02) legacy projection.
+  Future<List<ContactRecord>> listAllContacts() async {
+    final rows = await _db.query(
+      'contacts',
+      orderBy: 'display_name COLLATE NOCASE',
+    );
+    return rows.map(ContactRecord.fromMap).toList(growable: false);
+  }
+
   Future<List<ContactRecord>> listContactsForProperty({
     required String propertyId,
     required String role,

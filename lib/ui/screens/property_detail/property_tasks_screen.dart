@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/task.dart';
@@ -39,7 +40,7 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
   Widget build(BuildContext context) {
     final visibleTasks = _visibleTasks();
     final dashboardTasks = _visibleTasks(ignoreStatus: true);
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.all(context.adaptivePagePadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,12 +192,14 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.section),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
                   final stacked = constraints.maxWidth < 980;
                   if (_viewMode == 'board') {
                     return Column(
@@ -298,10 +301,8 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
                       Expanded(child: _buildTaskDetail(context)),
                     ],
                   );
-                    },
-                  ),
-                ),
-          ),
+              },
+            ),
         ],
       ),
     );
@@ -405,7 +406,8 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
 
   Widget _buildTaskList(BuildContext context, List<TaskRecord> tasks) {
     if (tasks.isEmpty) {
-      return const Card(
+      return const NxCard(
+        padding: EdgeInsets.zero,
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(AppSpacing.section),
@@ -414,7 +416,8 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
         ),
       );
     }
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -521,7 +524,8 @@ class _PropertyTasksScreenState extends ConsumerState<PropertyTasksScreen> {
 
   Widget _buildTaskDetail(BuildContext context) {
     final selectedTask = _selectedTask;
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child:

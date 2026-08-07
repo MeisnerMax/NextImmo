@@ -1,0 +1,24 @@
+-- P2-D03 step 6: workspace-scoped document realtime invalidation, mirroring the
+-- P1-011 property and P2-D02 party realtime pattern. Clients subscribe to
+-- public.documents UPDATE events filtered by workspace_id and coalesce them
+-- into a query invalidation. RLS still gates what each subscriber may read.
+--
+-- What this covers: every command that changes the document aggregate itself —
+-- content confirmation, verification, adding a version, supersede and archive —
+-- bumps public.documents.updated_at/version and therefore emits an UPDATE.
+--
+-- What this deliberately does NOT cover, stated plainly rather than implied:
+-- link_document / unlink_document / upsert_required_document do not touch the
+-- documents row, so they emit no invalidation. Publishing those child tables
+-- instead of the aggregate would not fix it honestly: document_links rows are
+-- inserted and deleted rather than updated, and a DELETE payload carries only
+-- the replica-identity columns, so a workspace_id filter could not be applied
+-- without switching those tables to REPLICA IDENTITY FULL. The alternative —
+-- having those commands bump the parent document — would move a client's
+-- optimistic-concurrency token underneath it, and required_documents has no
+-- parent document at all.
+--
+-- Cross-table invalidation therefore stays an open gap for P2-D04
+-- platform_audit_jobs, whose stated purpose is exactly to generalize this
+-- invalidation pattern into a per-domain event envelope (CTR-005).
+alter publication supabase_realtime add table public.documents;

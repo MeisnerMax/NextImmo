@@ -260,6 +260,13 @@ void main() {
     expect(rentNames.contains('month_12'), isTrue);
   });
 
+  test('creates v48 hotel cost columns', () async {
+    final columns = await db.rawQuery('PRAGMA table_info(hotel_kpis)');
+    final names = columns.map((row) => row['name']).toSet();
+    expect(names.contains('total_costs'), isTrue);
+    expect(names.contains('profit_loss'), isTrue);
+  });
+
   test('creates v46 property type module tables', () async {
     Future<bool> tableExists(String name) async {
       final rows = await db.query(

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:neximmo_app/core/models/settings.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
 
 void main() {
+  test('new and incomplete settings default to dark mode', () {
+    expect(const AppSettingsRecord(updatedAt: 1).uiThemeMode, 'dark');
+    expect(AppSettingsRecord.fromMap(const {}).uiThemeMode, 'dark');
+  });
+
   test('resolve theme mode from setting', () {
     expect(AppTheme.resolveThemeMode('system'), ThemeMode.system);
     expect(AppTheme.resolveThemeMode('light'), ThemeMode.light);

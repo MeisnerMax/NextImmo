@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/audit_log.dart';
@@ -156,7 +157,7 @@ class _PropertyAuditScreenState extends ConsumerState<PropertyAuditScreen> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            Text(_error!, style: TextStyle(color: context.semanticColors.error)),
           ],
           const SizedBox(height: 8),
           Expanded(
@@ -167,7 +168,8 @@ class _PropertyAuditScreenState extends ConsumerState<PropertyAuditScreen> {
                   child:
                       _isLoading
                           ? const Center(child: CircularProgressIndicator())
-                          : Card(
+                          : NxCard(
+                            padding: EdgeInsets.zero,
                             child: ListView.builder(
                               itemCount: _events.length,
                               itemBuilder: (context, index) {
@@ -191,7 +193,8 @@ class _PropertyAuditScreenState extends ConsumerState<PropertyAuditScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   flex: 2,
-                  child: Card(
+                  child: NxCard(
+                    padding: EdgeInsets.zero,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child:
@@ -452,7 +455,7 @@ class _JsonCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: context.semanticColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

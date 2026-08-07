@@ -92,12 +92,17 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('Bewertungsdaten konnten nicht geladen werden: $error')),
+      error:
+          (error, _) => Center(
+            child: Text('Bewertungsdaten konnten nicht geladen werden: $error'),
+          ),
     );
   }
 
   Widget _buildValuationDataCopyCard(BuildContext context, String scenarioId) {
-    final snapshotAsync = ref.watch(valuationPropertySnapshotProvider(scenarioId));
+    final snapshotAsync = ref.watch(
+      valuationPropertySnapshotProvider(scenarioId),
+    );
     return snapshotAsync.when(
       data: (snapshot) {
         if (snapshot == null) {
@@ -124,7 +129,9 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                   NxStatusBadge(
                     label: '${manual.length} manuell',
                     kind:
-                        manual.isEmpty ? NxBadgeKind.neutral : NxBadgeKind.warning,
+                        manual.isEmpty
+                            ? NxBadgeKind.neutral
+                            : NxBadgeKind.warning,
                   ),
                 ],
               ),
@@ -406,7 +413,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             ),
           ),
           ...state.incomeLines.map(
-            (line) => Card(
+            (line) => NxCard(
+              padding: EdgeInsets.zero,
               child: ListTile(
                 title: Text(line.name),
                 subtitle: Text(
@@ -548,7 +556,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             ),
           ),
           ...state.expenseLines.map(
-            (line) => Card(
+            (line) => NxCard(
+              padding: EdgeInsets.zero,
               child: ListTile(
                 title: Text(
                   line.kind == 'fixed'
@@ -991,7 +1000,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       ),
     ];
 
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(
@@ -1084,8 +1094,7 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: textTheme.bodySmall?.copyWith(
-                                            color:
-                                                colorScheme.onSurfaceVariant,
+                                            color: colorScheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ],
@@ -1114,22 +1123,6 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    ref.read(globalPageProvider.notifier).state =
-                        GlobalPage.renovationValue;
-                  },
-                  icon: const Icon(Icons.construction_outlined),
-                  label: const Text('Renovierungsmodul oeffnen'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    ref.read(globalPageProvider.notifier).state =
-                        GlobalPage.dispositionExit;
-                  },
-                  icon: const Icon(Icons.sell_outlined),
-                  label: const Text('Verkaufsmodul oeffnen'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () {
                     ref.read(propertyDetailPageProvider.notifier).state =
                         PropertyDetailPage.reports;
                   },
@@ -1137,34 +1130,38 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                   label: const Text('IC-Memo vorbereiten'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _saveIntensiveDatasheet(
-                    context,
-                    state,
-                    format: DatasheetExportFormat.json,
-                  ),
+                  onPressed:
+                      () => _saveIntensiveDatasheet(
+                        context,
+                        state,
+                        format: DatasheetExportFormat.json,
+                      ),
                   icon: const Icon(Icons.description_outlined),
                   label: const Text('JSON exportieren'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _saveIntensiveDatasheet(
-                    context,
-                    state,
-                    format: DatasheetExportFormat.csv,
-                  ),
+                  onPressed:
+                      () => _saveIntensiveDatasheet(
+                        context,
+                        state,
+                        format: DatasheetExportFormat.csv,
+                      ),
                   icon: const Icon(Icons.table_view_outlined),
                   label: const Text('CSV exportieren'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _saveIntensiveDatasheet(
-                    context,
-                    state,
-                    format: DatasheetExportFormat.pdf,
-                  ),
+                  onPressed:
+                      () => _saveIntensiveDatasheet(
+                        context,
+                        state,
+                        format: DatasheetExportFormat.pdf,
+                      ),
                   icon: const Icon(Icons.picture_as_pdf_outlined),
                   label: const Text('PDF exportieren'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _confirmApplyInputsToProperty(context, state),
+                  onPressed:
+                      () => _confirmApplyInputsToProperty(context, state),
                   icon: const Icon(Icons.publish_outlined),
                   label: const Text('Aenderungen in Property uebernehmen'),
                 ),
@@ -1187,7 +1184,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
             ? 'Basis zeigt die wichtigsten Annahmen für Kauf, Finanzierung, Flächen, Mieten und Exit.'
             : 'Erweitert zeigt Detailannahmen, Overrides und die Exit-Bewertung für genauere Szenarien.';
 
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(
@@ -1221,7 +1219,12 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
                   children: [
                     Expanded(child: title),
                     const SizedBox(width: AppSpacing.component),
-                    Flexible(child: Align(alignment: Alignment.centerRight, child: status)),
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: status,
+                      ),
+                    ),
                   ],
                 );
               },
@@ -1277,14 +1280,15 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
 
   Future<void> _saveIntensiveDatasheet(
     BuildContext context,
-    ScenarioAnalysisState state,
-    {
+    ScenarioAnalysisState state, {
     DatasheetExportFormat format = DatasheetExportFormat.json,
   }) async {
     final propertyId = state.propertyId;
     if (propertyId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Keine Property fuer Intensivbewertung gefunden.')),
+        const SnackBar(
+          content: Text('Keine Property fuer Intensivbewertung gefunden.'),
+        ),
       );
       return;
     }
@@ -1302,7 +1306,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     final snapshotData = <String, Object?>{
       'source_property_id': snapshot?.sourcePropertyId,
       'auto_imported_fields': snapshot?.autoImportedFields ?? const <String>[],
-      'manual_adjusted_fields': snapshot?.manualAdjustedFields ?? const <String>[],
+      'manual_adjusted_fields':
+          snapshot?.manualAdjustedFields ?? const <String>[],
     };
     final compRepo = ref.read(compsRepositoryProvider);
     final salesComps = await compRepo.listSales(propertyId);
@@ -1314,12 +1319,13 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       salesComps: salesCompRows,
       rentalComps: rentalCompRows,
     );
-    final risks = state.criteria == null
-        ? const <String>['Keine Kriterienbewertung hinterlegt.']
-        : state.criteria!.evaluations
-            .where((item) => !item.pass)
-            .map((item) => item.rule.fieldKey)
-            .toList(growable: false);
+    final risks =
+        state.criteria == null
+            ? const <String>['Keine Kriterienbewertung hinterlegt.']
+            : state.criteria!.evaluations
+                .where((item) => !item.pass)
+                .map((item) => item.rule.fieldKey)
+                .toList(growable: false);
     final recommendation = metrics.capRate >= 0.05 ? 'Pruefen' : 'Vertiefen';
     final inputData = <String, Object?>{
       ...state.inputs.toMap(),
@@ -1466,10 +1472,9 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       valuationMethods: valuationMethods,
     );
     await repo.saveDatasheet(datasheet);
-    final export = ref.read(datasheetExportServiceProvider).prepareFromDatasheet(
-          datasheet: datasheet,
-          format: format,
-        );
+    final export = ref
+        .read(datasheetExportServiceProvider)
+        .prepareFromDatasheet(datasheet: datasheet, format: format);
     final exportPath = await saveDatasheetArtifact(export);
     if (!context.mounted) {
       return;
@@ -1490,28 +1495,31 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     final propertyId = state.propertyId;
     if (propertyId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Keine Property fuer Uebernahme gefunden.')),
+        const SnackBar(
+          content: Text('Keine Property fuer Uebernahme gefunden.'),
+        ),
       );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Property-Stammdaten aktualisieren?'),
-        content: const Text(
-          'Diese Aktion uebernimmt ausgewaehlte Werte aus der Bewertung in die Property-Stammdaten. Die Bewertung bleibt weiterhin eine eigene Datenkopie.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Abbrechen'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Property-Stammdaten aktualisieren?'),
+            content: const Text(
+              'Diese Aktion uebernimmt ausgewaehlte Werte aus der Bewertung in die Property-Stammdaten. Die Bewertung bleibt weiterhin eine eigene Datenkopie.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Uebernehmen'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Uebernehmen'),
-          ),
-        ],
-      ),
     );
     if (confirmed != true) {
       return;
@@ -1539,27 +1547,31 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       country: property.country,
       propertyType: property.propertyType,
       units: property.units,
-      sqft: state.inputs.grossAreaSqm > 0
-          ? state.inputs.grossAreaSqm
-          : property.sqft,
+      sqft:
+          state.inputs.grossAreaSqm > 0
+              ? state.inputs.grossAreaSqm
+              : property.sqft,
       yearBuilt: property.yearBuilt,
       notes: property.notes,
       createdAt: property.createdAt,
       updatedAt: property.updatedAt,
       archived: property.archived,
       landArea: property.landArea,
-      residentialArea: state.inputs.residentialAreaSqm > 0
-          ? state.inputs.residentialAreaSqm
-          : property.residentialArea,
-      commercialArea: state.inputs.commercialAreaSqm > 0
-          ? state.inputs.commercialAreaSqm
-          : property.commercialArea,
+      residentialArea:
+          state.inputs.residentialAreaSqm > 0
+              ? state.inputs.residentialAreaSqm
+              : property.residentialArea,
+      commercialArea:
+          state.inputs.commercialAreaSqm > 0
+              ? state.inputs.commercialAreaSqm
+              : property.commercialArea,
       parkingSpots: property.parkingSpots,
       ownerCompany: property.ownerCompany,
       purchaseDate: property.purchaseDate,
-      purchasePrice: state.inputs.purchasePrice > 0
-          ? state.inputs.purchasePrice
-          : property.purchasePrice,
+      purchasePrice:
+          state.inputs.purchasePrice > 0
+              ? state.inputs.purchasePrice
+              : property.purchasePrice,
       notary: property.notary,
       seller: property.seller,
       landRegistryDetails: property.landRegistryDetails,
@@ -1568,7 +1580,9 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
       insuranceDetails: property.insuranceDetails,
       taxAssignment: property.taxAssignment,
     );
-    await ref.read(propertiesControllerProvider.notifier).updateProperty(updated);
+    await ref
+        .read(propertiesControllerProvider.notifier)
+        .updateProperty(updated);
     if (!context.mounted) {
       return;
     }
@@ -1584,15 +1598,17 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
   }) {
     final inputs = state.inputs;
     final metrics = state.analysis.metrics;
-    final area = inputs.lettableAreaSqm > 0
-        ? inputs.lettableAreaSqm
-        : inputs.grossAreaSqm;
-    final selectedSales = salesComps.where((comp) {
-      final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
-      final price = ((comp['price'] as num?) ?? 0).toDouble();
-      final compArea = ((comp['sqft'] as num?) ?? 0).toDouble();
-      return selected && price > 0 && compArea > 0;
-    }).toList();
+    final area =
+        inputs.lettableAreaSqm > 0
+            ? inputs.lettableAreaSqm
+            : inputs.grossAreaSqm;
+    final selectedSales =
+        salesComps.where((comp) {
+          final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
+          final price = ((comp['price'] as num?) ?? 0).toDouble();
+          final compArea = ((comp['sqft'] as num?) ?? 0).toDouble();
+          return selected && price > 0 && compArea > 0;
+        }).toList();
     final weightedSales = _weightedAverage(
       selectedSales.map((comp) {
         final price = ((comp['price'] as num?) ?? 0).toDouble();
@@ -1601,23 +1617,28 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
         return MapEntry<double, double>(price / compArea, weight);
       }),
     );
-    final selectedRentals = rentalComps.where((comp) {
-      final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
-      final rent = ((comp['rent_monthly'] as num?) ?? 0).toDouble();
-      return selected && rent > 0;
-    }).length;
+    final selectedRentals =
+        rentalComps.where((comp) {
+          final selected = ((comp['selected'] as num?) ?? 1).toInt() == 1;
+          final rent = ((comp['rent_monthly'] as num?) ?? 0).toDouble();
+          return selected && rent > 0;
+        }).length;
     final comparisonValue =
         weightedSales == null || area <= 0 ? null : weightedSales * area;
 
-    final capRate = state.valuation.exitCapRatePercent != null &&
-            state.valuation.exitCapRatePercent! > 0
-        ? state.valuation.exitCapRatePercent!
-        : metrics.capRate > 0
+    final capRate =
+        state.valuation.exitCapRatePercent != null &&
+                state.valuation.exitCapRatePercent! > 0
+            ? state.valuation.exitCapRatePercent!
+            : metrics.capRate > 0
             ? metrics.capRate
             : null;
     final incomeValue =
-        capRate == null || metrics.noiYear1 <= 0 ? null : metrics.noiYear1 / capRate;
-    final totalCostBasis = inputs.purchasePrice +
+        capRate == null || metrics.noiYear1 <= 0
+            ? null
+            : metrics.noiYear1 / capRate;
+    final totalCostBasis =
+        inputs.purchasePrice +
         inputs.rehabBudget +
         inputs.closingCostBuyFixed +
         inputs.purchasePrice * inputs.closingCostBuyPercent;
@@ -1635,7 +1656,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
           'weighted_price_per_area': weightedSales,
           'target_area_sqm': area,
           if (comparisonValue == null)
-            'missing_data': 'Mindestens ein ausgewaehlter Verkaufskompar mit Preis und Flaeche erforderlich.',
+            'missing_data':
+                'Mindestens ein ausgewaehlter Verkaufskompar mit Preis und Flaeche erforderlich.',
         },
       ),
       _valuationMethod(
@@ -1687,8 +1709,7 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
           'noi_year1': metrics.noiYear1,
           'cap_rate': capRate,
           'formula': 'NOI / Cap Rate',
-          if (incomeValue == null)
-            'missing_data': 'NOI oder Cap Rate fehlt.',
+          if (incomeValue == null) 'missing_data': 'NOI oder Cap Rate fehlt.',
         },
       ),
     ];
@@ -1780,7 +1801,8 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     if (state.lastSavedAt != null) {
       return _SavePresentation(
         label: 'Alle Aenderungen gespeichert',
-        detail: 'Zuletzt gespeichert um ${_formatTime(context, state.lastSavedAt!)}.',
+        detail:
+            'Zuletzt gespeichert um ${_formatTime(context, state.lastSavedAt!)}.',
         tone: SaveStatusTone.success,
       );
     }
@@ -1816,9 +1838,9 @@ class _InputsScreenState extends ConsumerState<InputsScreen> {
     required List<Widget> children,
     _SectionStatus? status,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.component),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.component),
+      child: NxCard(
         padding: const EdgeInsets.all(AppSpacing.component),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

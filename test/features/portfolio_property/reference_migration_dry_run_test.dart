@@ -109,7 +109,13 @@ void main() {
         'country': 'not valid',
         'units': -1,
         'year_built': 2200,
+        'land_area': -5,
+        // owner_company is mapped since P2-X01-AP4, so this asserts the report
+        // still never carries source values, only checksums and identifiers.
         'owner_company': 'Secret Owner GmbH',
+        // A source column the mapper does not know must fail closed rather than
+        // be dropped silently.
+        'legacy_unknown_column': 'unexpected',
       });
 
     final report = mapper.map(
@@ -132,14 +138,122 @@ void main() {
     expect(
       report.issues.map((issue) => issue.code),
       containsAll(<String>[
-        'mapping.unmapped_field',
+        'mapping.unknown_field',
         'source.required_value_missing',
         'source.invalid_normalized_key',
         'source.integer_out_of_range',
         'source.invalid_archive_flag',
+        'source.invalid_non_negative_number',
       ]),
     );
     expect(report.toCanonicalJson(), isNot(contains('Secret Owner GmbH')));
+  });
+
+  test('maps the asset attributes required for the AP4 cutover', () {
+    final property = _property(id: 'asset-attributes')
+      ..addAll(<String, Object?>{
+        'land_area': 5050.0,
+        'residential_area': 2050.84,
+        // Zero is a legitimate area, unlike sqft where zero is rejected.
+        'commercial_area': 0,
+        'parking_spots': 12,
+        'owner_company': '613 Investment Group GmbH',
+        'purchase_date': 4000,
+        'purchase_price': 1300000.0,
+        'notary': 'Notariat Mitte',
+        'seller': 'Verkaeufer GmbH',
+        'land_registry_details': 'Blatt 4711',
+        'parcel': 'Flur 3, Flurstueck 12',
+        'energy_certificate': 'B, 78 kWh',
+        'insurance_details': 'Police 12345',
+        'tax_assignment': 'Finanzamt Mitte',
+      });
+
+    final report = mapper.map(
+      snapshot: ReferenceMigrationSourceSnapshot(
+        workspaces: <Map<String, Object?>>[_workspace()],
+        properties: <Map<String, Object?>>[property],
+      ),
+      request: request,
+    );
+
+    expect(
+      report.status,
+      ReferenceMigrationStatus.ready,
+      reason:
+          report.issues
+              .where(
+                (issue) =>
+                    issue.severity == ReferenceMigrationIssueSeverity.error,
+              )
+              .map((issue) => issue.toCanonicalMap())
+              .toList()
+              .toString(),
+    );
+    final summary = report.summaries.singleWhere(
+      (summary) => summary.entity == ReferenceMigrationEntity.property,
+    );
+    expect(summary.mappedRows, 1);
+    expect(summary.rejectedRows, 0);
+  });
+
+  test('carries a real tombstone timestamp instead of inferring it', () {
+    const strictRequest = ReferenceMigrationDryRunRequest(
+      sourceWorkspaceId: 'ws_default',
+      targetWorkspaceId: '17000000-0000-5000-8000-000000000001',
+      targetWorkspaceKey: 'legacy-default',
+      migrationActorId: 'a7000000-0000-5000-8000-000000000001',
+      confirmGlobalPropertyWorkspaceBinding: true,
+      // Inference is refused, so an archived row can only map if the source
+      // carries its own deleted_at.
+      inferArchivedAtFromUpdatedAt: false,
+    );
+    final tombstoned = _property(id: 'tombstoned', archived: 1)
+      ..addAll(<String, Object?>{
+        'deleted_at': 5000,
+        // The legacy deleter is a local user key, not an auth.uid(), and the
+        // DEBT-012 trigger owns the target column.
+        'deleted_by': 'user_owner',
+      });
+
+    final report = mapper.map(
+      snapshot: ReferenceMigrationSourceSnapshot(
+        workspaces: <Map<String, Object?>>[_workspace()],
+        properties: <Map<String, Object?>>[tombstoned],
+      ),
+      request: strictRequest,
+    );
+
+    expect(report.status, ReferenceMigrationStatus.ready);
+    expect(
+      report.issues.map((issue) => issue.code),
+      isNot(contains('mapping.archive_timestamp_inferred')),
+    );
+    expect(
+      report.issues
+          .where((issue) => issue.field == 'deleted_by')
+          .map((issue) => issue.code),
+      contains('mapping.field_excluded'),
+    );
+  });
+
+  test('an active row carrying a tombstone timestamp fails closed', () {
+    final inconsistent = _property(id: 'inconsistent')
+      ..addAll(<String, Object?>{'deleted_at': 5000});
+
+    final report = mapper.map(
+      snapshot: ReferenceMigrationSourceSnapshot(
+        workspaces: <Map<String, Object?>>[_workspace()],
+        properties: <Map<String, Object?>>[inconsistent],
+      ),
+      request: request,
+    );
+
+    expect(report.status, ReferenceMigrationStatus.invalid);
+    expect(
+      report.issues.map((issue) => issue.code),
+      contains('source.deleted_at_without_archive_flag'),
+    );
   });
 
   test('multiple legacy workspaces fail closed for global properties', () {

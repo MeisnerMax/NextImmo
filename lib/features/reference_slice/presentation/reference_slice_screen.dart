@@ -14,9 +14,14 @@ import '../application/reference_slice_controller.dart';
 import 'reference_property_detail_panel.dart';
 
 class ReferenceSliceScreen extends ConsumerStatefulWidget {
-  const ReferenceSliceScreen({super.key, this.initialPropertyId});
+  const ReferenceSliceScreen({
+    super.key,
+    this.initialPropertyId,
+    this.embeddedInShell = false,
+  });
 
   final String? initialPropertyId;
+  final bool embeddedInShell;
 
   @override
   ConsumerState<ReferenceSliceScreen> createState() =>
@@ -38,36 +43,38 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
       _openInitialProperty(next);
     });
     _openInitialProperty(state);
-    return Scaffold(
-      body: ReferenceSliceView(
-        state: state,
-        showCompactDetail: _showCompactDetail,
-        onBackToList: _backToList,
-        onRefreshWorkspaces: controller.refreshWorkspaces,
-        onSelectWorkspace: controller.selectWorkspace,
-        onReloadProperties: controller.reloadProperties,
-        onLoadNextPage: controller.loadNextPropertyPage,
-        onOpenProperty: (propertyId) async {
-          final navigator = Navigator.of(context);
-          final currentRouteName = ModalRoute.of(context)?.settings.name;
-          await controller.openProperty(propertyId);
-          if (mounted) {
-            final route = referencePropertyRoute(propertyId);
-            if (currentRouteName != route) {
-              navigator.pushNamed(route);
-            } else {
-              setState(() => _showCompactDetail = true);
-            }
+    final view = ReferenceSliceView(
+      state: state,
+      referencePresentation: !widget.embeddedInShell,
+      showCompactDetail: _showCompactDetail,
+      onBackToList: _backToList,
+      onRefreshWorkspaces: controller.refreshWorkspaces,
+      onSelectWorkspace: controller.selectWorkspace,
+      onReloadProperties: controller.reloadProperties,
+      onLoadNextPage: controller.loadNextPropertyPage,
+      onOpenProperty: (propertyId) async {
+        final navigator = Navigator.of(context);
+        final currentRouteName = ModalRoute.of(context)?.settings.name;
+        await controller.openProperty(propertyId);
+        if (mounted) {
+          final route = referencePropertyRoute(propertyId);
+          if (currentRouteName != route) {
+            navigator.pushNamed(route);
+          } else {
+            setState(() => _showCompactDetail = true);
           }
-        },
-        onUpdateProperty: controller.updateSelectedProperty,
-        onRetryUpdate: controller.retryUpdate,
-        onRequestPasswordlessSignIn: controller.requestPasswordlessSignIn,
-        onBeginTotpEnrollment: controller.beginTotpEnrollment,
-        onVerifyTotp: controller.verifyTotp,
-        onSignOut: controller.signOut,
-      ),
+        }
+      },
+      onUpdateProperty: controller.updateSelectedProperty,
+      onRetryUpdate: controller.retryUpdate,
+      onRequestPasswordlessSignIn: controller.requestPasswordlessSignIn,
+      onBeginTotpEnrollment: controller.beginTotpEnrollment,
+      onVerifyTotp: controller.verifyTotp,
+      onSignOut: controller.signOut,
+      onOpenMembers:
+          () => Navigator.of(context).pushNamed(referenceMembersRoute),
     );
+    return widget.embeddedInShell ? view : Scaffold(body: view);
   }
 
   void _openInitialProperty(ReferenceSliceState state) {
@@ -125,6 +132,8 @@ class ReferenceSliceView extends StatefulWidget {
     required this.onBeginTotpEnrollment,
     required this.onVerifyTotp,
     required this.onSignOut,
+    this.onOpenMembers,
+    this.referencePresentation = true,
   });
 
   final ReferenceSliceState state;
@@ -142,6 +151,8 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function({required String factorId, required String code})
   onVerifyTotp;
   final Future<void> Function() onSignOut;
+  final VoidCallback? onOpenMembers;
+  final bool referencePresentation;
 
   @override
   State<ReferenceSliceView> createState() => _ReferenceSliceViewState();
@@ -240,13 +251,22 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               NxPageHeader(
-                title: 'Properties',
-                breadcrumbs: const ['Reference slice', 'Properties'],
+                title: widget.referencePresentation ? 'Properties' : 'Objekte',
+                breadcrumbs:
+                    widget.referencePresentation
+                        ? const ['Reference slice', 'Properties']
+                        : const ['Objekte & Portfolio', 'Objekte'],
                 subtitle: 'Workspace-scoped cloud property management.',
                 trailing: _buildWorkspaceControl(),
                 secondaryActions: [
-                  if (state.assuranceLevel !=
-                      AuthenticationAssuranceLevel.aal2)
+                  if (widget.onOpenMembers != null)
+                    OutlinedButton.icon(
+                      key: const Key('reference-open-members'),
+                      onPressed: widget.onOpenMembers,
+                      icon: const Icon(Icons.group_outlined),
+                      label: const Text('Members'),
+                    ),
+                  if (state.assuranceLevel != AuthenticationAssuranceLevel.aal2)
                     OutlinedButton.icon(
                       key: const Key('reference-start-mfa'),
                       onPressed:
@@ -573,7 +593,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     );
   }
 
-  Widget _buildPropertyList(List<PropertyDto> properties) {
+  Widget _buildPropertyList(List<PropertySummaryDto> properties) {
     final state = widget.state;
     final body = switch (state.workspacePhase) {
       WorkspacePhase.empty => const NxEmptyState(
@@ -619,7 +639,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     );
   }
 
-  Widget _buildPropertyPhase(List<PropertyDto> properties) {
+  Widget _buildPropertyPhase(List<PropertySummaryDto> properties) {
     final state = widget.state;
     return switch (state.propertyListPhase) {
       PropertyListPhase.idle => const NxEmptyState(
@@ -683,7 +703,7 @@ class _PropertyList extends StatelessWidget {
     required this.onLoadNextPage,
   });
 
-  final List<PropertyDto> properties;
+  final List<PropertySummaryDto> properties;
   final String? selectedPropertyId;
   final bool loading;
   final bool hasNextPage;
@@ -704,32 +724,14 @@ class _PropertyList extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: ListView.separated(
+            child: ListView.builder(
               itemCount: properties.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final property = properties[index];
-                return ListTile(
-                  key: Key('reference-property-${property.id}'),
+                return _PropertyRow(
+                  property: property,
                   selected: property.id == selectedPropertyId,
-                  title: Text(
-                    property.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '${property.addressLine1}, ${property.zip} ${property.city}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: NxStatusBadge(
-                    label: property.status.name,
-                    kind: switch (property.status) {
-                      PropertyStatus.active => NxBadgeKind.success,
-                      PropertyStatus.draft => NxBadgeKind.warning,
-                      PropertyStatus.archived => NxBadgeKind.neutral,
-                    },
-                  ),
+                  alternate: index.isOdd,
                   onTap: () => onOpenProperty(property.id),
                 );
               },
@@ -748,6 +750,111 @@ class _PropertyList extends StatelessWidget {
                       ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// High-density list row in the Liquid Enterprise register.
+///
+/// Selection is a left bracket rather than an enclosing fill, rows are
+/// separated by background alternates rather than divider lines, and the
+/// postal code is set in the mono face so codes line up down the column.
+class _PropertyRow extends StatelessWidget {
+  const _PropertyRow({
+    required this.property,
+    required this.selected,
+    required this.alternate,
+    required this.onTap,
+  });
+
+  final PropertySummaryDto property;
+  final bool selected;
+  final bool alternate;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic = context.semanticColors;
+    final primary = theme.colorScheme.primary;
+    final bodySmall = theme.textTheme.bodySmall;
+
+    return Material(
+      key: Key('reference-property-${property.id}'),
+      color:
+          selected
+              ? primary.withValues(alpha: 0.08)
+              : alternate
+              ? semantic.surfaceAlt.withValues(alpha: 0.35)
+              : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              // Reserved even when unselected so the text never shifts.
+              left: BorderSide(
+                color: selected ? primary : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            AppSpacing.xs,
+            AppSpacing.sm,
+            AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      property.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: selected ? primary : null,
+                      ),
+                    ),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: '${property.addressLine1}, '),
+                          TextSpan(
+                            text: property.zip,
+                            style: context.dataMonoStyle.copyWith(
+                              fontSize: bodySmall?.fontSize,
+                              color: bodySmall?.color,
+                            ),
+                          ),
+                          TextSpan(text: ' ${property.city}'),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              NxStatusBadge(
+                label: property.status.name,
+                kind: switch (property.status) {
+                  PropertyStatus.active => NxBadgeKind.success,
+                  PropertyStatus.draft => NxBadgeKind.warning,
+                  PropertyStatus.archived => NxBadgeKind.neutral,
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

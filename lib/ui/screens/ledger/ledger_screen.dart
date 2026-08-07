@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/ledger.dart';
@@ -132,7 +133,8 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
           child:
               _entries.isEmpty
                   ? const Center(child: Text('No ledger entries yet.'))
-                  : Card(
+                  : NxCard(
+                    padding: EdgeInsets.zero,
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: DataTable(
@@ -239,7 +241,8 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
                     itemCount: _accounts.length,
                     itemBuilder: (context, index) {
                       final account = _accounts[index];
-                      return Card(
+                      return NxCard(
+                        padding: EdgeInsets.zero,
                         child: ListTile(
                           title: Text(account.name),
                           subtitle: Text('Kind: ${account.kind}'),

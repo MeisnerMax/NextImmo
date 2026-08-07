@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/contractor.dart';
 import '../../../core/models/maintenance.dart';
+import '../../components/nx_card.dart';
+import '../../components/nx_empty_state.dart';
+import '../../components/nx_kpi_tile.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../templates/list_filter_template.dart';
 import '../../components/nx_status_badge.dart';
+import '../../components/responsive_constraints.dart';
 
 class ContractorsScreen extends ConsumerStatefulWidget {
   const ContractorsScreen({super.key});
@@ -85,14 +89,11 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
     final filtered = _filteredContractors;
     final content = _isLoading
         ? const Center(child: CircularProgressIndicator())
-        : Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Left Side: List View
-              Expanded(
-                flex: 4,
-                child: Card(
-                  child: Column(
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              final listPanel = NxCard(
+                padding: EdgeInsets.zero,
+                child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // List Header / Count
@@ -133,11 +134,13 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                                           ),
                                         ),
                                         if (overallRating != null) ...[
-                                          const Icon(Icons.star, color: Colors.amber, size: 14),
+                                          Icon(Icons.star, color: context.semanticColors.warning, size: 14),
                                           const SizedBox(width: 4),
                                           Text(
                                             overallRating.toStringAsFixed(1),
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                           ),
                                         ],
                                       ],
@@ -154,8 +157,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                                             ),
                                             child: Text(
                                               contractor.tradeCategory,
-                                              style: TextStyle(
-                                                fontSize: 10,
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                                 color: Theme.of(context).colorScheme.onPrimaryContainer,
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -167,7 +169,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                                               contractor.contactName,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 11),
+                                              style: Theme.of(context).textTheme.bodySmall,
                                             ),
                                           ),
                                         ],
@@ -184,38 +186,51 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.component),
-              // Right Side: Detail View
-              Expanded(
-                flex: 6,
-                child: _selectedContractor == null
-                    ? Card(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.engineering_outlined,
-                                size: 64,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Wählen Sie einen Handwerker aus der Liste aus,\num Details und Leistungsstatistiken anzuzeigen.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : _buildDetailView(_selectedContractor!),
-              ),
-            ],
+              );
+              final detailPanel = _selectedContractor == null
+                  ? const NxEmptyState(
+                      title: 'Handwerker auswählen',
+                      description: 'Wählen Sie einen Eintrag aus, um Details und Leistungsstatistiken anzuzeigen.',
+                      icon: Icons.engineering_outlined,
+                    )
+                  : _buildDetailView(_selectedContractor!);
+
+              if (constraints.maxWidth <= AppBreakpoints.mobileMax) {
+                if (_selectedContractor == null) return listPanel;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _selectedContractor = null),
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Zur Handwerkerliste'),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Expanded(child: detailPanel),
+                  ],
+                );
+              }
+              if (constraints.maxWidth <= AppBreakpoints.tabletMax) {
+                return Column(
+                  children: [
+                    Expanded(flex: 4, child: listPanel),
+                    const SizedBox(height: AppSpacing.component),
+                    Expanded(flex: 6, child: detailPanel),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 4, child: listPanel),
+                  const SizedBox(width: AppSpacing.component),
+                  Expanded(flex: 6, child: detailPanel),
+                ],
+              );
+            },
           );
 
     return ListFilterTemplate(
@@ -227,13 +242,11 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Handwerker hinzufügen'),
       ),
-      filters: Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
+      filters: NxCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final search = TextField(
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
                     hintText: 'Suche nach Name, Kontakt oder Gewerk...',
@@ -242,12 +255,11 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                     focusedBorder: InputBorder.none,
                   ),
                   onChanged: (val) => setState(() => _searchQuery = val),
-                ),
-              ),
-              const VerticalDivider(width: 32),
-              DropdownButton<String?>(
+                );
+            final trades = DropdownButton<String?>(
                 value: _selectedTrade,
                 hint: const Text('Alle Gewerke'),
+                isExpanded: constraints.maxWidth <= AppBreakpoints.mobileMax,
                 underline: const SizedBox.shrink(),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('Alle Gewerke')),
@@ -256,9 +268,25 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                   ),
                 ],
                 onChanged: (val) => setState(() => _selectedTrade = val),
-              ),
-            ],
-          ),
+              );
+            if (constraints.maxWidth <= AppBreakpoints.mobileMax) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  search,
+                  const Divider(height: AppSpacing.component),
+                  trades,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: search),
+                const VerticalDivider(width: 32),
+                trades,
+              ],
+            );
+          },
         ),
       ),
       content: content,
@@ -280,7 +308,8 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Card
-          Card(
+          NxCard(
+            padding: EdgeInsets.zero,
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.cardPadding),
               decoration: BoxDecoration(
@@ -311,8 +340,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                             const SizedBox(height: 4),
                             Text(
                               'Gewerk: ${contractor.tradeCategory}',
-                              style: TextStyle(
-                                fontSize: 13,
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                 color: colorScheme.primary,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -327,7 +355,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                             onPressed: () => _showEditContractorDialog(contractor),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            icon: Icon(Icons.delete_outline, color: context.semanticColors.error),
                             onPressed: () => _showDeleteConfirmDialog(contractor),
                           ),
                         ],
@@ -336,22 +364,29 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                   ),
                   const SizedBox(height: 16),
                   // Rating Display
-                  Row(
+                  Wrap(
+                    spacing: AppSpacing.component,
+                    runSpacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Text(
-                        'Bewertung: ',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text(
+                            'Bewertung:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          if (contractor.overallRating != null) ...[
+                            _buildStarRating(contractor.overallRating!),
+                            Text(
+                              '${contractor.overallRating!.toStringAsFixed(1)} / 5.0',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ] else
+                            const Text('Keine Bewertungen vorliegend'),
+                        ],
                       ),
-                      if (contractor.overallRating != null) ...[
-                        _buildStarRating(contractor.overallRating!),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${contractor.overallRating!.toStringAsFixed(1)} / 5.0',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ] else
-                        const Text('Keine Bewertungen vorliegend'),
-                      const Spacer(),
                       if (contractor.insuranceCertExpiry != null) ...[
                         _buildInsuranceExpiryBadge(contractor.insuranceCertExpiry!),
                       ],
@@ -364,46 +399,36 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
           const SizedBox(height: AppSpacing.component),
 
           // Statistics Row
-          Row(
+          NxKpiRow(
             children: [
-              Expanded(
-                child: _statCard(
+              _statCard(
                   title: 'Umsatz (Ist)',
                   value: '€ ${actualCostsSum.toStringAsFixed(2)}',
-                  color: Colors.teal,
+                  color: AppChartPalette.at(0),
                   icon: Icons.payments_outlined,
                   subtitle: 'Aus erledigten Aufträgen',
-                ),
               ),
-              const SizedBox(width: AppSpacing.component),
-              Expanded(
-                child: _statCard(
+              _statCard(
                   title: 'Ausstehend (Plan)',
                   value: '€ ${estimateCostsSum.toStringAsFixed(2)}',
-                  color: Colors.blue,
+                  color: AppChartPalette.at(2),
                   icon: Icons.hourglass_empty_outlined,
                   subtitle: 'Erwartetes Volumen gesamt',
-                ),
               ),
-              const SizedBox(width: AppSpacing.component),
-              Expanded(
-                child: _statCard(
+              _statCard(
                   title: 'Aufträge',
                   value: '${tickets.length} gesamt',
-                  color: Colors.indigo,
+                  color: AppChartPalette.at(2),
                   icon: Icons.assignment_outlined,
                   subtitle: '${activeTickets.length} aktiv, ${completedTickets.length} erledigt',
-                ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.component),
 
           // Details Card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.cardPadding),
-              child: Column(
+          NxCard(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Kontakt- und Stammdaten', style: Theme.of(context).textTheme.titleMedium),
@@ -424,20 +449,20 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                   ),
                   _infoRow(Icons.notes_outlined, 'Notizen', contractor.notes ?? 'Keine Notizen vorhanden'),
                 ],
-              ),
             ),
           ),
           const SizedBox(height: AppSpacing.component),
 
           // Ratings Breakdown Card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.cardPadding),
-              child: Column(
+          NxCard(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: AppSpacing.component,
+                    runSpacing: AppSpacing.xs,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Leistungsbewertung', style: Theme.of(context).textTheme.titleMedium),
                       TextButton.icon(
@@ -454,16 +479,13 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                   _ratingBarRow('Schnelligkeit', contractor.ratingSpeed),
                   _ratingBarRow('Kommunikation', contractor.ratingCommunication),
                 ],
-              ),
             ),
           ),
           const SizedBox(height: AppSpacing.component),
 
           // Cost History and Linked Tickets
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.cardPadding),
-              child: Column(
+          NxCard(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Auftragshistorie', style: Theme.of(context).textTheme.titleMedium),
@@ -509,7 +531,6 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                           },
                         ),
                 ],
-              ),
             ),
           ),
         ],
@@ -522,32 +543,21 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
     final remainingDays = (expiryTimestamp - now) / (1000 * 60 * 60 * 24);
     final expiryDate = DateTime.fromMillisecondsSinceEpoch(expiryTimestamp).toIso8601String().substring(0, 10);
 
-    final Color color;
+    final NxBadgeKind kind;
     final String label;
 
     if (remainingDays < 0) {
-      color = Colors.red;
+      kind = NxBadgeKind.error;
       label = 'Versicherungsnachweis abgelaufen ($expiryDate)';
     } else if (remainingDays < 30) {
-      color = Colors.orange;
+      kind = NxBadgeKind.warning;
       label = 'Versicherung läuft bald ab ($expiryDate)';
     } else {
-      color = Colors.green;
+      kind = NxBadgeKind.success;
       label = 'Versicherung gültig bis $expiryDate';
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
-      ),
-    );
+    return NxStatusBadge(label: label, kind: kind);
   }
 
   Widget _ticketStatusBadge(String status) {
@@ -576,32 +586,12 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
     required IconData icon,
     required String subtitle,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold).merge(context.tabularNumericStyle),
-            ),
-            const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          ],
-        ),
-      ),
+    return NxKpiTile(
+      label: title,
+      value: value,
+      caption: subtitle,
+      status: color,
+      trailing: Icon(icon, color: color, size: 20),
     );
   }
 
@@ -611,13 +601,13 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
+          Icon(icon, size: 18, color: context.semanticColors.textSecondary),
           const SizedBox(width: 12),
           Expanded(
             flex: 3,
             child: Text(
               label,
-              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+              style: TextStyle(color: context.semanticColors.textSecondary, fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
@@ -653,10 +643,12 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                   const SizedBox(width: 8),
                   Text(
                     rating.toStringAsFixed(1),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ] else
-                  const Text('Keine Bewertung', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text('Keine Bewertung', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
@@ -676,7 +668,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
             i < fullStars
                 ? Icons.star
                 : (i == fullStars && hasHalf ? Icons.star_half : Icons.star_border),
-            color: Colors.amber,
+            color: context.semanticColors.warning,
             size: size,
           ),
       ],
@@ -899,7 +891,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
             child: const Text('Abbrechen'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: context.semanticColors.error, foregroundColor: Colors.white),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Löschen'),
           ),
@@ -933,7 +925,10 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Vergeben Sie Punkte von 1 (schlecht) bis 5 (hervorragend):', style: TextStyle(fontSize: 12)),
+              Text(
+                'Vergeben Sie Punkte von 1 (schlecht) bis 5 (hervorragend):',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               const Divider(height: 24),
               _buildDialogRatingSelector('Preis-Leistung', price, (val) => setDialogState(() => price = val)),
               _buildDialogRatingSelector('Qualität', quality, (val) => setDialogState(() => quality = val)),
@@ -1001,7 +996,7 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
                 constraints: const BoxConstraints(),
                 icon: Icon(
                   value >= starValue ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
+                  color: context.semanticColors.warning,
                   size: 26,
                 ),
                 onPressed: () => onChanged(starValue),
@@ -1011,13 +1006,5 @@ class _ContractorsScreenState extends ConsumerState<ContractorsScreen> {
         ],
       ),
     );
-  }
-}
-
-class ResponsiveConstraints {
-  static double dialogWidth(BuildContext context, {required double maxWidth}) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width < maxWidth) return width * 0.9;
-    return maxWidth;
   }
 }

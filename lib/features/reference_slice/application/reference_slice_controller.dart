@@ -59,7 +59,7 @@ class ReferenceSliceState {
     this.userId,
     this.workspaces = const <WorkspaceAccess>[],
     this.selectedWorkspaceId,
-    this.properties = const <PropertyDto>[],
+    this.properties = const <PropertySummaryDto>[],
     this.nextCursor,
     this.selectedProperty,
     this.failureKind,
@@ -89,7 +89,7 @@ class ReferenceSliceState {
   final String? userId;
   final List<WorkspaceAccess> workspaces;
   final String? selectedWorkspaceId;
-  final List<PropertyDto> properties;
+  final List<PropertySummaryDto> properties;
   final String? nextCursor;
   final PropertyDto? selectedProperty;
   final PropertyRepositoryFailureKind? failureKind;
@@ -123,7 +123,7 @@ class ReferenceSliceState {
     Object? userId = _unchanged,
     List<WorkspaceAccess>? workspaces,
     Object? selectedWorkspaceId = _unchanged,
-    List<PropertyDto>? properties,
+    List<PropertySummaryDto>? properties,
     Object? nextCursor = _unchanged,
     Object? selectedProperty = _unchanged,
     Object? failureKind = _unchanged,
@@ -417,7 +417,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         propertyDetailPhase: PropertyDetailPhase.idle,
         mutationPhase: PropertyMutationPhase.idle,
         selectedWorkspaceId: null,
-        properties: const <PropertyDto>[],
+        properties: const <PropertySummaryDto>[],
         nextCursor: null,
         selectedProperty: null,
         failureKind: PropertyRepositoryFailureKind.forbidden,
@@ -435,7 +435,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       propertyListPhase: PropertyListPhase.loading,
       propertyDetailPhase: PropertyDetailPhase.idle,
       mutationPhase: PropertyMutationPhase.idle,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       selectedProperty: null,
       failureKind: null,
@@ -457,7 +457,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     final generation = ++_scopeGeneration;
     state = state.copyWith(
       propertyListPhase: PropertyListPhase.loading,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       failureKind: null,
       message: null,
@@ -493,7 +493,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
     switch (result) {
       case PropertyRepositorySuccess<PropertyPageResult>():
-        final byId = <String, PropertyDto>{
+        final byId = <String, PropertySummaryDto>{
           for (final property in state.properties) property.id: property,
           for (final property in result.value.items) property.id: property,
         };
@@ -713,7 +713,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       mutationPhase: PropertyMutationPhase.idle,
       workspaces: const <WorkspaceAccess>[],
       selectedWorkspaceId: null,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       selectedProperty: null,
       failureKind: null,
@@ -798,7 +798,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           failure.kind == PropertyRepositoryFailureKind.forbidden
               ? PropertyListPhase.forbidden
               : PropertyListPhase.error,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       failureKind: failure.kind,
       message: failure.message,
@@ -808,7 +808,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   void _setPropertyForbidden() {
     state = state.copyWith(
       propertyListPhase: PropertyListPhase.forbidden,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       failureKind: PropertyRepositoryFailureKind.forbidden,
       message: 'Property access is not permitted.',
@@ -929,7 +929,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       mutationPhase: PropertyMutationPhase.idle,
       workspaces: const <WorkspaceAccess>[],
       selectedWorkspaceId: null,
-      properties: const <PropertyDto>[],
+      properties: const <PropertySummaryDto>[],
       nextCursor: null,
       selectedProperty: null,
       failureKind: null,
@@ -1077,7 +1077,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         propertyListPhase: PropertyListPhase.forbidden,
         propertyDetailPhase: PropertyDetailPhase.forbidden,
         mutationPhase: PropertyMutationPhase.idle,
-        properties: const <PropertyDto>[],
+        properties: const <PropertySummaryDto>[],
         nextCursor: null,
         selectedProperty: null,
         failureKind: PropertyRepositoryFailureKind.forbidden,
@@ -1100,10 +1100,18 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     if (detailResult case PropertyRepositorySuccess<PropertyDto>()) {
       final current = state.selectedProperty;
       if (current == null || detailResult.value.version >= current.version) {
+        final mergedProperties = _replaceProperty(
+          state.properties,
+          detailResult.value,
+        );
         state = state.copyWith(
+          propertyListPhase:
+              mergedProperties.isEmpty && state.nextCursor == null
+                  ? PropertyListPhase.empty
+                  : state.propertyListPhase,
           propertyDetailPhase: PropertyDetailPhase.ready,
           selectedProperty: detailResult.value,
-          properties: _replaceProperty(state.properties, detailResult.value),
+          properties: mergedProperties,
         );
       }
     }
@@ -1135,11 +1143,19 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         _scopeGeneration++;
         _detailGeneration++;
         _retryCommand = null;
+        final mergedProperties = _replaceProperty(
+          state.properties,
+          result.value,
+        );
         state = state.copyWith(
+          propertyListPhase:
+              mergedProperties.isEmpty && state.nextCursor == null
+                  ? PropertyListPhase.empty
+                  : state.propertyListPhase,
           propertyDetailPhase: PropertyDetailPhase.ready,
           mutationPhase: PropertyMutationPhase.succeeded,
           selectedProperty: result.value,
-          properties: _replaceProperty(state.properties, result.value),
+          properties: mergedProperties,
         );
       case PropertyRepositoryFailure<PropertyDto>():
         if (result.kind == PropertyRepositoryFailureKind.versionConflict) {
@@ -1147,14 +1163,19 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           _scopeGeneration++;
           _detailGeneration++;
           _retryCommand = null;
+          final mergedProperties = _replaceProperty(
+            state.properties,
+            conflict.currentProperty,
+          );
           state = state.copyWith(
+            propertyListPhase:
+                mergedProperties.isEmpty && state.nextCursor == null
+                    ? PropertyListPhase.empty
+                    : state.propertyListPhase,
             propertyDetailPhase: PropertyDetailPhase.ready,
             mutationPhase: PropertyMutationPhase.conflict,
             selectedProperty: conflict.currentProperty,
-            properties: _replaceProperty(
-              state.properties,
-              conflict.currentProperty,
-            ),
+            properties: mergedProperties,
             failureKind: result.kind,
             versionConflict: conflict,
             message: result.message,
@@ -1215,24 +1236,27 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   }
 }
 
-List<PropertyDto> _replaceProperty(
-  List<PropertyDto> properties,
+List<PropertySummaryDto> _replaceProperty(
+  List<PropertySummaryDto> properties,
   PropertyDto replacement,
 ) {
-  var replaced = false;
-  final result = properties
-      .map((property) {
-        if (property.id != replacement.id) {
-          return property;
-        }
-        replaced = true;
-        return replacement;
-      })
-      .toList(growable: true);
-  if (!replaced) {
-    result.add(replacement);
+  final index = properties.indexWhere(
+    (property) => property.id == replacement.id,
+  );
+  if (index < 0) {
+    return properties;
   }
-  return List<PropertyDto>.unmodifiable(result);
+  final current = properties[index];
+  if (current.version > replacement.version) {
+    return properties;
+  }
+  final result = List<PropertySummaryDto>.of(properties, growable: true);
+  if (replacement.status == PropertyStatus.archived) {
+    result.removeAt(index);
+  } else {
+    result[index] = PropertySummaryDto.fromProperty(replacement);
+  }
+  return List<PropertySummaryDto>.unmodifiable(result);
 }
 
 class _InvalidationRefreshRequest {
@@ -1248,17 +1272,17 @@ class _InvalidationRefreshRequest {
 class _MergedPropertyPage {
   const _MergedPropertyPage({required this.items, required this.nextCursor});
 
-  final List<PropertyDto> items;
+  final List<PropertySummaryDto> items;
   final String? nextCursor;
 }
 
 _MergedPropertyPage _mergeRefreshedFirstPage({
-  required List<PropertyDto> current,
+  required List<PropertySummaryDto> current,
   required String? currentNextCursor,
-  required List<PropertyDto> refreshed,
+  required List<PropertySummaryDto> refreshed,
   required String? refreshedNextCursor,
 }) {
-  final currentById = <String, PropertyDto>{
+  final currentById = <String, PropertySummaryDto>{
     for (final property in current) property.id: property,
   };
   final refreshedItems = refreshed
@@ -1271,7 +1295,7 @@ _MergedPropertyPage _mergeRefreshedFirstPage({
       .toList(growable: false);
   if (refreshedNextCursor == null) {
     return _MergedPropertyPage(
-      items: List<PropertyDto>.unmodifiable(refreshedItems),
+      items: List<PropertySummaryDto>.unmodifiable(refreshedItems),
       nextCursor: null,
     );
   }
@@ -1281,7 +1305,7 @@ _MergedPropertyPage _mergeRefreshedFirstPage({
         property.id.compareTo(refreshedNextCursor) > 0 &&
         !refreshedIds.contains(property.id),
   );
-  final items = List<PropertyDto>.unmodifiable(<PropertyDto>[
+  final items = List<PropertySummaryDto>.unmodifiable(<PropertySummaryDto>[
     ...refreshedItems,
     ...tail,
   ]);

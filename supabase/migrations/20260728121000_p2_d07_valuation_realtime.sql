@@ -1,0 +1,24 @@
+-- P2-D07 step 2: workspace-scoped valuation realtime invalidation, mirroring
+-- the P1-011 property, P2-D02 party and P2-D03 document pattern. Clients
+-- subscribe to public.valuation_cases UPDATE events filtered by workspace_id and
+-- coalesce them into a query invalidation. RLS still gates what each subscriber
+-- may read.
+--
+-- What this covers: every command that changes the case aggregate — configuration
+-- edits, factor upserts (which bump the case version on purpose, because the
+-- factor set is part of the case's observable state) and status transitions.
+--
+-- What this deliberately does NOT cover, stated plainly rather than implied:
+-- publish_valuation_report writes valuation_method_results and
+-- market_value_opinions without touching the case row, so it emits no
+-- invalidation. That is the direct consequence of the versioning decision in the
+-- previous migration — a publish must not move a client's concurrency token
+-- underneath an in-flight factor edit — and publishing those two tables instead
+-- would not fix it honestly either: the publish path deletes and re-inserts, and
+-- a DELETE payload carries only the replica-identity columns, so a workspace_id
+-- filter could not be applied without switching them to REPLICA IDENTITY FULL.
+--
+-- Report invalidation therefore stays an open gap here and belongs to the
+-- CTR-005 domain-event envelope (P2-D04), which exists precisely to express
+-- events that no single row change represents.
+alter publication supabase_realtime add table public.valuation_cases;

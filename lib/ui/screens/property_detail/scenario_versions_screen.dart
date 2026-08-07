@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/scenario_version.dart';
@@ -76,7 +77,7 @@ class _ScenarioVersionsScreenState
               ),
               if (state.error != null) ...[
                 const SizedBox(height: 8),
-                Text(state.error!, style: const TextStyle(color: Colors.red)),
+                Text(state.error!, style: TextStyle(color: context.semanticColors.error)),
               ],
               const SizedBox(height: 12),
               Expanded(
@@ -84,7 +85,8 @@ class _ScenarioVersionsScreenState
                   builder: (context, constraints) {
                     final stacked = constraints.maxWidth < 1100;
 
-                    final listPane = Card(
+                    final listPane = NxCard(
+                      padding: EdgeInsets.zero,
                       child:
                           versions.isEmpty
                               ? const Center(
@@ -213,7 +215,8 @@ class _ScenarioVersionsScreenState
                               ),
                     );
 
-                    final diffPane = Card(
+                    final diffPane = NxCard(
+                      padding: EdgeInsets.zero,
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(

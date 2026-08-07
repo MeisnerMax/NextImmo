@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/budget.dart';
@@ -206,7 +207,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final stacked = constraints.maxWidth < 1120;
-                final listPane = Card(
+                final listPane = NxCard(
+                  padding: EdgeInsets.zero,
                   child:
                       _budgets.isEmpty
                           ? const Center(
@@ -245,7 +247,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                           ),
                 );
 
-                final detailPane = Card(
+                final detailPane = NxCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.cardPadding),
                     child:
