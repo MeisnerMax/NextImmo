@@ -180,17 +180,42 @@ DETAIL: Key (key)=(maintenance.read) already exists.
 
 Nach den 27 `migration down`-Schritten und dem abschließenden `migration up` bricht der
 finale `supabase test db --local` in 25 Dateien ab (`Bad plan. You planned N but ran M`,
-`Failed: 0` — die Dateien sterben, sie scheitern nicht). Ursache: **die Down-Migrationen
-entfernen die von ihnen eingefügten `permissions`-Zeilen nicht.** Nach dem Replay
-existieren `lease.read`, `maintenance.read` und weitere doppelt, und die pgTAP-Dateien
-kollidieren beim eigenen Seed.
+`Failed: 0` — die Dateien sterben, sie scheitern nicht).
 
-Nach einem frischen `db reset` läuft alles grün — deshalb ist es bei den domänenweise
-lokal gefahrenen Gates nie aufgefallen. Genau diesen Fall soll der Replay fangen; er tut
-es, seit drei Wochen unbeachtet.
+**Erste Diagnose war falsch** und wird hier korrigiert: vermutet wurden fehlende
+`delete`-Anweisungen in den Down-Migrationen. Tatsächlich säen die Migrationen
+`public.permissions` **bewusst nicht** — `20260806100000_p2_d06_maintenance_capex.sql`
+Z. 35–38 sagt das ausdrücklich, damit die pgTAP-Fixtures ihren eigenen Rechtekatalog
+anlegen können, ohne zu kollidieren.
 
-**Auflösung:** betrifft Migrationslogik und ist damit nach `CLAUDE.md` explizit
-entscheidungspflichtig. Nicht ohne Freigabe angefasst.
+**Tatsächliche Ursache, empirisch belegt:** `supabase migration down` führt einen
+vollen Reset aus und spielt dabei `seed.sql` mit ein — es hat kein eigenes
+`--no-seed`. Gemessen am lokalen Stack:
+
+| Schritt | `count(*) from public.permissions` |
+|---|---|
+| `db reset --local --no-seed` | 0 |
+| danach `migration down --local --last 1` | **29** (Ausgabe: `Seeding data from supabase/seed.sql...`) |
+
+Der CI-Replay startet also in einer ungeseedeten Datenbank und wird durch den ersten
+Down-Schritt stillschweigend zu einer geseedeten. Beim abschließenden Suite-Lauf
+existiert der Rechtekatalog dann bereits, und jede pgTAP-Datei stirbt an
+`permissions_key_unique`.
+
+Das ist in diesem Repository ein bekanntes Muster: der Kopf von `seed.sql` beschreibt
+genau diesen Pfad („The CLI's own migration-down/reset seeding path sends this file as
+raw SQL … never caught because CI always resets with `--no-seed`").
+
+**Auflösung:** keine Änderung an Migrationslogik nötig. `supabase/config.toml` bekommt
+`[db.seed] enabled = false`. Das entspricht der dokumentierten Absicht — `seed.sql` ist
+laut eigenem Kopf ein manuelles Bootstrap-Fixture, sein einziger Konsument
+`tool/bootstrap_p2_x01_local.ps1` spielt es explizit per `psql` ein, und **alle**
+`tool/verify_*.ps1`-Skripte sowie der CI-Job setzen ohnehin mit `--no-seed` zurück.
+Nichts hängt an automatischem Seeding.
+
+**Verifikation:** nach der Änderung bleibt `permissions` über `db reset --no-seed` und
+`migration down` hinweg bei 0, und die Zeile `Seeding data from supabase/seed.sql...`
+verschwindet.
 
 ### C-03 — Gitleaks meldete fünf Funde (behoben)
 

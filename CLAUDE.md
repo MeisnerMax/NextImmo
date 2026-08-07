@@ -4,10 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-NexImmo ("Deal Analyzer Desktop") is an offline-first Flutter desktop app for real-estate deal
+NexImmo ("Deal Analyzer Desktop") is a cloud-first Flutter app for real-estate deal
 analysis, portfolio and property management, valuation, operations, and reporting. It ships on
 Windows/desktop and web, backed historically by a local SQLite core, and is being incrementally
-migrated to a Supabase (Postgres) backend behind the same repository interfaces. See
+migrated to a Supabase (Postgres) backend behind the same repository interfaces.
+
+It is **not** offline-first. `DEC-024` (accepted 2026-08-06) supersedes `DEC-005`: SQLite is
+removed entirely — not kept as a legacy source, not as a client cache — and desktop offline start
+capability is dropped without replacement. Supabase is the only data layer. Teardown plan and
+gates: [docs/architecture/phase_2/04y_p2_x02_sqlite_decommission.md](docs/architecture/phase_2/04y_p2_x02_sqlite_decommission.md);
+authoritative platform target: [docs/architecture/cloud/01_target_cloud_architecture.md](docs/architecture/cloud/01_target_cloud_architecture.md).
+See
 [Software_Goal.txt](Software_Goal.txt) for the full product scope and per-version workflows, and
 [docs/architecture/enterprise_target_architecture.md](docs/architecture/enterprise_target_architecture.md)
 for the target architecture (module responsibilities, entity lifecycles, permission model, audit
@@ -105,10 +112,13 @@ See [docs/architecture/phase_1/01_environment_contract.md](docs/architecture/pha
     objects, sealed `*RepositoryResult<T>` success/failure types with typed failure kinds (e.g.
     `PropertyRepositoryFailureKind.versionConflict`), invalidation-source interfaces. No SDK types
     leak into this layer.
-  - `data/` — concrete adapters implementing the application contracts, one per backend, e.g.
-    `legacy_sqlite_property_repository_adapter.dart` vs `supabase_property_repository_adapter.dart`,
-    or `supabase_identity_access_repository_adapter.dart`. `main.dart` selects which adapter to wire
+  - `data/` — concrete adapters implementing the application contracts, e.g.
+    `supabase_property_repository_adapter.dart` or
+    `supabase_identity_access_repository_adapter.dart`. `main.dart` selects which adapter to wire
     into Riverpod providers based on `AppEnvironment.dataBackend` (see `lib/main.dart`).
+    **Write one adapter per domain, the Supabase one.** The `legacy_sqlite_*_adapter` counterparts
+    still in the tree are leftovers of the superseded two-adapter rule and are removed in
+    `AP-X02-2`; adding another one means writing code that is already scheduled for deletion.
   - This is the pattern to follow when migrating another feature or adding new
     Supabase-backed functionality — don't call `Supabase.instance.client` directly from UI or core
     code; add/extend an adapter behind the feature's application contract.
