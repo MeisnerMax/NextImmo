@@ -422,6 +422,94 @@ trennen, nicht ein Gate zu streichen.
 
 ---
 
+## 2026-08-08 · `C-04` — Zielversion: Begründung **vor** dem Upgrade
+
+Vorgabe war, die kleinste nachweislich sichere Änderung zu wählen und `16.2.11` zuerst zu
+prüfen, weil Next.js diese Version als gepatchte Active-LTS veröffentlicht hat. Die Prüfung
+bestätigt das für Next selbst — und widerlegt es für die drei mitgelieferten Pakete.
+
+**Befund aus der Registry:**
+
+| `next` | `dependencies.postcss` | `optionalDependencies.sharp` |
+|---|---|---|
+| 16.2.10 (aktuell) | `8.4.31` **exakt** | `^0.34.5` |
+| 16.2.11 | `8.4.31` **exakt** | `^0.34.5` |
+| 16.2.12 | `8.4.31` **exakt** | `^0.34.5` |
+| **16.3.0** | `8.5.23` | `^0.35.3` |
+
+Erforderlich sind `postcss > 8.5.22` und `sharp >= 0.35.0`.
+
+`16.2.11` beseitigt **alle neun Next-eigenen Advisories** — deren Range ist durchgehend
+`>=16.0.0 <16.2.11`. Es beseitigt aber **keines** der drei übrigen:
+
+- **postcss** ist in 16.2.11 und 16.2.12 **exakt** auf die verwundbare `8.4.31` gepinnt.
+  Ein reines Lockfile-Update kann eine exakte Pin nicht überschreiten.
+- **sharp** ist per Caret auf `^0.34.5` begrenzt; auf einer `0.x`-Linie schließt Caret die
+  nächste Minor aus, `0.35.0` ist damit unerreichbar.
+- **nanoid** kommt über postcss; `postcss@8.5.23` fordert `^3.3.16`, was auf `3.3.18`
+  auflöst und das Advisory (`<3.3.17`) mit erledigt.
+
+**Verbleibende Optionen und die Wahl.**
+
+*Option 1 — `16.2.12` plus `overrides` auf postcss und sharp.* Kleinere Versionsnummer,
+aber es erzwingt eine Kombination, die der Hersteller nie ausgeliefert und nie getestet
+hat. Besonders `sharp` 0.34 → 0.35 ist auf einer `0.x`-Linie ein bruchförmiger Sprung
+(neue libvips-Generation), und Next 16.2.x ist nicht dagegen gebaut. Die exakte
+postcss-Pin existiert genau deshalb: Next koppelt seine CSS-Pipeline eng an eine
+bestimmte postcss-Version.
+
+*Option 2 — `16.3.0`.* Genau die Kombination, die der Hersteller ausliefert und testet
+(`postcss 8.5.23` + `sharp ^0.35.3`), Minor innerhalb derselben Major. npms eigene
+Bewertung: `fixAvailable: {name: next, version: 16.3.0, isSemVerMajor: false}`.
+Die `peerDependencies` für `react`/`react-dom` sind zwischen 16.2.10 und 16.3.0
+**identisch**, `react@19.2.7` bleibt gültig — keine Folgeänderung.
+
+**Gewählt: Option 2.** Die höhere Versionsnummer ist hier das *geringere* Risiko: nicht die
+Größe des Sprungs entscheidet, sondern ob die resultierende Kombination je zusammen
+getestet wurde. Option 1 hätte drei ungetestete Paarungen erzeugt, um eine kleinere Zahl
+in `package.json` zu schreiben.
+
+Kein `npm audit fix --force`, kein Major-Upgrade, keine sonstige Modernisierung.
+
+### Ergebnis
+
+| Paket | vorher | nachher | Advisory-Grenze | direkt? |
+|---|---|---|---|---|
+| `next` | 16.2.10 | **16.3.0** | `<16.2.11` (9 Advisories) | ja, einzige direkte Abhängigkeit |
+| `postcss` | 8.4.31 | **8.5.23** | `<=8.5.22` (4 Advisories) | transitiv über `next` |
+| `sharp` | 0.34.5 | **0.35.3** | `<0.35.0` (4 libvips-CVEs) | transitiv über `next` (optional) |
+| `nanoid` | 3.3.16 | **3.3.18** | `<3.3.17` | transitiv über `postcss` |
+
+`npm audit`: vorher `{high: 4, total: 4}` → nachher `{high: 0, total: 0}`,
+über **alle** Schweregrade, `--audit-level=high` liefert **Exit 0**.
+
+**Änderungsumfang.** `package.json`: eine Zeile. `package-lock.json`: 223/183 Zeilen —
+vollständig zuordenbar und ohne Fremdanteil. Betroffen sind ausschließlich `next` mit
+seinen neun `@next/swc-*`-Plattformbinaries und `@next/env`, `sharp` mit 26
+`@img/*`-Paketen (Plattformbinaries plus libvips 1.2.4 → 1.3.2) und `@emnapi/runtime`,
+sowie `postcss` und `nanoid`. **`react`, `react-dom`, `typescript` und die `@types/*`
+sind unberührt.** Dazu `next-env.d.ts`: eine von `next build` erzeugte Referenzzeile
+(`root-params.d.ts`), die Datei ist als generiert gekennzeichnet.
+
+**Build und Smoke.** `npm ci` + `npm run build` grün, **identische Routenliste** und
+dieselben 8 statischen Seiten wie vor dem Upgrade, keine neue Warnung mit funktionaler
+Relevanz. Lokaler Browser-Smoke gegen `next start`:
+
+- Startseite rendert vollständig, **keine Konsolenfehler**
+- CSS greift: 1 Stylesheet, 254 Regeln, eigene Hintergrundfarbe und Schriftfamilie aktiv
+  (belegt den PostCSS-Build)
+- Assets: `/icon.svg` 200 `image/svg+xml`, **`/opengraph-image` 200 `image/png`**,
+  `/manifest.webmanifest` 200, `/robots.txt` 200, `/sitemap.xml` 200 — die Bilderzeugung
+  läuft
+- keine defekten Bildverweise; Header und Footer vorhanden und befüllt
+- Mobile 375×812: **kein horizontaler Überlauf** (`scrollWidth == clientWidth`),
+  Überschrift skaliert responsiv
+
+Der dafür nötige `launch.json`-Eintrag war temporär und ist zurückgenommen; die Datei ist
+unverändert.
+
+---
+
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
 
 `cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
