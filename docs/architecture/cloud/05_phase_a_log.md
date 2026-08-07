@@ -112,11 +112,37 @@ Teil braucht einen sichtbaren Browser-Pane.
 
 ---
 
+## 2026-08-07 · A2 (Fortsetzung) — Push, Archivierung, Aufräumen
+
+**Gepusht:** Branch `cloud/foundation-stabilization` (`bdddef8`) sowie alle vier Tags.
+Remote existieren damit nur noch `main` und `cloud/foundation-stabilization`.
+
+**Gelöscht (lokal und remote):** `docs/add-claude-md`, `codex/setze-neues-design-um`.
+Beide sind vollständig durch gepushte Tags abgedeckt und jederzeit wiederherstellbar.
+
+**Abbruch: Worktrees bleiben unangetastet.** Die geplante Worktree-Bereinigung wurde
+gestoppt, weil zwei der drei Worktrees ungesicherte Arbeit enthalten:
+
+| Worktree | Branch | Ungesichert |
+|---|---|---|
+| `.claude/worktrees/codex-ai-ph00-baseline` | `codex/ai-ph00-baseline` | **11 modifizierte, 6 untracked Pfade.** Darunter ein vollständiges `docs/ai/`-Set (Masterplan, Execution-Prompt, Implementation-Backlog, Test-/Acceptance-Plan), `lib/ui/shell/cloud_app_scaffold.dart` samt Test, und die Migration `20260802190000_ph01_entity_scope_enforcement.sql` mit pgTAP- und Rollback-Test. Zusätzlich geändert: `.github/workflows/flutter.yml`, `supabase/config.toml`, `11_decision_register.md`, `07_security_and_tenancy_baseline.md`, `lib/app.dart` |
+| `.claude/worktrees/exciting-lamport-6ffa71` | `claude/exciting-lamport-6ffa71` | `lib/ui/screens/property_detail/property_tasks_screen.dart` modifiziert |
+| `.claude/worktrees/hungry-shamir-795855` | detached `bacc36a` | nichts (`bacc36a` ist Vorfahr von `main`) |
+
+Kein Tag und kein Commit deckt diese Arbeit ab. Vor jeder Entfernung ist zu klären,
+ob `docs/ai/` und die `ph01_entity_scope_enforcement`-Migration in die Cloud-Planung
+gehören oder verworfen werden — das ist eine fachliche Entscheidung, keine Aufräumarbeit.
+Insbesondere ändert dieser Worktree `.github/workflows/flutter.yml` und
+`supabase/config.toml`, also genau Dateien, die Phase A ebenfalls angefasst hat.
+
+---
+
 ## Offene Punkte am Ende dieses Blocks
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 1 | `gh auth login`, dann Push von Branch und Tags, PR gegen `main` | Nutzer | Hosted-CI-Nachweis, Abschluss A2/A3 |
+| 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung, evtl. Phase A selbst (berührt `flutter.yml` und `supabase/config.toml`) |
+| 1 | PR `cloud/foundation-stabilization` → `main` eröffnen und mergen | Nutzer | Hosted-CI-Nachweis, Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer | A3 |
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
 | 4 | Interaktiver Golden-Path im sichtbaren Browser-Pane | gemeinsam | A5 |
