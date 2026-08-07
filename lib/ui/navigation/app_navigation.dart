@@ -275,9 +275,7 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     GlobalPage.tasks || GlobalPage.taskTemplates => 'task.read',
     GlobalPage.notifications => 'notification.read',
     GlobalPage.imports => 'import.read',
-    GlobalPage.valuations ||
-    GlobalPage.criteriaSets ||
-    GlobalPage.compare => 'valuation.read',
+    GlobalPage.valuations || GlobalPage.criteriaSets => 'valuation.read',
     GlobalPage.reportTemplates => 'reporting.generate',
     GlobalPage.adminUsers || GlobalPage.settings => 'security.manage',
     GlobalPage.audit => 'audit.read',
@@ -524,13 +522,6 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Kriterien',
         routeKey: 'valuation_scenarios.criteria',
         icon: Icons.rule_folder_outlined,
-      ),
-      GlobalNavigationDestination(
-        page: GlobalPage.compare,
-        label: 'Szenariovergleich',
-        title: 'Szenariovergleich',
-        routeKey: 'valuation_scenarios.scenario_compare',
-        icon: Icons.table_chart_outlined,
       ),
     ],
   ),
@@ -993,8 +984,7 @@ bool isPageAllowedForRole(GlobalPage page, String role) {
       return page != GlobalPage.adminUsers &&
           page != GlobalPage.settings &&
           page != GlobalPage.audit &&
-          page != GlobalPage.criteriaSets &&
-          page != GlobalPage.compare;
+          page != GlobalPage.criteriaSets;
 
     case 'viewer':
       return page != GlobalPage.adminUsers &&

@@ -120,10 +120,13 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
       openGlobalPage(ref, GlobalPage.tasks);
       break;
     case 'open_valuation_scenarios':
+      // Was GlobalPage.compare until the Szenariovergleich screen was removed
+      // (Welle 5 wave-closure decision). The valuation work queue is the
+      // group's remaining global entry point.
       _openPropertyAreaOrGlobal(
         ref,
         PropertyDetailPage.analysis,
-        GlobalPage.compare,
+        GlobalPage.valuations,
       );
       break;
     case 'open_documents_reporting':
