@@ -508,6 +508,26 @@ Relevanz. Lokaler Browser-Smoke gegen `next start`:
 Der dafür nötige `launch.json`-Eintrag war temporär und ist zurückgenommen; die Datei ist
 unverändert.
 
+### Hosted CI · Lauf `31223819048`, Commit `0732050`
+
+| Job | Ergebnis | Laufzeit |
+|---|---|---|
+| `supply_chain` | **PASS** | 0,2 min |
+| `marketing` | **PASS** | 0,5 min |
+| `verify` | **PASS** | 6,3 min |
+| `Web App Deploy` | **PASS** (Preflight überspringt korrekt) | — |
+| `database` | FAIL, **ausschließlich Schritt 30** | 16,5 min |
+
+Von 31 Schritten des `database`-Jobs ist genau einer rot. Schritte 24–29 erneut alle grün.
+Die Fehlermeldung in Schritt 30 ist **byteidentisch** mit der aus Lauf `31221978111`
+(`SqfliteFfiException … .dart_tool/sqflite_common_ffi/databases/build/cutover_fixture.db
+not found`) — also unverändert `C-06`, kein Folgefehler aus `C-04`.
+
+**`C-04` ist damit geschlossen.**
+
+Laufzeitreserve unverändert komfortabel: 16,5 min von 35 min → **53 %**. Schritt 30 bricht
+weiterhin nach 0,13 min ab; ein durchlaufender Cutover kostet 1–2 min mehr.
+
 ---
 
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
@@ -537,8 +557,7 @@ Kernbefunde:
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 0 | `C-04` Marketing-Abhängigkeiten aktualisieren (`next` 16.2.10 → 16.3.0) | **BLOCKER**, Freigabe nötig | grüner `supply_chain`-Job, Merge von PR #1 |
-| 0a | `C-06` Pfadauflösung im Cutover-Schritt | **BLOCKER**, Freigabe nötig | grüner `database`-Job, Merge von PR #1 |
+| 0 | `C-06` Pfadauflösung im Cutover-Schritt | **BLOCKER**, Freigabe nötig | letzter roter Schritt; grüner `database`-Job, Merge von PR #1 |
 | 0b | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A, und blockiert `AP-X02-2b` |
 | 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
