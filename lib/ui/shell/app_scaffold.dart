@@ -20,6 +20,9 @@ import '../screens/imports_screen.dart';
 import '../screens/audit/audit_screen.dart';
 import '../screens/maintenance/maintenance_screen.dart';
 import '../screens/maintenance/contractors_screen.dart';
+import '../screens/maintenance/contractors_panel.dart';
+import '../screens/maintenance/maintenance_tickets_panel.dart';
+import '../screens/property_detail/property_maintenance_capex_panel.dart';
 import '../screens/budgets/budgets_screen.dart';
 import '../screens/docs/documents_screen.dart';
 import '../screens/docs/compliance_dashboard_screen.dart';
@@ -338,6 +341,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case GlobalPage.properties
           when target.surface == CloudRouteSurface.operationsAlerts:
         return OperationsAlertsPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.maintenance:
+        return PropertyMaintenanceCapexPanel(propertyId: target.propertyId!);
       case GlobalPage.properties:
         return ReferenceSliceScreen(
           embeddedInShell: true,
@@ -351,6 +357,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             : const PartiesScreen();
       case GlobalPage.rentalOverview:
         return const RentalOverviewPanel();
+      case GlobalPage.maintenance:
+        return const MaintenanceTicketsPanel();
+      case GlobalPage.contractors:
+        return const ContractorsPanel();
       case GlobalPage.documents:
         return _buildCloudDocuments(target);
       case GlobalPage.valuations:
@@ -397,6 +407,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case CloudRouteSurface.operationsAlerts:
       case CloudRouteSurface.tenants:
       case CloudRouteSurface.rentalOverview:
+      case CloudRouteSurface.maintenance:
         return const DocumentsWorkspacePanel();
     }
   }

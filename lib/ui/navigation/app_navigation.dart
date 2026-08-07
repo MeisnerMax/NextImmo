@@ -47,6 +47,16 @@ const operationsAlertsRoute = '/operations-alerts';
 const tenantsRoute = '/tenants';
 const rentalOverviewRoute = '/rental-overview';
 
+/// Welle 4: the one property-scoped `maintenance_capex` surface (tickets +
+/// CapEx, merged from the SCR-034/SCR-031 audit — see `04d_wave4_
+/// maintenance_capex.md`). Same reasoning as the Welle-3 property routes
+/// above: no `PropertyShell` in cloud mode, so the id travels in the route.
+/// `GlobalPage.maintenance`/`GlobalPage.contractors` themselves need no route
+/// — they are ordinary workspace-wide sidebar destinations already in
+/// [appNavigationGroups], reached through `globalPageProvider` like `parties`
+/// or `rentalOverview`, not through a URL.
+const propertyMaintenanceRoute = '/property-maintenance';
+
 String unitsRouteFor(String propertyId) => '$unitsRoute/$propertyId';
 String leasesRouteFor(String propertyId) => '$leasesRoute/$propertyId';
 String leasingPipelineRouteFor(String propertyId) =>
@@ -56,6 +66,8 @@ String operationsOverviewRouteFor(String propertyId) =>
     '$operationsOverviewRoute/$propertyId';
 String operationsAlertsRouteFor(String propertyId) =>
     '$operationsAlertsRoute/$propertyId';
+String propertyMaintenanceRouteFor(String propertyId) =>
+    '$propertyMaintenanceRoute/$propertyId';
 
 /// `/<prefix>/<id>` → id. Returns null for anything else, so an unknown route
 /// falls through to the next matcher rather than being claimed by this one.
@@ -85,6 +97,7 @@ enum CloudRouteSurface {
   operationsAlerts,
   tenants,
   rentalOverview,
+  maintenance,
 }
 
 class CloudRouteTarget {
@@ -191,6 +204,17 @@ CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
       propertyId: operationsAlertsPropertyId,
     );
   }
+  final maintenancePropertyId = _idFromRoute(
+    routeName,
+    propertyMaintenanceRoute,
+  );
+  if (maintenancePropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.maintenance,
+      propertyId: maintenancePropertyId,
+    );
+  }
   if (routeName == documentsWorkspaceRoute) {
     return const CloudRouteTarget(
       page: GlobalPage.documents,
@@ -224,6 +248,10 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     GlobalPage.valuations ||
     // Welle 3: reads units, leases and properties through their contracts only.
     GlobalPage.rentalOverview ||
+    // Welle 4: reads maintenance_capex/contacts_parties through their
+    // contracts only — see `04d_wave4_maintenance_capex.md`.
+    GlobalPage.maintenance ||
+    GlobalPage.contractors ||
     GlobalPage.adminUsers ||
     GlobalPage.help => CloudDestinationReadiness.ready,
     _ => CloudDestinationReadiness.migrationRequired,
