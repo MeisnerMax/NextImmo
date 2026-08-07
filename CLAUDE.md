@@ -52,6 +52,17 @@ npx supabase test db --local           # run pgTAP tests in supabase/tests
 npx supabase stop --no-backup
 ```
 
+**A reset produces no data.** `[db.seed] enabled = false` in `supabase/config.toml`, so
+`db reset`, `migration down` and `migration up` all leave an empty schema — no workspace, no
+roles, no permission catalogue, no admin user — with or without `--no-seed`. `supabase/seed.sql`
+is a manual local bootstrap fixture; the only thing that applies it is
+`./tool/bootstrap_p2_x01_local.ps1`, which does so explicitly with `psql -v ON_ERROR_STOP=1 -f`
+and then reconciles the result. Seeding was switched off because `supabase migration down`
+silently reseeds mid-replay (it has no `--no-seed` of its own), which broke the CI rollback gate
+in 25 pgTAP files. Every pgTAP test builds its own permissions and workspaces and requires the
+unseeded state. Full rationale:
+[docs/architecture/cloud/03_seeding_and_golden_conventions.md](docs/architecture/cloud/03_seeding_and_golden_conventions.md).
+
 Backend-specific Flutter runs use `--dart-define` (never commit real values, see Environment below):
 ```
 flutter run --dart-define=NEXIMMO_ENV=local --dart-define=NEXIMMO_DATA_BACKEND=sqlite
@@ -195,7 +206,14 @@ tables — do not write ad hoc one-off migration scripts.
   `supabase_postgrest_authorization_integration_test.dart`. These need a running local Supabase
   stack (see Commands above), unlike the rest of `flutter test` which is self-contained.
 - `test/features/reference_slice/goldens/` — golden screenshots for phone/tablet/desktop
-  breakpoints of the reference slice; regenerate deliberately, not incidentally.
+  breakpoints of the reference slice, light and dark. **Linux is the canonical platform**: a golden
+  is a byte comparison and text rasterizes differently per OS, so the six golden tests skip off
+  Linux (`skip: !Platform.isLinux`) and CI is their only authority. Everything else in that file —
+  layout, overflow, behaviour — still runs everywhere. Never regenerate with a local
+  `--update-goldens`; push a `goldens/**` branch to run `.github/workflows/goldens.yml`, review the
+  uploaded `isolatedDiff` images to tell rasterization from a layout regression, then commit the
+  PNGs it produced. See
+  [docs/architecture/cloud/03_seeding_and_golden_conventions.md](docs/architecture/cloud/03_seeding_and_golden_conventions.md).
 - Prefer targeted `flutter test <path>` while iterating, but run the full suite plus
   `flutter analyze` before considering a change done — both are CI gates.
 

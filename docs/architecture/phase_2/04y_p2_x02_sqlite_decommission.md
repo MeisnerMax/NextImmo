@@ -73,6 +73,16 @@ Das löscht in einem Zug: 9 Legacy-Adapter, 6 Cutover-Mapper, den SQLite-Zweig
 in `app_backend_wiring.dart`, die `verify_p2_x01_*`-Skripte und den `AP4`-Rest —
 zusammen 5785 LOC und 14 Testdateien (gemessen 2026-08-06).
 
+> **Präzisiert am 2026-08-07 durch `cloud/02_ap_x02_2_legacy_adapter_audit.md`.**
+> Der Audit widerspricht diesem Bündel in einem Punkt: die **Dry-Run-Migrationsmapper**
+> (`sqlite_to_postgres_*`, 6492 LOC) hängen nicht am Laufzeitmodus — sie lesen eine
+> SQLite-Datei als Datei, werden nicht über `app_backend_wiring.dart` gebunden und kennen
+> `DataBackend` nicht. Sie bleiben (`KEEP`). Das **Cutover-Paket** (Gruppe C, 1860 LOC)
+> ist `DEFER`, bis die Nullmessung von `app_data.db` auf der Zielmaschine reproduziert
+> ist — Nachweis 7 lässt sich nicht durch Zitieren einer Messung vom 2026-08-04 aus einer
+> anderen Sitzung erbringen. Der Schnitt umfasst damit zunächst Gruppe A + B = 4111 LOC.
+> Die Reihenfolge steht als `AP-X02-2a`..`2d` im Audit §8.
+
 **Der Zeitpunkt ist der eigentliche Hebel.** Charter Z. 21 schreibt pro Domäne
 zwei Adapter vor (`legacy_sqlite_*` + `supabase_*`); die bisherigen Domänen
 haben entsprechend 399–931 LOC Legacy-Adapter je Domäne erzeugt. Laufen `D06`,

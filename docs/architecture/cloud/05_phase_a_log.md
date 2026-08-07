@@ -259,11 +259,112 @@ Access Token bleiben von den Default-Regeln vollständig abgedeckt.
 
 ---
 
+## 2026-08-07 · Zweiter Hosted-CI-Lauf (`ada10fb`) und `C-04`
+
+`verify` **success** — damit ist `C-01` hosted bestätigt, nicht nur lokal.
+`marketing` **success**. `supply_chain` **failure**, aber an anderer Stelle als zuvor:
+der Gitleaks-Schritt ist grün (die `.gitleaks.toml`-Allowlist greift, `C-03` geschlossen),
+gescheitert ist `npm audit --audit-level=high`.
+
+### `C-04` — High-Advisories in den Marketing-Abhängigkeiten
+
+**Schweregrad:** hoch · **vorbestehend:** ja (seit `3656e60`, 2026-07-18) ·
+**durch Phase A verursacht:** nein — der Job macht ihn beim ersten echten Lauf sichtbar
+
+| Paket | Version im Baum | Befund |
+|---|---|---|
+| `next` | `16.2.10` (exakt gepinnt) | **9 High-Advisories**: Middleware/Proxy-Bypass im App Router, DoS über Server Actions, SSRF in Server Actions und in Rewrites, zwei Cache-Confusion-Fälle, unbegrenzte Server-Action-Payload in der Edge-Runtime, DoS in der Image-Optimization-API über SVGs, unauthentifizierte Offenlegung interner Server-Function-Endpunkte |
+| `postcss` | `<=8.5.22` (transitiv) | XSS über unescaptes `</style>`, Pfad-Traversal und Arbitrary-File-Read über `sourceMappingURL` |
+| `sharp` | `<0.35.0` (transitiv) | geerbte libvips-CVEs (`CVE-2026-33327/33328/35590/35591`) |
+| `nanoid` | `<3.3.17` (transitiv) | Endlosschleife bei `size = 0` |
+
+`npm audit fix --force` will `next@16.3.0` installieren und meldet „outside the stated
+dependency range", weil `marketing/package.json` exakt auf `16.2.10` pinnt. Die drei
+transitiven Pakete lösen sich mit dem `next`-Upgrade auf.
+
+**Kein Fehlalarm.** Die Marketing-Seite ist öffentlich deployt; SSRF, Cache-Confusion und
+die Offenlegung interner Endpunkte sind für ein öffentlich erreichbares Next.js relevant.
+**Bis zur Freigabe nicht angefasst** — siehe Arbeitspaket im Bericht.
+
+### `C-05` — Zwei Guard-Skripte leaken einen Exit-Code an GitHub Actions
+
+**Schweregrad:** hoch · **vorbestehend:** ja · **durch Phase A verursacht:** nein ·
+**erstmals überhaupt in Hosted CI erreicht**
+
+Nachdem `C-02` Schritt 11 entsperrt hatte, kam der `database`-Job zum ersten Mal bis
+Schritt 24 und scheiterte dort:
+
+```
+P1-014 target guard tests passed.
+##[error]Process completed with exit code 1.
+```
+
+Das Skript **besteht** jede seiner Prüfungen und meldet das auch. Der Fehler liegt im
+Exit-Code.
+
+**Ursache.** `tool/test_p1_014_backup_restore_guard.ps1` prüft, dass unsichere
+Restore-Ziele und Schalterkombinationen **abgelehnt** werden. Dafür ruft es
+`verify_p1_014_backup_restore.ps1` als Kindprozess auf und erwartet einen
+Nicht-Null-Exit — zuletzt in Z. 49–54. `Write-Output` in Z. 56 setzt `$LASTEXITCODE`
+nicht zurück, also endet das Skript mit dem geleakten Code des absichtlich
+fehlgeschlagenen Kindprozesses. GitHubs `pwsh`-Shell hängt
+`if ((Test-Path -LiteralPath variable:\LASTEXITCODE)) { exit $LASTEXITCODE }` an und macht
+daraus einen Job-Fehler.
+
+**Lokal reproduziert:**
+
+| Aufruf | Exit |
+|---|---|
+| `pwsh -NoProfile -Command ". './tool/test_p1_014_backup_restore_guard.ps1'"` | **0** |
+| derselbe Aufruf **plus GitHubs angehängtem** `exit $LASTEXITCODE` | **1** (`LASTEXITCODE inside = 1`) |
+
+Deshalb war es lokal nie sichtbar: ohne den Wrapper leitet PowerShell `$LASTEXITCODE`
+nicht weiter.
+
+**Warum erst jetzt.** Der Schritt wurde in Hosted CI nie erreicht — auf `main` starb der
+Job seit 2026-07-18 bei Schritt 12 (`Test P1-004 concurrency`), auf diesem Branch bis
+`b3d613a` bei Schritt 11.
+
+**Zweiter betroffener Fall:** `tool/test_p1_021_performance_profile_guard.ps1` (Schritt 28)
+hat dieselbe Form — Schleife über absichtlich fehlschlagende Kindprozesse, danach
+`Write-Output`, kein `exit`. Er wäre als Nächstes gescheitert. Von 20 `tool/*.ps1` sind
+genau diese beiden betroffen; alle anderen enden auf einem erfolgreichen Kommando.
+
+**Auflösung:** je eine Zeile `exit 0` am Skriptende. Noch nicht ausgeführt — wartet auf
+Freigabe.
+
+---
+
+## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
+
+`cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
+Importeure, Composition-Root-Bindung, Backend-Zweig, Tests und Migrations-Abhängigkeit.
+
+Kernbefunde:
+
+- **Eine einzige Naht.** Alle produktiv gebundenen Legacy-Adapter hängen ausschließlich am
+  Zweig `case DataBackend.sqlite:` in `app_backend_wiring.dart:345–442`. Kein einziger
+  wird im Supabase-Zweig gebunden — Nachweis 1 ist damit strukturell erbracht.
+- **Zwei Adapter sind bereits tot** (`legacy_sqlite_membership_admin_*`,
+  `legacy_sqlite_property_*`): null `lib/`-Importeure, nur die eigene Testdatei.
+- **Abweichung von `04y` §3:** die Dry-Run-Mapper (6492 LOC) hängen nicht am
+  Laufzeitmodus und bleiben. Das Cutover-Paket ist `DEFER` bis zur reproduzierten
+  Nullmessung.
+- **Nebenbefund:** `app_backend_wiring.dart:114–116` behauptet, beide Backends läsen
+  Comparables aus dem Legacy-Store; Z. 322 bindet im Cloud-Zweig aber die werfende
+  Attrappe. `04y` §4 wiederholt den Fehler.
+
+`AP-X02-2` steht damit auf `audit done, execution pending`.
+
+---
+
 ## Offene Punkte am Ende dieses Blocks
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A |
+| 0 | `C-05` `exit 0` in den zwei Guard-Skripten | **BLOCKER**, Freigabe nötig | grüner `database`-Job, Merge von PR #1 |
+| 0a | `C-04` Marketing-Abhängigkeiten aktualisieren (`next` 16.2.10 → 16.3.0) | **BLOCKER**, Freigabe nötig | grüner `supply_chain`-Job, Merge von PR #1 |
+| 0b | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A, und blockiert `AP-X02-2b` |
 | 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
