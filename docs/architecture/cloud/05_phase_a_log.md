@@ -137,13 +137,84 @@ Insbesondere ändert dieser Worktree `.github/workflows/flutter.yml` und
 
 ---
 
+## 2026-08-07 · A3 (Fortsetzung) — erster Hosted-CI-Lauf, Triage
+
+PR [#1](https://github.com/MeisnerMax/NextImmo/pull/1) eröffnet. Erster Lauf: `marketing`
+grün, `Web App Deploy` grün (Preflight erkennt fehlende Secrets und überspringt korrekt),
+`verify`, `database` und `supply_chain` rot.
+
+### Korrektur an Befund `F-08` des Audits
+
+Die Annahme „für den Entwicklungshead existiert kein gehosteter Workflow-Lauf" ist
+**falsch, aber schlimmer als gedacht**: Hosted CI läuft auf `main` und ist dort seit
+**2026-07-18 durchgehend rot** — sechs aufeinanderfolgende Läufe, alle `failure`.
+Es fehlte also nicht der Lauf, sondern die Reaktion darauf.
+
+### C-01 — Sechs Golden-Tests des Reference Slice scheitern auf Linux
+
+**Schweregrad:** hoch · **vorbestehend:** ja · **durch Phase A verursacht:** nein
+
+`test/features/reference_slice/reference_slice_screen_test.dart`, je drei Breakpoints
+in hell und dunkel. Auf `main` scheiterten am 2026-07-18 dieselben drei Hell-Goldens;
+die drei Dunkel-Varianten kamen später dazu und scheitern genauso. Lokal auf Windows
+sind alle grün.
+
+Die Goldens wurden auf Windows erzeugt und liegen seit `3a7e5e8`/`25f6269` so im Baum.
+Schriftrasterung unterscheidet sich zwischen Windows und dem Linux-Runner, deshalb ist
+ein plattformübergreifend geteiltes Golden strukturell nicht haltbar.
+
+**Empfohlene Auflösung:** Goldens einmalig **auf Linux** neu erzeugen und CI zur
+Golden-Autorität machen — nicht erneut lokal regenerieren, das verschiebt den Fehler nur
+auf die andere Plattform. `CLAUDE.md` verlangt bewusstes, nicht beiläufiges Regenerieren;
+das ist hier erfüllt, sobald die Diff-Artefakte belegen, dass es reine Rasterung und kein
+Layout-Regress ist. Der dafür nötige Artefakt-Upload ist mit `9ba1ebc` eingebaut.
+
+### C-02 — Migration-Rollback-Replay stellt das Schema nicht sauber wieder her
+
+**Schweregrad:** hoch · **vorbestehend:** ja · **durch Phase A verursacht:** nein
+
+```
+ERROR: duplicate key value violates unique constraint "permissions_key_unique"
+DETAIL: Key (key)=(maintenance.read) already exists.
+```
+
+Nach den 27 `migration down`-Schritten und dem abschließenden `migration up` bricht der
+finale `supabase test db --local` in 25 Dateien ab (`Bad plan. You planned N but ran M`,
+`Failed: 0` — die Dateien sterben, sie scheitern nicht). Ursache: **die Down-Migrationen
+entfernen die von ihnen eingefügten `permissions`-Zeilen nicht.** Nach dem Replay
+existieren `lease.read`, `maintenance.read` und weitere doppelt, und die pgTAP-Dateien
+kollidieren beim eigenen Seed.
+
+Nach einem frischen `db reset` läuft alles grün — deshalb ist es bei den domänenweise
+lokal gefahrenen Gates nie aufgefallen. Genau diesen Fall soll der Replay fangen; er tut
+es, seit drei Wochen unbeachtet.
+
+**Auflösung:** betrifft Migrationslogik und ist damit nach `CLAUDE.md` explizit
+entscheidungspflichtig. Nicht ohne Freigabe angefasst.
+
+### C-03 — Gitleaks meldete fünf Funde (behoben)
+
+**Schweregrad:** niedrig · **durch Phase A verursacht:** ja (neuer Job)
+
+Alle fünf Fehlalarme: der Publishable Key des lokalen Stacks in `.claude/launch.json`,
+dieselbe Zeile zitiert im Audit-Dokument, und dreimal der Fixture-String
+`'monthly-2026-07'` neben einem Feld `generatedKey`.
+
+Behoben mit `9ba1ebc`: `.gitleaks.toml` mit drei eng gefassten Allowlist-Regexes,
+Zitat im Audit redigiert, PR-Kommentare deaktiviert (brauchen `pull-requests: write`,
+das der Workflow bewusst nicht vergibt). Service Role Key, Secret Key, DB-Passwort und
+Access Token bleiben von den Default-Regeln vollständig abgedeckt.
+
+---
+
 ## Offene Punkte am Ende dieses Blocks
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
 | 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung, evtl. Phase A selbst (berührt `flutter.yml` und `supabase/config.toml`) |
-| 1 | PR `cloud/foundation-stabilization` → `main` eröffnen und mergen | Nutzer | Hosted-CI-Nachweis, Abschluss A2/A3 |
-| 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer | A3 |
+| 1a | `C-01` Goldens auf Linux neu erzeugen | Freigabe nötig | grüner CI, Merge von PR #1 |
+| 1b | `C-02` Down-Migrationen um das Entfernen ihrer `permissions`-Zeilen ergänzen | Freigabe nötig (Migrationslogik) | grüner CI, Merge von PR #1 |
+| 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings) | A3 |
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
 | 4 | Interaktiver Golden-Path im sichtbaren Browser-Pane | gemeinsam | A5 |
 | 5 | Entscheidung Szenariovergleich | Nutzer | `AP-X02-5` |
