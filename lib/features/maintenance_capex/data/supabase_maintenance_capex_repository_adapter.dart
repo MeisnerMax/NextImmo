@@ -287,6 +287,26 @@ class SupabaseMaintenanceTicketRepositoryAdapter
     );
   }
 
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
+  searchWorkspace(WorkspaceMaintenanceTicketListQuery query) {
+    return _executeQuery<MaintenanceTicketSummaryDto>(
+      function: 'workspace_maintenance_tickets',
+      parameters: <String, Object?>{
+        'p_workspace_id': query.workspaceId,
+        'p_status': query.status == null
+            ? null
+            : _ticketStatusToWire[query.status!],
+        'p_priority': query.priority == null
+            ? null
+            : _ticketPriorityToWire[query.priority!],
+      },
+      parseRow: _parseMaintenanceTicketSummary,
+      workspaceId: query.workspaceId,
+      workspaceOf: (item) => item.workspaceId,
+    );
+  }
+
   // --- MaintenanceTicketRepository ---
 
   @override

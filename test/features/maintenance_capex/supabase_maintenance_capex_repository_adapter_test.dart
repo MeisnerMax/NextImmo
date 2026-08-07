@@ -354,6 +354,35 @@ void main() {
       expect(call.parameters['p_priority'], 'normal');
     });
 
+    test('searchWorkspace calls the workspace-wide RPC, no property needed', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <Map<String, dynamic>>[_ticketRow(), _ticketRow()],
+        };
+      final adapter = SupabaseMaintenanceTicketRepositoryAdapter.withGateway(
+        gateway,
+      );
+
+      final result = await adapter.searchWorkspace(
+        const WorkspaceMaintenanceTicketListQuery(
+          workspaceId: _workspaceId,
+          status: MaintenanceTicketStatus.newTicket,
+        ),
+      );
+
+      final tickets = (result
+              as MaintenanceCapexRepositorySuccess<
+                List<MaintenanceTicketSummaryDto>
+              >)
+          .value;
+      expect(tickets, hasLength(2));
+      final call = gateway.calls.single;
+      expect(call.function, 'workspace_maintenance_tickets');
+      expect(call.parameters.containsKey('p_property_id'), isFalse);
+      expect(call.parameters['p_status'], 'new');
+    });
+
     test('search surfaces a server-side forbidden as its own failure kind', () async {
       final gateway = _FakeGateway()
         ..rpcResponse = <String, dynamic>{

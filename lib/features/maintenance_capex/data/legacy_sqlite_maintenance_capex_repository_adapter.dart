@@ -374,6 +374,40 @@ class LegacySqliteMaintenanceTicketRepositoryAdapter
     }
   }
 
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
+  searchWorkspace(WorkspaceMaintenanceTicketListQuery query) async {
+    final failure = scopeFailure<List<MaintenanceTicketSummaryDto>>(
+      query.workspaceId,
+    );
+    if (failure != null) {
+      return failure;
+    }
+
+    try {
+      // Unlike the cloud RPC this replaces (which needed a dedicated
+      // workspace-wide RPC because the per-property one refuses a null
+      // property id), the legacy read source already scans every property
+      // when none is named — no equivalent backend gap exists locally.
+      final records = await source.listMaintenanceTickets();
+      final tickets = records.map(mapTicket).where((ticket) {
+        if (query.status != null && ticket.status != query.status) {
+          return false;
+        }
+        if (query.priority != null && ticket.priority != query.priority) {
+          return false;
+        }
+        return true;
+      }).toList(growable: false)
+        ..sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+      return MaintenanceCapexRepositorySuccess<
+        List<MaintenanceTicketSummaryDto>
+      >(tickets.map((ticket) => ticket.toSummary()).toList(growable: false));
+    } catch (_) {
+      return loadFailure<List<MaintenanceTicketSummaryDto>>();
+    }
+  }
+
   // --- MaintenanceTicketRepository ---
 
   @override

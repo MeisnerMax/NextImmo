@@ -61,6 +61,25 @@ class MaintenanceTicketListQuery {
   final MaintenanceTicketPriority? priority;
 }
 
+/// Lists tickets across every property in the workspace — backed by the
+/// P2-D06 follow-up RPC `workspace_maintenance_tickets`
+/// (`20260807100000_p2_d06_workspace_maintenance_tickets.sql`), added because
+/// the portfolio-wide maintenance screen (SCR-039) has no single property to
+/// scope [MaintenanceTicketListQuery] to. There is no workspace-wide
+/// equivalent for CapEx projects — every Wave 4 CapEx surface is
+/// property-scoped, so [CapexProjectListQuery] stays as it is.
+class WorkspaceMaintenanceTicketListQuery {
+  const WorkspaceMaintenanceTicketListQuery({
+    required this.workspaceId,
+    this.status,
+    this.priority,
+  });
+
+  final String workspaceId;
+  final MaintenanceTicketStatus? status;
+  final MaintenanceTicketPriority? priority;
+}
+
 /// Lists projects of exactly one property — `public.capex_projects` requires
 /// [propertyId], it is not optional server-side.
 class CapexProjectListQuery {
@@ -253,6 +272,13 @@ abstract interface class MaintenanceTicketRepository {
 abstract interface class MaintenanceTicketSearchPort {
   Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
   search(MaintenanceTicketListQuery query);
+
+  /// See [WorkspaceMaintenanceTicketListQuery] for why this exists alongside
+  /// [search] rather than making [MaintenanceTicketListQuery.propertyId]
+  /// optional: the two are backed by two different RPCs with different
+  /// permission-check ordering, not one RPC with an optional filter.
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
+  searchWorkspace(WorkspaceMaintenanceTicketListQuery query);
 }
 
 /// Project lifecycle. Reads are server-authorized on `capex.read`; mutations

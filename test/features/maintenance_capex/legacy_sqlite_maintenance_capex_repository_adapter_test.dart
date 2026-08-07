@@ -174,6 +174,43 @@ void main() {
       expect(_failure(result).kind, MaintenanceCapexRepositoryFailureKind.forbidden);
     });
 
+    test('searchWorkspace spans every property, no property id needed', () async {
+      final result = await tickets.searchWorkspace(
+        const WorkspaceMaintenanceTicketListQuery(workspaceId: _workspace),
+      );
+      expect(
+        _successList(result).map((t) => t.id),
+        containsAll(<String>['t1', 't-urgent', 't-closed', 't-b1']),
+      );
+    });
+
+    test('searchWorkspace filters by status and priority', () async {
+      final byStatus = await tickets.searchWorkspace(
+        const WorkspaceMaintenanceTicketListQuery(
+          workspaceId: _workspace,
+          status: MaintenanceTicketStatus.archived,
+        ),
+      );
+      expect(_successList(byStatus).map((t) => t.id), <String>['t-closed']);
+
+      final byPriority = await tickets.searchWorkspace(
+        const WorkspaceMaintenanceTicketListQuery(
+          workspaceId: _workspace,
+          priority: MaintenanceTicketPriority.urgent,
+        ),
+      );
+      expect(_successList(byPriority).map((t) => t.id), <String>['t-urgent']);
+    });
+
+    test('searchWorkspace answers forbidden for a foreign workspace', () async {
+      final result = await tickets.searchWorkspace(
+        const WorkspaceMaintenanceTicketListQuery(
+          workspaceId: _otherWorkspace,
+        ),
+      );
+      expect(_failure(result).kind, MaintenanceCapexRepositoryFailureKind.forbidden);
+    });
+
     test('every mutation answers dependencyConflict', () async {
       final create = await tickets.create(
         CreateMaintenanceTicketCommand(

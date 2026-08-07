@@ -259,6 +259,18 @@ void main() {
         );
         expect(searched.map((t) => t.id), contains(ticket.id));
 
+        // The workspace-wide read (P2-D06 follow-up) needs no property id at
+        // all and still finds the same ticket.
+        final workspaceSearched = _successList<MaintenanceTicketSummaryDto>(
+          await tickets.searchWorkspace(
+            const WorkspaceMaintenanceTicketListQuery(
+              workspaceId: workspaceId,
+              priority: MaintenanceTicketPriority.high,
+            ),
+          ),
+        );
+        expect(workspaceSearched.map((t) => t.id), contains(ticket.id));
+
         // --- CapEx projects (STM-007, AGG-009) ----------------------------
 
         final project = _success<CapexProjectDto>(
