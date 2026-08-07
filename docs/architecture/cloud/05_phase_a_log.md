@@ -333,6 +333,93 @@ genau diese beiden betroffen; alle anderen enden auf einem erfolgreichen Kommand
 **Auflösung:** je eine Zeile `exit 0` am Skriptende. Noch nicht ausgeführt — wartet auf
 Freigabe.
 
+### `C-05` gelöst · Lauf `31221978111`, Commit `6513351`
+
+Beide Guard-Skripte laufen über `Invoke-GuardCase`: Kindprozess ausführen, Exit-Code
+sofort sichern, gegen einen **explizit übergebenen** Erwartungswert prüfen, bei Abweichung
+`throw` (mit erwartetem und beobachtetem Code in der Meldung), erst danach
+`$global:LASTEXITCODE = 0`. Kein `exit` — die Skripte werden dot-sourced, ein `exit 0`
+würde den Host beenden und sie als Baustein unbrauchbar machen.
+
+Der Erwartungswert wird auf Gleichheit geprüft, nicht auf „ungleich null". Ein Kind, das
+aus anderem Grund fehlschlägt, bleibt damit ein Fehler statt als Ablehnung durchzugehen.
+Gemessen über alle 18 Fälle: Annahmepfade `exit 0` (explizit im Verifier),
+Ablehnungspfade `1` (`throw` unter `$ErrorActionPreference = 'Stop'`).
+
+| Probe | Erwartung | Ergebnis |
+|---|---|---|
+| Positiv P1-014 unter GitHubs Wrapper | 0 | 0 |
+| Positiv P1-021 unter GitHubs Wrapper | 0 | 0 |
+| Negativ A: gültiges Ziel in die Ungültig-Liste verschoben | ≠ 0 | 1 |
+| Negativ B: Erwartungswert auf einen nie gelieferten Code gesetzt | ≠ 0 | 1 |
+
+Manipulationen zurückgenommen, per `Get-FileHash` byteidentisch bestätigt.
+`flutter analyze` sauber, volle Suite 1476 grün / 24 Skips.
+
+**Wirkung:** die Schritte 24–29 des `database`-Jobs sind **erstmals überhaupt gelaufen**
+und alle grün — die vier P1-014-Backup-/Restore-/Crash-Recovery-Drills, der
+P1-021-Parameter-Guard und das P1-021-Kalibrierungsprofil.
+
+---
+
+## 2026-08-07 · `C-06` — Cutover-Schritt scheitert an Pfadsemantik
+
+**Schweregrad:** hoch · **vorbestehend:** ja · **durch Phase A verursacht:** nein ·
+**erstmals überhaupt in Hosted CI erreicht** · Schritt 30, Lauf `31221978111`
+
+```
+Unhandled exception:
+SqfliteFfiException(error, Bad state: file
+  /home/runner/work/NextImmo/NextImmo/.dart_tool/sqflite_common_ffi/databases/build/cutover_fixture.db
+  not found)
+```
+
+**Ursache: Erzeuger und Leser deuten denselben relativen Pfad verschieden.**
+Der Workflow ruft beide mit `build/cutover_fixture.db` auf (`flutter.yml:263–265`).
+
+| | Auflösung von `build/cutover_fixture.db` |
+|---|---|
+| `tool/generate_cutover_fixture.dart` | relativ zum **Arbeitsverzeichnis** → `…/NextImmo/build/cutover_fixture.db` ✔ geschrieben |
+| `tool/p2_x01_property_cutover.dart` über `sqflite_common_ffi` | relativ zum **Datenbankverzeichnis der Factory** → `…/.dart_tool/sqflite_common_ffi/databases/build/cutover_fixture.db` ✘ existiert nicht |
+
+Die Fixture wurde also korrekt erzeugt — das Log zeigt ihren Inhalt
+(`properties: 2, tenants: 2, units: 2, leases: 1, scenarios: 1`) — und danach am falschen
+Ort gesucht. Das PowerShell-Skript meldet daraufhin
+`Property dry run failed or is not import ready. Output:` mit leerer Ausgabe.
+
+**Nicht durch die Seeding-Änderung verursacht.** Das Log belegt das Gegenteil: die
+Cutover-Skripte erkennen den fehlenden Workspace und bootstrappen selbst
+(`Workspace or admin user missing; running the local bootstrap first.`,
+`verify_p2_x01_property_cutover.ps1:67–68`, `verify_p2_x01_domain_cutover.ps1:59–60`).
+Genau dafür ist der Zweig gebaut, und er hat funktioniert.
+
+**Warum erst jetzt.** Der CI-Schritt kam mit `4d0f892` (Wave 3 AP8) — einem Commit der
+lokalen `main`-Linie, die nie auf `origin/main` lag. Er ist damit nie in Hosted CI
+ausgeführt worden; in jedem früheren Lauf starb der Job vorher.
+
+**Nicht repariert** — wartet auf Freigabe.
+
+---
+
+## 2026-08-07 · Laufzeitprofil des `database`-Jobs
+
+| | |
+|---|---|
+| Gesamtlaufzeit | **16,0 min** (21:57:00 → 22:13:02 UTC) |
+| Timeout | 35 min |
+| Reserve | **19,0 min ≈ 54 %** |
+
+Teuerste Schritte: `11` Rollback-Replay 1,88 min · `6` Supabase-Start 1,85 min ·
+`13` P1-007 1,57 min · `21` P2-D05 1,27 min · `14` P1-011 0,93 min. Der Rest liegt
+jeweils unter einer Minute.
+
+**Keine Workflow-Aufteilung nötig.** Die Reserve liegt deutlich über der 20-%-Schwelle.
+Einschränkung: Schritt 30 brach früh ab; ein durchlaufender Cutover kostet schätzungsweise
+1–2 Minuten mehr, was die Reserve bei rund 50 % beließe. Empfehlung: nach dem ersten
+vollständig grünen Lauf erneut messen und erst bei unter 20 % über eine Aufteilung
+nachdenken — dann wäre `database` in `migrations+pgTAP` und `integration+drills` zu
+trennen, nicht ein Gate zu streichen.
+
 ---
 
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
@@ -362,8 +449,8 @@ Kernbefunde:
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 0 | `C-05` `exit 0` in den zwei Guard-Skripten | **BLOCKER**, Freigabe nötig | grüner `database`-Job, Merge von PR #1 |
-| 0a | `C-04` Marketing-Abhängigkeiten aktualisieren (`next` 16.2.10 → 16.3.0) | **BLOCKER**, Freigabe nötig | grüner `supply_chain`-Job, Merge von PR #1 |
+| 0 | `C-04` Marketing-Abhängigkeiten aktualisieren (`next` 16.2.10 → 16.3.0) | **BLOCKER**, Freigabe nötig | grüner `supply_chain`-Job, Merge von PR #1 |
+| 0a | `C-06` Pfadauflösung im Cutover-Schritt | **BLOCKER**, Freigabe nötig | grüner `database`-Job, Merge von PR #1 |
 | 0b | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A, und blockiert `AP-X02-2b` |
 | 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
