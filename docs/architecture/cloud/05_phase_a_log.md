@@ -163,11 +163,28 @@ Die Goldens wurden auf Windows erzeugt und liegen seit `3a7e5e8`/`25f6269` so im
 Schriftrasterung unterscheidet sich zwischen Windows und dem Linux-Runner, deshalb ist
 ein plattformübergreifend geteiltes Golden strukturell nicht haltbar.
 
-**Empfohlene Auflösung:** Goldens einmalig **auf Linux** neu erzeugen und CI zur
-Golden-Autorität machen — nicht erneut lokal regenerieren, das verschiebt den Fehler nur
-auf die andere Plattform. `CLAUDE.md` verlangt bewusstes, nicht beiläufiges Regenerieren;
-das ist hier erfüllt, sobald die Diff-Artefakte belegen, dass es reine Rasterung und kein
-Layout-Regress ist. Der dafür nötige Artefakt-Upload ist mit `9ba1ebc` eingebaut.
+**Gelöst (`b3d613a`).** Neuer Workflow `.github/workflows/goldens.yml`: lädt erst die
+Diffs als Artefakt hoch, regeneriert dann mit `--update-goldens` auf ubuntu und prüft
+abschließend, dass die neuen Bilder dort bestehen. Er triggert auf `goldens/**`-Pushes,
+weil GitHub `workflow_dispatch` nur für Dateien anbietet, die bereits auf dem
+Default-Branch liegen — dorthin kommt diese Datei erst, wenn CI grün ist, also genau
+das, was sie behebt.
+
+**Diff-Prüfung vor der Übernahme:** die `isolatedDiff`-Bilder zeigen ausschließlich
+Glyphenkanten und Text-Unterstriche; nichts ist verschoben, nichts fehlt. `masterImage`
+und `testImage` liegen in der Dateigröße um unter 100 Byte auseinander
+(z. B. 46488 vs. 46479). Damit ist belegt: Rasterung, kein Layout-Regress. Erst danach
+wurden die sechs PNGs ersetzt.
+
+**Plattform-Gate:** die Golden-Tests laufen jetzt nur noch auf Linux
+(`skip: !Platform.isLinux`). Ein Golden ist ein Byte-Vergleich; ihn gegen einen Renderer
+laufen zu lassen, der ihn nie erzeugt hat, schlägt aus Gründen fehl, die nichts über den
+Widget-Baum aussagen. Layout-, Overflow- und Verhaltenstests derselben Datei laufen
+weiterhin überall. Lokal auf Windows: 13 grün, 6 übersprungen; volle Suite
+**1476 grün / 24 Skips**.
+
+Wer sie künftig neu erzeugen muss, pusht einen `goldens/**`-Branch — **nie** lokal
+`--update-goldens`, das verschiebt die Diskrepanz nur auf die andere Plattform.
 
 ### C-02 — Migration-Rollback-Replay stellt das Schema nicht sauber wieder her
 
@@ -213,9 +230,19 @@ laut eigenem Kopf ein manuelles Bootstrap-Fixture, sein einziger Konsument
 `tool/verify_*.ps1`-Skripte sowie der CI-Job setzen ohnehin mit `--no-seed` zurück.
 Nichts hängt an automatischem Seeding.
 
-**Verifikation:** nach der Änderung bleibt `permissions` über `db reset --no-seed` und
-`migration down` hinweg bei 0, und die Zeile `Seeding data from supabase/seed.sql...`
-verschwindet.
+**Verifikation (`b3d613a`).** Nach der Änderung bleibt `permissions` über
+`db reset --no-seed` und `migration down` hinweg bei 0, und `Seeding data from
+supabase/seed.sql...` verschwindet. Anschließend wurde die **vollständige
+CI-Rollback-Sequenz lokal nachgefahren** — 27 Down-Schritte mit ihren Rollback-Tests,
+`migration up`, volle pgTAP-Suite:
+
+| | vorher | nachher |
+|---|---|---|
+| Ergebnis | `Result: FAIL` | **`Result: PASS`** |
+| Tests | 472 (25 Dateien sterben vorzeitig) | **1246** |
+| Seed-Ereignisse im Replay | 27 | **0** |
+
+**Keine Migrationsdatei wurde angefasst.**
 
 ### C-03 — Gitleaks meldete fünf Funde (behoben)
 
@@ -236,12 +263,13 @@ Access Token bleiben von den Default-Regeln vollständig abgedeckt.
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung, evtl. Phase A selbst (berührt `flutter.yml` und `supabase/config.toml`) |
-| 1a | `C-01` Goldens auf Linux neu erzeugen | Freigabe nötig | grüner CI, Merge von PR #1 |
-| 1b | `C-02` Down-Migrationen um das Entfernen ihrer `permissions`-Zeilen ergänzen | Freigabe nötig (Migrationslogik) | grüner CI, Merge von PR #1 |
-| 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings) | A3 |
+| 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A |
+| 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
+| 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
 | 4 | Interaktiver Golden-Path im sichtbaren Browser-Pane | gemeinsam | A5 |
 | 5 | Entscheidung Szenariovergleich | Nutzer | `AP-X02-5` |
-| 6 | `AP-X02-1`: Charter Z. 21 und `CLAUDE.md` an `DEC-024` angleichen | Umsetzung | `P2-X02` |
-| 7 | `DEC-015`..`DEC-017` entscheiden | Nutzer | Phase C, jede nicht-lokale Umgebung |
+| 6 | `DEC-015`..`DEC-017` entscheiden | Nutzer | Phase C, jede nicht-lokale Umgebung |
+
+**Erledigt seit der ersten Fassung dieser Liste:** `C-01` und `C-02` (beide `b3d613a`),
+`AP-X02-1` (`101325c` — Charter und `CLAUDE.md` an `DEC-024` angeglichen).
