@@ -81,6 +81,26 @@ void main() {
     );
   });
 
+  testWidgets('the object cell opens that property\'s maintenance panel', (
+    tester,
+  ) async {
+    final pushed = <String>[];
+    await _pump(
+      tester,
+      tickets: <MaintenanceTicketSummaryDto>[
+        _ticket('t1', status: MaintenanceTicketStatus.newTicket),
+      ],
+      onPushRoute: pushed.add,
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, _property));
+    await tester.pumpAndSettle();
+
+    // The property-scoped panel has no sidebar destination of its own, so
+    // this list is its only in-app entry point.
+    expect(pushed, <String>['/property-maintenance/$_property']);
+  });
+
   for (final size in const <Size>[
     Size(390, 844),
     Size(1024, 768),
@@ -106,6 +126,7 @@ Future<void> _pump(
   List<MaintenanceTicketSummaryDto> tickets = const <MaintenanceTicketSummaryDto>[],
   MaintenanceCapexRepositoryFailureKind? searchFailure,
   MaintenanceCapexRepositoryFailureKind? transitionFailure,
+  ValueChanged<String>? onPushRoute,
   Size size = const Size(1400, 900),
 }) async {
   tester.view.physicalSize = size;
@@ -136,7 +157,16 @@ Future<void> _pump(
           (ref) => _FakeReferenceSliceController(),
         ),
       ],
-      child: const MaterialApp(home: Scaffold(body: MaintenanceTicketsPanel())),
+      child: MaterialApp(
+        home: const Scaffold(body: MaintenanceTicketsPanel()),
+        onGenerateRoute: (settings) {
+          onPushRoute?.call(settings.name ?? '');
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => const Scaffold(body: SizedBox.shrink()),
+          );
+        },
+      ),
     ),
   );
   await tester.pumpAndSettle();

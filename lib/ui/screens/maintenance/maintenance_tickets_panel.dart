@@ -20,6 +20,7 @@ import '../../../features/reference_slice/application/reference_slice_controller
 import '../../components/nx_card.dart';
 import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
+import '../../navigation/app_navigation.dart';
 import 'widgets/maintenance_capex_badges.dart';
 
 class MaintenanceTicketsPanel extends ConsumerStatefulWidget {
@@ -121,6 +122,13 @@ class _MaintenanceTicketsPanelState
           canMutate: controller.canMutate,
           onTransition: (ticket, target) =>
               _transition(controller, ticket, target),
+          // The property-scoped panel (tickets + CapEx for one object) has no
+          // sidebar destination of its own — it is object-scoped. This list is
+          // its in-app entry point: a ticket names an object, so opening that
+          // object's maintenance surface from here is the natural move.
+          onOpenProperty: (propertyId) => Navigator.of(
+            context,
+          ).pushNamed(propertyMaintenanceRouteFor(propertyId)),
         );
     }
   }
@@ -287,6 +295,7 @@ class _TicketsTable extends StatelessWidget {
     required this.properties,
     required this.canMutate,
     required this.onTransition,
+    required this.onOpenProperty,
   });
 
   final List<MaintenanceTicketSummaryDto> tickets;
@@ -294,6 +303,7 @@ class _TicketsTable extends StatelessWidget {
   final bool canMutate;
   final void Function(MaintenanceTicketSummaryDto ticket, MaintenanceTicketStatus target)
   onTransition;
+  final ValueChanged<String> onOpenProperty;
 
   String _propertyName(String propertyId) {
     return properties
@@ -320,7 +330,12 @@ class _TicketsTable extends StatelessWidget {
           for (final ticket in tickets)
             DataRow(
               cells: <DataCell>[
-                DataCell(Text(_propertyName(ticket.propertyId))),
+                DataCell(
+                  TextButton(
+                    onPressed: () => onOpenProperty(ticket.propertyId),
+                    child: Text(_propertyName(ticket.propertyId)),
+                  ),
+                ),
                 DataCell(Text(ticket.title)),
                 DataCell(MaintenanceTicketStatusBadge(status: ticket.status)),
                 DataCell(MaintenanceTicketPriorityBadge(priority: ticket.priority)),
