@@ -33,6 +33,7 @@ import 'dart:io';
 import 'package:neximmo_app/features/portfolio_property/application/reference_migration_dry_run.dart';
 import 'package:neximmo_app/features/portfolio_property/data/sqlite_reference_migration_source_adapter.dart';
 import 'package:neximmo_app/features/portfolio_property/data/sqlite_to_postgres_reference_dry_run_mapper.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// The target columns, in the order the generated statement uses them. Kept
@@ -97,16 +98,30 @@ Future<int> main(List<String> args) async {
     return 64;
   }
 
-  final source = File(options['database']!);
+  // `--database` is a filesystem path and has to be resolved as one *before* it
+  // reaches sqflite, which resolves a relative database path against its own
+  // default database directory rather than the working directory. Leaving it
+  // relative made the two disagree: existsSync() below resolved it against the
+  // working directory and passed, then openDatabase looked somewhere else and
+  // failed on a path nobody had supplied.
+  // generate_cutover_fixture.dart already writes through File(...).absolute for
+  // exactly this reason; the reading side was never aligned with it.
+  final requestedDatabasePath = options['database']!;
+  final databasePath = p.normalize(p.absolute(requestedDatabasePath));
+  final source = File(databasePath);
   if (!source.existsSync()) {
-    stderr.writeln('Source database not found: ${source.path}');
+    stderr.writeln(
+      'Source database not found.\n'
+      '  requested: $requestedDatabasePath\n'
+      '  resolved:  $databasePath',
+    );
     return 66;
   }
 
   sqfliteFfiInit();
   // readOnly is the guarantee that this tool cannot mutate the legacy core.
   final database = await databaseFactoryFfi.openDatabase(
-    source.path,
+    databasePath,
     options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
   );
 

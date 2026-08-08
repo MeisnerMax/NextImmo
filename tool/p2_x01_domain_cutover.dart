@@ -23,6 +23,7 @@ import 'dart:io';
 import 'package:neximmo_app/features/legacy_cutover/application/legacy_cutover.dart';
 import 'package:neximmo_app/features/legacy_cutover/data/legacy_cutover_planner.dart';
 import 'package:neximmo_app/features/legacy_cutover/data/sqlite_legacy_cutover_source_adapter.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Target table shape per entity, in apply order. Columns are explicit so a
@@ -217,15 +218,25 @@ Future<int> main(List<String> args) async {
     return 64;
   }
 
-  final source = File(options['database']!);
+  // Same resolution as p2_x01_property_cutover.dart: `--database` is a
+  // filesystem path, but sqflite resolves a relative database path against its
+  // own default database directory. Resolving here keeps existsSync() and
+  // openDatabase talking about the same file.
+  final requestedDatabasePath = options['database']!;
+  final databasePath = p.normalize(p.absolute(requestedDatabasePath));
+  final source = File(databasePath);
   if (!source.existsSync()) {
-    stderr.writeln('Source database not found: ${source.path}');
+    stderr.writeln(
+      'Source database not found.\n'
+      '  requested: $requestedDatabasePath\n'
+      '  resolved:  $databasePath',
+    );
     return 66;
   }
 
   sqfliteFfiInit();
   final database = await databaseFactoryFfi.openDatabase(
-    source.path,
+    databasePath,
     options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
   );
 
