@@ -1,8 +1,13 @@
 # `AP-X02-2` — Bestandsaufnahme Legacy-Adapter vor jeder Löschung
 
-Stand: 2026-08-07 · Commit `ada10fb` · Branch `cloud/foundation-stabilization`
-Status: **Audit abgeschlossen, keine Datei gelöscht, keine Datei geändert.**
+Audit: 2026-08-07 · Commit `ada10fb` · Ausführung `AP-X02-2a`: 2026-08-08 auf `main` (`2236a96`)
+Status: **`AP-X02-2a` DONE · `AP-X02-2b` OPEN**
 Entscheidungsgrundlage: `DEC-024` · Plan: `phase_2/04y_p2_x02_sqlite_decommission.md`
+
+> **SQLite ist damit ausdrücklich noch nicht aus der Laufzeit entfernt.** Entfernt wurde
+> ausschließlich Gruppe B — zwei Adapter, die schon vor dieser Änderung an keinem
+> Laufzeitpfad hingen. Die sieben Adapter der Gruppe A und der `DataBackend.sqlite`-Zweig in
+> `app_backend_wiring.dart` stehen unverändert im Baum.
 
 `DEC-024` erlaubt die Entfernung. Es beweist sie nicht. Dieses Dokument liefert je Artefakt
 die Evidenz, die vor einer Löschung vorliegen muss, und **weicht in einem Punkt bewusst von
@@ -80,6 +85,50 @@ Verifiziert per `git grep -l <Klassenname>`: je zwei Treffer, die eigene Datei u
 Diese beiden sind unabhängig von `DataBackend.sqlite` löschbar — sie sind schon heute
 an keinem Laufzeitpfad. Sie eignen sich als **erster, risikoärmster Schritt**, mit dem
 sich das Vorgehen validieren lässt, bevor die Composition Root angefasst wird.
+
+### `AP-X02-2a` ausgeführt am 2026-08-08
+
+Re-Audit gegen den integrierten `main` (`2236a96`), nicht gegen den Auditstand vom 07.08.:
+
+| Adapter | Runtime-Refs | Migrations-Refs | Test-Refs | Entscheidung |
+|---|---|---|---|---|
+| `LegacySqliteMembershipAdminRepositoryAdapter` | **0** | **0** | 1 (nur eigener Test) | **REMOVE** |
+| `LegacySqlitePropertyRepositoryAdapter` | **0** | **0** | 1 (nur eigener Test) | **REMOVE** |
+
+Runtime-Nachweis: keiner der beiden erscheint in `app_backend_wiring.dart`, `main.dart`,
+`app_state.dart` oder `app.dart`. Die Composition Root bindet dort **elf andere**
+`LegacySqlite*`-Klassen — die zwei sind nicht darunter. Migrations-Nachweis: null Treffer in
+`lib/features/legacy_cutover/`, `tool/` und den `sqlite_*`-Dateien.
+
+**Entfernt (767 LOC):**
+
+| Datei | LOC |
+|---|---|
+| `lib/features/identity_access/data/legacy_sqlite_membership_admin_repository_adapter.dart` | 211 |
+| `lib/features/portfolio_property/data/legacy_sqlite_property_repository_adapter.dart` | 157 |
+| `test/features/identity_access/legacy_sqlite_membership_admin_repository_adapter_test.dart` | 191 |
+| `test/features/portfolio_property/legacy_sqlite_property_repository_adapter_test.dart` | 208 |
+
+**Warum die Tests mitgehen, ohne dass Abdeckung verloren geht.** Beide charakterisieren
+ausschließlich das Verhalten *des toten Adapters* (Mapping der lokalen Nutzer, leere
+Invitation-Fläche, `dependencyConflict` bei jeder Mutation) — es gibt danach nichts mehr,
+was sie beschreiben könnten. Die eine Invariante mit eigenständigem Wert, das
+fail-closed-Verhalten bei fremdem Workspace, ist im produktiven Pfad unabhängig abgedeckt:
+`supabase_membership_admin_repository_adapter_test.dart` (608 LOC) prüft
+„rejects a member row from a foreign workspace" und „rejects a directory entry from a
+foreign workspace", `supabase_property_repository_adapter_test.dart` (329 LOC) das
+`forbidden`-Mapping. Und `property_repository_contract_test.dart` (195 LOC) testet den
+Contract implementierungsunabhängig — **null** `LegacySqlite`-Referenzen, es war also nie
+an den gelöschten Adapter gebunden.
+
+**Evidenz:** `flutter analyze --no-pub` sauber · volle Suite **1464 grün / 24 Skips**
+(vorher 1476; die Differenz von 12 sind exakt die Fälle der zwei gelöschten Testdateien) ·
+beide Web-Builds des `verify`-Jobs grün, auch der mit gesetzten Cloud-Dart-Defines ·
+`git grep` findet die Klassennamen nirgends mehr, die Dateinamen nur noch in drei
+Dokumentationszeilen.
+
+**Nicht angefasst:** die sieben Gruppe-A-Adapter, `DataBackend.sqlite`, die Composition
+Root, das Cutover-Paket, die Dry-Run-Mapper und `legacy_comps_comparable_source.dart`.
 
 ---
 
