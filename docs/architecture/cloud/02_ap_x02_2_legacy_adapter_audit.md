@@ -1,13 +1,74 @@
 # `AP-X02-2` — Bestandsaufnahme Legacy-Adapter vor jeder Löschung
 
-Audit: 2026-08-07 · Commit `ada10fb` · Ausführung `AP-X02-2a`: 2026-08-08 auf `main` (`2236a96`)
-Status: **`AP-X02-2a` DONE · `AP-X02-2b` OPEN**
+Audit: 2026-08-07 (`ada10fb`) · `AP-X02-2a`: 2026-08-08 (`2236a96`) · `AP-X02-2b`: 2026-08-08 (`bdb516d`)
+Status: **`AP-X02-2a` DONE · `AP-X02-2b` DONE**
 Entscheidungsgrundlage: `DEC-024` · Plan: `phase_2/04y_p2_x02_sqlite_decommission.md`
 
-> **SQLite ist damit ausdrücklich noch nicht aus der Laufzeit entfernt.** Entfernt wurde
-> ausschließlich Gruppe B — zwei Adapter, die schon vor dieser Änderung an keinem
-> Laufzeitpfad hingen. Die sieben Adapter der Gruppe A und der `DataBackend.sqlite`-Zweig in
-> `app_backend_wiring.dart` stehen unverändert im Baum.
+> **SQLite removed as an application runtime backend; retained only where explicitly required
+> for migration/cutover/legacy tooling and test parity.**
+
+### Korrektur am 2026-08-08: dieses Dokument hatte einen Fehler
+
+Für Gruppe A stand hier „Migrations-Refs: **keine**". Das war **falsch**. Die damalige Suche
+deckte nur `lib/features/legacy_cutover/`, `tool/` und die `sqlite_*`-Dateien ab — **nicht** die
+`sqlite_to_postgres_*`-Dry-Run-Mapper und **nicht** die Integrationstests. Der Re-Audit von
+`AP-X02-2b` fand dort zwei zuvor übersehene Non-Runtime-Abhängigkeiten:
+
+* `LegacySqliteDocumentRepositoryAdapter` → `sqlite_to_postgres_documents_compliance_dry_run_mapper.dart`
+  ruft an zwei Stellen die statische `typeKeyFor(...)`-Normalisierung auf.
+* `LegacySqliteOperationsSignalsAdapter` → `supabase_operations_signals_integration_test.dart`
+  nutzt ihn als lokale Vergleichsimplementierung für den Paritätsnachweis, den der CI-Job
+  `database` über `verify_p2_d05a_integration.ps1` fährt.
+
+Beide bleiben deshalb erhalten — als **Non-Runtime-Support**, nicht als Backend. Die
+ursprüngliche Zielformulierung „sieben Adapterdateien gelöscht" war zu stark und ist durch das
+tatsächliche Kriterium ersetzt: **Runtime-Erreichbarkeit**, nicht physische Existenz.
+
+### Ergebnis `AP-X02-2b`
+
+| Adapter | App-Runtime vorher | Migration | Test-Parität | Entscheidung |
+|---|---|---|---|---|
+| Party | ja | nein | nur eigener Test | **REMOVE** |
+| Documents | ja | **ja** | nur eigener Test | **KEEP FILE / REMOVE FROM RUNTIME** |
+| Leasing | ja | nein | nur eigener Test | **REMOVE** |
+| Operations Signals | ja | nein | **ja** | **KEEP FILE / REMOVE FROM RUNTIME** |
+| Maintenance/CapEx | ja | nein | nur eigener Test | **REMOVE** |
+| Platform/Audit/Jobs | ja | nein | nur eigener Test | **REMOVE** |
+| Valuation | ja | nein | nur eigener Test | **REMOVE** |
+
+**Physisch entfernt: 5817 Zeilen** (physische Dateizeilen, `git show HEAD:<file> | wc -l`) —
+3016 Adapter- und 2801 Testzeilen. Git-Diff des Pakets: **+425 / −6970** über 17 Dateien.
+
+| Datei | Zeilen |
+|---|---|
+| `contacts_parties/data/legacy_sqlite_party_repository_adapter.dart` | 477 |
+| `leasing_operations/data/legacy_sqlite_leasing_repository_adapter.dart` | 813 |
+| `maintenance_capex/data/legacy_sqlite_maintenance_capex_repository_adapter.dart` | 541 |
+| `platform_audit_jobs/data/legacy_sqlite_platform_repository_adapter.dart` | 786 |
+| `valuation/data/legacy_sqlite_valuation_repository_adapter.dart` | 399 |
+| die fünf zugehörigen Testdateien | 2801 |
+
+### Drei Klassen ab jetzt
+
+| Klasse | Bedeutung | aktuell |
+|---|---|---|
+| **REMOVE** | Legacy-Implementierung vollständig entbehrlich | die fünf oben |
+| **KEEP — NON-RUNTIME SUPPORT** | bleibt für Migration/Cutover/Test-Parität, **nicht** app-runtime-erreichbar | Documents, Operations Signals |
+| **DEFER** | fachliche Migration fehlt noch | `legacy_comps_comparable_source.dart` |
+
+### Nebenbefunde aus dem Re-Audit
+
+**Provider-Superset.** Vor der Änderung band der Supabase-Zweig **33** Provider, der
+SQLite-Zweig **28**, und **kein einziger** Provider war ausschließlich im SQLite-Zweig gebunden.
+Die fünf Mehr-Bindungen waren die Realtime-Invalidierungen ohne lokales Gegenstück. Im
+Endzustand sind es unverändert 33 plus `cloudValuationComparableSourceOverride` — kein aktuell
+konsumierter Port bleibt ungebunden.
+
+**Platform-Ports.** `platform_providers.dart` exponiert **nur** `taskRepositoryProvider`.
+`NotificationPort`, `JobRepository` und `SearchIndexPort` sind in beiden Adapterklassen
+implementiert, aber nie an Riverpod gebunden — nichts liest sie. Das Entfernen des
+Platform-Legacy-Adapters war deshalb zulässig. Es bedeutet **nicht**, dass diese drei
+Capabilities fachlich fertig sind; ihr Backlog-Status bleibt unverändert.
 
 `DEC-024` erlaubt die Entfernung. Es beweist sie nicht. Dieses Dokument liefert je Artefakt
 die Evidenz, die vor einer Löschung vorliegen muss, und **weicht in einem Punkt bewusst von

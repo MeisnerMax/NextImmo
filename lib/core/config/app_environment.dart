@@ -1,6 +1,13 @@
 enum NexImmoEnvironment { local, staging, production }
 
-enum DataBackend { sqlite, supabase }
+/// Supabase is the only application runtime backend (`DEC-024`, AP-X02-2b).
+///
+/// The enum keeps a single member on purpose rather than disappearing:
+/// `NEXIMMO_DATA_BACKEND` stays a deployment safety guard, so every build must
+/// still state which backend it was configured for. A binary that was built
+/// without that define, or with the retired `sqlite` value, refuses to start
+/// instead of quietly assuming Supabase.
+enum DataBackend { supabase }
 
 class AppEnvironment {
   const AppEnvironment({
@@ -24,31 +31,33 @@ class AppEnvironment {
       throw StateError('NEXIMMO_ENV is missing or invalid.');
     }
 
+    // `sqlite` no longer parses: it is not a member any more, so the retired
+    // value fails here exactly like a missing or unknown one.
     final parsedBackend =
         DataBackend.values
             .where((value) => value.name == dataBackend)
             .firstOrNull;
     if (parsedBackend == null) {
-      throw StateError('NEXIMMO_DATA_BACKEND is missing or invalid.');
+      throw StateError(
+        'NEXIMMO_DATA_BACKEND is missing or invalid; only "supabase" is supported.',
+      );
     }
 
     final normalizedUrl = supabaseUrl.trim();
     final normalizedKey = supabasePublishableKey.trim();
-    if (parsedBackend == DataBackend.supabase) {
-      final uri = Uri.tryParse(normalizedUrl);
-      if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-        throw StateError('SUPABASE_URL is missing or invalid.');
-      }
-      if (normalizedKey.isEmpty) {
-        throw StateError('SUPABASE_PUBLISHABLE_KEY is missing.');
-      }
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+      throw StateError('SUPABASE_URL is missing or invalid.');
+    }
+    if (normalizedKey.isEmpty) {
+      throw StateError('SUPABASE_PUBLISHABLE_KEY is missing.');
     }
 
     return AppEnvironment(
       environment: parsedEnvironment,
       dataBackend: parsedBackend,
-      supabaseUrl: normalizedUrl.isEmpty ? null : normalizedUrl,
-      supabasePublishableKey: normalizedKey.isEmpty ? null : normalizedKey,
+      supabaseUrl: normalizedUrl,
+      supabasePublishableKey: normalizedKey,
     );
   }
 

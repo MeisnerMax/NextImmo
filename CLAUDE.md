@@ -63,9 +63,8 @@ in 25 pgTAP files. Every pgTAP test builds its own permissions and workspaces an
 unseeded state. Full rationale:
 [docs/architecture/cloud/03_seeding_and_golden_conventions.md](docs/architecture/cloud/03_seeding_and_golden_conventions.md).
 
-Backend-specific Flutter runs use `--dart-define` (never commit real values, see Environment below):
+Flutter runs use `--dart-define` (never commit real values, see Environment below):
 ```
-flutter run --dart-define=NEXIMMO_ENV=local --dart-define=NEXIMMO_DATA_BACKEND=sqlite
 flutter run --dart-define=NEXIMMO_ENV=local --dart-define=NEXIMMO_DATA_BACKEND=supabase \
   --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 ```
@@ -94,10 +93,13 @@ before considering Supabase-related work done.
 
 See [docs/architecture/phase_1/01_environment_contract.md](docs/architecture/phase_1/01_environment_contract.md).
 
-- `NEXIMMO_ENV` (`local`/`staging`/`production`) and `NEXIMMO_DATA_BACKEND` (`sqlite`/`supabase`)
-  are required and **fail closed** on missing/unknown values — see
+- `NEXIMMO_ENV` (`local`/`staging`/`production`) and `NEXIMMO_DATA_BACKEND` are required and
+  **fail closed** on missing/unknown values — see
   [lib/core/config/app_environment.dart](lib/core/config/app_environment.dart). There is no
   implicit fallback between environments or backends.
+- **`NEXIMMO_DATA_BACKEND=supabase` is the only accepted value** since AP-X02-2b. The define stays
+  as a deployment safety guard so every build states which backend it was configured for; a missing,
+  empty, unknown or retired `sqlite` value refuses to start rather than assuming Supabase.
 - Only `NEXIMMO_ENV`, `NEXIMMO_DATA_BACKEND`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` may reach
   the Flutter client (via `--dart-define`).
 - `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`,
@@ -110,13 +112,18 @@ See [docs/architecture/phase_1/01_environment_contract.md](docs/architecture/pha
 
 ## Architecture
 
-### Two coexisting data layers
+### One runtime data layer, plus legacy code that is no longer reachable from it
 
-- `lib/core/`, `lib/data/repositories/`, `lib/data/sqlite/` — the original, larger local-first
-  application: deterministic engines (valuation, finance, criteria, offer solver, reports, quality,
-  operations, audit, notifications, versioning, security) plus SQLite-backed repositories consumed
-  directly by `lib/ui/screens/*`. This is most of the app today and is being migrated feature-by-
-  feature, not rewritten wholesale.
+**Supabase is the only application runtime backend** (AP-X02-2b). `lib/main.dart` opens no local
+database, `lib/app.dart` has no SQLite security/routing mode, and `lib/app_backend_wiring.dart`
+binds Supabase adapters only. `test/app_runtime_guard_test.dart` enforces that boundary — it
+forbids SQLite wiring in those three files, not SQLite code as such.
+
+- `lib/core/`, `lib/data/repositories/`, `lib/data/sqlite/` — the original local-first application:
+  deterministic engines (valuation, finance, criteria, offer solver, reports, quality, operations,
+  audit, notifications, versioning, security) plus SQLite-backed repositories, still consumed by the
+  not-yet-migrated `lib/ui/screens/*`. It remains in the repository for migration, cutover, dry runs,
+  backup/restore and test parity; its physical removal is a later step (`04y` Strom C).
 - `lib/features/<feature>/{domain,application,data}/` — the new target-architecture pattern used
   for features that have been migrated. Each feature defines:
   - `domain/` — DTOs (e.g. `property_dto.dart`).
