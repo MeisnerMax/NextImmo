@@ -530,6 +530,91 @@ weiterhin nach 0,13 min ab; ein durchlaufender Cutover kostet 1–2 min mehr.
 
 ---
 
+## 2026-08-08 · `C-06` gelöst — erster vollständig grüner Hosted-CI-Lauf
+
+Commit `a3169d8`, Lauf `31246576387`. **`verify`, `supply_chain`, `marketing`, `database`
+und `Web App Deploy` alle PASS.** Alle 31 Schritte des `database`-Jobs liefern erstmals
+ein Ergebnis, und alle sind grün.
+
+**Ursache.** Beide Cutover-Tools bauten `File(cliPfad)` und reichten `.path` direkt an
+`databaseFactoryFfi.openDatabase`. Damit widersprachen sich zwei Auflösungen: `existsSync()`
+löst relativ gegen das Working Directory auf und meldete `true`, sqflite löst relativ gegen
+sein **eigenes** Datenbankverzeichnis auf und suchte unter
+`.dart_tool/sqflite_common_ffi/databases/build/cutover_fixture.db`. Der vorhandene
+Fail-Fast-Check gab dadurch falsche Sicherheit, und der Fehler erschien verkleidet als
+Datenbankfehler.
+
+`generate_cutover_fixture.dart` Z. 51–55 kennt genau diese Falle und löst sie über
+`File(output).absolute` — **die Leseseite wurde nie angeglichen.**
+
+**Semantik jetzt.** `--database` wird einmal am Tool-Eingang über `package:path`
+(bereits direkte Abhängigkeit) zu einem absoluten, normalisierten Dateisystempfad
+aufgelöst: relativ gegen das Working Directory, absolut unverändert. Alles danach nutzt
+nur diesen Pfad. Die Not-Found-Meldung nennt angeforderten **und** aufgelösten Pfad.
+
+Beide Tools sind eigenständige CLI-Einstiegspunkte, die die Quelle selbst öffnen — der
+Domain-Cutover ruft den Property-Cutover **nicht** auf —, deshalb beide identisch
+repariert. Kein neuer Helper für zwei Aufrufstellen in zwei Standalone-Skripten.
+
+**Lokale Nachweise.**
+
+| Fall | Ergebnis |
+|---|---|
+| A relativer Pfad | beide Cutover laufen vollständig durch, Exit 0 |
+| B absoluter Pfad | **identische** Manifest-Checksummen (`bb782d2c…`, `e440c3f0…`) — beide Formen lösen auf dieselbe Datei auf |
+| C fehlende Datei | klare Meldung mit angefordertem und aufgelöstem Pfad; **keine** Datenbank irgendwo erzeugt; Exit-Code siehe `C-07` |
+| D voller Cutover | Property: 2 Quellzeilen, 2 gemappt, 0 abgelehnt, 2 reconciled, idempotent. Domain: 2 Parties, 2 PartyRoles, 2 Units, 1 Lease, 1 ValuationCase, 0 verwaiste Referenzen, idempotent |
+| Gegenprobe | Zurücksetzen der zwei Dateien reproduziert lokal **dieselbe** CI-Fehlermeldung; Wiederherstellen behebt sie |
+
+**Methodischer Hinweis:** im sqflite-Verzeichnis lag eine Altkopie der Fixture vom
+2026-08-05. Ohne sie zu entfernen hätte Fall A **aus dem falschen Grund** bestanden. Nach
+dem Löschen bestand er weiterhin, und es entstand keine neue Kopie — erst das belegt die
+Auflösung gegen das Working Directory.
+
+Regression: `flutter analyze` sauber, gezielte Cutover-/Mapper-Tests 57 grün, volle Suite
+1476 grün / 24 Skips.
+
+### `C-07` — Rückgabewert von `main` erreicht den Prozess nicht
+
+**Schweregrad:** mittel · **vorbestehend:** ja · **nicht repariert** (eigener Befund,
+gehört nicht in einen isolierten `C-06`-Commit)
+
+Dart ignoriert den Rückgabewert von `main`. Die drei `tool/*.dart`-Programme geben
+`64` (Argumentfehler), `65` (nicht import-ready) und `66` (Quelle fehlt) zurück, der
+Prozess endet aber immer mit `0`. Belegt durch einen Aufruf ganz ohne Argumente:
+`return 64` → Exit **0**.
+
+Die `verify_p2_x01_*`-Wrapper prüfen jedoch `$LASTEXITCODE -ne 0`. In CI hat bisher
+ausschließlich die **unbehandelte Exception** den Prozess mit ≠ 0 beendet; die geplanten
+Fehlercodes sind tot.
+
+Die Kette schließt heute trotzdem fail-closed, aber erst über eine spätere Prüfung im
+Wrapper (`production_import_ready`), nicht über den Exit-Code. Damit ist Fall C nur
+teilweise erfüllt: Meldung ✓, keine erzeugte Datenbank ✓, Exit ≠ 0 ✗.
+
+**Auflösung (Vorschlag, nicht ausgeführt):** in allen drei Tools `exitCode` setzen statt
+sich auf den `main`-Rückgabewert zu verlassen, plus je eine Negativprobe.
+
+---
+
+## 2026-08-08 · Laufzeitprofil des vollständig grünen `database`-Jobs
+
+| | |
+|---|---|
+| Gesamtlaufzeit | **16,4 min** |
+| Timeout | 35 min |
+| **Reserve** | **18,6 min ≈ 53 %** |
+| Schritt 30 | 0,20 min (läuft jetzt vollständig durch statt nach 0,13 min abzubrechen) |
+
+Teuerste fünf Schritte: `6` Supabase-Start 1,90 · `11` Rollback-Replay 1,90 ·
+`13` P1-007 1,68 · `21` P2-D05 1,28 · `14` P1-011 0,92 min.
+
+Reserve deutlich über der 20-%-Schwelle. **Keine Workflow-Aufteilung, kein
+Performance-Issue.** Die Messung ist jetzt belastbar, weil erstmals alle Schritte
+vollständig durchlaufen sind.
+
+---
+
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
 
 `cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
@@ -557,7 +642,8 @@ Kernbefunde:
 
 | # | Punkt | Zuständig | Blockiert |
 |---|---|---|---|
-| 0 | `C-06` Pfadauflösung im Cutover-Schritt | **BLOCKER**, Freigabe nötig | letzter roter Schritt; grüner `database`-Job, Merge von PR #1 |
+| 0 | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | **HIGH** | `AP-X02-2b`; berührt `flutter.yml` und `supabase/config.toml` |
+| 0b | `C-07` Exit-Codes der drei `tool/*.dart` setzen statt zurückgeben | MEDIUM | Fail-Fast wirkt erst dann über den Exit-Code |
 | 0b | Ungesicherte Arbeit im Worktree `codex-ai-ph00-baseline` sichten und entscheiden | Nutzer | Worktree-Bereinigung; berührt `flutter.yml` und `supabase/config.toml`, also dieselben Dateien wie Phase A, und blockiert `AP-X02-2b` |
 | 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
