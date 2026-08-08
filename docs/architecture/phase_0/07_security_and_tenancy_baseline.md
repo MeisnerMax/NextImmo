@@ -158,7 +158,7 @@ Append-only-Entitaeten tragen dieselben Herkunftsspalten; `updated_at = created_
 | ID | Status | Auswirkung | Default-Annahme | Spaetester Zeitpunkt |
 |---|---|---|---|---|
 | DEC-SEC-001 | open | Konkrete Rollen-zu-Permission-Matrix und Vier-Augen-Freigaben | Lokale Rollen nur als Migrationsinput, keine automatische 1:1-Uebernahme | vor RLS-Prototyp-Abnahme |
-| DEC-SEC-002 | open | Objekt-/Portfolio-Scope-Vererbung bei Mehrfachzuordnung | Zugriff nur, wenn mindestens ein explizit erlaubter Scope den Datensatz eindeutig umfasst | vor Phase-2-Import |
+| DEC-SEC-002 | accepted | Explizite Allowlist fuer `property` und `portfolio`; vorhandene Scopes schraenken den Workspacezugriff ein, mindestens ein Scope muss den Datensatz eindeutig umfassen, unbekannte Typen sind Deny | Ownerentscheidung 2026-08-02 | nur nach explizitem Security-Review |
 | DEC-SEC-003 | open | PII-Klassifikation und Feldmaskierung fuer Mieter/Kontakte | Least privilege; separate Permission fuer sensible Kontaktdaten | vor Leasing-Migration |
 | DEC-SEC-004 | open | Retention, Legal Hold und physische Loeschung | Keine automatische physische Loeschung | vor produktiver Dokumentmigration |
 | DEC-SEC-005 | open | Upload-Maximalgroessen, Dateitypen, Malware-Scan und Laufzeit signierter URLs | Keine ausfuehrbaren Formate, kein oeffentlicher Zugriff | vor Upload-Pilot |

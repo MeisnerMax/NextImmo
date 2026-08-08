@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/identity_access_repository.dart';
@@ -7,7 +8,10 @@ abstract interface class IdentityAccessSupabaseGateway {
 
   Stream<AuthenticatedSession?> watchSession();
 
-  Future<void> requestPasswordlessSignIn(String email);
+  Future<void> requestPasswordlessSignIn(
+    String email, {
+    String? emailRedirectTo,
+  });
 
   Future<TotpEnrollment> enrollTotp();
 
@@ -53,8 +57,15 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
   }
 
   @override
-  Future<void> requestPasswordlessSignIn(String email) {
-    return _client.auth.signInWithOtp(email: email, shouldCreateUser: false);
+  Future<void> requestPasswordlessSignIn(
+    String email, {
+    String? emailRedirectTo,
+  }) {
+    return _client.auth.signInWithOtp(
+      email: email,
+      emailRedirectTo: emailRedirectTo,
+      shouldCreateUser: false,
+    );
   }
 
   @override
@@ -187,14 +198,22 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
 
 class SupabaseIdentityAccessRepositoryAdapter
     implements IdentityAccessRepository {
-  SupabaseIdentityAccessRepositoryAdapter({required SupabaseClient client})
-    : _gateway = SupabaseIdentityAccessGateway(client);
+  SupabaseIdentityAccessRepositoryAdapter({
+    required SupabaseClient client,
+    String? passwordlessRedirectTo,
+  }) : _gateway = SupabaseIdentityAccessGateway(client),
+       _passwordlessRedirectTo =
+           passwordlessRedirectTo ?? _platformPasswordlessRedirectTo();
 
   SupabaseIdentityAccessRepositoryAdapter.withGateway(
-    IdentityAccessSupabaseGateway gateway,
-  ) : _gateway = gateway;
+    IdentityAccessSupabaseGateway gateway, {
+    String? passwordlessRedirectTo,
+  }) : _gateway = gateway,
+       _passwordlessRedirectTo =
+           passwordlessRedirectTo ?? _platformPasswordlessRedirectTo();
 
   final IdentityAccessSupabaseGateway _gateway;
+  final String? _passwordlessRedirectTo;
 
   @override
   AuthenticatedSession? get currentSession => _gateway.currentSession;
@@ -220,7 +239,10 @@ class SupabaseIdentityAccessRepositoryAdapter
       );
     }
     try {
-      await _gateway.requestPasswordlessSignIn(normalized);
+      await _gateway.requestPasswordlessSignIn(
+        normalized,
+        emailRedirectTo: _passwordlessRedirectTo,
+      );
       return const IdentityAccessSuccess<void>(null);
     } catch (error) {
       return _authFailure<void>(error);
@@ -463,6 +485,17 @@ class SupabaseIdentityAccessRepositoryAdapter
       );
     }
   }
+}
+
+const neximmoWindowsAuthCallbackUrl = 'neximmo://auth/callback';
+
+String? _platformPasswordlessRedirectTo() {
+  if (kIsWeb) {
+    return null;
+  }
+  return defaultTargetPlatform == TargetPlatform.windows
+      ? neximmoWindowsAuthCallbackUrl
+      : null;
 }
 
 String _requiredString(Map<String, dynamic> json, String key) {

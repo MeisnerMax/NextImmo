@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-02",
+  "evidence_class": "RUN-LOCAL",
+  "branch": "codex/ai-ph00-baseline",
+  "commit": "9675e4aa15e40d8fdca35d192461e15e2e0f4dc2",
+  "overall": "PASS_LOCAL",
+  "flutter": {
+    "pub_get": "PASS",
+    "analyze": "PASS",
+    "tests_passed": 1087,
+    "tests_skipped": 16,
+    "web_build": "PASS",
+    "windows_sqlite_build_smoke": "PASS",
+    "windows_supabase_build_smoke": "PASS"
+  },
+  "database": {
+    "migrations": 26,
+    "lint": "PASS",
+    "security_advisor_error_findings": 0,
+    "performance_advisor_error_findings": 0,
+    "pgtap_files": 19,
+    "pgtap_tests": 1050,
+    "rollback_files": 21,
+    "rollback_tests": 139,
+    "rollback_replay": "PASS"
+  },
+  "integration": {
+    "concurrency": "PASS",
+    "postgrest": "PASS",
+    "realtime": "PASS",
+    "membership": "PASS",
+    "parties": "PASS",
+    "documents_storage": "PASS",
+    "platform_outbox_search": "PASS",
+    "leasing": "PASS"
+  },
+  "operations": {
+    "backup_target_guard": "PASS",
+    "corrupt_archive_guard": "PASS",
+    "restore_rows": 93,
+    "crash_recovery": "PASS",
+    "performance_profiles": 5,
+    "performance_samples_each": 5,
+    "performance_acceptance_gate": false
+  },
+  "vercel": {
+    "evidence_class": "META-INFERRED",
+    "production_main": "READY",
+    "production_commit": "e46ed00",
+    "app_branch_preview": "ERROR",
+    "app_branch_preview_commit": "454473f",
+    "cause": "configured root directory marketing is absent on the app branch"
+  },
+  "not_run": [
+    "github_ci",
+    "open_pull_requests",
+    "remote_staging",
+    "live_openai"
+  ]
+}

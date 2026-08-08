@@ -164,6 +164,10 @@ void main() {
 
     test('requests passwordless sign-in without implicit signup', () async {
       gateway.currentSession = null;
+      repository = SupabaseIdentityAccessRepositoryAdapter.withGateway(
+        gateway,
+        passwordlessRedirectTo: neximmoWindowsAuthCallbackUrl,
+      );
 
       final invalid = await repository.requestPasswordlessSignIn(
         email: 'invalid',
@@ -179,6 +183,9 @@ void main() {
       );
       expect(result, isA<IdentityAccessSuccess<void>>());
       expect(gateway.passwordlessEmails, <String>['user@example.test']);
+      expect(gateway.passwordlessRedirects, <String?>[
+        neximmoWindowsAuthCallbackUrl,
+      ]);
     });
 
     test(
@@ -327,6 +334,7 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   Completer<void>? workspaceBlocker;
   Completer<void>? rolePermissionBlocker;
   final List<String> passwordlessEmails = <String>[];
+  final List<String?> passwordlessRedirects = <String?>[];
   Object? passwordlessError;
   TotpEnrollment enrollment = const TotpEnrollment(
     factorId: 'factor-new',
@@ -348,8 +356,12 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
       const Stream<AuthenticatedSession?>.empty();
 
   @override
-  Future<void> requestPasswordlessSignIn(String email) async {
+  Future<void> requestPasswordlessSignIn(
+    String email, {
+    String? emailRedirectTo,
+  }) async {
     passwordlessEmails.add(email);
+    passwordlessRedirects.add(emailRedirectTo);
     final error = passwordlessError;
     if (error != null) {
       throw error;

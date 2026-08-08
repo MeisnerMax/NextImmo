@@ -1,0 +1,586 @@
+schema_version: "1.0"
+project: "NexImmo Intelligence"
+repository: "MeisnerMax/NextImmo"
+created_at: "2026-08-02"
+status: "planned_not_authorized"
+language: "de"
+
+authority:
+  - "Aktuelle ausdrückliche Nutzeranweisung"
+  - "Wirksame AGENTS.md"
+  - "Akzeptierte Architecture Decision Records"
+  - "01_NEXIMMO_AI_MASTERPLAN.md"
+  - "04_TEST_AND_ACCEPTANCE_PLAN.md"
+  - "Dieses Backlog"
+
+execution_policy:
+  one_phase_at_a_time: true
+  initial_phase: "PH-00"
+  initial_mode: "read_only"
+  require_explicit_phase_authorization: true
+  allow_automatic_push: false
+  allow_automatic_merge: false
+  allow_automatic_deploy: false
+  allow_remote_provisioning: false
+  allow_live_openai_calls_before_credential_gate: false
+  allow_model_direct_domain_mutations: false
+  allow_parallel_writers_same_worktree: false
+  allow_subagents_without_explicit_request: false
+
+global_quality_gates:
+  - id: "GQ-01"
+    rule: "Alle betroffenen Dateien wurden vor Änderung vollständig gelesen."
+  - id: "GQ-02"
+    rule: "Bestehende Nutzeränderungen wurden erhalten und nicht überschrieben."
+  - id: "GQ-03"
+    rule: "Keine neuen Packages oder Architekturänderungen ohne Freigabe."
+  - id: "GQ-04"
+    rule: "Flutter Analyze, relevante Tests und vollständige Phasengates sind grün."
+  - id: "GQ-05"
+    rule: "Jede Datenbankänderung hat Default-Deny-RLS, pgTAP und Rollbacktest."
+  - id: "GQ-06"
+    rule: "Keine kritischen oder hohen ungeklärten Sicherheitsbefunde."
+  - id: "GQ-07"
+    rule: "Dokumentation, Testevidenz und Risikobericht sind aktualisiert."
+
+phases:
+  - id: "PH-00"
+    name: "Repository-Konvergenz und reproduzierbare Baseline"
+    status: "planned"
+    authorized: false
+    objective: "Einen eindeutigen, grünen und reproduzierbaren Ausgangsstand schaffen."
+    entry_conditions:
+      - "Read-only-Zugriff auf Repository und Remote-Metadaten."
+      - "Keine Branchmutation oder Installation ohne gesonderte Freigabe."
+    tasks:
+      - id: "PH-00-T01"
+        title: "Repository- und Instruktionsinventar"
+        mode: "read_only"
+        dependencies: []
+        actions:
+          - "Repository-Root und wirksame AGENTS.md bestimmen."
+          - "AGENTS.md, CLAUDE.md und Architektur-Einstiegsdokumente vollständig lesen."
+          - "Dirty Worktree und untracked Dateien klassifizieren."
+        outputs:
+          - "baseline/repository_inventory.md"
+        acceptance:
+          - "Aktueller Branch und Commit sind belegt."
+          - "Keine bestehende Änderung wurde modifiziert."
+
+      - id: "PH-00-T02"
+        title: "Branchgraph und Divergenzanalyse"
+        mode: "read_only"
+        dependencies: ["PH-00-T01"]
+        actions:
+          - "main und docs/add-claude-md inklusive Merge-Base vergleichen."
+          - "Ahead-/Behind-Zahlen und Commitkategorien ermitteln."
+          - "Marketing, App, SQL, Architektur und Dokumentation getrennt bewerten."
+        outputs:
+          - "baseline/branch_divergence_report.md"
+          - "Empfohlene kanonische Branchstrategie"
+        acceptance:
+          - "Jeder exklusive Commit ist einer Kategorie zugeordnet."
+          - "Es wurde weder gemergt noch gerebased."
+
+      - id: "PH-00-T03"
+        title: "Toolchain- und CI-Inventar"
+        mode: "read_only"
+        dependencies: ["PH-00-T01"]
+        actions:
+          - "Flutter, Dart, Node, npm, Supabase CLI und PowerShell prüfen."
+          - "CI-Workflows und lokale Skripte gegen CLAUDE.md abgleichen."
+          - "Fehlende Voraussetzungen mit Installationsplan dokumentieren."
+        outputs:
+          - "baseline/toolchain_report.md"
+        acceptance:
+          - "Versions- und Verfügbarkeitsstatus ist reproduzierbar."
+          - "Dokumentierte und tatsächliche CI-Befehle sind abgeglichen."
+
+      - id: "PH-00-T04"
+        title: "Vollständige Baseline reproduzieren"
+        mode: "change_after_authorization"
+        dependencies: ["PH-00-T02", "PH-00-T03"]
+        actions:
+          - "Locked Dependencies installieren."
+          - "Analyze, gesamte Flutter-Suite und Web-Build ausführen."
+          - "Lokalen Supabase-Stack frisch zurücksetzen."
+          - "Lint, Advisors, pgTAP, Rollback, Concurrency, Integration, Backup/Restore und Performance ausführen."
+          - "Bekannte Skips und Flakes wiederholbar klassifizieren."
+        outputs:
+          - "baseline/test_evidence.md"
+          - "Maschinenlesbare Testergebnisübersicht"
+        acceptance:
+          - "Alle vorhandenen CI-Gates sind grün oder ein dokumentiertes No-Go liegt vor."
+          - "Kein historisch dokumentierter Teststatus wird als eigener Lauf ausgegeben."
+        stop_conditions:
+          - "Destruktiver Test zielt nicht sicher auf eine entbehrliche lokale Umgebung."
+          - "Erforderliche Toolchain kann nicht reproduzierbar hergestellt werden."
+
+      - id: "PH-00-T05"
+        title: "Kanonischen Branch herstellen"
+        mode: "change_after_explicit_decision"
+        dependencies: ["PH-00-T02", "PH-00-T04"]
+        actions:
+          - "Maintainerentscheidung AI-DEC-001 anwenden."
+          - "Getrennte Commits kontrolliert integrieren."
+          - "Konflikte fachlich lösen und erneut vollständig testen."
+        outputs:
+          - "Kanonischer getesteter Entwicklungsbranch"
+          - "Aktualisierter Branch-/Baselinebericht"
+        acceptance:
+          - "App- und Marketingänderungen sind vollständig erhalten oder bewusst ausgeschlossen."
+          - "Vollständige Baseline bleibt grün."
+        stop_conditions:
+          - "Keine ausdrückliche Branchentscheidung."
+          - "Unklarer inhaltlicher Konflikt."
+
+      - id: "PH-00-T06"
+        title: "Vercel-/Marketingstatus abgrenzen"
+        mode: "diagnostic"
+        dependencies: ["PH-00-T02"]
+        actions:
+          - "Roten Status ursächlich bestimmen."
+          - "Marketingdeployment vom Flutter-Produktgate trennen."
+        outputs:
+          - "baseline/vercel_status_report.md"
+        acceptance:
+          - "Fehlerursache und Zuständigkeit sind belegt."
+
+    exit_gate:
+      required_tasks: ["PH-00-T01", "PH-00-T02", "PH-00-T03", "PH-00-T04", "PH-00-T06"]
+      decision: "Maintainer-Go für PH-01"
+      criteria:
+        - "Kanonischer Branch ist entschieden."
+        - "Baseline ist reproduzierbar."
+        - "Keine ungeklärte kritische Regression."
+
+  - id: "PH-01"
+    name: "Cloud-, Auth- und Berechtigungsgrundlage"
+    status: "blocked_by_PH-00"
+    authorized: false
+    objective: "Einheitliche fail-closed Plattform vor jedem KI-Retrieval."
+    tasks:
+      - id: "PH-01-T01"
+        title: "Offene Decisions und Risks schließen"
+        dependencies: ["PH-00"]
+        actions:
+          - "DEC-015 bis DEC-017 und aktuelle RISK-IDs neu prüfen."
+          - "Region, MFA, Provisionierung, PII und Retention entscheiden."
+        acceptance:
+          - "Jede blockerrelevante Entscheidung ist accepted oder ausdrücklich deferred mit Auswirkung."
+
+      - id: "PH-01-T02"
+        title: "Desktop-Authentifizierung und Sessionfluss beweisen"
+        dependencies: ["PH-01-T01"]
+        actions:
+          - "Login, Callback/Deep Link, Logout, Expiry und MFA testen."
+          - "Fail-closed Zustände und Berechtigungsrefresh testen."
+        acceptance:
+          - "Windows-Login funktioniert Ende-zu-Ende."
+          - "Abgelaufene oder entzogene Rechte wirken ohne Datenleck."
+
+      - id: "PH-01-T03"
+        title: "Einheitliche Cloud-Shell"
+        dependencies: ["PH-01-T02"]
+        actions:
+          - "Supabase- und Legacy-Hostarchitektur konsolidieren."
+          - "Bestehende Navigation, SecurityGate und responsive Hilfen wiederverwenden."
+        acceptance:
+          - "Migrierte Features laufen in einer einheitlichen Shell."
+          - "Desktop, Web, Tablet und Phone haben keine Navigation-/Overflow-Regression."
+
+      - id: "PH-01-T04"
+        title: "Entity-Scope- und Retrieval-Permission-Matrix"
+        dependencies: ["PH-01-T01"]
+        actions:
+          - "Domainrechte, Rollen und Entity-Scopes vollständig abbilden."
+          - "Zwei-Workspace-Negativmatrix automatisieren."
+          - "Bestehenden search_index als KI-Quelle bis zum Nachweis sperren."
+        acceptance:
+          - "Null unberechtigte Datensätze in allen Negativfällen."
+          - "Jede geplante KI-Quelle hat explizite Required Permissions."
+
+    exit_gate:
+      required_tasks: ["PH-01-T01", "PH-01-T02", "PH-01-T03", "PH-01-T04"]
+      criteria:
+        - "Auth, Shell und Entity-Scopes sind nachweislich funktionsfähig."
+        - "Datenschutz- und Regionsentscheidungen erlauben lokale KI-Entwicklung."
+
+  - id: "PH-02"
+    name: "Providerneutrale KI-Plattform"
+    status: "blocked_by_PH-01"
+    authorized: false
+    objective: "KI-Orchestrierung vollständig mit Fakes testen, bevor ein Live-Provider genutzt wird."
+    tasks:
+      - id: "PH-02-T01"
+        title: "Architecture Decision Records"
+        dependencies: ["PH-01"]
+        actions:
+          - "Providergrenze, Jobmodell, Persistenz, Retention und Toolpolicy entscheiden."
+          - "OpenAI Responses API als erste Adapterimplementierung dokumentieren."
+        acceptance:
+          - "Domain/Application-Schicht enthält keine Providerspezifika."
+
+      - id: "PH-02-T02"
+        title: "Flutter Contracts und unavailable Adapter"
+        dependencies: ["PH-02-T01"]
+        actions:
+          - "DTOs, Queries, Commands und typed results definieren."
+          - "SQLite/Offline-Adapter mit klarem unavailable Ergebnis."
+        acceptance:
+          - "Kein direkter SDK-Zugriff aus UI/Core."
+          - "Bestehende Offlinefunktionen bleiben unberührt."
+
+      - id: "PH-02-T03"
+        title: "KI-Persistenz und RLS"
+        dependencies: ["PH-02-T01"]
+        actions:
+          - "ai_jobs, ai_artifacts, ai_source_refs, ai_feedback und ai_usage_events modellieren."
+          - "Forwardmigration, RLS, Grants, RPCs, pgTAP und Rollbacktests."
+        acceptance:
+          - "Default deny und Workspace/Actor-Scope sind bewiesen."
+          - "Artefakte sind immutable und versioniert."
+
+      - id: "PH-02-T04"
+        title: "Policy Resolver, Tool Registry und Validator"
+        dependencies: ["PH-02-T02", "PH-02-T03"]
+        actions:
+          - "Minimal erlaubte Tools pro Use Case und Capability bestimmen."
+          - "Strict output schemas und Source-Reference-Validierung."
+          - "Budget, Timeout, Rate Limit und Kill-Switch."
+        acceptance:
+          - "ai.use kann kein Domainrecht ersetzen."
+          - "Unzulässige Toolcalls und Schemas werden fail closed abgelehnt."
+
+      - id: "PH-02-T05"
+        title: "Fake Provider und Replay Fixtures"
+        dependencies: ["PH-02-T04"]
+        actions:
+          - "Fake ModelGateway und EmbeddingGateway implementieren."
+          - "Erfolg, Timeout, Rate Limit, Schemafehler und Toolfehler reproduzieren."
+        acceptance:
+          - "Alle geplanten Flows laufen ohne Internet und ohne API-Key Ende-zu-Ende."
+
+      - id: "PH-02-T06"
+        title: "Sicherer OpenAI Credential Gate"
+        dependencies: ["PH-02-T05"]
+        actions:
+          - "Vorhandensein sicher prüfen, ohne Wert auszugeben."
+          - "Reuse-versus-new Entscheidung einholen."
+          - "Key nur serverseitig in freigegebener Umgebung hinterlegen."
+        acceptance:
+          - "Kein Secret in Git, Flutter, Logs, Testfixtures oder dart-defines."
+        stop_conditions:
+          - "Keine ausdrückliche Credential-Entscheidung."
+
+    exit_gate:
+      required_tasks: ["PH-02-T01", "PH-02-T02", "PH-02-T03", "PH-02-T04", "PH-02-T05"]
+      criteria:
+        - "Providerfreie E2E-Suite ist grün."
+        - "Live Credential bleibt optional bis zur ausdrücklichen Freigabe."
+
+  - id: "PH-03"
+    name: "Dokumentingestion und permission-aware Retrieval"
+    status: "blocked_by_PH-02"
+    authorized: false
+    objective: "Versionierte Dokumente sicher extrahieren, chunken, indexieren und suchen."
+    tasks:
+      - id: "PH-03-T01"
+        title: "Dokumenttaxonomie und Goldkorpus"
+        dependencies: ["PH-02"]
+        actions:
+          - "MVP-Dokumenttypen und Feldschemas freigeben."
+          - "Anonymisierte deutsche Gold- und adversariale Testdokumente erstellen."
+        acceptance:
+          - "Jedes Feld hat Typ, Normalisierung, Quelle und Nicht-Ermittelbar-Regel."
+
+      - id: "PH-03-T02"
+        title: "Content-confirmed Event und Job-Enqueue"
+        dependencies: ["PH-03-T01"]
+        actions:
+          - "Dauerhaftes Event für bestätigte Dokumentversionen."
+          - "Idempotenz über Workspace, Version, Hash und Pipelineversion."
+        acceptance:
+          - "Doppelte Zustellung erzeugt keinen doppelten aktiven Job."
+
+      - id: "PH-03-T03"
+        title: "Text/OCR, Chunking und Provenance"
+        dependencies: ["PH-03-T02"]
+        actions:
+          - "Textadapter mit Seiten- und Zeichenpositionen."
+          - "Reproduzierbares Chunking und Hashing."
+          - "Scans, beschädigte und geschützte Dateien kontrolliert behandeln."
+        acceptance:
+          - "Jeder Chunk ist exakt auf eine immutable Dokumentversion zurückführbar."
+
+      - id: "PH-03-T04"
+        title: "semantic_chunks und Embeddings"
+        dependencies: ["PH-03-T03"]
+        actions:
+          - "Tabelle, Vektorindex, RLS und Versionsfelder."
+          - "Embeddingadapter und lokale Fakes."
+          - "Delete, Tombstone und Reindex."
+        acceptance:
+          - "Ein gelöschter oder entzogener Scope ist nicht mehr abrufbar."
+
+      - id: "PH-03-T05"
+        title: "Hybride Retrieval-Pipeline"
+        dependencies: ["PH-03-T04", "PH-01-T04"]
+        actions:
+          - "Metadaten-/Permissionfilter vor Kandidatensuche."
+          - "FTS und Vector Candidates zusammenführen."
+          - "Stabile Source Receipts erzeugen."
+        acceptance:
+          - "Top-k Retrieval erreicht freigegebene Goldset-Grenzen."
+          - "Null Cross-Workspace-/Cross-Scope-Treffer."
+
+    exit_gate:
+      required_tasks: ["PH-03-T01", "PH-03-T02", "PH-03-T03", "PH-03-T04", "PH-03-T05"]
+      criteria:
+        - "Retrieval-, RLS-, Lösch- und Reindextests sind grün."
+
+  - id: "PH-04"
+    name: "Dokumentenextraktion und Review Inbox"
+    status: "blocked_by_PH-03"
+    authorized: false
+    objective: "Belegte Extraktionsvorschläge menschlich prüfen und sicher übernehmen."
+    tasks:
+      - id: "PH-04-T01"
+        title: "Strict extraction schemas"
+        dependencies: ["PH-03"]
+        actions:
+          - "Schema pro Dokumenttyp versionieren."
+          - "Datums-, Währungs-, Perioden- und Parteiennormalisierung."
+        acceptance:
+          - "Unbekannte Werte bleiben null/unresolved statt erfunden."
+
+      - id: "PH-04-T02"
+        title: "OpenAI Responses Adapter"
+        dependencies: ["PH-04-T01", "PH-02-T06"]
+        actions:
+          - "Serverseitiger Responses-Aufruf mit store:false."
+          - "Strict Structured Output, Timeout, Retry und Usage Receipt."
+        acceptance:
+          - "Providerfehler erzeugen keine teilweisen Fachänderungen."
+
+      - id: "PH-04-T03"
+        title: "Artifact- und Citation-Validator"
+        dependencies: ["PH-04-T01"]
+        actions:
+          - "Jedes materielle Feld gegen bereitgestellte Quellen prüfen."
+          - "Ungültige Source IDs und unzulässige Felder zurückweisen."
+        acceptance:
+          - "Kein unbelegter kritischer Wert kann den Status proposed erreichen."
+
+      - id: "PH-04-T04"
+        title: "Review Inbox und Source Drawer"
+        dependencies: ["PH-04-T03"]
+        actions:
+          - "Responsive Listen-, Detail-, Diff- und Quellenansicht."
+          - "Loading, forbidden, offline, error und conflict states."
+        acceptance:
+          - "Alle Breakpoints bestehen Widget-/Golden- und manuelle Tests."
+
+      - id: "PH-04-T05"
+        title: "Sichere Vorschlagsannahme"
+        dependencies: ["PH-04-T04"]
+        actions:
+          - "Rechte erneut prüfen."
+          - "Normales Domain-Command mit expectedVersion/mutationId/audit."
+          - "Accept, reject, correct und supersede protokollieren."
+        acceptance:
+          - "Viewer kann nie annehmen."
+          - "Versionskonflikt überschreibt nichts."
+          - "Audit verbindet Job, Artefakt, Actor und Domainmutation."
+
+    exit_gate:
+      required_tasks: ["PH-04-T01", "PH-04-T02", "PH-04-T03", "PH-04-T04", "PH-04-T05"]
+      criteria:
+        - "Dokument-E2E-Golden-Path und adversariale Suite sind grün."
+
+  - id: "PH-05"
+    name: "Kontextcopilot und Bewertungserklärung"
+    status: "blocked_by_PH-04"
+    authorized: false
+    objective: "Belegtes Q&A über vollständig migrierte und berechtigte Domains."
+    tasks:
+      - id: "PH-05-T01"
+        title: "Read-only Domain Tools"
+        dependencies: ["PH-04"]
+        actions:
+          - "Property, Portfolio, Party, Document, Compliance, Valuation und Task Tools."
+          - "Strict schemas und minimale Resultsets."
+        acceptance:
+          - "Jedes Tool erzwingt Domainrecht und Entity-Scope serverseitig."
+
+      - id: "PH-05-T02"
+        title: "Queryklassifikation und Toolallowlist"
+        dependencies: ["PH-05-T01"]
+        actions:
+          - "Structured, document und hybrid routing."
+          - "Nur use-case-relevante Tools freigeben."
+        acceptance:
+          - "Modell kann keine nicht freigegebenen Tools aufrufen."
+
+      - id: "PH-05-T03"
+        title: "Antwort- und Quellenvertrag"
+        dependencies: ["PH-05-T02"]
+        actions:
+          - "Claims als exact, deterministic, inference oder unresolved klassifizieren."
+          - "Citation Coverage und Abstention validieren."
+        acceptance:
+          - "Jede materielle Aussage ist belegt oder klar als nicht ermittelbar markiert."
+
+      - id: "PH-05-T04"
+        title: "Intelligence Panel"
+        dependencies: ["PH-05-T03", "PH-01-T03"]
+        actions:
+          - "Kontextanzeige, Streaming, Quellen und Folgeaktionen."
+          - "Responsive Desktop-/Web-/Tablet-/Phone-Darstellung."
+        acceptance:
+          - "Scopewechsel kann keine nicht berechtigte Entität auswählen."
+
+      - id: "PH-05-T05"
+        title: "Deterministische Kennzahlen- und Bewertungserklärung"
+        dependencies: ["PH-05-T01"]
+        actions:
+          - "Nur bestehende Engineergebnisse und Provenance verwenden."
+          - "Narrative Erklärung erzeugen."
+        acceptance:
+          - "Autoritative Werte sind zu 100 Prozent identisch mit Engineoutput."
+
+    exit_gate:
+      required_tasks: ["PH-05-T01", "PH-05-T02", "PH-05-T03", "PH-05-T04", "PH-05-T05"]
+      criteria:
+        - "Q&A-Eval, Tool-Security und Finanzwahrheitstests sind grün."
+
+  - id: "PH-06"
+    name: "Reporting und Attention Center"
+    status: "blocked_by_PH-05"
+    authorized: false
+    objective: "Managementtexte und Handlungsbedarf ohne autonome Entscheidung vorbereiten."
+    tasks:
+      - id: "PH-06-T01"
+        title: "Reportdatenvertrag"
+        dependencies: ["PH-05"]
+        actions:
+          - "Datenstichtag, KPIs, Quellen und Lücken strukturiert bereitstellen."
+        acceptance:
+          - "Keine Kennzahl wird aus Freitext oder Modellgedächtnis übernommen."
+
+      - id: "PH-06-T02"
+        title: "Managementbericht als Entwurf"
+        dependencies: ["PH-06-T01"]
+        actions:
+          - "Objekt- und Portfoliokommentar."
+          - "Quellen- und Freigabestatus."
+        acceptance:
+          - "Ausgabe bleibt bis Nutzerfreigabe Draft."
+
+      - id: "PH-06-T03"
+        title: "Attention Center"
+        dependencies: ["PH-06-T01"]
+        actions:
+          - "Deterministische Alerts anbinden."
+          - "KI-Erklärung und Priorisierung."
+          - "Aufgaben ausschließlich vorschlagen."
+        acceptance:
+          - "KI erzeugt keinen Alert ohne fachliches Signal oder belegte Quelle."
+
+      - id: "PH-06-T04"
+        title: "Portfolio-Atlas-Integration"
+        dependencies: ["PH-06-T03"]
+        actions:
+          - "Ruhige Attention-Layer statt zusätzlicher Kartenflut."
+          - "Detailpanel ohne Verlust der Portfolioübersicht."
+        acceptance:
+          - "Usability-Review bestätigt Klarheit und geringe visuelle Überlastung."
+
+    exit_gate:
+      required_tasks: ["PH-06-T01", "PH-06-T02", "PH-06-T03", "PH-06-T04"]
+      criteria:
+        - "Bericht-, UX-, Quellen- und Freigabegates sind grün."
+
+  - id: "PH-07"
+    name: "Hardening, Pilot und Produktionsentscheidung"
+    status: "blocked_by_PH-06"
+    authorized: false
+    objective: "Sicherheit, Qualität, Kosten und Betrieb unter realistischen Bedingungen beweisen."
+    tasks:
+      - id: "PH-07-T01"
+        title: "Vollständige Regression und Red Team"
+        dependencies: ["PH-06"]
+        actions:
+          - "Alle Tests aus 04_TEST_AND_ACCEPTANCE_PLAN.md."
+          - "Prompt-Injection-, Exfiltration- und Scope-Angriffe."
+        acceptance:
+          - "Keine kritischen/hohen offenen Findings."
+
+      - id: "PH-07-T02"
+        title: "Performance-, Last- und Kostenprofil"
+        dependencies: ["PH-07-T01"]
+        actions:
+          - "Interaktive und asynchrone p50/p95/p99-Werte."
+          - "Queue-Backpressure, Rate Limits und Budgetcaps."
+        acceptance:
+          - "Freigegebene SLOs und Kostenbudgets werden eingehalten."
+
+      - id: "PH-07-T03"
+        title: "Datenschutz- und Lifecycle-Nachweis"
+        dependencies: ["PH-07-T01"]
+        actions:
+          - "Retention, Löschung, Export, Legal Hold, Reindex und Restore."
+        acceptance:
+          - "Datenlebenszyklus ist dokumentiert und automatisiert getestet."
+
+      - id: "PH-07-T04"
+        title: "Shadow Pilot"
+        dependencies: ["PH-07-T01", "PH-07-T02", "PH-07-T03"]
+        actions:
+          - "Drei bis fünf kontrollierte Pilot-Workspaces."
+          - "Read-only Antworten mit Expertenvergleich."
+        acceptance:
+          - "Keine automatischen Änderungen."
+          - "Qualitäts- und Quellenmetriken erreichen Pilotgrenzen."
+
+      - id: "PH-07-T05"
+        title: "Proposal Pilot"
+        dependencies: ["PH-07-T04"]
+        actions:
+          - "Freigegebene Dokumenttypen und einzelne Proposal-Felder."
+          - "Feedback, Kosten und Konflikte auswerten."
+        acceptance:
+          - "Null unautorisierte oder stille Mutationen."
+
+      - id: "PH-07-T06"
+        title: "Go/No-Go und Betriebsübergabe"
+        dependencies: ["PH-07-T05"]
+        actions:
+          - "Evidence Pack, Runbooks, Rollback und Kill-Switch abnehmen."
+          - "Bekannte Einschränkungen und Restbacklog dokumentieren."
+        acceptance:
+          - "Explizite Produktionsentscheidung durch Verantwortliche."
+
+    exit_gate:
+      required_tasks: ["PH-07-T01", "PH-07-T02", "PH-07-T03", "PH-07-T04", "PH-07-T05", "PH-07-T06"]
+      criteria:
+        - "Definition of Done des Masterplans erfüllt."
+
+  - id: "PH-08"
+    name: "Domainerweiterungen nach separater Migration"
+    status: "future"
+    authorized: false
+    objective: "Leasing, Finance, CapEx und Szenarien einzeln und kontrolliert anbinden."
+    domain_tracks:
+      - id: "PH-08-LEASE"
+        prerequisite: "Leasing Operations Cloudmigration und RLS-Gate abgeschlossen"
+      - id: "PH-08-FINANCE"
+        prerequisite: "Finance/Covenant Cloudmigration und deterministische Engine-Gates abgeschlossen"
+      - id: "PH-08-CAPEX"
+        prerequisite: "CapEx/Maintenance Cloudmigration und Statusmodell abgeschlossen"
+      - id: "PH-08-SCENARIO"
+        prerequisite: "Scenario Domain und Approval Workflow cloudfähig"
+    common_acceptance:
+      - "Eigene Domain-Permission-Matrix."
+      - "Eigener Gold- und Adversarial-Testdatensatz."
+      - "Keine automatische Freigabe durch Abschluss von PH-07."

@@ -11,6 +11,7 @@ import 'ui/screens/docs/documents_workspace_panel.dart';
 import 'ui/screens/parties/parties_screen.dart';
 import 'ui/screens/property_detail/property_documents_panel.dart';
 import 'ui/screens/security/security_gate.dart';
+import 'ui/shell/cloud_app_scaffold.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/zoom/app_zoom.dart';
@@ -65,7 +66,11 @@ class NexImmoApp extends ConsumerWidget {
     return <Route<void>>[
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: referencePropertiesRoute),
-        builder: (_) => const ReferenceSliceScreen(),
+        builder:
+            (_) => const CloudAppScaffold(
+              activeRoute: referencePropertiesRoute,
+              child: ReferenceSliceScreen(),
+            ),
       ),
     ];
   }
@@ -75,24 +80,30 @@ class NexImmoApp extends ConsumerWidget {
       return MaterialPageRoute<void>(
         settings: settings,
         builder:
-            (_) => const Scaffold(body: SafeArea(child: PartiesScreen())),
+            (_) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: const Scaffold(body: SafeArea(child: PartiesScreen())),
+            ),
       );
     }
     if (settings.name == complianceRoute) {
       return MaterialPageRoute<void>(
         settings: settings,
         builder:
-            (context) => Scaffold(
-              body: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: ComplianceDashboardScreen(
-                    // A finding leads to the object's documents, which in cloud
-                    // mode is its own additive route.
-                    onOpenRequirement:
-                        (requirement) => Navigator.of(context).pushNamed(
-                          propertyDocumentsRouteFor(requirement.entityId),
-                        ),
+            (context) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: Scaffold(
+                body: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: ComplianceDashboardScreen(
+                      // A finding leads to the object's documents, which in cloud
+                      // mode is its own additive route.
+                      onOpenRequirement:
+                          (requirement) => Navigator.of(context).pushNamed(
+                            propertyDocumentsRouteFor(requirement.entityId),
+                          ),
+                    ),
                   ),
                 ),
               ),
@@ -103,8 +114,11 @@ class NexImmoApp extends ConsumerWidget {
       return MaterialPageRoute<void>(
         settings: settings,
         builder:
-            (_) => const Scaffold(
-              body: SafeArea(child: DocumentsWorkspacePanel()),
+            (_) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: const Scaffold(
+                body: SafeArea(child: DocumentsWorkspacePanel()),
+              ),
             ),
       );
     }
@@ -115,12 +129,15 @@ class NexImmoApp extends ConsumerWidget {
       return MaterialPageRoute<void>(
         settings: settings,
         builder:
-            (_) => Scaffold(
-              body: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: PropertyDocumentsPanel(
-                    propertyId: documentsPropertyId,
+            (_) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: Scaffold(
+                body: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: PropertyDocumentsPanel(
+                      propertyId: documentsPropertyId,
+                    ),
                   ),
                 ),
               ),
@@ -130,14 +147,22 @@ class NexImmoApp extends ConsumerWidget {
     if (settings.name == referenceMembersRoute) {
       return MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ReferenceMembersScreen(),
+        builder:
+            (_) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: const ReferenceMembersScreen(),
+            ),
       );
     }
     final propertyId = referencePropertyIdFromRoute(settings.name);
     if (settings.name == referencePropertiesRoute || propertyId != null) {
       return MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => ReferenceSliceScreen(initialPropertyId: propertyId),
+        builder:
+            (_) => CloudAppScaffold(
+              activeRoute: settings.name,
+              child: ReferenceSliceScreen(initialPropertyId: propertyId),
+            ),
       );
     }
     return null;

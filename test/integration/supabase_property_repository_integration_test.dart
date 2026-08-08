@@ -31,6 +31,7 @@ void main() {
       final client = createSupabaseTestClient(url, publishableKey);
       final identityRepository = SupabaseIdentityAccessRepositoryAdapter(
         client: client,
+        passwordlessRedirectTo: neximmoWindowsAuthCallbackUrl,
       );
       final passwordlessResult = await identityRepository
           .requestPasswordlessSignIn(email: 'p1-007@example.test');
