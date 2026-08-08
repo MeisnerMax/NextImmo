@@ -44,6 +44,15 @@ Adapter-Pattern-Abschnitt in `CLAUDE.md`.
 
 **Supabase PostgreSQL.** Einzige fachliche Wahrheit für alle Domänen.
 
+**Seit `AP-X02-2b` (2026-08-08) auch der einzige *Laufzeit*-Backendpfad.** `main.dart` öffnet keine
+lokale Datenbank, `app.dart` kennt keinen SQLite-Security-/Routing-Modus, `app_backend_wiring.dart`
+bindet ausschließlich Supabase-Adapter. `NEXIMMO_DATA_BACKEND` bleibt als Deployment-Guard, nimmt
+aber nur noch `supabase` an und schlägt bei fehlendem, leerem, unbekanntem oder dem stillgelegten
+`sqlite`-Wert fehl. `test/app_runtime_guard_test.dart` erzwingt diese Grenze.
+
+Exakter Status: **`SQLite removed as an application runtime backend; retained only where explicitly
+required for migration/cutover/legacy tooling and test parity.`**
+
 Nicht System of Record — bewusst und dauerhaft:
 
 | Komponente | Rolle | Regel |
@@ -51,7 +60,9 @@ Nicht System of Record — bewusst und dauerhaft:
 | Realtime | Invalidierungssignal / Domain Event | Kanonischer Read bleibt das Repository (`DEC-018`) |
 | Client-Caches (Riverpod) | Darstellung | Bei Entzug fail-closed geleert, dann revalidiert (`DEC-022`) |
 | Reporting / KPI-Schicht | abgeleitete Sicht | Schreibt **nie** in Quelldomänen zurück |
-| SQLite | — | Wird entfernt (`DEC-024`) |
+| SQLite | kein Laufzeit-Backend mehr | Bleibt für Migration, Cutover, Dry-Run, Backup/Restore und **einen** Paritätstest. Physischer Rückbau ist `04y` Strom C |
+| Comparables | **nicht migriert** | `Cloud comparables are not migrated yet and are currently unavailable.` Der Cloud-Pfad wirft bewusst, statt eine leere Liste vorzutäuschen (`AP-X02-5`) |
+| Serverseitige Jobs | `DEBT-009` **OPEN** | Die clientseitige Startup-Planung ist aus der Laufzeit entfernt — das ersetzt keinen Server-Scheduler |
 
 ---
 

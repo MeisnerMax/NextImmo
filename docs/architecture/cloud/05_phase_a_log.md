@@ -7,6 +7,86 @@ und bestanden wurden.
 
 ---
 
+## 2026-08-08 · `AP-X02-2b` — SQLite als App-Laufzeit-Backend entfernt
+
+**`SQLite removed as an application runtime backend. Two former runtime adapter implementations
+remain only as non-runtime migration/test support, and legacy comparables remain deferred.`**
+
+### Der Re-Audit hat einen Fehler im eigenen Audit gefunden
+
+Der Audit vom 07.08. behauptete für Gruppe A „Migrations-Refs: keine". Falsch — die Suche deckte
+`sqlite_to_postgres_*` und die Integrationstests nicht ab. Zwei der sieben Adapter haben
+**Non-Runtime**-Abhängigkeiten, die §17 bzw. §15 des Auftrags ausdrücklich schützen:
+
+| Adapter | Abhängigkeit | Warum sie zählt |
+|---|---|---|
+| `LegacySqliteDocumentRepositoryAdapter` | `sqlite_to_postgres_documents_compliance_dry_run_mapper.dart` | ruft `typeKeyFor(...)` an zwei Stellen — Migrationstooling, das nicht umgebaut werden darf |
+| `LegacySqliteOperationsSignalsAdapter` | `supabase_operations_signals_integration_test.dart` | Paritätsnachweis Legacy ↔ Cloud, den der `database`-Job über `verify_p2_d05a_integration.ps1` fährt |
+
+Beide Dateien bleiben — **unwired**. Das ursprüngliche Ziel „sieben Dateien gelöscht" war zu stark
+formuliert; maßgeblich ist **Runtime-Erreichbarkeit**, nicht physische Existenz.
+
+### Was entfernt wurde
+
+Fünf Adapter und ihre fünf Testdateien, **5817 physische Dateizeilen** (3016 + 2801). Dazu der
+`DataBackend.sqlite`-Zweig der Composition Root, der SQLite-Bootstrap in `main.dart`
+(`sqfliteFfiInit`, `databaseFactoryFfi`, `AppDatabase`, `SecurityRepo.bootstrapDefaults`,
+`StartupTaskService.runIfDue`, lokale DB-Provider) und der Backend-Split in `app.dart`.
+Git-Diff: **+425 / −6970** über 17 Dateien.
+
+`app.dart` verliert dabei nichts Sichtbares: der Cloud-Modus las die lokalen Settings ohnehin nie,
+lief also schon vorher auf denselben Defaults (`comfort`, `dark`).
+
+### Environment
+
+`NEXIMMO_DATA_BACKEND` **bleibt** als Deployment-Guard, `DataBackend` behält genau ein Mitglied.
+Fail-closed bei fehlendem, leerem, unbekanntem und dem stillgelegten `sqlite`-Wert, dazu bei
+fehlender/ungültiger URL und fehlendem Key — 12 Fälle in `app_environment_test.dart`.
+
+### Runtime Regression Guard
+
+`test/app_runtime_guard_test.dart` (11 Fälle) prüft **die Wiring-Grenze, nicht die Existenz von
+SQLite-Code**: keine `DataBackend.sqlite`, keine Legacy-Adapter und kein SQLite-Bootstrap in
+`main.dart`, `app.dart`, `app_backend_wiring.dart`. Zwei Assertions sichern die Gegenrichtung —
+Dry-Run-Mapper und Paritätstest **müssen** ihre Referenz auf die retained Adapter behalten, damit
+niemand sie bei einem späteren Cleanup mitlöscht.
+
+### Testdifferenz, vollständig aufgelöst
+
+1464 → **1355** grün bei unverändert 24 Skips. Die 109 sind exakt erklärt, gemessen statt gezählt:
+
+| Position | vorher | nachher | Δ |
+|---|---|---|---|
+| fünf gelöschte Legacy-Testdateien | 111 | 0 | −111 |
+| `app_backend_wiring_test.dart` | 25 | 8 | −17 |
+| `app_environment_test.dart` | 4 | 12 | +8 |
+| `app_runtime_guard_test.dart` | 0 | 11 | +11 |
+
+Eine bewusste Streichung darin: „refuses to build cloud overrides without a client" entfällt, weil
+`client` jetzt ein nicht-nullbarer `required`-Parameter ist — aus einer Laufzeitprüfung wurde eine
+Compile-Zeit-Garantie.
+
+### Nebenbefunde
+
+**Provider-Superset:** vorher Supabase 33, SQLite 28, **kein** Provider nur im SQLite-Zweig; die
+fünf Mehr-Bindungen waren die Realtime-Invalidierungen. Endzustand unverändert 33 plus Comparables —
+kein konsumierter Port bleibt ungebunden.
+
+**Platform-Ports:** `platform_providers.dart` exponiert nur `taskRepositoryProvider`.
+`NotificationPort`, `JobRepository`, `SearchIndexPort` sind implementiert, aber nie gebunden. Das
+erlaubte die Entfernung — es macht sie fachlich **nicht** fertig.
+
+**`DEBT-009` bleibt OPEN.** `StartupTaskService` ist aus der Laufzeit entfernt; ein Server-Scheduler
+existiert weiterhin nicht.
+
+### Verifikation
+
+Analyzer sauber · volle Suite 1355 / 24 Skips · `verify_p2_d05a_integration.ps1` **Exit 0** (das
+Paritäts-KEEP-Gate) · `verify_p2_d03_integration.ps1` Exit 0 · Documents-Dry-Run-Mapper-Test 21 grün
+· beide Web-Builds grün · **Windows-Cloud-Build grün** (`neximmo_app.exe`).
+
+---
+
 ## 2026-08-07 · A0 — Working Tree stabilisiert
 
 **Commits:** `388e719` (Parkbranch), `0337e65`
