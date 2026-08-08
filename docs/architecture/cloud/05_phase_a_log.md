@@ -615,6 +615,94 @@ vollständig durchlaufen sind.
 
 ---
 
+## 2026-08-08 · `C-08` — CI fuhr eine nicht deterministische Supabase-CLI
+
+**Schweregrad:** hoch · **vorbestehend:** ja · **gelöst** in `91599b4`
+
+### Vorherige Semantik
+
+Zwei Wege zur CLI, nur einer gepinnt:
+
+| Weg | Aufrufstellen | Version |
+|---|---|---|
+| `setup-cli@v1`-Binary auf `PATH` | **67** nackte `supabase …`-Aufrufe im Workflow | gepinnt `2.109.1` (Literal im Workflow) |
+| `npx supabase` → `./node_modules/.bin` | **27** Aufrufe in **13** `tool/*.ps1` | **ungepinnt** — im Runner existierte kein Root-`node_modules` |
+
+Das `npm ci` in `flutter.yml` gehört zum **marketing**-Job (`working-directory: marketing`),
+nicht zum Root. Ohne Root-`node_modules` fällt `npx` auf die Registry zurück und zieht die
+**neueste** Version. CI hat damit dauerhaft eine andere CLI benutzt als die gepinnte —
+unsichtbar, solange es funktionierte.
+
+Sichtbar wurde es, als `supabase@2.113.0` mitten im Lauf veröffentlicht wurde:
+
+```
+npm warn exec The following package was not found and will be installed: supabase@2.113.0
+npm error code ETARGET  →  No matching version found for supabase@2.113.0
+```
+
+auf `94b3139`, einem Commit, der ausschließlich Markdown ändert. Jeder grüne Lauf davor
+war ein Zufall des Zeitpunkts, kein reproduzierbares Ergebnis.
+
+### Verworfene Variante: `npx --no`
+
+Gemessen, nicht angenommen:
+
+- `npx --no supabase --version` liefert `11.10.0` — npx konsumiert `--version` selbst;
+  erst `npx --no -- supabase --version` ergibt `2.109.1`.
+- Mit einem nicht installierten Paket hat `--no` die Registry **trotzdem** befragt
+  (`GET https://registry.npmjs.org/… 404`).
+
+`--no` ist damit kein belastbarer Riegel und scheidet aus.
+
+### Neue Semantik
+
+**`package.json` ist die einzige Source of Truth.** `setup-cli` liest die Version dort aus,
+statt sie als Literal zu wiederholen — die Nummer steht nur noch an einer Stelle, ein Drift
+zwischen beiden ist konstruktiv unmöglich. Eine nicht-exakte Pin lässt den Schritt scheitern.
+
+Ein Root-`npm ci` stellt die gepinnte CLI bereit, sodass die 27 npx-Aufrufe aus
+`node_modules` auflösen. **Kein `tool/*.ps1` wurde geändert**; lokal funktionieren sie
+unverändert.
+
+### Schutz gegen Versionsdrift
+
+Ein zentraler Schritt vor jeder Datenbankarbeit vergleicht `package.json`, die
+`PATH`-Binary und `npx supabase` gegeneinander und schlägt zusätzlich auf den exakten
+Marker `will be installed` an, den npx nur beim Registry-Fallback ausgibt. Eine umgangene
+Pin kann sich damit nicht als „bloß andere Version" tarnen. Ein Check statt 13 Kopien.
+
+Alle fünf Zweige isoliert durchgespielt: korrekt → 0; Registry-Marker → 1; npx-Drift → 1;
+Drift `setup-cli` ↔ `package.json` → 1; abweichendes Ausgabeformat wird korrekt geparst.
+
+**Lokaler Differenzbeweis:** `npx supabase --version` liefert `2.109.1`, während die
+Registry-Latest `2.113.0` ist — nur möglich, wenn aus `node_modules` aufgelöst wurde.
+
+### Evidenz beider Hosted-CI-Läufe
+
+Commit `91599b4`, Lauf `31249014807`, **derselbe SHA in beiden Läufen** (Attempt 1 und 2,
+kein neuer Commit).
+
+| | Attempt 1 | Attempt 2 |
+|---|---|---|
+| `verify` / `supply_chain` / `marketing` / `database` | alle **PASS** | alle **PASS** |
+| Schritte mit ≠ success | **0** | **0** |
+| `expected (package.json)` | 2.109.1 | 2.109.1 |
+| `PATH`, Workflow-Schritte | **2.109.1** | **2.109.1** |
+| `npx`, `tool/*.ps1` | **2.109.1** | **2.109.1** |
+| echte `will be installed`-Meldung | **0** | **0** |
+| `database` Laufzeit | 15,9 min | 16,0 min |
+
+Reproduzierbarkeit damit belegt.
+
+### Laufzeit
+
+`database` 15,9 / 16,0 min bei 35 min Timeout → **Reserve ≈ 54 %**. Die vier neuen
+Schritte kosten zusammen **0,14 min**. Der Job ist trotz vier zusätzlicher Schritte nicht
+langsamer, weil `P1-007` von 1,68 auf 0,90–0,92 min fällt: npx zieht die CLI nicht mehr bei
+jedem Aufruf aus der Registry. **Keine Workflow-Aufteilung.**
+
+---
+
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
 
 `cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
