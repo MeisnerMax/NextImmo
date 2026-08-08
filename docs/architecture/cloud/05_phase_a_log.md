@@ -736,6 +736,70 @@ ausdrücklich.
 
 ---
 
+## 2026-08-08 · `main` ist geschützt — Ruleset `main-protection`
+
+Vorher: **keine** klassische Branch Protection (`HTTP 404`) und **kein** Ruleset (`[]`).
+Direkte Pushes auf `main` waren möglich — genau die Lücke, mit der Phase A begonnen hat.
+
+Gewählt wurde ein **Repository Ruleset**, nicht klassische Branch Protection. Der Grund ist
+der Bypass: klassisch gäbe es nur `enforce_admins` an/aus, und „aus" erlaubt dem Owner auch
+den normalen Direktpush. Rulesets kennen `bypass_mode`, und damit lässt sich der Owner im
+PR-Workflow halten und trotzdem ein Notausgang offenlassen.
+
+| Regel | Wert |
+|---|---|
+| Ruleset | `main-protection`, id `20585474` |
+| Target / Enforcement | `refs/heads/main` · **active** |
+| Require pull request | ja |
+| Required approvals | **0** — Solo-Repository; jede Zahl > 0 wäre ein Selbst-Lockout, weil man den eigenen PR nicht freigeben kann |
+| Conversation resolution | ja |
+| Dismiss stale / last-push / Code Owner | aus |
+| Required status checks | `verify`, `supply_chain`, `marketing`, `database` (je `integration_id 15368`) |
+| Strict / up to date | ja |
+| Force push | blockiert (`non_fast_forward`) |
+| Branch-Löschung | blockiert (`deletion`) |
+| Owner-Bypass | `RepositoryRole` admin, **`bypass_mode: pull_request`** |
+| Merge-Methoden | `merge`/`squash`/`rebase` **unverändert** — Merge-Stil ist ein eigenes Thema |
+
+**Owner-Notausgang, von GitHub selbst bestätigt:** die API meldet
+`current_user_can_bypass: "pull_requests_only"`. Der Bypass greift also ausschließlich
+innerhalb eines Pull Requests; ein normaler Direktpush auf `main` bleibt auch für den Owner
+blockiert, und jeder Notfall hinterlässt einen sichtbaren PR als Audit-Trail.
+
+### Warum genau diese vier Checks
+
+Die Namen wurden **nicht** aus der Dokumentation übernommen, sondern aus echten grünen
+Läufen ermittelt (`/commits/{sha}/check-runs`). Das hat zwei Deadlocks verhindert:
+
+- Der Deploy-Workflow erscheint nicht als „Web App Deploy", sondern als `preflight` und
+  `deploy_preview`. Ein Required Check auf den Doku-Namen wäre dauerhaft
+  „Expected — waiting for status to be reported" geblieben.
+- `deploy_preview` ist `skipped`, solange keine Vercel-Secrets existieren. Ein übersprungener
+  Check gilt in Rulesets nicht als erfolgreich — als Required Check ein garantierter Deadlock.
+
+Ebenfalls bewusst **nicht** required: der klassische `Vercel`-Status (Marketing-Deployment),
+`Vercel Preview Comments`, die `Dependabot`-Läufe und der `goldens/**`-Hilfsworkflow.
+Deployment wird später mit Staging/Production als eigenes Deployment-Gate modelliert, nicht
+als universelles Merge-Gate.
+
+### Folgen für Dependabot
+
+Die sieben offenen Dependabot-PRs (#2–#8) erhalten dieselben vier Checks wie jeder andere
+PR. `strict` erzwingt bei zwischenzeitlichen `main`-Änderungen gelegentlich ein
+„Update branch" — gewollt, damit nichts gegen einen veralteten Basiszustand gemergt wird.
+
+### Verifikation
+
+Nicht am API-201 festgemacht, sondern per Readback: Ruleset-Liste, Einzelabfrage und
+`/rules/branches/main` (effective rules) bestätigen alle vier Regeln, `strict`, die vier
+Contexts, `approvals=0`, beide Blockaden und den PR-only-Bypass. Klassische Branch
+Protection existiert weiterhin nicht — keine doppelte Schutzschicht.
+
+**Dieses Dokument ist zugleich der End-to-End-Selbsttest:** es kam über einen regulären PR
+unter den neuen Regeln auf `main`, ohne Bypass.
+
+---
+
 ## 2026-08-08 · Phase A: **integrated into main** — nicht „abgeschlossen"
 
 PR [#1](https://github.com/MeisnerMax/NextImmo/pull/1) ist gemergt.
