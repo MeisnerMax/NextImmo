@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/app_environment.dart';
 import 'ui/i18n/app_strings.dart';
 import 'ui/navigation/app_navigation.dart';
-import 'ui/screens/security/security_gate.dart';
 import 'ui/screens/security/supabase_security_gate.dart';
-import 'ui/state/app_state.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/zoom/app_zoom.dart';
 
@@ -17,38 +15,27 @@ class NexImmoApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings =
-        environment.dataBackend == DataBackend.sqlite
-            ? ref.watch(appSettingsProvider).valueOrNull
-            : null;
-    final densityMode = AppTheme.resolveDensityMode(
-      settings?.uiDensityMode ?? 'comfort',
-    );
+    // Theme, density and locale used to come from the locally persisted
+    // settings row, which only ever existed in the SQLite runtime. The cloud
+    // runtime already resolved to these defaults because it never read that
+    // row, so removing the branch changes nothing a user sees. Making them
+    // cloud-persisted is its own increment.
+    final densityMode = AppTheme.resolveDensityMode('comfort');
 
     return MaterialApp(
       title: 'NexImmo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(densityMode: densityMode),
       darkTheme: AppTheme.dark(densityMode: densityMode),
-      themeMode: AppTheme.resolveThemeMode(settings?.uiThemeMode ?? 'dark'),
-      locale: AppStrings.localeFromLanguageCode(settings?.uiLanguageCode),
+      themeMode: AppTheme.resolveThemeMode('dark'),
+      locale: AppStrings.localeFromLanguageCode(null),
       supportedLocales: AppStrings.supportedLocales,
       localizationsDelegates: AppStrings.localizationsDelegates,
       builder:
           (context, child) =>
               AppZoomHost(child: child ?? const SizedBox.shrink()),
-      home:
-          environment.dataBackend == DataBackend.sqlite
-              ? const SecurityGate()
-              : null,
-      onGenerateRoute:
-          environment.dataBackend == DataBackend.supabase
-              ? _generateCloudRoute
-              : null,
-      onGenerateInitialRoutes:
-          environment.dataBackend == DataBackend.supabase
-              ? _generateCloudInitialRoutes
-              : null,
+      onGenerateRoute: _generateCloudRoute,
+      onGenerateInitialRoutes: _generateCloudInitialRoutes,
     );
   }
 
