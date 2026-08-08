@@ -36,6 +36,8 @@ select functions_are(
     'finish_membership_mutation',
     'finish_party_mutation',
     'finish_valuation_mutation',
+    'has_entity_scope',
+    'has_scoped_entity_permission',
     'has_workspace_permission',
     'import_job_snapshot',
     'import_job_status_can_transition',

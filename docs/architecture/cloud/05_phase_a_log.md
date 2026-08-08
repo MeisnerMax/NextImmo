@@ -736,6 +736,64 @@ ausdrücklich.
 
 ---
 
+## 2026-08-08 · `PH-01` — Entity-Scope-Enforcement, neu implementiert
+
+Nicht die Rescue-Migration portiert. Sie diente als Referenz; drei ihrer Annahmen gelten
+nicht mehr (siehe unten). Migration `supabase/migrations/20260808120000_ph01_entity_scope_enforcement.sql`.
+
+### Was gilt
+
+`entity_scopes` ist eine **optionale, verengende Allowlist**: keine Scope-Zeilen bedeutet
+workspace-weiter Zugriff; sobald eine Membership mindestens eine Zeile hat, zählt nur noch
+ein expliziter Treffer; ein Scope ersetzt **nie** eine fehlende Workspace-Permission.
+
+**Allowlist vorerst nur `property`.** Die Baseline nennt auch `portfolio`, aber im Schema
+existieren weder eine `portfolios`-Tabelle noch eine Property→Portfolio-Beziehung — der
+Wert kommt ausschließlich als noch nicht migrierter Eintrag im Enum
+`document_link_entity_type` vor. Ihn jetzt zu erlauben erzeugte eine Zeile, die schreibbar
+ist und nie matchen kann: aus „auf ein Portfolio einschränken" würde stillschweigend
+„gar nichts sehen". `portfolio` kommt mit `P2-D09` samt Tabelle und Vererbungsregel.
+
+### Was gegenüber der Rescue-Fassung neu gebaut wurde
+
+| Rescue-Annahme | Realität 2026-08-08 | Konsequenz |
+|---|---|---|
+| `public.update_property` ist der Kern und wird nach `private` verschoben | Seit `20260718100000_p1_015_aal_hardening.sql` ist `public.update_property` **bereits** der AAL2-Wrapper, der Kern heißt `private.update_property_core` | Der Scope-Guard kommt **in** den bestehenden Wrapper. Kein dritter Layer, keine Umbenennung — `005_p1_015_aal.test.sql` prüft `update_property_core` namentlich |
+| Zeitstempel `20260802190000` | liegt vor neun neueren Migrationen | Neuer Zeitstempel `20260808120000` |
+| Rollback-Eintrag in der Mitte der Kette | Kette ist strikt LIFO | Neuer Down-Test als **erster** Schritt vor `031_…` |
+| Testliste ergänzt `update_property` | folgt aus dem alten Wrapping | Entfällt; nur die zwei neuen Funktionsnamen kommen hinzu |
+
+Wiederverwendet wurden die Idee, die Fail-Closed-Achsen und die Struktur der beiden
+Primitive.
+
+### Datenschutz vor Constraint
+
+Die Migration prüft `entity_scopes` **vor** dem Constraint und bricht mit
+`check_violation` samt Aufzählung der betroffenen Werte ab, wenn nicht unterstützte
+`entity_type`-Werte existieren. Es wird nichts gelöscht und nichts umgeschrieben.
+
+### Lokale Evidenz
+
+| Gate | Ergebnis |
+|---|---|
+| Supabase-CLI | **2.109.1** (gepinnt) |
+| `db reset --no-seed`, `db lint`, Security- und Performance-Advisor | grün (Advisor-Restbefund `rls_enabled_no_policy` auf `mutation_receipts` ist INFO und vorbestehend) |
+| volle pgTAP-Suite | **1274 Tests grün**, davon 28 neu in `025_ph01_entity_scope.test.sql` |
+| Rollback `032_ph01_entity_scope_down.test.sql` | grün — Primitive weg, Constraint weg, Policy zurück auf die reine Workspace-Permission, **AAL2-Wrapper ohne Scope-Guard wiederhergestellt** |
+| `verify_p1_004`, `p1_007`, `p1_011`, `p1_018`, `debt_012`, `p2_d01`, `p2_d05`, beide `p2_x01`-Cutover | alle Exit 0 |
+
+### Sicherheitsstand
+
+**Tatsächlich entity-scoped:** `properties` — SELECT über die Policy, UPDATE über den
+öffentlichen RPC (Authentifizierung → AAL2 → Permission-und-Scope → Core).
+
+**Noch nicht:** `units`, `leases`, `maintenance_tickets`, `capex_projects`, `documents`.
+Deren RLS ist unverändert. Wo sie heute indirekt über Property-Rechte lesen, erben sie die
+Einschränkung faktisch mit; das ist **nicht** dasselbe wie durchgesetztes Child-Scoping und
+wird hier ausdrücklich nicht behauptet. Das ist ein eigenes Security-Increment.
+
+---
+
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
 
 `cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
