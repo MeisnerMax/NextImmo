@@ -25,6 +25,10 @@ dependencies:
   fl_chart: ^0.69.2
   web: ^1.1.1
   supabase_flutter: 2.15.4
+  # Already resolved in the tree as a transitive dependency of supabase_flutter,
+  # which uses it for exactly this purpose. Declared directly because the
+  # desktop auth callback observer imports it; no new package enters the build.
+  app_links: ^6.4.1
 
 dev_dependencies:
   flutter_test:

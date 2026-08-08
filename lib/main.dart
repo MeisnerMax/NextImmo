@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'app_backend_wiring.dart';
 import 'core/config/app_environment.dart';
+import 'features/identity_access/data/desktop_auth_deep_link_observer.dart';
 import 'features/identity_access/data/supabase_entitlement_invalidation_adapter.dart';
 import 'features/identity_access/data/supabase_identity_access_repository_adapter.dart';
 import 'features/identity_access/data/supabase_membership_admin_repository_adapter.dart';
@@ -24,8 +26,21 @@ Future<void> main() async {
   await Supabase.initialize(
     url: environment.supabaseUrl!,
     publishableKey: environment.supabasePublishableKey!,
+    // On web the browser owns the redirect and the SDK's own URL detection is
+    // the right mechanism. On desktop it is not: it exchanges any URI carrying
+    // a `code` parameter without checking where the URI came from, and the app
+    // registers `neximmo:` system-wide. Desktop therefore validates the
+    // callback itself, below.
+    authOptions: const FlutterAuthClientOptions(detectSessionInUri: kIsWeb),
   );
   final client = Supabase.instance.client;
+
+  if (!kIsWeb) {
+    // Lives for the process lifetime, like the observer it replaces. The
+    // session it produces reaches the UI through `onAuthStateChange`, so no
+    // navigation is wired here.
+    DesktopAuthDeepLinkObserver.forClient(client).start();
+  }
 
   runApp(
     ProviderScope(
