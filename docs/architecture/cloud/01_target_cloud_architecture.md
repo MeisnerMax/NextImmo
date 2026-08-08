@@ -206,6 +206,47 @@ sonst würde jeder Flutter-Commit ein Marketing-Deployment auslösen.
 Der Deploy-Workflow ist **inert**, bis Vercel-Projekt, Repository-Secrets und eine
 provisionierte Supabase-Umgebung existieren. Er hat bewusst **keinen** Production-Pfad.
 
+### Git-Autodeployments der App sind abgeschaltet (DEPLOY-DRIFT-01, 2026-08-09)
+
+Das Vercel-Projekt der App (`app.neximmo.de`, `prj_jEJXOtnXzZelrFhie8PbE8JKdUKD`) entstand
+früher als geplant und wurde dabei direkt mit dem Repository verbunden. Damit lief eine
+zweite, ungeplante Deployment-Schiene: jeder Push auf `main` erzeugte ein Vercel-Deployment
+mit `target=production`, jeder Dependabot-Branch ein Preview.
+
+Diese Deployments waren nutzlos. Vercel klont das Repository, erkennt kein Framework,
+installiert keine Dependencies und ist nach knapp einer Sekunde fertig — es gibt im
+Repo-Root nichts zu bauen, weil die App bewusst in GitHub Actions gebaut wird. Ergebnis ist
+ein leeres Deployment, dessen Alias am Root `404 NOT_FOUND` liefert.
+
+Beobachtet ab `3a2985c`; `cd7356f` und älter zeigen nur das Marketing-Projekt. Gleichzeitig
+blieb der vorgesehene Pfad inert: bei PR #13 lief `preflight`, `deploy_preview` war
+`skipped`, weil die Staging-Secrets fehlen.
+
+Die Root-`vercel.json` schaltet das ab:
+
+```json
+{ "git": { "deploymentEnabled": false } }
+```
+
+Sie enthält ausschließlich diese Policy — kein `buildCommand`, kein `outputDirectory`, kein
+`framework`. Flutter wird nicht in Vercel gebaut, daran ändert sich nichts.
+
+Der spätere Actions-Deploy bleibt möglich. `git.deploymentEnabled` steuert laut Vercel-Doku
+nur Deployments, die durch Commits ausgelöst werden; explizite CLI-Deployments sind davon
+nicht betroffen. Unabhängig davon deployt der Workflow mit `vercel deploy build/web`, und
+Vercel liest `vercel.json` aus dem deployten Verzeichnis — `build/web` enthält keine.
+
+Marketing ist nicht betroffen: dessen Projekt (`next-immo`,
+`prj_egbIYUEGWzonI4dCxaVZwsurxEmy`) baut aus `marketing/` und liest dort seine eigene
+`vercel.json`. Belegt durch seine Buildlogs — `git diff --quiet HEAD^ HEAD -- .` aus genau
+dieser Datei, Dependency-Installation, Next.js 16.3.0, Package `neximmo-marketing`. Dass der
+Check `Vercel – next-immo` auf dem PR weiterhin erscheint, ist die laufende Kontrolle dieser
+Annahme.
+
+**Das heißt ausdrücklich nicht, dass Staging eingerichtet ist.** Die echte Domain
+`app.neximmo.de` ist nicht verbunden — es existieren nur `vercel.app`-Aliases. `deploy_preview`
+bleibt übersprungen, bis die Staging-Secrets vollständig sind. Production bleibt gesperrt.
+
 ---
 
 ## 10. CI-Gates
