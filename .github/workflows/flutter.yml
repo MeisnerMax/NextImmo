@@ -109,9 +109,60 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      # package.json is the single source of truth for the CLI version. It used
+      # to be repeated here as a literal, which let the two drift silently.
+      - name: Read the pinned Supabase CLI version
+        id: supabase_cli
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').devDependencies.supabase")"
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json must pin an exact Supabase CLI version, got '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.109.1
+          version: ${{ steps.supabase_cli.outputs.version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # The 27 `npx supabase` call sites across 13 tool/*.ps1 scripts resolve
+      # from ./node_modules/.bin. Without this the runner has no root
+      # node_modules, npx falls back to the registry, and CI silently runs
+      # whatever version is newest -- which is how a freshly published
+      # supabase@2.113.0 broke the P1-007 step on a documentation-only commit.
+      - name: Install the pinned Supabase CLI
+        run: npm ci
+      - name: Verify every Supabase CLI entry point is the pinned version
+        shell: bash
+        run: |
+          expected='${{ steps.supabase_cli.outputs.version }}'
+          extract() { printf '%s' "$1" | tr -d '\r' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1; }
+
+          on_path_raw="$(supabase --version 2>&1)"
+          npx_raw="$(npx supabase --version 2>&1)"
+
+          echo "expected (package.json): $expected"
+          echo "PATH, used by the workflow steps: $(extract "$on_path_raw")"
+          echo "npx, used by the tool/*.ps1 scripts: $(extract "$npx_raw")"
+
+          # The exact marker npx prints when it resolves from the registry
+          # rather than from node_modules. Its presence means the pin was
+          # bypassed, whatever version happened to come back.
+          if printf '%s' "$npx_raw" | grep -q 'will be installed'; then
+            echo "::error::npx resolved the Supabase CLI from the registry instead of node_modules"
+            exit 1
+          fi
+
+          for actual in "$(extract "$on_path_raw")" "$(extract "$npx_raw")"; do
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::Supabase CLI version drift: expected $expected, found $actual"
+              exit 1
+            fi
+          done
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.29.2
