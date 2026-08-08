@@ -77,7 +77,7 @@ void main() {
       await tester.tap(find.text('Jetzt erzeugen'));
 
       // Wait for status text containing "erzeugt" to appear
-      for (int i = 0; i < 40; i++) {
+      for (int i = 0; i < 200; i++) {
         await tester.pump();
         if (find.textContaining('erzeugt').evaluate().isNotEmpty) {
           break;

@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/identity_access/application/entitlement_invalidation_source.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_query_invalidation_source.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
@@ -13,6 +14,7 @@ void main() {
     late _FakeIdentityRepository identity;
     late _FakePropertyRepository properties;
     late _FakePropertyInvalidationSource invalidations;
+    late _FakeEntitlementInvalidationSource entitlementInvalidations;
     late ReferenceSliceController controller;
     late Queue<String> ids;
 
@@ -20,11 +22,14 @@ void main() {
       identity = _FakeIdentityRepository();
       properties = _FakePropertyRepository();
       invalidations = _FakePropertyInvalidationSource();
+      entitlementInvalidations = _FakeEntitlementInvalidationSource();
       ids = Queue<String>.of(<String>['mutation-a', 'correlation-a']);
       controller = ReferenceSliceController(
         identityRepository: identity,
         propertyRepository: properties,
         propertyInvalidationSource: invalidations,
+        entitlementInvalidationSource: entitlementInvalidations,
+        entitlementRevalidationInterval: const Duration(hours: 1),
         idFactory: () => ids.removeFirst(),
       );
     });
@@ -34,6 +39,7 @@ void main() {
       await _flushEvents();
       await identity.close();
       await invalidations.close();
+      await entitlementInvalidations.close();
     });
 
     test('stays unprivileged without an authenticated session', () async {
@@ -244,6 +250,116 @@ void main() {
         'workspace-a',
       );
       expect(properties.updateCommands.single.context.expectedVersion, 1);
+    });
+
+    test('detail does not downgrade a newer list summary', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property(version: 3)]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(version: 2, name: 'Stale detail'),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+
+      expect(controller.state.selectedProperty?.version, 2);
+      expect(controller.state.properties.single.version, 3);
+    });
+
+    test('deep-link detail does not extend the loaded keyset page', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(id: 'property-b'),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-b');
+
+      expect(controller.state.selectedProperty?.id, 'property-b');
+      expect(
+        controller.state.properties.map((property) => property.id),
+        <String>['property-a'],
+      );
+    });
+
+    test(
+      'archived mutation removes the property from the active list',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read', 'property.update'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+        properties.updateResults.add(
+          PropertyRepositorySuccess<PropertyDto>(
+            _property(version: 2, status: PropertyStatus.archived),
+          ),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+        await controller.updateSelectedProperty(_changes());
+
+        expect(controller.state.propertyListPhase, PropertyListPhase.empty);
+        expect(controller.state.properties, isEmpty);
+        expect(
+          controller.state.selectedProperty?.status,
+          PropertyStatus.archived,
+        );
+      },
+    );
+
+    test('archived mutation preserves a remaining keyset cursor', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(
+          items: <PropertyDto>[_property()],
+          nextCursor: 'property-b',
+        ),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+      properties.updateResults.add(
+        PropertyRepositorySuccess<PropertyDto>(
+          _property(version: 2, status: PropertyStatus.archived),
+        ),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      await controller.updateSelectedProperty(_changes());
+
+      expect(controller.state.propertyListPhase, PropertyListPhase.ready);
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.nextCursor, 'property-b');
     });
 
     test('retries a transient failure with the identical command', () async {
@@ -534,6 +650,54 @@ void main() {
       expect(controller.state.selectedProperty, isNull);
     });
 
+    test(
+      'entitlement signal clears caches before membership revalidation completes',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+
+        await controller.start();
+        expect(controller.state.properties, hasLength(1));
+
+        final pending =
+            Completer<IdentityAccessResult<List<WorkspaceAccess>>>();
+        identity.listHandler = (_) => pending.future;
+        entitlementInvalidations.emit(
+          const EntitlementInvalidation(
+            userId: 'user-a',
+            workspaceId: 'workspace-a',
+          ),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        expect(controller.state.workspacePhase, WorkspacePhase.loading);
+        expect(controller.state.workspaces, isEmpty);
+        expect(controller.state.selectedWorkspaceId, isNull);
+        expect(controller.state.properties, isEmpty);
+        expect(controller.state.selectedProperty, isNull);
+        expect(invalidations.cancelCalls['workspace-a'], 1);
+
+        pending.complete(
+          const IdentityAccessSuccess<List<WorkspaceAccess>>(
+            <WorkspaceAccess>[],
+          ),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        expect(controller.state.workspacePhase, WorkspacePhase.empty);
+        expect(controller.state.properties, isEmpty);
+      },
+    );
+
     test('workspace switch cancels the old Realtime scope', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
@@ -633,6 +797,7 @@ PropertyDto _property({
   String id = 'property-a',
   int version = 1,
   String name = 'Property',
+  PropertyStatus status = PropertyStatus.active,
 }) {
   return PropertyDto(
     id: id,
@@ -644,7 +809,7 @@ PropertyDto _property({
     country: 'de',
     propertyType: 'office',
     units: 1,
-    status: PropertyStatus.active,
+    status: status,
     createdAt: DateTime.utc(2026, 7, 1),
     updatedAt: DateTime.utc(2026, 7, 1),
     createdBy: 'user-a',
@@ -713,6 +878,8 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
   final List<String> challengedFactorIds = <String>[];
   final List<String> verifiedCodes = <String>[];
   int signOutCalls = 0;
+  Future<IdentityAccessResult<List<WorkspaceAccess>>> Function(String userId)?
+  listHandler;
 
   @override
   Stream<AuthenticatedSession?> watchSession() => _sessions.stream;
@@ -784,7 +951,8 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
     required String userId,
   }) async {
     listCalls++;
-    return result;
+    final handler = listHandler;
+    return handler == null ? result : handler(userId);
   }
 
   void authenticate({
@@ -883,6 +1051,36 @@ class _FakePropertyInvalidationSource
 
   void emit(PropertyQueryInvalidation invalidation) {
     _controllers[invalidation.workspaceId]?.add(invalidation);
+  }
+
+  Future<void> close() async {
+    for (final controller in _controllers.values) {
+      await controller.close();
+    }
+  }
+}
+
+class _FakeEntitlementInvalidationSource
+    implements EntitlementInvalidationSource {
+  final Map<String, StreamController<EntitlementInvalidation>> _controllers =
+      <String, StreamController<EntitlementInvalidation>>{};
+  final List<String> userIds = <String>[];
+  final Map<String, int> cancelCalls = <String, int>{};
+
+  @override
+  Stream<EntitlementInvalidation> watchUser({required String userId}) {
+    userIds.add(userId);
+    final controller = StreamController<EntitlementInvalidation>.broadcast(
+      onCancel: () {
+        cancelCalls.update(userId, (value) => value + 1, ifAbsent: () => 1);
+      },
+    );
+    _controllers[userId] = controller;
+    return controller.stream;
+  }
+
+  void emit(EntitlementInvalidation invalidation) {
+    _controllers[invalidation.userId]?.add(invalidation);
   }
 
   Future<void> close() async {

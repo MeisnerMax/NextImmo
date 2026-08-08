@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
@@ -61,7 +62,8 @@ class _OperationsOverviewScreenState
             const SizedBox(height: AppSpacing.component),
             _lettingWorkflowCard(),
             const SizedBox(height: AppSpacing.component),
-            Card(
+            NxCard(
+              padding: EdgeInsets.zero,
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.cardPadding),
                 child: Column(
@@ -131,7 +133,8 @@ class _OperationsOverviewScreenState
               ],
             ),
             const SizedBox(height: AppSpacing.component),
-            Card(
+            NxCard(
+              padding: EdgeInsets.zero,
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.cardPadding),
                 child: Column(
@@ -157,10 +160,10 @@ class _OperationsOverviewScreenState
                                 : Icons.info_outline,
                             color:
                                 alert.severity == 'critical'
-                                    ? Colors.red
+                                    ? context.semanticColors.error
                                     : alert.severity == 'warning'
-                                    ? Colors.orange
-                                    : Colors.blueGrey,
+                                    ? context.semanticColors.warning
+                                    : context.semanticColors.textSecondary,
                           ),
                           title: Text(alert.message),
                           subtitle: Text(alert.type),
@@ -179,7 +182,8 @@ class _OperationsOverviewScreenState
   Widget _metricCard(String label, String value) {
     return SizedBox(
       width: 180,
-      child: Card(
+      child: NxCard(
+        padding: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.cardPadding),
           child: Column(
@@ -189,7 +193,7 @@ class _OperationsOverviewScreenState
               const SizedBox(height: 6),
               Text(
                 value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700).merge(context.tabularNumericStyle),
+                style: Theme.of(context).textTheme.headlineSmall?.merge(context.dataMonoStyle),
               ),
             ],
           ),
@@ -204,7 +208,8 @@ class _OperationsOverviewScreenState
   }) {
     return SizedBox(
       width: 320,
-      child: Card(
+      child: NxCard(
+        padding: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.cardPadding),
           child: Column(
@@ -276,7 +281,8 @@ class _OperationsOverviewScreenState
       ),
     ];
 
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(

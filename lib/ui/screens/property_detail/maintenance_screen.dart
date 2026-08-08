@@ -8,6 +8,7 @@ import '../../../core/models/task.dart';
 import '../../../core/models/documents.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
+import '../../components/nx_kpi_tile.dart';
 import '../../components/nx_status_badge.dart';
 import '../../components/responsive_constraints.dart';
 import '../../state/app_state.dart';
@@ -464,10 +465,9 @@ class _PropertyMaintenanceScreenState
                       final costActual = ticket.costActual ?? 0.0;
                       final overBudget = costActual > costEstimate && costEstimate > 0;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.component),
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.component),
+                        child: NxCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -498,7 +498,8 @@ class _PropertyMaintenanceScreenState
                                 const SizedBox(height: 8),
                                 Text(
                                   ticket.description!,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                                  // Was context.semanticColors.textSecondary — invisible on the dark canvas.
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.semanticColors.textSecondary),
                                 ),
                               ],
                               const SizedBox(height: 12),
@@ -507,7 +508,7 @@ class _PropertyMaintenanceScreenState
                                 runSpacing: 8,
                                 children: [
                                   if (ticket.startDate != null) ...[
-                                    const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                    Icon(Icons.calendar_today, size: 14, color: context.semanticColors.textSecondary),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Start: ${_shortDate(ticket.startDate!)}',
@@ -515,7 +516,7 @@ class _PropertyMaintenanceScreenState
                                     ),
                                   ],
                                   if (ticket.endDate != null) ...[
-                                    const Icon(Icons.event, size: 14, color: Colors.grey),
+                                    Icon(Icons.event, size: 14, color: context.semanticColors.textSecondary),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Ende: ${_shortDate(ticket.endDate!)}',
@@ -523,7 +524,7 @@ class _PropertyMaintenanceScreenState
                                     ),
                                   ],
                                   if (ticket.vendorName != null) ...[
-                                    const Icon(Icons.business, size: 14, color: Colors.grey),
+                                    Icon(Icons.business, size: 14, color: context.semanticColors.textSecondary),
                                     const SizedBox(width: 4),
                                     Text(
                                       ticket.vendorName!,
@@ -545,8 +546,8 @@ class _PropertyMaintenanceScreenState
                                       value: progress,
                                       minHeight: 8,
                                       borderRadius: BorderRadius.circular(4),
-                                      color: Colors.green,
-                                      backgroundColor: Colors.grey.shade200,
+                                      color: context.semanticColors.success,
+                                      backgroundColor: context.semanticColors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -565,7 +566,7 @@ class _PropertyMaintenanceScreenState
                                   Text(
                                     'Tatsächliche Kosten: ${_formatCurrency(costActual)}',
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: overBudget ? Colors.red : null,
+                                          color: overBudget ? context.semanticColors.error : null,
                                           fontWeight: overBudget ? FontWeight.bold : null,
                                         ),
                                   ),
@@ -624,57 +625,23 @@ class _PropertyMaintenanceScreenState
             ],
           ),
           const SizedBox(height: AppSpacing.component),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
+          NxKpiRow(
             children: [
-              SizedBox(
-                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Geplantes CapEx (Idee/Geplant)', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(totalPlanned), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ),
+              NxKpiTile(
+                label: 'Geplantes CapEx',
+                value: _formatCurrency(totalPlanned),
+                caption: 'Idee / geplant',
               ),
-              SizedBox(
-                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Beauftragtes CapEx (Aktiv)', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(totalCommitted), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue)),
-                      ],
-                    ),
-                  ),
-                ),
+              NxKpiTile(
+                label: 'Beauftragtes CapEx',
+                value: _formatCurrency(totalCommitted),
+                caption: 'Aktive Maßnahmen',
               ),
-              SizedBox(
-                width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Investiertes CapEx (Abgeschlossen)', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey)),
-                        const SizedBox(height: 8),
-                        Text(_formatCurrency(totalCompleted), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.green)),
-                      ],
-                    ),
-                  ),
-                ),
+              NxKpiTile(
+                label: 'Investiertes CapEx',
+                value: _formatCurrency(totalCompleted),
+                caption: 'Abgeschlossen',
+                status: context.semanticColors.success,
               ),
             ],
           ),
@@ -685,7 +652,8 @@ class _PropertyMaintenanceScreenState
                   description: 'Planen Sie eine neue wertsteigernde Investition.',
                   icon: Icons.trending_up,
                 )
-              : Card(
+              : NxCard(
+                  padding: EdgeInsets.zero,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
@@ -720,7 +688,7 @@ class _PropertyMaintenanceScreenState
                                   Text(
                                     isCompleted ? _formatCurrency(diff) : '-',
                                     style: context.tabularNumericStyle.copyWith(
-                                      color: hasOverrun ? Colors.red : (isCompleted ? Colors.green : null),
+                                      color: hasOverrun ? context.semanticColors.error : (isCompleted ? context.semanticColors.success : null),
                                       fontWeight: isCompleted ? FontWeight.bold : null,
                                     ),
                                   ),
@@ -840,10 +808,9 @@ class _PropertyMaintenanceScreenState
                         badgeKind = NxBadgeKind.warning;
                       }
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.component),
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.component),
+                        child: NxCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -874,14 +841,14 @@ class _PropertyMaintenanceScreenState
                                 runSpacing: 8,
                                 children: [
                                   if (ticket.vendorName != null) ...[
-                                    const Icon(Icons.business, size: 14, color: Colors.grey),
+                                    Icon(Icons.business, size: 14, color: context.semanticColors.textSecondary),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Firma: ${ticket.vendorName!}',
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ],
-                                  const Icon(Icons.date_range, size: 14, color: Colors.grey),
+                                  Icon(Icons.date_range, size: 14, color: context.semanticColors.textSecondary),
                                   const SizedBox(width: 4),
                                   Text(
                                     'Gewährleistung: ${_shortDate(start)} bis ${_shortDate(end)}',
@@ -1136,17 +1103,14 @@ class _PropertyMaintenanceScreenState
       physics: const NeverScrollableScrollPhysics(),
       children: [
         if (datedTickets.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Center(child: Text('Keine geplanten Termine vorhanden.')),
-            ),
+          const NxEmptyState(
+            title: 'Keine geplanten Termine vorhanden',
+            description: 'Termine erscheinen hier, sobald Start oder Fälligkeit hinterlegt sind.',
+            icon: Icons.event_busy_outlined,
           )
         else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.cardPadding),
-              child: Column(
+          NxCard(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -1240,7 +1204,7 @@ class _PropertyMaintenanceScreenState
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
                                 color: isRenovation 
-                                    ? Colors.orangeAccent 
+                                    ? context.semanticColors.warning 
                                     : Theme.of(context).colorScheme.primary,
                                 backgroundColor: Theme.of(context).colorScheme.outlineVariant,
                               ),
@@ -1252,14 +1216,11 @@ class _PropertyMaintenanceScreenState
                   }),
                 ],
               ),
-            ),
           ),
         if (undatedTickets.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.cardPadding),
-              child: Column(
+          NxCard(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -1276,7 +1237,6 @@ class _PropertyMaintenanceScreenState
                       )),
                 ],
               ),
-            ),
           ),
         ],
       ],
@@ -1440,7 +1400,7 @@ class _PropertyMaintenanceScreenState
                 'Abweichung: ${_formatCurrency(dev)}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: dev > 0 ? Colors.red : Colors.green,
+                  color: dev > 0 ? context.semanticColors.error : context.semanticColors.success,
                 ),
               );
             }),
@@ -2919,24 +2879,24 @@ class _PropertyMaintenanceScreenState
             runSpacing: AppSpacing.component,
             children: [
               _bauteilSummaryCard(
+                context: context,
                 label: 'Gut',
                 count: gut,
-                color: const Color(0xFF16A34A),
-                bgColor: const Color(0xFFDCFCE7),
+                color: context.semanticColors.success,
                 icon: Icons.check_circle_outline,
               ),
               _bauteilSummaryCard(
+                context: context,
                 label: 'Zu prüfen',
                 count: prufen,
-                color: const Color(0xFFD97706),
-                bgColor: const Color(0xFFFEF9C3),
+                color: context.semanticColors.warning,
                 icon: Icons.warning_amber_outlined,
               ),
               _bauteilSummaryCard(
+                context: context,
                 label: 'Kritisch',
                 count: kritisch,
-                color: const Color(0xFFDC2626),
-                bgColor: const Color(0xFFFEE2E2),
+                color: context.semanticColors.error,
                 icon: Icons.error_outline,
               ),
             ],
@@ -2979,41 +2939,46 @@ class _PropertyMaintenanceScreenState
     );
   }
 
+  /// Compact status summary (count + label) for the component condition band.
+  ///
+  /// The background tint used to be passed in alongside the status colour as a
+  /// hardcoded light-mode hex — `#DCFCE7` on white reads as a soft green chip,
+  /// on the dark navy canvas it is a bright mint block. It is derived from the
+  /// status colour now, so the two cannot drift apart and both brightnesses
+  /// work from one input.
   Widget _bauteilSummaryCard({
+    required BuildContext context,
     required String label,
     required int count,
     required Color color,
-    required Color bgColor,
     required IconData icon,
   }) {
+    final theme = Theme.of(context);
     return Container(
       constraints: const BoxConstraints(minWidth: 160),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 12),
+          Icon(icon, color: color, size: AppIconTokens.lg),
+          const SizedBox(width: AppSpacing.sm),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // The icon carries the status; colouring the figure as well is
+              // redundant and burns contrast on the count itself.
               Text(
                 count.toString(),
-                style: TextStyle(
-                  color: color,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: theme.textTheme.headlineSmall
+                    ?.merge(context.dataMonoStyle)
+                    .copyWith(height: 1.2),
               ),
-              Text(
-                label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w600),
-              ),
+              Text(label, style: theme.textTheme.labelMedium),
             ],
           ),
         ],
@@ -3050,10 +3015,8 @@ class _PropertyMaintenanceScreenState
       }
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Column(
+    return NxCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -3061,10 +3024,10 @@ class _PropertyMaintenanceScreenState
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: entry.statusColor.withValues(alpha: 0.12),
+                    color: entry.statusColorOf(context).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
                   ),
-                  child: Icon(comp.icon, color: entry.statusColor, size: 22),
+                  child: Icon(comp.icon, color: entry.statusColorOf(context), size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -3080,14 +3043,13 @@ class _PropertyMaintenanceScreenState
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(entry.statusIcon, color: entry.statusColor, size: 14),
+                          Icon(entry.statusIcon, color: entry.statusColorOf(context), size: 14),
                           const SizedBox(width: 4),
                           Text(
                             entry.statusLabel,
-                            style: TextStyle(
-                              color: entry.statusColor,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: entry.statusColorOf(context),
                               fontWeight: FontWeight.w600,
-                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -3125,7 +3087,7 @@ class _PropertyMaintenanceScreenState
                     icon: Icons.event_outlined,
                     label: 'Nächste Wartung',
                     value: nextServiceText,
-                    valueColor: overdueService ? const Color(0xFFDC2626) : null,
+                    valueColor: overdueService ? context.semanticColors.error : null,
                   ),
                 ),
               ],
@@ -3134,14 +3096,12 @@ class _PropertyMaintenanceScreenState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.build_outlined, size: 14, color: Color(0xFF64748B)),
+                  Icon(Icons.build_outlined, size: 14, color: context.semanticColors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     '$openTickets offene${openTickets == 1 ? 's Ticket' : ' Tickets'}',
-                    style: const TextStyle(
-                      color: Color(0xFFD97706),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: context.semanticColors.warning,
                     ),
                   ),
                 ],
@@ -3152,7 +3112,7 @@ class _PropertyMaintenanceScreenState
               Text(
                 entry.notes!,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF64748B),
+                  color: context.semanticColors.textSecondary,
                   fontStyle: FontStyle.italic,
                 ),
                 maxLines: 2,
@@ -3161,7 +3121,6 @@ class _PropertyMaintenanceScreenState
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -3177,12 +3136,12 @@ class _PropertyMaintenanceScreenState
       children: [
         Row(
           children: [
-            Icon(icon, size: 12, color: const Color(0xFF94A3B8)),
+            Icon(icon, size: 12, color: context.semanticColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: const Color(0xFF94A3B8),
+                color: context.semanticColors.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -3921,11 +3880,20 @@ class _BauteilStatusEntry {
   DateTime? nextService;
   String? notes;
 
-  Color get statusColor {
+  /// Status colour for this entry.
+  ///
+  /// Takes a [BuildContext] rather than being a plain getter: this is a data
+  /// model, and a model that hardcodes hex values owns a design decision it
+  /// cannot keep in sync. Resolving through the theme means the mapping moves
+  /// when the design system moves.
+  Color statusColorOf(BuildContext context) {
     switch (status) {
-      case 'kritisch': return const Color(0xFFDC2626);
-      case 'prufen':   return const Color(0xFFD97706);
-      default:         return const Color(0xFF16A34A);
+      case 'kritisch':
+        return context.semanticColors.error;
+      case 'prufen':
+        return context.semanticColors.warning;
+      default:
+        return context.semanticColors.success;
     }
   }
 

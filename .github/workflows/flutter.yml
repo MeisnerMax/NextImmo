@@ -3,7 +3,11 @@ name: Flutter
 on:
   pull_request:
   push:
-    branches: [main]
+    # Pull requests are already covered unfiltered. These are the branches that
+    # get pushed to directly and still need a hosted run of their own.
+    branches:
+      - main
+      - 'cloud/**'
 
 permissions:
   contents: read
@@ -29,17 +33,136 @@ jobs:
         run: flutter analyze --no-pub
       - name: Test
         run: flutter test --no-pub
+      # Golden failures write their expected/actual/diff PNGs into
+      # test/**/failures/, which is gitignored and otherwise lost when the
+      # runner is torn down. Without them a golden mismatch is undiagnosable
+      # from the log alone.
+      - name: Upload golden failure diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: test/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build web
         run: flutter build web --no-pub
+      # The plain build above compiles the app but never sets the dart-defines,
+      # so it proves nothing about the cloud entrypoint: AppEnvironment fails
+      # closed on missing NEXIMMO_ENV / NEXIMMO_DATA_BACKEND at runtime, not at
+      # build time. This second build sets them. It deliberately uses the local
+      # stack's values -- deterministic, no secrets, and enough to prove the
+      # Supabase entrypoint compiles and links. Deploying a real environment is
+      # the deploy workflow's job, gated by DEC-015..DEC-017.
+      - name: Build web for the cloud entrypoint
+        run: |
+          flutter build web --no-pub \
+            --dart-define=NEXIMMO_ENV=local \
+            --dart-define=NEXIMMO_DATA_BACKEND=supabase \
+            --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder
+
+  marketing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: marketing/package-lock.json
+      - name: Resolve locked dependencies
+        working-directory: marketing
+        run: npm ci
+      - name: Build marketing site
+        working-directory: marketing
+        run: npm run build
+      # Same root directory Vercel builds from. A broken marketing build must
+      # fail here rather than on the deployment.
+
+  supply_chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Secret scanning needs history, not just the tip commit.
+          fetch-depth: 0
+      - name: Scan for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Findings land in the job summary and the SARIF artifact. PR comments
+          # need pull-requests:write, which this workflow deliberately does not
+          # grant. Allowlisting lives in .gitleaks.toml.
+          GITLEAKS_ENABLE_COMMENTS: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Audit marketing dependencies
+        working-directory: marketing
+        run: npm audit --audit-level=high
 
   database:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      # package.json is the single source of truth for the CLI version. It used
+      # to be repeated here as a literal, which let the two drift silently.
+      - name: Read the pinned Supabase CLI version
+        id: supabase_cli
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').devDependencies.supabase")"
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json must pin an exact Supabase CLI version, got '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.109.1
+          version: ${{ steps.supabase_cli.outputs.version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # The 27 `npx supabase` call sites across 13 tool/*.ps1 scripts resolve
+      # from ./node_modules/.bin. Without this the runner has no root
+      # node_modules, npx falls back to the registry, and CI silently runs
+      # whatever version is newest -- which is how a freshly published
+      # supabase@2.113.0 broke the P1-007 step on a documentation-only commit.
+      - name: Install the pinned Supabase CLI
+        run: npm ci
+      - name: Verify every Supabase CLI entry point is the pinned version
+        shell: bash
+        run: |
+          expected='${{ steps.supabase_cli.outputs.version }}'
+          extract() { printf '%s' "$1" | tr -d '\r' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1; }
+
+          on_path_raw="$(supabase --version 2>&1)"
+          npx_raw="$(npx supabase --version 2>&1)"
+
+          echo "expected (package.json): $expected"
+          echo "PATH, used by the workflow steps: $(extract "$on_path_raw")"
+          echo "npx, used by the tool/*.ps1 scripts: $(extract "$npx_raw")"
+
+          # The exact marker npx prints when it resolves from the registry
+          # rather than from node_modules. Its presence means the pin was
+          # bypassed, whatever version happened to come back.
+          if printf '%s' "$npx_raw" | grep -q 'will be installed'; then
+            echo "::error::npx resolved the Supabase CLI from the registry instead of node_modules"
+            exit 1
+          fi
+
+          for actual in "$(extract "$on_path_raw")" "$(extract "$npx_raw")"; do
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::Supabase CLI version drift: expected $expected, found $actual"
+              exit 1
+            fi
+          done
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.29.2
@@ -59,10 +182,66 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test P1-011 and P1-004 rollback
+      - name: Test PH-01, P2-D06 workspace read, P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
           supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/032_ph01_entity_scope_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/031_p2_d06_workspace_maintenance_tickets_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/030_p2_d06_maintenance_capex_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/029_p2_d06_maintenance_capex_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/028_p2_d05a_operations_signals_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/027_p2_d05a_operations_signals_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/026_p2_d05b_rent_roll_live_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/025_p2_x01_lease_deposit_status_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/024_p2_x01_property_asset_attributes_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/023_p2_d07_variants_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/022_p2_d05_leasing_cases_rent_roll_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/021_p2_d05_leasing_cases_rent_roll_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/020_p2_d05_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/019_p2_d05_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/018_p2_d03_workspace_requirements_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/017_p2_d07_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/016_p2_d07_valuation_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/015_p2_d04_import_jobs_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/014_p2_d04_tasks_notifications_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/013_p2_d04_domain_events_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/012_p2_d03_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/011_p2_d03_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/010_p2_d02_realtime_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/009_p2_d02_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/008_p2_d01_directory_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/007_p2_d01_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/006_debt_012_down.test.sql
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/005_p1_017_down.test.sql
+          supabase migration down --local --last 3 --yes
           supabase test db --local supabase/tests_rollback/004_p1_011_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/003_p1_004_down.test.sql
@@ -77,6 +256,33 @@ jobs:
       - name: Test P1-011 Realtime integration
         shell: pwsh
         run: ./tool/verify_p1_011_e2e.ps1
+      - name: Test P1-018 raw PostgREST authorization parity
+        shell: pwsh
+        run: ./tool/verify_p1_018_postgrest.ps1
+      - name: Test DEBT-012 property tombstone parity
+        shell: pwsh
+        run: ./tool/verify_debt_012_tombstone.ps1
+      - name: Test P2-D01 membership admin integration
+        shell: pwsh
+        run: ./tool/verify_p2_d01_integration.ps1
+      - name: Test P2-D02 party integration
+        shell: pwsh
+        run: ./tool/verify_p2_d02_integration.ps1
+      - name: Test P2-D03 document integration
+        shell: pwsh
+        run: ./tool/verify_p2_d03_integration.ps1
+      - name: Test P2-D04 platform integration
+        shell: pwsh
+        run: ./tool/verify_p2_d04_integration.ps1
+      - name: Test P2-D05 leasing concurrency and integration
+        shell: pwsh
+        run: ./tool/verify_p2_d05_integration.ps1
+      - name: Test P2-D05a operations signals integration and parity
+        shell: pwsh
+        run: ./tool/verify_p2_d05a_integration.ps1
+      - name: Test P2-D06 maintenance_capex integration
+        shell: pwsh
+        run: ./tool/verify_p2_d06_integration.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1
@@ -86,6 +292,30 @@ jobs:
       - name: Test P1-014 local backup restore drill
         shell: pwsh
         run: ./tool/verify_p1_014_backup_restore.ps1
+      - name: Test P1-014 hard-exit recovery
+        shell: pwsh
+        run: ./tool/test_p1_014_crash_recovery.ps1
+      - name: Test P1-021 profile parameter guards
+        shell: pwsh
+        run: ./tool/test_p1_021_performance_profile_guard.ps1
+      - name: Collect P1-021 local calibration profile
+        shell: pwsh
+        run: |
+          ./tool/verify_p1_021_performance_profile.ps1 `
+            -PropertyCount 250 -WarmupRuns 1 -MeasuredRuns 5
+          if (-not (Test-Path build/p1_021_local_profile.json)) {
+            throw 'P1-021 profile artifact is missing.'
+          }
+      - name: Test P2-X01 cutover against the generated fixture
+        shell: pwsh
+        # The cutover reads a legacy SQLite core, which CI does not have. The
+        # fixture is generated from the real DbMigrations schema plus fixed
+        # rows, so the path stays regression-tested without committing a binary
+        # database or any real data.
+        run: |
+          dart run tool/generate_cutover_fixture.dart --output build/cutover_fixture.db
+          ./tool/verify_p2_x01_property_cutover.ps1 -Database build/cutover_fixture.db
+          ./tool/verify_p2_x01_domain_cutover.ps1 -Database build/cutover_fixture.db
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup

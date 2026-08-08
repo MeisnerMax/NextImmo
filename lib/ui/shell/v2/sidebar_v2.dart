@@ -24,10 +24,13 @@ class SidebarV2 extends ConsumerStatefulWidget {
 }
 
 class _SidebarV2State extends ConsumerState<SidebarV2> {
-  static const Color _menuBlue = Color(0xFF030C28);
-  static const Color _menuSelected = Color(0xFF17417D);
-  static const Color _menuText = Color(0xFFEAF2FF);
-  static const Color _menuMuted = Color(0xFFBFD0EA);
+  // These were four hardcoded hex values — and they were the *previous*
+  // sidebar palette, so this shell still rendered the pre-Liquid-Enterprise
+  // colours next to the migrated one. Pointed at the shared tokens instead.
+  static const Color _menuBlue = AppColors.sidebarBackground;
+  static const Color _menuSelected = AppColors.sidebarSelected;
+  static const Color _menuText = AppColors.sidebarText;
+  static const Color _menuMuted = AppColors.sidebarMuted;
 
   final Map<String, bool> _expanded = <String, bool>{
     'Start': true,
@@ -85,7 +88,7 @@ class _SidebarV2State extends ConsumerState<SidebarV2> {
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
         color: _menuBlue,
-        border: const Border(right: BorderSide(color: Color(0xFF17417D))),
+        border: const Border(right: BorderSide(color: _menuSelected)),
       ),
       child: Column(
         children: [

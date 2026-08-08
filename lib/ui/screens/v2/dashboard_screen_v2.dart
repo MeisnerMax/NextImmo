@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/budget.dart';
@@ -823,10 +824,7 @@ class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
                       Text(
                         'GESAMTPORTFOLIO-WERT',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
                           color: context.semanticColors.textSecondary,
-                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -852,10 +850,7 @@ class _ValuationTrendPanelState extends State<_ValuationTrendPanel> {
                       Text(
                         'TENDENZ (12M)',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
                           color: context.semanticColors.textSecondary,
-                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -985,11 +980,7 @@ class _ValuationTrendChart extends StatelessWidget {
               return touchedSpots.map((touchedSpot) {
                 return LineTooltipItem(
                   _formatCurrency(touchedSpot.y),
-                  TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
+                  Theme.of(context).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w700),
                 );
               }).toList();
             },
@@ -2011,11 +2002,7 @@ class _TypeMixChart extends StatelessWidget {
               final val = values[groupIndex];
               return BarTooltipItem(
                 '${val.label}: ${val.value}',
-                TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
+                Theme.of(context).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w700),
               );
             },
           ),
@@ -2147,14 +2134,10 @@ class _SignalCard extends StatelessWidget {
     
     return SizedBox(
       width: 230,
-      child: Card(
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
-          side: BorderSide(color: context.semanticColors.border, width: 1),
-        ),
-        clipBehavior: Clip.antiAlias,
+      child: NxCard(
+        variant: NxCardVariant.interactive,
+        padding: EdgeInsets.zero,
+        onTap: onTap,
         child: InkWell(
           onTap: onTap,
           child: IntrinsicHeight(
@@ -2203,10 +2186,7 @@ class _SignalCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           metric.detail,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 11,
-                            color: context.semanticColors.textSecondary,
-                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(color: context.semanticColors.textSecondary),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),

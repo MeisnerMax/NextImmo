@@ -1,20 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/portfolio_analytics.dart';
 import '../../core/models/property.dart';
-import '../i18n/app_strings.dart';
-import 'property_detail/property_shell.dart';
-import 'properties/create_property_dialog.dart';
+import '../components/nx_data_table_shell.dart';
+import '../components/nx_empty_state.dart';
+import '../components/nx_status_badge.dart';
 import 'properties/property_creation_workflow_screen.dart';
+import 'properties/widgets/portfolio_kpi_header.dart';
+import 'properties/widgets/property_card.dart';
+import 'properties/widgets/property_table.dart';
 import '../state/app_state.dart';
 import '../state/property_state.dart';
+import '../templates/list_filter_template.dart';
 import '../theme/app_theme.dart';
+import 'property_detail/property_shell.dart';
 
-class PropertiesScreen extends ConsumerWidget {
+enum _PropertiesView { table, cards }
+
+class PropertiesScreen extends ConsumerStatefulWidget {
   const PropertiesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PropertiesScreen> createState() => _PropertiesScreenState();
+}
+
+class _PropertiesScreenState extends ConsumerState<PropertiesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  String _sortKey = 'updated_desc';
+  _PropertiesView _view = _PropertiesView.table;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedPropertyId = ref.watch(selectedPropertyIdProvider);
     if (selectedPropertyId != null) {
       return const PropertyShell();
@@ -23,294 +47,436 @@ class PropertiesScreen extends ConsumerWidget {
     final propertiesAsync = ref.watch(propertiesControllerProvider);
     final controller = ref.read(propertiesControllerProvider.notifier);
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ListFilterTemplate(
+      title: 'Properties',
+      breadcrumbs: const ['Assets & Portfolio', 'Properties'],
+      subtitle: 'Portfolio durchsuchen und Objekte verwalten.',
+      primaryAction: ElevatedButton.icon(
+        onPressed: () => _openCreateDialog(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('New Property'),
+      ),
+      secondaryActions: [
+        SegmentedButton<_PropertiesView>(
+          segments: const [
+            ButtonSegment(
+              value: _PropertiesView.table,
+              icon: Icon(Icons.table_rows_outlined),
+              tooltip: 'Tabellenansicht',
+            ),
+            ButtonSegment(
+              value: _PropertiesView.cards,
+              icon: Icon(Icons.grid_view_outlined),
+              tooltip: 'Kartenansicht',
+            ),
+          ],
+          selected: {_view},
+          showSelectedIcon: false,
+          onSelectionChanged:
+              (selection) => setState(() => _view = selection.first),
+        ),
+        OutlinedButton(
+          onPressed: controller.reload,
+          child: const Text('Refresh'),
+        ),
+      ],
+      filters: ListFilterBar(
+        trailing: propertiesAsync.maybeWhen(
+          data: (properties) {
+            final shown = _visibleProperties(properties).length;
+            return Text(
+              shown == properties.length
+                  ? '$shown Objekte'
+                  : '$shown von ${properties.length} Objekten',
+              style: Theme.of(context).textTheme.labelMedium,
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Objekt-Management',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Erfassen, bewirtschaften und analysieren Sie Ihre Liegenschaften.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: context.semanticColors.textSecondary,
-                      ),
-                ),
-              ],
+          SizedBox(
+            width: context.viewport == AppViewport.mobile ? 180 : 260,
+            child: TextField(
+              controller: _searchController,
+              onChanged:
+                  (value) =>
+                      setState(() => _query = value.trim().toLowerCase()),
+              decoration: const InputDecoration(
+                labelText: 'Search properties',
+                prefixIcon: Icon(Icons.search),
+              ),
             ),
           ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () => _openCreateDialog(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('New Property'),
+          SizedBox(
+            width: context.viewport == AppViewport.mobile ? 180 : 220,
+            child: DropdownButtonFormField<String>(
+              value: _sortKey,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Sortierung',
+                prefixIcon: Icon(Icons.sort_outlined),
               ),
-              OutlinedButton.icon(
-                onPressed: controller.reload,
-                icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('Refresh'),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.component),
-          Expanded(
-            child: propertiesAsync.when(
-              data: (properties) {
-                if (properties.isEmpty) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      border: Border.all(color: context.semanticColors.border),
-                      borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-                    ),
-                    child: const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.section),
-                        child: Text('No properties yet.'),
-                      ),
-                    ),
-                  );
+              items: const [
+                DropdownMenuItem(
+                  value: 'updated_desc',
+                  child: Text('Neueste zuerst'),
+                ),
+                DropdownMenuItem(
+                  value: 'updated_asc',
+                  child: Text('Älteste zuerst'),
+                ),
+                DropdownMenuItem(value: 'name_asc', child: Text('Name A-Z')),
+                DropdownMenuItem(value: 'name_desc', child: Text('Name Z-A')),
+                DropdownMenuItem(value: 'city_asc', child: Text('Ort A-Z')),
+                DropdownMenuItem(value: 'value_desc', child: Text('Marktwert')),
+                DropdownMenuItem(value: 'yield_desc', child: Text('Rendite')),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
                 }
-
-                return Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border.all(color: context.semanticColors.border),
-                    borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.component),
-                    child: SingleChildScrollView(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 760),
-                          child: DataTable(
-                          sortAscending: false,
-                          sortColumnIndex: 3,
-                          headingRowColor: WidgetStateProperty.all(
-                            context.semanticColors.surfaceAlt,
-                          ),
-                          columns: const [
-                            DataColumn(label: Text('Name')),
-                            DataColumn(label: Text('Address')),
-                            DataColumn(label: Text('Type')),
-                            DataColumn(label: Text('Updated ↓')),
-                            DataColumn(label: Text('Actions')),
-                          ],
-                          rows:
-                              properties
-                                  .map(
-                                    (property) => DataRow(
-                                      cells: [
-                                        DataCell(
-                                          Text(
-                                            property.name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            '${property.addressLine1}, ${property.city}',
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
-                                              borderRadius: BorderRadius.circular(999),
-                                              border: Border.all(
-                                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              context.strings.text(
-                                                propertyTypeDisplayLabel(
-                                                  property.propertyType,
-                                                ),
-                                              ),
-                                              style: TextStyle(
-                                                color: Theme.of(context).colorScheme.primary,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            DateTime.fromMillisecondsSinceEpoch(
-                                              property.updatedAt,
-                                            ).toIso8601String(),
-                                            style: context.tabularNumericStyle,
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              TextButton.icon(
-                                                onPressed: () {
-                                                  ref
-                                                      .read(
-                                                        selectedScenarioIdProvider
-                                                            .notifier,
-                                                      )
-                                                      .state = null;
-                                                  ref
-                                                      .read(
-                                                        selectedPropertyIdProvider
-                                                            .notifier,
-                                                      )
-                                                      .state = property.id;
-                                                  ref
-                                                      .read(
-                                                        propertyDetailPageProvider
-                                                            .notifier,
-                                                      )
-                                                      .state = PropertyDetailPage
-                                                          .overview;
-                                                },
-                                                icon: const Icon(Icons.open_in_new, size: 16),
-                                                label: const Text('Öffnen'),
-                                              ),
-                                              PopupMenuButton<String>(
-                                                icon: const Icon(Icons.more_vert),
-                                                onSelected: (value) {
-                                                  if (value == 'archive') {
-                                                    ref
-                                                        .read(
-                                                          propertiesControllerProvider
-                                                              .notifier,
-                                                        )
-                                                        .archive(
-                                                          property.id,
-                                                          true,
-                                                        );
-                                                  } else if (value == 'delete') {
-                                                    _confirmPermanentDelete(
-                                                      context,
-                                                      ref,
-                                                      property,
-                                                    );
-                                                  }
-                                                },
-                                                itemBuilder: (context) => [
-                                                  const PopupMenuItem(
-                                                    value: 'archive',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(Icons.archive_outlined, size: 18),
-                                                        SizedBox(width: 8),
-                                                        Text('Archivieren'),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.delete_outline,
-                                                          color: Theme.of(context).colorScheme.error,
-                                                          size: 18,
-                                                        ),
-                                                        SizedBox(width: 8),
-                                                        Text(
-                                                          'Endgültig löschen',
-                                                          style: TextStyle(
-                                                            color: Theme.of(context).colorScheme.error,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                  .toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
+                setState(() => _sortKey = value);
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text('Error: $error')),
             ),
           ),
         ],
       ),
+      scrollable: context.viewport == AppViewport.mobile,
+      expandContent: context.viewport != AppViewport.mobile,
+      content: propertiesAsync.when(
+        data: (properties) => _buildLoadedContent(context, properties),
+        loading: () => const _PropertiesSkeleton(),
+        error:
+            (error, _) => NxEmptyState(
+              title: 'Objekte konnten nicht geladen werden',
+              description:
+                  'Beim Laden der Objektliste ist ein Fehler aufgetreten. '
+                  'Bitte versuchen Sie es erneut.',
+              icon: Icons.error_outline,
+              primaryAction: ElevatedButton.icon(
+                onPressed: controller.reload,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Erneut versuchen'),
+              ),
+            ),
+      ),
+    );
+  }
+
+  bool _matchesQuery(PropertyRecord property) {
+    if (_query.isEmpty) {
+      return true;
+    }
+    final haystack =
+        '${property.name} ${property.addressLine1} ${property.city} ${property.propertyType}'
+            .toLowerCase();
+    return haystack.contains(_query);
+  }
+
+  /// Result set the filter bar reports on — the same predicate the content
+  /// uses, so the count can never disagree with what is on screen.
+  List<PropertyRecord> _visibleProperties(List<PropertyRecord> properties) {
+    return properties.where(_matchesQuery).toList(growable: false);
+  }
+
+  Widget _buildLoadedContent(
+    BuildContext context,
+    List<PropertyRecord> properties,
+  ) {
+    bool matchesQuery(PropertyRecord property) => _matchesQuery(property);
+
+    final activeProperties = properties
+        .where((property) => !property.archived)
+        .toList(growable: false);
+    final filteredActive = activeProperties
+        .where(matchesQuery)
+        .toList(growable: false);
+    final filteredArchived = properties
+        .where((property) => property.archived && matchesQuery(property))
+        .toList(growable: false);
+    final hasMatches = filteredActive.isNotEmpty || filteredArchived.isNotEmpty;
+    final hasAnyProperty = properties.isNotEmpty;
+    final activePropertyIds =
+        activeProperties.map((property) => property.id).toSet();
+
+    return FutureBuilder<PortfolioMetricsSnapshot>(
+      future: _loadPortfolioMetrics(activePropertyIds),
+      builder: (context, snapshot) {
+        final metrics = snapshot.data;
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+        if (isLoading && metrics == null) {
+          return const _PropertiesSkeleton();
+        }
+
+        final safeMetrics =
+            metrics ??
+            const PortfolioMetricsSnapshot(
+              totalValue: 0,
+              totalAcquisitionCosts: 0,
+              netYield: 0,
+              vacancyRate: 0,
+              ltv: 0,
+              totalLoanPrincipal: 0,
+              propertyKpis: {},
+            );
+        final sortedActive = _sortProperties(filteredActive, safeMetrics);
+        final sortedArchived = _sortProperties(filteredArchived, safeMetrics);
+
+        final content =
+            !hasMatches
+                ? NxEmptyState(
+                  title:
+                      hasAnyProperty
+                          ? 'Keine Treffer'
+                          : 'Keine Objekte vorhanden',
+                  description:
+                      hasAnyProperty
+                          ? 'Versuchen Sie es mit einem anderen Suchbegriff.'
+                          : 'Erstellen Sie Ihr erstes Objekt, um mit der Analyse zu starten.',
+                  icon: Icons.home_work_outlined,
+                  primaryAction:
+                      hasAnyProperty
+                          ? null
+                          : ElevatedButton.icon(
+                            onPressed: () => _openCreateDialog(context, ref),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Objekt erstellen'),
+                          ),
+                )
+                : _view == _PropertiesView.table
+                ? PropertyTable(
+                  properties: [...sortedActive, ...sortedArchived],
+                  metrics: safeMetrics,
+                  onOpen: (property) => _openProperty(property, ref),
+                  onImages: (property) => _openPropertyImages(property, ref),
+                  onArchiveToggle:
+                      (property) => ref
+                          .read(propertiesControllerProvider.notifier)
+                          .archive(property.id, !property.archived),
+                  onDelete: (property) => _confirmDelete(context, property),
+                  onRestore:
+                      (property) => ref
+                          .read(propertiesControllerProvider.notifier)
+                          .restore(property.id),
+                )
+                : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (sortedActive.isNotEmpty) ...[
+                        if (sortedArchived.isNotEmpty)
+                          _buildSectionTitle(
+                            context,
+                            'Aktive Objekte',
+                            '${sortedActive.length}',
+                          ),
+                        _buildPropertyGrid(context, sortedActive, safeMetrics),
+                      ],
+                      if (sortedArchived.isNotEmpty) ...[
+                        if (sortedActive.isNotEmpty)
+                          const SizedBox(height: AppSpacing.section),
+                        _buildSectionTitle(
+                          context,
+                          'Archivierte Objekte',
+                          '${sortedArchived.length}',
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        _buildPropertyGrid(
+                          context,
+                          sortedArchived,
+                          safeMetrics,
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+
+        final mobileLayout = context.viewport == AppViewport.mobile;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (activeProperties.isNotEmpty) ...[
+              PortfolioKpiHeader(metrics: safeMetrics),
+              const SizedBox(height: AppSpacing.component),
+            ],
+            if (mobileLayout) content else Expanded(child: content),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<PortfolioMetricsSnapshot> _loadPortfolioMetrics(
+    Set<String> activePropertyIds,
+  ) {
+    return ref
+        .read(portfolioAnalyticsRepositoryProvider)
+        .loadOverviewMetrics(activePropertyIds: activePropertyIds);
+  }
+
+  List<PropertyRecord> _sortProperties(
+    List<PropertyRecord> properties,
+    PortfolioMetricsSnapshot metrics,
+  ) {
+    final sorted = [...properties];
+    int compareText(String a, String b) =>
+        a.toLowerCase().compareTo(b.toLowerCase());
+    double marketValue(PropertyRecord property) =>
+        metrics.propertyKpis[property.id]?.estimatedMarketValue ?? 0;
+    double yieldValue(PropertyRecord property) =>
+        metrics.propertyKpis[property.id]?.propertyYield ?? 0;
+
+    switch (_sortKey) {
+      case 'updated_asc':
+        sorted.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+        break;
+      case 'name_asc':
+        sorted.sort((a, b) => compareText(a.name, b.name));
+        break;
+      case 'name_desc':
+        sorted.sort((a, b) => compareText(b.name, a.name));
+        break;
+      case 'city_asc':
+        sorted.sort((a, b) {
+          final cityCompare = compareText(a.city, b.city);
+          return cityCompare == 0 ? compareText(a.name, b.name) : cityCompare;
+        });
+        break;
+      case 'value_desc':
+        sorted.sort((a, b) {
+          final valueCompare = marketValue(b).compareTo(marketValue(a));
+          return valueCompare == 0 ? compareText(a.name, b.name) : valueCompare;
+        });
+        break;
+      case 'yield_desc':
+        sorted.sort((a, b) {
+          final yieldCompare = yieldValue(b).compareTo(yieldValue(a));
+          return yieldCompare == 0 ? compareText(a.name, b.name) : yieldCompare;
+        });
+        break;
+      case 'updated_desc':
+      default:
+        sorted.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        break;
+    }
+    return sorted;
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title, String count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(width: 8),
+        NxStatusBadge(label: count, kind: NxBadgeKind.neutral),
+      ],
+    );
+  }
+
+  Widget _buildPropertyGrid(
+    BuildContext context,
+    List<PropertyRecord> properties,
+    PortfolioMetricsSnapshot metrics,
+  ) {
+    // Fixed card height instead of an aspect ratio: the ratio had to be
+    // re-guessed per breakpoint and still produced a different card height at
+    // every viewport width. A max extent plus a fixed main-axis extent gives
+    // the same card everywhere and simply fits more of them as space allows.
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.component),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 360,
+        crossAxisSpacing: AppSpacing.component,
+        mainAxisSpacing: AppSpacing.component,
+        // Cover (16:9) + name/address + KPI row + actions. Verified against
+        // the widest card the max extent allows; leave headroom when adding
+        // a row to the card body.
+        mainAxisExtent: 364,
+      ),
+      itemCount: properties.length,
+      itemBuilder: (context, index) {
+        final property = properties[index];
+        final kpis = metrics.propertyKpis[property.id];
+        return PropertyCard(
+          property: property,
+          kpis: kpis,
+          onOpen: () => _openProperty(property, ref),
+          onImages: () => _openPropertyImages(property, ref),
+          onArchiveToggle:
+              () => ref
+                  .read(propertiesControllerProvider.notifier)
+                  .archive(property.id, !property.archived),
+          onDelete: () => _confirmDelete(context, property),
+          onRestore:
+              () => ref
+                  .read(propertiesControllerProvider.notifier)
+                  .restore(property.id),
+        );
+      },
     );
   }
 
   Future<void> _openCreateDialog(BuildContext context, WidgetRef ref) async {
     final existingProperties =
-        ref.read(propertiesControllerProvider).valueOrNull ?? <PropertyRecord>[];
+        ref.read(propertiesControllerProvider).valueOrNull ??
+        <PropertyRecord>[];
     final property = await showDialog<PropertyRecord>(
       context: context,
-      builder: (dialogContext) => Dialog.fullscreen(
-        child: PropertyCreationWorkflowScreen(
-          existingProperties: existingProperties,
-          onCreateProperty: (draft, assessment) => ref
-              .read(propertiesControllerProvider.notifier)
-              .createPropertyFromDraft(
-                draft: draft,
-                assessment: assessment,
-              ),
-        ),
-      ),
+      builder:
+          (dialogContext) => Dialog.fullscreen(
+            child: PropertyCreationWorkflowScreen(
+              existingProperties: existingProperties,
+              onCreateProperty:
+                  (draft, assessment) => ref
+                      .read(propertiesControllerProvider.notifier)
+                      .createPropertyFromDraft(
+                        draft: draft,
+                        assessment: assessment,
+                      ),
+            ),
+          ),
     );
 
     if (property != null && context.mounted) {
-      ref.read(selectedScenarioIdProvider.notifier).state = null;
-      ref.read(propertyDetailPageProvider.notifier).state =
-          PropertyDetailPage.overview;
-      ref.read(selectedPropertyIdProvider.notifier).state = property.id;
+      _openProperty(property, ref);
     }
   }
 
-  Future<void> _confirmPermanentDelete(
+  void _openProperty(PropertyRecord property, WidgetRef ref) {
+    ref.read(selectedScenarioIdProvider.notifier).state = null;
+    ref.read(selectedPropertyIdProvider.notifier).state = property.id;
+    ref.read(propertyDetailPageProvider.notifier).state =
+        PropertyDetailPage.overview;
+  }
+
+  void _openPropertyImages(PropertyRecord property, WidgetRef ref) {
+    ref.read(selectedScenarioIdProvider.notifier).state = null;
+    ref.read(selectedPropertyIdProvider.notifier).state = property.id;
+    ref.read(propertyDetailPageProvider.notifier).state =
+        PropertyDetailPage.documents;
+  }
+
+  Future<void> _confirmDelete(
     BuildContext context,
-    WidgetRef ref,
     PropertyRecord property,
   ) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Objekt endgültig löschen'),
+            title: const Text('Objekt löschen'),
             content: Text(
-              '"${property.name}" wird vollständig entfernt. Dazu gehören '
-              'Einheiten, Mietverträge, Kosten, Dokumente, Aufgaben und '
-              'Verknüpfungen. Diese Aktion kann nicht rückgängig gemacht '
-              'werden.',
+              '"${property.name}" wird gelöscht und aus den aktiven Listen '
+              'entfernt. Einheiten, Mietverträge, Kosten, Dokumente und '
+              'Historie bleiben erhalten — du kannst das Objekt später über die '
+              'Archiv-/Gelöscht-Ansicht wiederherstellen.',
             ),
             actions: [
               TextButton(
@@ -321,19 +487,40 @@ class PropertiesScreen extends ConsumerWidget {
                 onPressed: () => Navigator.of(dialogContext).pop(true),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(dialogContext).colorScheme.error,
-                  foregroundColor:
-                      Theme.of(dialogContext).colorScheme.onError,
+                  foregroundColor: Theme.of(dialogContext).colorScheme.onError,
                 ),
-                child: const Text('Endgültig löschen'),
+                child: const Text('Löschen'),
               ),
             ],
           ),
     );
-    if (shouldDelete != true || !context.mounted) {
+    if (shouldDelete != true || !mounted) {
       return;
     }
     await ref
         .read(propertiesControllerProvider.notifier)
-        .deletePermanently(property.id);
+        .tombstone(property.id);
+  }
+}
+
+/// Layout-shaped loading state: KPI tile placeholders plus an empty table
+/// shell, instead of a full-page spinner.
+class _PropertiesSkeleton extends StatelessWidget {
+  const _PropertiesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    const table = NxDataTableShell(loading: true, child: SizedBox.shrink());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const PortfolioKpiHeaderSkeleton(),
+        const SizedBox(height: AppSpacing.component),
+        if (context.viewport == AppViewport.mobile)
+          table
+        else
+          const Expanded(child: table),
+      ],
+    );
   }
 }

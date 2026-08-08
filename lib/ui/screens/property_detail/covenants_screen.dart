@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/engine/financing.dart';
@@ -95,7 +96,8 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final stacked = constraints.maxWidth < 1100;
-                final listPane = Card(
+                final listPane = NxCard(
+                  padding: EdgeInsets.zero,
                   child:
                       _loans.isEmpty
                           ? const Center(child: Text('No loans yet.'))
@@ -115,7 +117,8 @@ class _CovenantsScreenState extends ConsumerState<CovenantsScreen> {
                             },
                           ),
                 );
-                final detailPane = Card(
+                final detailPane = NxCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.cardPadding),
                     child:

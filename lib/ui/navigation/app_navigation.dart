@@ -3,6 +3,313 @@ import 'package:flutter/material.dart';
 import '../state/app_state.dart';
 
 const referencePropertiesRoute = '/properties';
+const referenceMembersRoute = '/members';
+
+/// Wave 2 screens live in `AppScaffold`, which only mounts in local mode. So
+/// that their mutation paths can be exercised against the real backend, cloud
+/// mode reaches them through additive routes alongside the reference slice.
+const partiesRoute = '/parties';
+
+/// The property-scoped documents panel is the one Wave 2 surface that needs an
+/// object, and in cloud mode there is no `PropertyShell` to take it from — so
+/// the id travels in the route, the same shape the reference slice already uses
+/// for a property detail.
+const propertyDocumentsRoute = '/property-documents';
+
+/// The workspace-wide documents workplace (SCR-051). Needs no parameter: its
+/// scope is the workspace of the authenticated session. Mounts the panel, not
+/// the local four-tab host, whose remaining tabs read legacy repositories that
+/// do not exist in cloud mode.
+const documentsWorkspaceRoute = '/documents';
+
+/// The workspace compliance dashboard (SCR-052). Workspace-scoped like the
+/// documents workplace, so it needs no parameter; its finding rows jump to
+/// [propertyDocumentsRoute].
+const complianceRoute = '/compliance';
+
+/// Welle 3 surfaces, same reasoning as the Welle-2 routes above: the leasing
+/// panels live in `PropertyShell`, which only mounts in local mode, so cloud
+/// mode reaches each of them through an additive route. The property-scoped
+/// ones carry the id in the route because there is no shell to take it from.
+const unitsRoute = '/units';
+const leasesRoute = '/leases';
+const leasingPipelineRoute = '/leasing-pipeline';
+const rentRollRoute = '/rent-roll';
+
+/// AP9/AP10: the operations overview and alerts panels, added after the
+/// original six-surface Welle-3 batch — same reasoning, so they get the same
+/// shape (property-scoped, id in the route, no shell to take it from).
+const operationsOverviewRoute = '/operations-overview';
+const operationsAlertsRoute = '/operations-alerts';
+
+/// Workspace-wide: the tenant list is the party directory scoped to a role, and
+/// the rental view spans every property. Neither needs a parameter.
+const tenantsRoute = '/tenants';
+const rentalOverviewRoute = '/rental-overview';
+
+/// Welle 4: the one property-scoped `maintenance_capex` surface (tickets +
+/// CapEx, merged from the SCR-034/SCR-031 audit — see `04d_wave4_
+/// maintenance_capex.md`). Same reasoning as the Welle-3 property routes
+/// above: no `PropertyShell` in cloud mode, so the id travels in the route.
+/// `GlobalPage.maintenance`/`GlobalPage.contractors` themselves need no route
+/// — they are ordinary workspace-wide sidebar destinations already in
+/// [appNavigationGroups], reached through `globalPageProvider` like `parties`
+/// or `rentalOverview`, not through a URL.
+const propertyMaintenanceRoute = '/property-maintenance';
+
+String unitsRouteFor(String propertyId) => '$unitsRoute/$propertyId';
+String leasesRouteFor(String propertyId) => '$leasesRoute/$propertyId';
+String leasingPipelineRouteFor(String propertyId) =>
+    '$leasingPipelineRoute/$propertyId';
+String rentRollRouteFor(String propertyId) => '$rentRollRoute/$propertyId';
+String operationsOverviewRouteFor(String propertyId) =>
+    '$operationsOverviewRoute/$propertyId';
+String operationsAlertsRouteFor(String propertyId) =>
+    '$operationsAlertsRoute/$propertyId';
+String propertyMaintenanceRouteFor(String propertyId) =>
+    '$propertyMaintenanceRoute/$propertyId';
+
+/// `/<prefix>/<id>` → id. Returns null for anything else, so an unknown route
+/// falls through to the next matcher rather than being claimed by this one.
+String? _idFromRoute(String routeName, String prefix) {
+  final segments = Uri.tryParse(routeName)?.pathSegments;
+  if (segments == null ||
+      segments.length != 2 ||
+      segments.first != prefix.substring(1) ||
+      segments.last.trim().isEmpty) {
+    return null;
+  }
+  return segments.last;
+}
+
+enum CloudRouteSurface {
+  page,
+  propertyDetail,
+  members,
+  documentsWorkspace,
+  propertyDocuments,
+  compliance,
+  units,
+  leases,
+  leasingPipeline,
+  rentRoll,
+  operationsOverview,
+  operationsAlerts,
+  tenants,
+  rentalOverview,
+  maintenance,
+}
+
+class CloudRouteTarget {
+  const CloudRouteTarget({
+    required this.page,
+    this.surface = CloudRouteSurface.page,
+    this.propertyId,
+  });
+
+  static const dashboard = CloudRouteTarget(page: GlobalPage.dashboard);
+
+  final GlobalPage page;
+  final CloudRouteSurface surface;
+  final String? propertyId;
+}
+
+CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
+  if (routeName == null || routeName == '/' || routeName.isEmpty) {
+    return CloudRouteTarget.dashboard;
+  }
+  if (routeName == referencePropertiesRoute) {
+    return const CloudRouteTarget(page: GlobalPage.properties);
+  }
+  final propertyId = referencePropertyIdFromRoute(routeName);
+  if (propertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.propertyDetail,
+      propertyId: propertyId,
+    );
+  }
+  if (routeName == referenceMembersRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.adminUsers,
+      surface: CloudRouteSurface.members,
+    );
+  }
+  if (routeName == partiesRoute) {
+    return const CloudRouteTarget(page: GlobalPage.parties);
+  }
+  if (routeName == tenantsRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.parties,
+      surface: CloudRouteSurface.tenants,
+    );
+  }
+  if (routeName == rentalOverviewRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.rentalOverview,
+      surface: CloudRouteSurface.rentalOverview,
+    );
+  }
+  final unitsPropertyId = _idFromRoute(routeName, unitsRoute);
+  if (unitsPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.units,
+      propertyId: unitsPropertyId,
+    );
+  }
+  final leasesPropertyId = _idFromRoute(routeName, leasesRoute);
+  if (leasesPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.leases,
+      propertyId: leasesPropertyId,
+    );
+  }
+  final pipelinePropertyId = _idFromRoute(routeName, leasingPipelineRoute);
+  if (pipelinePropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.leasingPipeline,
+      propertyId: pipelinePropertyId,
+    );
+  }
+  final rentRollPropertyId = _idFromRoute(routeName, rentRollRoute);
+  if (rentRollPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.rentRoll,
+      propertyId: rentRollPropertyId,
+    );
+  }
+  final operationsOverviewPropertyId = _idFromRoute(
+    routeName,
+    operationsOverviewRoute,
+  );
+  if (operationsOverviewPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.operationsOverview,
+      propertyId: operationsOverviewPropertyId,
+    );
+  }
+  final operationsAlertsPropertyId = _idFromRoute(
+    routeName,
+    operationsAlertsRoute,
+  );
+  if (operationsAlertsPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.operationsAlerts,
+      propertyId: operationsAlertsPropertyId,
+    );
+  }
+  final maintenancePropertyId = _idFromRoute(
+    routeName,
+    propertyMaintenanceRoute,
+  );
+  if (maintenancePropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.properties,
+      surface: CloudRouteSurface.maintenance,
+      propertyId: maintenancePropertyId,
+    );
+  }
+  if (routeName == documentsWorkspaceRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.documents,
+      surface: CloudRouteSurface.documentsWorkspace,
+    );
+  }
+  if (routeName == complianceRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.documents,
+      surface: CloudRouteSurface.compliance,
+    );
+  }
+  final documentsPropertyId = propertyDocumentsPropertyIdFromRoute(routeName);
+  if (documentsPropertyId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.documents,
+      surface: CloudRouteSurface.propertyDocuments,
+      propertyId: documentsPropertyId,
+    );
+  }
+  return null;
+}
+
+enum CloudDestinationReadiness { ready, migrationRequired }
+
+CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
+  return switch (page) {
+    GlobalPage.properties ||
+    GlobalPage.parties ||
+    GlobalPage.documents ||
+    GlobalPage.valuations ||
+    // Welle 3: reads units, leases and properties through their contracts only.
+    GlobalPage.rentalOverview ||
+    // Welle 4: reads maintenance_capex/contacts_parties through their
+    // contracts only — see `04d_wave4_maintenance_capex.md`.
+    GlobalPage.maintenance ||
+    GlobalPage.contractors ||
+    GlobalPage.adminUsers ||
+    GlobalPage.help => CloudDestinationReadiness.ready,
+    _ => CloudDestinationReadiness.migrationRequired,
+  };
+}
+
+String? cloudReadPermissionForPage(GlobalPage page) {
+  return switch (page) {
+    GlobalPage.dashboard || GlobalPage.help => null,
+    GlobalPage.properties ||
+    GlobalPage.portfolios ||
+    GlobalPage.esg ||
+    GlobalPage.maintenance ||
+    GlobalPage.budgets ||
+    GlobalPage.ledger => 'property.read',
+    // The rental view is a leasing read, not a property one: it lists units and
+    // leases and only borrows the property name.
+    GlobalPage.rentalOverview => 'lease.read',
+    GlobalPage.parties || GlobalPage.contractors => 'party.read',
+    GlobalPage.documents => 'document.read',
+    GlobalPage.tasks || GlobalPage.taskTemplates => 'task.read',
+    GlobalPage.notifications => 'notification.read',
+    GlobalPage.imports => 'import.read',
+    GlobalPage.valuations ||
+    GlobalPage.criteriaSets ||
+    GlobalPage.compare => 'valuation.read',
+    GlobalPage.reportTemplates => 'reporting.generate',
+    GlobalPage.adminUsers || GlobalPage.settings => 'security.manage',
+    GlobalPage.audit => 'audit.read',
+  };
+}
+
+bool isPageAllowedForPermissions(GlobalPage page, Set<String> permissions) {
+  final permission = cloudReadPermissionForPage(page);
+  return permission == null || permissions.contains(permission);
+}
+
+String propertyDocumentsRouteFor(String propertyId) {
+  final normalized = propertyId.trim();
+  if (normalized.isEmpty) {
+    throw ArgumentError.value(propertyId, 'propertyId', 'must not be empty');
+  }
+  return '$propertyDocumentsRoute/${Uri.encodeComponent(normalized)}';
+}
+
+String? propertyDocumentsPropertyIdFromRoute(String? routeName) {
+  if (routeName == null) {
+    return null;
+  }
+  final segments = Uri.tryParse(routeName)?.pathSegments;
+  if (segments == null ||
+      segments.length != 2 ||
+      segments.first != 'property-documents' ||
+      segments.last.trim().isEmpty) {
+    return null;
+  }
+  return segments.last;
+}
 
 String referencePropertyRoute(String propertyId) {
   final normalized = propertyId.trim();
@@ -120,6 +427,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         icon: Icons.account_tree_outlined,
       ),
       GlobalNavigationDestination(
+        page: GlobalPage.rentalOverview,
+        label: 'Vermietung',
+        title: 'Vermietung',
+        routeKey: 'assets_portfolio.rental_overview',
+        icon: Icons.holiday_village_outlined,
+      ),
+      GlobalNavigationDestination(
         page: GlobalPage.esg,
         label: 'ESG',
         title: 'ESG',
@@ -152,6 +466,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Handwerker-Stammdaten',
         routeKey: 'daily_business.contractors',
         icon: Icons.engineering_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.parties,
+        label: 'Parteien',
+        title: 'Parteien',
+        routeKey: 'daily_business.parties',
+        icon: Icons.groups_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.budgets,
@@ -187,26 +508,15 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
     title: 'Bewertung & Szenarien',
     routeKey: 'valuation_scenarios',
     items: <GlobalNavigationDestination>[
+      // The work queue is the single entry point for valuation cases. The
+      // former quick-screening, renovation and disposition tools were folded
+      // into case-kind templates during the Welle-5 cutover.
       GlobalNavigationDestination(
-        page: GlobalPage.quickScreening,
-        label: 'Schnellbewertung',
-        title: 'Schnellbewertung',
-        routeKey: 'valuation_scenarios.quick_screening',
-        icon: Icons.speed_outlined,
-      ),
-      GlobalNavigationDestination(
-        page: GlobalPage.renovationValue,
-        label: 'Renovierung',
-        title: 'Renovierung und Wertsteigerung',
-        routeKey: 'valuation_scenarios.renovation_value',
-        icon: Icons.construction_outlined,
-      ),
-      GlobalNavigationDestination(
-        page: GlobalPage.dispositionExit,
-        label: 'Verkauf / Exit',
-        title: 'Verkauf und Exit-Analyse',
-        routeKey: 'valuation_scenarios.disposition_exit',
-        icon: Icons.sell_outlined,
+        page: GlobalPage.valuations,
+        label: 'Bewertungen',
+        title: 'Bewertungen',
+        routeKey: 'valuation_scenarios.valuations',
+        icon: Icons.calculate_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.criteriaSets,
@@ -684,10 +994,7 @@ bool isPageAllowedForRole(GlobalPage page, String role) {
           page != GlobalPage.settings &&
           page != GlobalPage.audit &&
           page != GlobalPage.criteriaSets &&
-          page != GlobalPage.compare &&
-          page != GlobalPage.quickScreening &&
-          page != GlobalPage.renovationValue &&
-          page != GlobalPage.dispositionExit;
+          page != GlobalPage.compare;
 
     case 'viewer':
       return page != GlobalPage.adminUsers &&

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/criteria.dart';
@@ -80,7 +81,8 @@ class _CriteriaCheckScreenState extends ConsumerState<CriteriaCheckScreen> {
                     const Text('No active criteria set. Configure one below.'),
                   const SizedBox(height: AppSpacing.component),
                   if (contextData.propertyId != null)
-                    Card(
+                    NxCard(
+                      padding: EdgeInsets.zero,
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.component),
                         child: Column(
@@ -212,7 +214,8 @@ class _CriteriaCheckScreenState extends ConsumerState<CriteriaCheckScreen> {
                                         : AppColors.warning,
                                   _ => AppColors.textSecondary,
                                 };
-                                return Card(
+                                return NxCard(
+                                  padding: EdgeInsets.zero,
                                   child: ListTile(
                                     dense: true,
                                     title: Row(

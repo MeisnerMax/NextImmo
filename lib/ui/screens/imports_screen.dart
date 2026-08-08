@@ -350,45 +350,42 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                               ],
                             ),
                             const Divider(height: 16),
-                            const Text(
+                            Text(
                               'Pflichtfelder:',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                              style: Theme.of(context).textTheme.labelMedium,
                             ),
                             const SizedBox(height: 2),
                             Text(
                               t.$4.join(', '),
-                              style: TextStyle(
-                                fontSize: 11,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: Theme.of(context).colorScheme.error,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'Optionale Felder:',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                              style: Theme.of(context).textTheme.labelMedium,
                             ),
                             const SizedBox(height: 2),
                             Text(
                               t.$5.join(', '),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: context.semanticColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'Beispielzeile:',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                              style: Theme.of(context).textTheme.labelMedium,
                             ),
                             const SizedBox(height: 2),
                             Text(
                               t.$6,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 fontStyle: FontStyle.italic,
                                 color: context.semanticColors.textSecondary,
                               ),
@@ -403,7 +400,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                                 ),
                                 onPressed: () => _downloadCsvTemplate(_fieldSpec(t.$3)),
                                 icon: const Icon(Icons.download_outlined, size: 14),
-                                label: const Text('Vorlage herunterladen', style: TextStyle(fontSize: 12)),
+                                label: const Text('Vorlage herunterladen'),
                               ),
                             ),
                           ],

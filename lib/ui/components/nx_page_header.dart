@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'nx_action_toolbar.dart';
+import 'nx_breadcrumbs.dart';
 import 'nx_section_header.dart';
 import '../theme/app_theme.dart';
 
@@ -29,9 +30,17 @@ class NxPageHeader extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(context.compactLayout ? 12 : 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.alphaBlend(semantic.innerHighlight, semantic.glassFill),
+            semantic.glassFill,
+          ],
+          stops: const [0, 0.5],
+        ),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        border: Border.all(color: semantic.border),
+        border: Border.all(color: semantic.glassStroke),
       ),
       child: Wrap(
         spacing: AppSpacing.component,
@@ -44,13 +53,7 @@ class NxPageHeader extends StatelessWidget {
               title: title,
               description: subtitle,
               compact: false,
-              leading:
-                  crumbs.isEmpty
-                      ? null
-                      : Text(
-                        crumbs.join(' / '),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+              leading: crumbs.isEmpty ? null : NxBreadcrumbs(crumbs: crumbs),
             ),
           ),
           if (trailing != null) trailing!,

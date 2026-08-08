@@ -2,44 +2,65 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
+import '../../features/reference_slice/application/reference_slice_controller.dart';
+import '../../features/reference_slice/presentation/reference_members_screen.dart';
+import '../../features/reference_slice/presentation/reference_slice_screen.dart';
 import '../components/command_palette.dart';
 import '../components/nx_content_frame.dart';
+import '../components/nx_empty_state.dart';
+import '../navigation/app_navigation.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
-import '../screens/disposition_exit_screen.dart';
 import '../screens/esg_dashboard_screen.dart';
 import '../screens/help_screen.dart';
 import '../screens/imports_screen.dart';
 import '../screens/audit/audit_screen.dart';
 import '../screens/maintenance/maintenance_screen.dart';
 import '../screens/maintenance/contractors_screen.dart';
+import '../screens/maintenance/contractors_panel.dart';
+import '../screens/maintenance/maintenance_tickets_panel.dart';
+import '../screens/property_detail/property_maintenance_capex_panel.dart';
 import '../screens/budgets/budgets_screen.dart';
 import '../screens/docs/documents_screen.dart';
+import '../screens/docs/compliance_dashboard_screen.dart';
+import '../screens/docs/documents_workspace_panel.dart';
 import '../screens/ledger/ledger_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/parties/parties_screen.dart';
+import '../screens/property_detail/property_documents_panel.dart';
+import '../screens/portfolio/rental_overview_panel.dart';
+import '../screens/property_detail/leasing/leases_panel.dart';
+import '../screens/property_detail/leasing/leasing_pipeline_panel.dart';
+import '../screens/property_detail/leasing/operations_alerts_panel.dart';
+import '../screens/property_detail/leasing/operations_overview_panel.dart';
+import '../screens/property_detail/leasing/rent_roll_panel.dart';
+import '../screens/property_detail/leasing/tenants_panel.dart';
+import '../screens/property_detail/leasing/units_panel.dart';
 import '../screens/portfolios_screen.dart';
 import '../screens/properties_screen.dart';
-import '../screens/quick_screening_screen.dart';
-import '../screens/renovation_value_screen.dart';
+import '../screens/valuations/valuations_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/v2/dashboard_screen_v2.dart';
-import '../screens/v2/properties_screen_v2.dart';
 import '../screens/admin/users_screen.dart';
 import '../screens/tasks/task_templates_screen.dart';
 import '../screens/tasks/tasks_screen.dart';
 import '../state/app_state.dart';
-import '../state/ui_feature_flags.dart';
 import '../theme/app_theme.dart';
+import 'cloud_topbar.dart';
 import 'sidebar.dart';
 import 'topbar.dart';
-import 'v2/sidebar_v2.dart';
-import 'v2/topbar_v2.dart';
 
 class AppScaffold extends ConsumerStatefulWidget {
-  const AppScaffold({super.key});
+  const AppScaffold({super.key}) : cloudMode = false, routeTarget = null;
+
+  const AppScaffold.cloud({super.key, required this.routeTarget})
+    : cloudMode = true;
+
+  final bool cloudMode;
+  final CloudRouteTarget? routeTarget;
 
   @override
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
@@ -47,13 +68,30 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Timer? _dailyTimer;
+  late CloudRouteTarget _activeCloudRouteTarget;
+  late GlobalPage _lastPage;
+  bool _initialCloudRoutePending = false;
 
   @override
   void initState() {
     super.initState();
-    _dailyTimer = Timer.periodic(const Duration(hours: 1), (_) {
-      _runDailyTaskGeneration();
-    });
+    _activeCloudRouteTarget = widget.routeTarget ?? CloudRouteTarget.dashboard;
+    _lastPage = _activeCloudRouteTarget.page;
+    if (widget.cloudMode) {
+      _initialCloudRoutePending = true;
+      scheduleMicrotask(() {
+        if (!mounted) {
+          return;
+        }
+        ref.read(globalPageProvider.notifier).state =
+            _activeCloudRouteTarget.page;
+        _initialCloudRoutePending = false;
+      });
+    } else {
+      _dailyTimer = Timer.periodic(const Duration(hours: 1), (_) {
+        _runDailyTaskGeneration();
+      });
+    }
   }
 
   @override
@@ -64,60 +102,35 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final page = ref.watch(globalPageProvider);
-    final shellV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.appShellV2),
-    );
-    if (!shellV2Enabled) {
-      return _buildLegacyScaffold(context, page);
+    final providerPage = ref.watch(globalPageProvider);
+    final page =
+        widget.cloudMode && _initialCloudRoutePending
+            ? _activeCloudRouteTarget.page
+            : providerPage;
+    if (widget.cloudMode && page != _lastPage) {
+      _lastPage = page;
+      _activeCloudRouteTarget = CloudRouteTarget(page: page);
     }
-    return _buildV2Scaffold(context, page);
+    return _buildScaffold(context, page);
   }
 
-  Widget _buildLegacyScaffold(BuildContext context, GlobalPage page) {
+  Widget _buildScaffold(BuildContext context, GlobalPage page) {
+    final cloudState =
+        widget.cloudMode ? ref.watch(referenceSliceControllerProvider) : null;
+    final cloudPermissions = cloudState?.selectedWorkspace?.permissions;
+    final cloudWorkspaceName = cloudState?.selectedWorkspace?.workspace.name;
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            () => showCommandPalette(context),
+            () =>
+                widget.cloudMode
+                    ? _showCloudSearchState(context)
+                    : showCommandPalette(context),
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            () => showCommandPalette(context),
-      },
-      child: Focus(
-        autofocus: true,
-        child: Scaffold(
-          body: Row(
-            children: [
-              const Sidebar(),
-              const VerticalDivider(width: 1),
-              Expanded(
-                child: Column(
-                  children: [
-                    const TopBar(),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: Container(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        child: _buildPage(page),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildV2Scaffold(BuildContext context, GlobalPage page) {
-    final semantic = context.semanticColors;
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            () => showCommandPalette(context),
-        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            () => showCommandPalette(context),
+            () =>
+                widget.cloudMode
+                    ? _showCloudSearchState(context)
+                    : showCommandPalette(context),
       },
       child: Focus(
         autofocus: true,
@@ -129,9 +142,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 drawer: Drawer(
                   width: 320,
                   shape: const RoundedRectangleBorder(),
-                  child: SidebarV2(
+                  child: Sidebar(
                     forceExpanded: true,
                     drawerMode: true,
+                    cloudPermissions: cloudPermissions,
+                    workspaceName: cloudWorkspaceName,
                     onDestinationSelected:
                         () => Navigator.of(context).maybePop(),
                   ),
@@ -139,8 +154,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 body: SafeArea(
                   child: Column(
                     children: [
-                      const TopBarV2(showMenuButton: true),
-                      Divider(height: 1, color: semantic.border),
+                      widget.cloudMode
+                          ? const CloudTopBar(showMenuButton: true)
+                          : const TopBar(showMenuButton: true),
                       Expanded(
                         child: Container(
                           color: Theme.of(context).scaffoldBackgroundColor,
@@ -157,13 +173,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               body: SafeArea(
                 child: Row(
                   children: [
-                    const SidebarV2(),
+                    Sidebar(
+                      cloudPermissions: cloudPermissions,
+                      workspaceName: cloudWorkspaceName,
+                    ),
                     Expanded(
                       child: NxContentFrame(
                         child: Column(
                           children: [
-                            const TopBarV2(),
-                            Divider(height: 1, color: semantic.border),
+                            widget.cloudMode
+                                ? const CloudTopBar()
+                                : const TopBar(),
                             Expanded(
                               child: Container(
                                 color:
@@ -216,21 +236,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Widget _buildPage(GlobalPage page) {
-    final dashboardV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.dashboardV2),
-    );
-    final propertiesV2Enabled = ref.watch(
-      uiScreenFlagProvider(UiScreenFlag.propertiesV2),
-    );
+    if (widget.cloudMode) {
+      return _buildCloudPage(page);
+    }
     switch (page) {
       case GlobalPage.dashboard:
-        return dashboardV2Enabled
-            ? const DashboardScreenV2()
-            : const DashboardScreen();
+        return const DashboardScreen();
       case GlobalPage.properties:
-        return propertiesV2Enabled
-            ? const PropertiesScreenV2()
-            : const PropertiesScreen();
+        return const PropertiesScreen();
       case GlobalPage.ledger:
         return const LedgerScreen();
       case GlobalPage.budgets:
@@ -239,12 +252,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const MaintenanceScreen();
       case GlobalPage.contractors:
         return const ContractorsScreen();
+      case GlobalPage.parties:
+        return const PartiesScreen();
       case GlobalPage.tasks:
         return const TasksScreen();
       case GlobalPage.taskTemplates:
         return const TaskTemplatesScreen();
       case GlobalPage.portfolios:
         return const PortfoliosScreen();
+      case GlobalPage.rentalOverview:
+        return const RentalOverviewPanel();
       case GlobalPage.imports:
         return const ImportsScreen();
       case GlobalPage.notifications:
@@ -257,12 +274,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return const AuditScreen();
       case GlobalPage.compare:
         return const CompareScreen();
-      case GlobalPage.quickScreening:
-        return const QuickScreeningScreen();
-      case GlobalPage.renovationValue:
-        return const RenovationValueScreen();
-      case GlobalPage.dispositionExit:
-        return const DispositionExitScreen();
+      case GlobalPage.valuations:
+        return const ValuationsScreen();
       case GlobalPage.criteriaSets:
         return const CriteriaSetsScreen();
       case GlobalPage.reportTemplates:
@@ -274,5 +287,163 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case GlobalPage.help:
         return const HelpScreen();
     }
+  }
+
+  Widget _buildCloudPage(GlobalPage page) {
+    final session = ref.watch(referenceSliceControllerProvider);
+    final permissions =
+        session.selectedWorkspace?.permissions ?? const <String>{};
+    if (!isPageAllowedForPermissions(page, permissions)) {
+      return const _CloudDestinationState(
+        key: Key('cloud-destination-forbidden'),
+        title: 'Kein Zugriff',
+        description:
+            'Der aktuellen Workspace-Mitgliedschaft fehlt die erforderliche '
+            'Berechtigung für dieses Ziel.',
+        icon: Icons.block_outlined,
+      );
+    }
+    if (cloudReadinessForPage(page) ==
+        CloudDestinationReadiness.migrationRequired) {
+      final destination = navigationDestinationForPage(page);
+      return _CloudDestinationState(
+        key: Key('cloud-destination-migration-${page.name}'),
+        title: '${destination.title} ist noch nicht cloudfähig',
+        description:
+            kIsWeb
+                ? 'Dieses Modul benötigt noch seinen Supabase-Adapter. Web '
+                    'verwendet bewusst keinen SQLite-Fallback.'
+                : 'Dieses Modul benötigt noch seinen Supabase-Adapter. Im '
+                    'Cloud-Host wird keine unmarkierte SQLite-Projektion '
+                    'eingeblendet.',
+        icon: Icons.cloud_off_outlined,
+      );
+    }
+
+    final target =
+        _activeCloudRouteTarget.page == page
+            ? _activeCloudRouteTarget
+            : CloudRouteTarget(page: page);
+    switch (page) {
+      case GlobalPage.properties when target.surface == CloudRouteSurface.units:
+        return UnitsPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties when target.surface == CloudRouteSurface.leases:
+        return LeasesPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.leasingPipeline:
+        return LeasingPipelinePanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.rentRoll:
+        return RentRollPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.operationsOverview:
+        return OperationsOverviewPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.operationsAlerts:
+        return OperationsAlertsPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.maintenance:
+        return PropertyMaintenanceCapexPanel(propertyId: target.propertyId!);
+      case GlobalPage.properties:
+        return ReferenceSliceScreen(
+          embeddedInShell: true,
+          initialPropertyId: target.propertyId,
+        );
+      case GlobalPage.parties:
+        // Welle 3: the tenant list is the same directory scoped to a role, so
+        // it rides the same page with its own surface.
+        return target.surface == CloudRouteSurface.tenants
+            ? const TenantsPanel()
+            : const PartiesScreen();
+      case GlobalPage.rentalOverview:
+        return const RentalOverviewPanel();
+      case GlobalPage.maintenance:
+        return const MaintenanceTicketsPanel();
+      case GlobalPage.contractors:
+        return const ContractorsPanel();
+      case GlobalPage.documents:
+        return _buildCloudDocuments(target);
+      case GlobalPage.valuations:
+        return const ValuationsScreen();
+      case GlobalPage.adminUsers:
+        return const ReferenceMembersScreen(embeddedInShell: true);
+      case GlobalPage.help:
+        return const HelpScreen();
+      default:
+        return const _CloudDestinationState(
+          title: 'Cloud-Ziel nicht verfügbar',
+          description: 'Für dieses Ziel ist noch keine Cloud-Fläche gebunden.',
+          icon: Icons.cloud_off_outlined,
+        );
+    }
+  }
+
+  Widget _buildCloudDocuments(CloudRouteTarget target) {
+    switch (target.surface) {
+      case CloudRouteSurface.propertyDocuments:
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: PropertyDocumentsPanel(propertyId: target.propertyId!),
+        );
+      case CloudRouteSurface.compliance:
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: ComplianceDashboardScreen(
+            onOpenRequirement:
+                (requirement) => Navigator.of(
+                  context,
+                ).pushNamed(propertyDocumentsRouteFor(requirement.entityId)),
+          ),
+        );
+      case CloudRouteSurface.documentsWorkspace:
+      case CloudRouteSurface.page:
+      case CloudRouteSurface.propertyDetail:
+      case CloudRouteSurface.members:
+      case CloudRouteSurface.units:
+      case CloudRouteSurface.leases:
+      case CloudRouteSurface.leasingPipeline:
+      case CloudRouteSurface.rentRoll:
+      case CloudRouteSurface.operationsOverview:
+      case CloudRouteSurface.operationsAlerts:
+      case CloudRouteSurface.tenants:
+      case CloudRouteSurface.rentalOverview:
+      case CloudRouteSurface.maintenance:
+        return const DocumentsWorkspacePanel();
+    }
+  }
+
+  void _showCloudSearchState(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder:
+          (context) => const AlertDialog(
+            title: Text('Cloud-Suche noch nicht verfügbar'),
+            content: Text(
+              'Die globale Suche wird mit dem Supabase-Suchindex '
+              'freigeschaltet. Es wird kein lokaler SQLite-Index verwendet.',
+            ),
+          ),
+    );
+  }
+}
+
+class _CloudDestinationState extends StatelessWidget {
+  const _CloudDestinationState({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(context.adaptivePagePadding),
+      child: NxEmptyState(title: title, description: description, icon: icon),
+    );
   }
 }

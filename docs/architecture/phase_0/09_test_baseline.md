@@ -6,16 +6,16 @@ Stand: 2026-07-18
 
 | ID | Bereich | Bestand | Status | Evidenz |
 |---|---|---:|---|---|
-| TST-001 | Testdateien gesamt | 101 | verified | `test/**/*.dart`, einschliesslich MFA-Testhilfe |
-| TST-002 | Testfaelle (`test`/`testWidgets`) | 220 Deklarationen; 240 Laufzeitfaelle | verified | `test/**/*.dart`; 234 bestanden, 6 Skips |
+| TST-001 | Testdateien gesamt | 103 | verified | `test/**/*.dart`, einschliesslich MFA-Testhilfe |
+| TST-002 | Testfaelle (`test`/`testWidgets`) | 241 Deklarationen; 261 Laufzeitfaelle | verified | `test/**/*.dart`; 253 bestanden, 8 Skips |
 | TST-003 | Domain/Core | 29 Dateien | verified | `test/core/` |
 | TST-004 | Daten/SQLite-Repositories | 27 Dateien | verified | `test/data/` |
 | TST-005 | Widget/UI | 28 Dateien | verified | `test/ui/`, einschliesslich Navigation und responsivem Overflow-Gate |
-| TST-006 | Integration | 4 Dateien | verified | `test/integration/`, einschliesslich echten Supabase-Client-, RLS-, RPC- und Mehrclient-Realtime-Gates |
+| TST-006 | Integration | 6 Dateien | verified | `test/integration/`, einschliesslich echten Supabase-Client-, RLS-, RPC-, Raw-PostgREST-, Mehrclient-Realtime- und Entitlement-Gates |
 | TST-007 | Root/Smoke/Layout | 2 Dateien | verified | `test/widget_test.dart`, `test/debug_layout_test.dart` |
 | TST-008 | Golden-/Screenshot-Tests | 3 Baselines | verified | P1-010 Phone, Tablet und Desktop unter `test/features/reference_slice/goldens/` |
-| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency-, Client-, Mehrclient-Realtime-, Advisor- und lokaler Backup-/Restore-Drill | verified | `.github/workflows/flutter.yml` |
-| TST-010 | Feature-Slices | 9 Dateien | verified | `test/features/`, einschliesslich P1-010-UI, P1-011-Lifecycle und P1-012-Migrations-Dry-Run |
+| TST-009 | CI-Testgate | Flutter-, Web-, SQL-, RLS-, Rollback-, Concurrency-, Client-, Mehrclient-Realtime-, Advisor-, budgetfreier Performance-Profiling- und lokaler Backup-/Restore-Drill | verified | `.github/workflows/flutter.yml` |
+| TST-010 | Feature-Slices | 10 Dateien | verified | `test/features/`, einschliesslich P1-010-UI, P1-011-Lifecycle, P1-012-Migrations-Dry-Run und P1-017-Entitlement-Adapter |
 
 Vorhandene Schwerpunkte: deterministische Core-Engines, SQLite- und Supabase-Repository-Vertraege, PostgreSQL/RLS, ausgewaehlte Widgets und vier lokale Integrationsfluesse. Nicht vorhanden sind Import-Reconciliation, echte plattformuebergreifende E2E- und umfassende responsive Screenshot-Gates.
 
@@ -125,6 +125,12 @@ Gate-Regeln:
 | RUN-014 | P1-014 lokaler Backup-/Restore-Vertrag | Zielguard 7/7, manipuliertes Archiv vor Zielerstellung abgelehnt, nichtleerer PostgreSQL-Restore mit 18 reconciliierten Zeilen und Cleanup bestanden; 160 pgTAP, Gesamtsuite 228 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Remote-/Storage-Drill offen |
 | RUN-015 | P1-015 lokales Gate-Review | Unknown-AAL fail-closed, Realtime-Burst-Coalescing/Pagination, suspendierte Membership und Audit-Korrelation; 164 pgTAP, Security-/Performance-Advisors ohne Error-Befund, Gesamtsuite 232 bestanden/6 Skips, Analyzer 0 Findings, Web-Build erfolgreich | partial: Gate abgelehnt; weitere Gates offen |
 | RUN-016 | Runtime-, AAL2- und Performance-Hardening | Explizite Runtimeauswahl, Kaltstart-Deep-Link, serverseitiges Property-AAL2 mit echtem TOTP-Clientnachweis, FK-/Keyset-Indizes und RLS-InitPlans; 196 pgTAP, beide Clientgates, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips, Analyzer 0 Findings, Web-Build und DB-Lint erfolgreich | verified_local; allgemeine Auth-Aktionen/Entitlements/Remote offen |
+| RUN-017 | P1-016 bedienbare Auth-/MFA-Aktionen | Passwordless-PKCE-Anforderung, TOTP-Enrollment/Step-up und lokaler Logout in Vertrag, Adapter, Controller und adaptiver UI; 54 gezielte Tests, beide echten lokalen Clientgates, Gesamtsuite 245 bestanden/6 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified_local; allgemeine Rollen-/AAL-Matrix und Remote-E2E offen |
+| RUN-018 | P1-017 Entitlement-Revalidation | Privates Topic-Deny, Rollenentzug/-wiedererteilung und Membership-Suspendierung leeren Caches im echten Zwei-Client-E2E; 212 pgTAP, 18 Rollback-Pruefungen, beide Clientgates, Gesamtsuite 248 bestanden/7 Skips, Analyzer 0 Findings, DB-Lint/Advisors ohne Error und Web-Build erfolgreich | verified_local; Raw-PostgREST, Entity-Scopes und Remote-E2E offen |
+| RUN-019 | P1-018 Raw-PostgREST-Paritaet | Direkte lokale HTTP-Matrix fuer anon, Viewer, Manager, Cross-Tenant-Reads, direkte Tabellenmutation und AAL2-RPC; Gesamtsuite 248 bestanden/8 Skips und Analyzer 0 Findings | verified_local; Remote-E2E offen |
+| RUN-020 | P1-019 parallele Identity-Reads | Workspace- und Role-Permission-Reads starten nach Membership parallel; kontrollierter Gateway-Test, P1-007 und P1-017-E2E bestehen; Gesamtsuite 249 bestanden/8 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified_local; breite Property-Listenprojektion und Performancebudgets offen |
+| RUN-021 | P1-020 schlanke Property-Listenprojektion | Eigenes Summary-DTO und explizite Acht-Feld-Supabase-Projektion; Detail bleibt vollstaendig, Merge-Invarianten verhindern Keyset-Erweiterung, Versions-Downgrade und Cursorverlust; 64 gezielte Tests, beide echten Clientgates, Gesamtsuite 253 bestanden/8 Skips, Analyzer 0 Findings und Web-Build erfolgreich | verified_local; Performancebudgets und repraesentative Profile offen |
+| RUN-022 | P1-021A lokaler Profiling-Vertrag | Parameter-/Ressourcenguards, transaktionale Fixtures, fuenf RLS-/Query-/RPC-Profile, p50/p95/p99 und vollstaendige Queryplaene; CI-identischer Smoke-Lauf mit 250 Properties, 1 Warmup, 5 Samples und verifiziertem Rollback; 212 pgTAP bestehen | verified_local_calibration; keine Budget- oder Produktionsaussage |
 
 ## 7. Risiken
 
@@ -137,4 +143,4 @@ Gate-Regeln:
 | RISK-QA-005 | Neue Policies koennen Mandantentrennung regressieren | Cross-Tenant-Datenzugriff | pgTAP/RLS- und reale Clientintegration sind CI-Gates | mitigated |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | Web-Build oder Analyzer bricht | `package:web`, Analyzer und Web-Build sind CI-Gates | mitigated |
 | RISK-QA-007 | Responsive-Golden-Abdeckung ist noch auf den Referenzschnitt begrenzt | pixelbezogene Regressionen anderer Screens bleiben moeglich | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen | partial |
-| RISK-QA-008 | Keine verbindlichen Performance-Budgets; breite Property-Projektion und serielle Identity-Reads sind ungemessen | Last- und Skalierungsregressionen bleiben unentdeckt | Budgets festlegen und reproduzierbare Queryplan-, RPC- und Flutter-Profile messen | open |
+| RISK-QA-008 | Keine verbindlichen Performance-Budgets oder repraesentativen Datenmengen | Last- und Skalierungsregressionen bleiben unentdeckt | Budgets festlegen und reproduzierbare Queryplan-, RPC- und Flutter-Profile messen | open |

@@ -695,7 +695,12 @@ class PropertyRepository {
     }
   }
 
-  Future<void> deletePermanently(String id) async {
+  /// Soft-tombstones the property (DEBT-012 / STM-002): marks `deleted_at`/
+  /// `deleted_by` and sets `archived = 1` so every read that filters
+  /// `archived = 0` hides it, while the row and all child records are kept for
+  /// audit and restore. Writes an append-only `delete` audit event. No-op if the
+  /// property does not exist or is already tombstoned.
+  Future<void> tombstone(String id, {String? actorId}) async {
     await _ensurePermission(
       permission: Permission.propertyDelete,
       message: 'You do not have permission to delete properties.',
@@ -709,453 +714,98 @@ class PropertyRepository {
     if (before.isEmpty) {
       return;
     }
+    if ((before.first['deleted_at'] as num?) != null) {
+      return;
+    }
 
-    await _db.transaction((txn) async {
-      final unitIds = await _loadEntityIds(
-        txn,
-        table: 'units',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      final leaseIds = await _loadEntityIds(
-        txn,
-        table: 'leases',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      final tenantIds = await _loadStringColumn(
-        txn,
-        table: 'leases',
-        column: 'tenant_id',
-        where: 'asset_property_id = ? AND tenant_id IS NOT NULL',
-        whereArgs: <Object?>[id],
-      );
-      final ticketIds = await _loadEntityIds(
-        txn,
-        table: 'maintenance_tickets',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.update(
+      'properties',
+      <String, Object?>{
+        'deleted_at': now,
+        'deleted_by': actorId,
+        'archived': 1,
+        'updated_at': now,
+      },
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+    );
 
-      await _deleteEntityReferences(
-        txn,
-        entityTypes: const <String>['property', 'asset_property'],
-        entityId: id,
-      );
-      for (final unitId in unitIds) {
-        await _deleteEntityReferences(
-          txn,
-          entityTypes: const <String>['unit'],
-          entityId: unitId,
-        );
-      }
-      for (final leaseId in leaseIds) {
-        await _deleteEntityReferences(
-          txn,
-          entityTypes: const <String>['lease'],
-          entityId: leaseId,
-        );
-      }
-      for (final ticketId in ticketIds) {
-        await _deleteEntityReferences(
-          txn,
-          entityTypes: const <String>['maintenance_ticket'],
-          entityId: ticketId,
-        );
-      }
+    await _searchRepo?.deleteIndexEntryByEntity(
+      entityType: 'property',
+      entityId: id,
+    );
 
-      await txn.rawDelete(
-        '''
-        DELETE FROM scenario_version_blobs
-        WHERE version_id IN (
-          SELECT sv.id
-          FROM scenario_versions sv
-          INNER JOIN scenarios s ON s.id = sv.scenario_id
-          WHERE s.property_id = ?
-        )
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM scenario_versions
-        WHERE scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM scenario_valuation
-        WHERE scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM scenario_inputs
-        WHERE scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM expense_lines
-        WHERE scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM income_lines
-        WHERE scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM reports
-        WHERE property_id = ?
-           OR scenario_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id, id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM search_index
-        WHERE entity_type = 'scenario'
-          AND entity_id IN (SELECT id FROM scenarios WHERE property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.delete(
-        'scenarios',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-
-      await _deleteBudgetsForEntity(txn, id);
-      await txn.delete(
-        'ledger_entries',
-        where: "entity_type IN ('property', 'asset_property') AND entity_id = ?",
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'comps_sales',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'comps_rentals',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'property_criteria_overrides',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'portfolio_properties',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'property_profiles',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'property_kpi_snapshots',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'esg_profiles',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'operations_alert_states',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'property_document_checklist',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'property_creation_profiles',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-
-      await txn.delete(
-        'asset_operating_cost_history',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'asset_operating_costs',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'rental_income_plans',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'hotel_kpis',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'renovation_projects',
-        where: 'property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-
-      await txn.rawDelete(
-        '''
-        DELETE FROM covenant_checks
-        WHERE covenant_id IN (
-          SELECT c.id
-          FROM covenants c
-          INNER JOIN loans l ON l.id = c.loan_id
-          WHERE l.asset_property_id = ?
-        )
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM covenants
-        WHERE loan_id IN (SELECT id FROM loans WHERE asset_property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM loan_periods
-        WHERE loan_id IN (SELECT id FROM loans WHERE asset_property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.delete(
-        'loans',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'capital_events',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-
-      await txn.rawDelete(
-        '''
-        DELETE FROM rent_roll_lines
-        WHERE snapshot_id IN (
-          SELECT id FROM rent_roll_snapshots WHERE asset_property_id = ?
-        )
-        ''',
-        <Object?>[id],
-      );
-      await txn.delete(
-        'rent_roll_snapshots',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM lease_rent_schedule
-        WHERE lease_id IN (SELECT id FROM leases WHERE asset_property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.rawDelete(
-        '''
-        DELETE FROM lease_indexation_rules
-        WHERE lease_id IN (SELECT id FROM leases WHERE asset_property_id = ?)
-        ''',
-        <Object?>[id],
-      );
-      await txn.delete(
-        'maintenance_tickets',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'leases',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      for (final tenantId in tenantIds) {
-        await _deleteTenantIfOrphaned(txn, tenantId);
-      }
-      await txn.delete(
-        'units',
-        where: 'asset_property_id = ?',
-        whereArgs: <Object?>[id],
-      );
-      await txn.delete(
-        'properties',
-        where: 'id = ?',
-        whereArgs: <Object?>[id],
-      );
-    });
-
+    final after = await _db.query(
+      'properties',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+      limit: 1,
+    );
     await _recordAudit(
       entityType: 'property',
       entityId: id,
       action: 'delete',
-      summary: 'Property permanently deleted',
+      summary: 'Property deleted (soft tombstone)',
       oldValues: before.first,
+      newValues: after.isNotEmpty ? after.first : null,
     );
   }
 
-  Future<List<String>> _loadEntityIds(
-    Transaction txn, {
-    required String table,
-    required String where,
-    required List<Object?> whereArgs,
-  }) async {
-    final rows = await txn.query(
-      table,
-      columns: const <String>['id'],
-      where: where,
-      whereArgs: whereArgs,
+  /// Restores a tombstoned property (DEBT-012 / STM-002): clears `deleted_at`/
+  /// `deleted_by` and sets `archived = 0`, bringing it back as an active record
+  /// with its children intact, and re-indexes it for search. Writes an
+  /// append-only audit event. No-op if the property does not exist or is not
+  /// tombstoned.
+  Future<void> restore(String id, {String? actorId}) async {
+    await _ensurePermission(
+      permission: Permission.propertyDelete,
+      message: 'You do not have permission to restore properties.',
     );
-    return rows
-        .map((row) => row['id'])
-        .whereType<String>()
-        .toList(growable: false);
-  }
-
-  Future<List<String>> _loadStringColumn(
-    Transaction txn, {
-    required String table,
-    required String column,
-    required String where,
-    required List<Object?> whereArgs,
-  }) async {
-    final rows = await txn.query(
-      table,
-      columns: <String>[column],
-      where: where,
-      whereArgs: whereArgs,
-      distinct: true,
-    );
-    return rows
-        .map((row) => row[column])
-        .whereType<String>()
-        .toList(growable: false);
-  }
-
-  Future<void> _deleteTenantIfOrphaned(
-    Transaction txn,
-    String tenantId,
-  ) async {
-    final remainingLeases = await txn.query(
-      'leases',
-      columns: const <String>['id'],
-      where: 'tenant_id = ?',
-      whereArgs: <Object?>[tenantId],
+    final before = await _db.query(
+      'properties',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
       limit: 1,
     );
-    if (remainingLeases.isNotEmpty) {
+    if (before.isEmpty) {
       return;
     }
-    await _deleteEntityReferences(
-      txn,
-      entityTypes: const <String>['tenant'],
-      entityId: tenantId,
-    );
-    await txn.delete(
-      'tenants',
-      where: 'id = ?',
-      whereArgs: <Object?>[tenantId],
-    );
-  }
-
-  Future<void> _deleteEntityReferences(
-    Transaction txn, {
-    required List<String> entityTypes,
-    required String entityId,
-  }) async {
-    final placeholders = List<String>.filled(entityTypes.length, '?').join(', ');
-    final args = <Object?>[...entityTypes, entityId];
-    final where = 'entity_type IN ($placeholders) AND entity_id = ?';
-    final documentIds = await _loadEntityIds(
-      txn,
-      table: 'documents',
-      where: where,
-      whereArgs: args,
-    );
-
-    await txn.rawDelete(
-      '''
-      DELETE FROM document_metadata
-      WHERE document_id IN (SELECT id FROM documents WHERE $where)
-      ''',
-      args,
-    );
-    await txn.rawDelete(
-      '''
-      DELETE FROM search_index
-      WHERE entity_type = 'document'
-        AND entity_id IN (SELECT id FROM documents WHERE $where)
-      ''',
-      args,
-    );
-    await txn.delete('documents', where: where, whereArgs: args);
-    for (final documentId in documentIds) {
-      await _deleteEntityReferences(
-        txn,
-        entityTypes: const <String>['document'],
-        entityId: documentId,
-      );
+    if ((before.first['deleted_at'] as num?) == null) {
+      return;
     }
 
-    await txn.rawDelete(
-      '''
-      DELETE FROM task_checklist_items
-      WHERE task_id IN (SELECT id FROM tasks WHERE $where)
-      ''',
-      args,
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.update(
+      'properties',
+      <String, Object?>{
+        'deleted_at': null,
+        'deleted_by': null,
+        'archived': 0,
+        'updated_at': now,
+      },
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
     );
-    await txn.rawDelete(
-      '''
-      DELETE FROM search_index
-      WHERE entity_type = 'task'
-        AND entity_id IN (SELECT id FROM tasks WHERE $where)
-      ''',
-      args,
-    );
-    await txn.delete('tasks', where: where, whereArgs: args);
-    await txn.delete('task_generated_instances', where: where, whereArgs: args);
-    await txn.delete('notes', where: where, whereArgs: args);
-    await txn.delete('notifications', where: where, whereArgs: args);
-    await txn.delete('search_index', where: where, whereArgs: args);
-  }
 
-  Future<void> _deleteBudgetsForEntity(Transaction txn, String propertyId) async {
-    await txn.rawDelete(
-      '''
-      DELETE FROM budget_lines
-      WHERE budget_id IN (
-        SELECT id
-        FROM budgets
-        WHERE entity_type IN ('property', 'asset_property') AND entity_id = ?
-      )
-      ''',
-      <Object?>[propertyId],
+    final after = await _db.query(
+      'properties',
+      where: 'id = ?',
+      whereArgs: <Object?>[id],
+      limit: 1,
     );
-    await txn.delete(
-      'budgets',
-      where: "entity_type IN ('property', 'asset_property') AND entity_id = ?",
-      whereArgs: <Object?>[propertyId],
+    final searchRepo = _searchRepo;
+    if (after.isNotEmpty && searchRepo != null) {
+      final restored = PropertyRecord.fromMap(after.first);
+      await searchRepo.upsertIndexEntry(searchRepo.buildPropertyRecord(restored));
+    }
+    await _recordAudit(
+      entityType: 'property',
+      entityId: id,
+      action: 'update',
+      summary: 'Property restored',
+      oldValues: before.first,
+      newValues: after.isNotEmpty ? after.first : null,
     );
   }
 

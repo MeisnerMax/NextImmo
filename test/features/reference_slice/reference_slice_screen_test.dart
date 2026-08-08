@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
@@ -258,12 +260,25 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
     });
 
+    // Golden images are byte comparisons, and text rasterizes differently per
+    // platform. The reference images are generated on Linux by the Goldens
+    // workflow, which makes CI their single authority; running them on Windows
+    // or macOS compares against a renderer that never produced them and fails
+    // for reasons that say nothing about the widget tree. Everything else in
+    // this file -- layout, overflow, behaviour -- still runs everywhere.
+    // Regenerate through the Goldens workflow (.github/workflows/goldens.yml),
+    // never with a local --update-goldens: that would only move the mismatch to
+    // the other platform.
+    final skipOffLinux = !Platform.isLinux;
+
     for (final golden in const <(String, Size)>[
       ('phone', Size(390, 844)),
       ('tablet', Size(1024, 768)),
       ('desktop', Size(1440, 900)),
     ]) {
-      testWidgets('matches ready $golden golden', (tester) async {
+      testWidgets('matches ready $golden golden', skip: skipOffLinux, (
+        tester,
+      ) async {
         await _pumpView(
           tester,
           state: _readyState(twoProperties: true),
@@ -276,6 +291,28 @@ void main() {
         );
       });
     }
+
+    for (final golden in const <(String, Size)>[
+      ('phone', Size(390, 844)),
+      ('tablet', Size(1024, 768)),
+      ('desktop', Size(1440, 900)),
+    ]) {
+      testWidgets('matches ready dark $golden golden', skip: skipOffLinux, (
+        tester,
+      ) async {
+        await _pumpView(
+          tester,
+          state: _readyState(twoProperties: true),
+          viewport: golden.$2,
+          dark: true,
+        );
+
+        await expectLater(
+          find.byType(Scaffold),
+          matchesGoldenFile('goldens/reference_slice_ready_dark_${golden.$1}.png'),
+        );
+      });
+    }
   });
 }
 
@@ -283,6 +320,7 @@ Future<void> _pumpView(
   WidgetTester tester, {
   required ReferenceSliceState state,
   Size viewport = const Size(1440, 900),
+  bool dark = false,
   Future<void> Function(String email)? onRequestPasswordlessSignIn,
   Future<void> Function({
     required String selectedFactorId,
@@ -316,15 +354,16 @@ Future<void> _pumpView(
                     ),
         onSignOut: _noop,
       ),
+      dark: dark,
     ),
   );
   await tester.pumpAndSettle();
 }
 
-Widget _app(Widget child) {
+Widget _app(Widget child, {bool dark = false}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.light(),
+    theme: dark ? AppTheme.dark() : AppTheme.light(),
     home: Scaffold(body: child),
   );
 }

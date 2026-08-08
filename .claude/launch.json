@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "neximmo-cloud",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run", "--no-pub", "-d", "web-server", "--web-port", "5599",
+        "--dart-define=NEXIMMO_ENV=local",
+        "--dart-define=NEXIMMO_DATA_BACKEND=supabase",
+        "--dart-define=SUPABASE_URL=http://127.0.0.1:54321",
+        "--dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
+      ],
+      "port": 5599
+    }
+  ]
+}

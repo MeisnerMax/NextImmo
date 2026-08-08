@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../components/nx_card.dart';
 import '../theme/app_theme.dart';
 
 class WarningsPanel extends StatelessWidget {
@@ -14,9 +15,15 @@ class WarningsPanel extends StatelessWidget {
     }
     final semantic = context.semanticColors;
 
-    return Card(
-      color: semantic.warning.withValues(alpha: 0.14),
-      child: Padding(
+    // Tinted warning surface: NxCard carries the system's fill, so the tint
+    // rides on top as a Container rather than replacing the card colour.
+    return NxCard(
+      padding: EdgeInsets.zero,
+      child: Container(
+        decoration: BoxDecoration(
+          color: semantic.warning.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
+        ),
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

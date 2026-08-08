@@ -38,10 +38,16 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
   }) async {
     var query = _client
         .from('properties')
-        .select()
+        .select(
+          'id, workspace_id, name, address_line1, zip, city, status, version',
+        )
         .eq('workspace_id', workspaceId);
     if (!includeArchived) {
-      query = query.neq('status', 'archived');
+      // Archive is the property tombstone (DEBT-012): archiving sets the
+      // deleted_at marker, so active reads exclude tombstoned rows by that
+      // marker server-side. Passing includeArchived surfaces them for the
+      // archive/audit view, where they remain restorable by un-archiving.
+      query = query.isFilter('deleted_at', null);
     }
     if (afterId != null) {
       query = query.gt('id', afterId);
@@ -92,7 +98,7 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       );
       final hasNextPage = rows.length > query.page.limit;
       final pageRows = hasNextPage ? rows.take(query.page.limit) : rows;
-      final items = pageRows.map(_parseProperty).toList(growable: false);
+      final items = pageRows.map(_parsePropertySummary).toList(growable: false);
       if (items.any((property) => property.workspaceId != query.workspaceId)) {
         throw const FormatException('Property workspace mismatch.');
       }
@@ -270,6 +276,19 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
   }
 }
 
+PropertySummaryDto _parsePropertySummary(Map<String, dynamic> json) {
+  return PropertySummaryDto(
+    id: _requiredString(json, 'id'),
+    workspaceId: _requiredString(json, 'workspace_id'),
+    name: _requiredString(json, 'name'),
+    addressLine1: _requiredString(json, 'address_line1'),
+    zip: _requiredString(json, 'zip'),
+    city: _requiredString(json, 'city'),
+    status: PropertyStatus.values.byName(_requiredString(json, 'status')),
+    version: _requiredInt(json, 'version'),
+  );
+}
+
 PropertyDto _parseProperty(Map<String, dynamic> json) {
   return PropertyDto(
     id: _requiredString(json, 'id'),
@@ -292,6 +311,7 @@ PropertyDto _parseProperty(Map<String, dynamic> json) {
     updatedBy: _requiredString(json, 'updated_by'),
     version: _requiredInt(json, 'version'),
     deletedAt: _nullableDateTime(json, 'deleted_at'),
+    deletedBy: _nullableString(json, 'deleted_by'),
   );
 }
 

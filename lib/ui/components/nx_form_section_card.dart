@@ -9,7 +9,8 @@ class NxFormSectionCard extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
-    required this.children,
+    this.children = const <Widget>[],
+    this.body,
     this.trailing,
     this.actions = const <Widget>[],
     this.margin = const EdgeInsets.only(bottom: AppSpacing.component),
@@ -18,7 +19,14 @@ class NxFormSectionCard extends StatelessWidget {
 
   final String title;
   final String? description;
+
+  /// Width-bounded form fields laid out in a wrap. Ignored when [body] is set.
   final List<Widget> children;
+
+  /// Optional full-width section body (custom grids, editors, metric strips)
+  /// rendered instead of the [children] wrap. Provides the "section with a
+  /// custom body" capability the wizard steps need without forking the card.
+  final Widget? body;
   final Widget? trailing;
   final List<Widget> actions;
   final EdgeInsetsGeometry margin;
@@ -50,11 +58,14 @@ class NxFormSectionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.component),
-            Wrap(
-              spacing: AppSpacing.component,
-              runSpacing: AppSpacing.component,
-              children: children,
-            ),
+            if (body != null)
+              SizedBox(width: double.infinity, child: body!)
+            else
+              Wrap(
+                spacing: AppSpacing.component,
+                runSpacing: AppSpacing.component,
+                children: children,
+              ),
           ],
         ),
       ),

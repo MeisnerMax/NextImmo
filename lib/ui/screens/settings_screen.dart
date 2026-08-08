@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/security/rbac.dart';
 import '../../core/models/settings.dart';
+import '../../data/repositories/workspace_repo.dart';
 import '../i18n/app_strings.dart';
 import '../components/nx_card.dart';
 import '../components/nx_form_section_card.dart';
@@ -13,6 +14,19 @@ import '../state/app_state.dart';
 import '../state/security_state.dart';
 import '../templates/settings_template.dart';
 import '../theme/app_theme.dart';
+import 'settings/settings_section_states.dart';
+
+// BIG-009: one file per settings section. Each part declares a private
+// extension on `_SettingsScreenState` and reaches the shared controllers, draft
+// helpers and RBAC flags through the implicit receiver — no state re-threading.
+part 'settings/sections/general_section.dart';
+part 'settings/sections/analysis_defaults_section.dart';
+part 'settings/sections/operations_defaults_section.dart';
+part 'settings/sections/alerts_section.dart';
+part 'settings/sections/appearance_section.dart';
+part 'settings/sections/security_section.dart';
+part 'settings/sections/backup_restore_section.dart';
+part 'settings/sections/admin_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -29,6 +43,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   DateTime? _lastSavedAt;
   bool _isSaving = false;
   bool _isHydrating = false;
+  Object? _loadError;
 
   final _currencyController = TextEditingController();
   final _localeController = TextEditingController();
@@ -167,7 +182,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final s = _strings;
     final settings = _settings;
     if (settings == null) {
-      return const Center(child: CircularProgressIndicator());
+      return _loadError != null
+          ? SettingsLoadError(onRetry: _load)
+          : const SettingsSkeleton();
     }
     final role = ref.watch(activeUserRoleProvider);
     final rbac = ref.watch(rbacProvider);
@@ -851,321 +868,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<_SettingChange> saveChanges,
     required List<_SettingChange> securityChanges,
   }) {
-    final s = _strings;
     late final Widget content;
     switch (_selectedSectionId) {
       case 'general':
-        content = Column(
-          children: [
-            _introCard(
-              title: s.text('General'),
-              description: s.text(
-                'These defaults shape new scenarios before property-specific inputs take over.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _section(
-              context,
-              title: s.text('General Defaults'),
-              children: [
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 260,
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _uiLanguageCode,
-                    decoration: InputDecoration(
-                      labelText: s.text('Language'),
-                      helperText: s.text(
-                        'Choose the language for all texts, tooltips and labels.',
-                      ),
-                    ),
-                    items: <String>['de', 'en']
-                        .map(
-                          (code) => DropdownMenuItem<String>(
-                            value: code,
-                            child: Text(s.languageName(code)),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _uiLanguageCode = value;
-                              });
-                            }
-                            : null,
-                  ),
-                ),
-                _field(
-                  _currencyController,
-                  s.text('Currency Code'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Used in new scenarios and reports.'),
-                ),
-                _field(
-                  _localeController,
-                  s.text('Locale'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text(
-                    'Formatting profile such as de_DE or en_US.',
-                  ),
-                ),
-                _intField(
-                  _horizonController,
-                  s.text('Default Hold Period'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Years used for new scenarios.'),
-                ),
-              ],
-            ),
-          ],
-        );
+        content = buildGeneralSection(context, canSettingsEdit: canSettingsEdit);
         break;
       case 'analysis_defaults':
-        content = Column(
-          children: [
-            _introCard(
-              title: s.text('Analysis Defaults'),
-              description: s.text(
-                'Keep underwriting assumptions consistent so new scenarios start from the same baseline.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _section(
-              context,
-              title: s.text('Operating Defaults'),
-              children: [
-                _decimalField(
-                  _vacancyController,
-                  s.text('Vacancy Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
-                ),
-                _decimalField(
-                  _managementController,
-                  s.text('Management Fee Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
-                ),
-                _decimalField(
-                  _maintenanceController,
-                  s.text('Maintenance Reserve Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
-                ),
-                _decimalField(
-                  _capexController,
-                  s.text('CapEx Reserve Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.05 = 5.0%'),
-                ),
-              ],
-            ),
-            _section(
-              context,
-              title: s.text('Growth and Exit'),
-              children: [
-                _decimalField(
-                  _appreciationController,
-                  s.text('Appreciation Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
-                ),
-                _decimalField(
-                  _rentGrowthController,
-                  s.text('Rent Growth Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
-                ),
-                _decimalField(
-                  _expenseGrowthController,
-                  s.text('Expense Growth Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
-                ),
-                _decimalField(
-                  _saleCostController,
-                  s.text('Sale Cost Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.06 = 6.0%'),
-                ),
-                _decimalField(
-                  _closingBuyController,
-                  s.text('Acquisition Cost Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.03 = 3.0%'),
-                ),
-                _decimalField(
-                  _closingSellController,
-                  s.text('Disposition Closing Cost Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.02 = 2.0%'),
-                ),
-              ],
-            ),
-            _section(
-              context,
-              title: s.text('Financing'),
-              children: [
-                _decimalField(
-                  _downPaymentController,
-                  s.text('Down Payment Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.25 = 25.0%'),
-                ),
-                _decimalField(
-                  _interestController,
-                  s.text('Interest Rate'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Decimal value, for example 0.06 = 6.0%'),
-                ),
-                _intField(
-                  _termYearsController,
-                  s.text('Loan Term Years'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Used for new financing assumptions.'),
-                ),
-                _field(
-                  _defaultMarketRentModeController,
-                  s.text('Default Market Rent Mode'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text('Optional market rent default.'),
-                ),
-              ],
-            ),
-          ],
+        content = buildAnalysisDefaultsSection(
+          context,
+          canSettingsEdit: canSettingsEdit,
         );
         break;
       case 'operations_defaults':
-        content = Column(
-          children: [
-            _introCard(
-              title: s.text('Operations Defaults'),
-              description: s.text(
-                'Use one operational baseline for generated work, budgets, and recurring checks.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _section(
-              context,
-              title: s.text('Workflow Defaults'),
-              children: [
-                _intField(
-                  _taskDueSoonDaysController,
-                  s.text('Task Due Soon Days'),
-                  enabled: canSettingsEdit,
-                ),
-                _intField(
-                  _budgetYearStartMonthController,
-                  s.text('Budget Year Start Month (1-12)'),
-                  enabled: canSettingsEdit,
-                ),
-                _intField(
-                  _maintenanceDueSoonDaysController,
-                  s.text('Maintenance Due Soon Days'),
-                  enabled: canSettingsEdit,
-                ),
-                _intField(
-                  _covenantDueSoonDaysController,
-                  s.text('Covenant Due Soon Days'),
-                  enabled: canSettingsEdit,
-                ),
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 360,
-                  ),
-                  child: SwitchListTile(
-                    value: _scenarioAutoDailyVersionsEnabled,
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              setState(() {
-                                _scenarioAutoDailyVersionsEnabled = value;
-                              });
-                            }
-                            : null,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(s.text('Scenario Auto Daily Versions')),
-                  ),
-                ),
-              ],
-            ),
-          ],
+        content = buildOperationsDefaultsSection(
+          context,
+          canSettingsEdit: canSettingsEdit,
         );
         break;
       case 'alerts':
-        content = Column(
-          children: [
-            _introCard(
-              title: s.text('Alerts'),
-              description: s.text(
-                'Set thresholds that surface issues early without flooding daily work.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _section(
-              context,
-              title: s.text('Alert Thresholds'),
-              children: [
-                _decimalField(
-                  _vacancyAlertController,
-                  s.text('Vacancy Alert Threshold (0-1)'),
-                ),
-                _decimalField(
-                  _noiDropAlertController,
-                  s.text('NOI Drop Alert Threshold (0-1)'),
-                ),
-                _intField(
-                  _qualityEpcExpiryWarningDaysController,
-                  s.text('Quality EPC Expiry Warning Days'),
-                ),
-                _intField(
-                  _qualityRentRollStaleMonthsController,
-                  s.text('Quality Rent Roll Stale Months'),
-                ),
-                _intField(
-                  _qualityLedgerStaleDaysController,
-                  s.text('Quality Ledger Stale Days'),
-                ),
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 320,
-                  ),
-                  child: SwitchListTile(
-                    value: _enableTaskNotifications,
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              setState(() {
-                                _enableTaskNotifications = value;
-                              });
-                            }
-                            : null,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(s.text('Enable Task Notifications')),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
+        content = buildAlertsSection(context, canSettingsEdit: canSettingsEdit);
         break;
       case 'appearance':
-        content = _buildAppearanceContent(context, canSettingsEdit);
+        content = buildAppearanceSection(
+          context,
+          canSettingsEdit: canSettingsEdit,
+        );
         break;
       case 'security':
-        content = _buildSecurityContent(context, canSettingsEdit);
+        content = buildSecuritySection(
+          context,
+          canSettingsEdit: canSettingsEdit,
+        );
         break;
       case 'backup_restore':
-        content = _buildBackupContent(
+        content = buildBackupRestoreSection(
           context,
           settings: settings,
           canBackupRestore: canBackupRestore,
@@ -1173,53 +909,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
         break;
       case 'admin':
-        content = Column(
-          children: [
-            _introCard(
-              title: s.text('Admin'),
-              description: s.text(
-                'Low-frequency administrative switches stay visible, but clearly separated from daily settings.',
-              ),
-              warning: s.text(
-                'Administrative helper settings should stay restricted to setup and test workflows.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.component),
-            _section(
-              context,
-              title: s.text('Administrative Controls'),
-              children: [
-                SizedBox(
-                  width: ResponsiveConstraints.itemWidth(
-                    context,
-                    idealWidth: 320,
-                  ),
-                  child: SwitchListTile(
-                    value: _enableDemoSeed,
-                    onChanged:
-                        canSettingsEdit
-                            ? (value) {
-                              setState(() {
-                                _enableDemoSeed = value;
-                              });
-                            }
-                            : null,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(s.text('Enable Demo Seed Button')),
-                  ),
-                ),
-                _field(
-                  _scenarioAutoDailyVersionsUserController,
-                  s.text('Auto Version User Id'),
-                  enabled: canSettingsEdit,
-                  helperText: s.text(
-                    'User id used for automated scenario versions.',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
+        content = buildAdminSection(context, canSettingsEdit: canSettingsEdit);
         break;
       default:
         content = const SizedBox.shrink();
@@ -1239,233 +929,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildAppearanceContent(BuildContext context, bool canSettingsEdit) {
-    final s = _strings;
-    return Column(
-      children: [
-        _introCard(
-          title: s.text('Appearance'),
-          description: s.text(
-            'Control density and motion so the interface stays predictable across desktop setups.',
-          ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        _section(
-          context,
-          title: s.text('UI and Accessibility'),
-          children: [
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
-              child: DropdownButtonFormField<String>(
-                value: _uiThemeMode,
-                decoration: InputDecoration(labelText: s.text('Theme Mode')),
-                items: [
-                  DropdownMenuItem(
-                    value: 'system',
-                    child: Text(s.text('System')),
-                  ),
-                  DropdownMenuItem(
-                    value: 'light',
-                    child: Text(s.text('Light')),
-                  ),
-                  DropdownMenuItem(value: 'dark', child: Text(s.text('Dark'))),
-                ],
-                onChanged:
-                    canSettingsEdit
-                        ? (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            _uiThemeMode = value;
-                          });
-                        }
-                        : null,
-              ),
-            ),
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(context, idealWidth: 260),
-              child: DropdownButtonFormField<String>(
-                value: _uiDensityMode,
-                decoration: InputDecoration(labelText: s.text('Density Mode')),
-                items: [
-                  DropdownMenuItem(
-                    value: 'comfort',
-                    child: Text(s.text('Comfort')),
-                  ),
-                  DropdownMenuItem(
-                    value: 'compact',
-                    child: Text(s.text('Compact')),
-                  ),
-                  DropdownMenuItem(
-                    value: 'adaptive',
-                    child: Text(s.text('Adaptive')),
-                  ),
-                ],
-                onChanged:
-                    canSettingsEdit
-                        ? (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            _uiDensityMode = value;
-                          });
-                        }
-                        : null,
-              ),
-            ),
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(context, idealWidth: 320),
-              child: SwitchListTile(
-                value: _uiChartAnimationsEnabled,
-                onChanged:
-                    canSettingsEdit
-                        ? (value) {
-                          setState(() {
-                            _uiChartAnimationsEnabled = value;
-                          });
-                        }
-                        : null,
-                contentPadding: EdgeInsets.zero,
-                title: Text(s.text('Enable Chart Animations')),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSecurityContent(BuildContext context, bool canSettingsEdit) {
-    final s = _strings;
-    return Column(
-      children: [
-        _introCard(
-          title: s.text('Security'),
-          description: s.text(
-            'Protect local access without burying the controls in a generic form.',
-          ),
-          warning: s.text(
-            'App lock changes affect local access immediately after applying them.',
-          ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        _section(
-          context,
-          title: s.text('Access Controls'),
-          children: [
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(context, idealWidth: 360),
-              child: SwitchListTile(
-                value: _enableAppLock,
-                onChanged:
-                    canSettingsEdit
-                        ? (value) {
-                          setState(() {
-                            _enableAppLock = value;
-                          });
-                        }
-                        : null,
-                contentPadding: EdgeInsets.zero,
-                title: Text(s.text('Enable App Lock')),
-              ),
-            ),
-            _field(
-              _appLockPasswordController,
-              s.text('New App Lock Password'),
-              enabled: canSettingsEdit,
-              helperText: s.text('Leave empty to keep the current password.'),
-              obscureText: true,
-            ),
-            ElevatedButton(
-              onPressed: canSettingsEdit ? _applySecurity : null,
-              child: Text(s.text('Apply Security')),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBackupContent(
-    BuildContext context, {
-    required AppSettingsRecord settings,
-    required bool canBackupRestore,
-    required bool canExport,
-  }) {
-    final s = _strings;
-    return Column(
-      children: [
-        _introCard(
-          title: s.text('Backup & Restore'),
-          description: s.text(
-            'Keep workspace paths visible and separate backup actions from general defaults.',
-          ),
-          warning: s.text(
-            'Restore replaces the current database and docs after creating a pre-restore backup.',
-          ),
-        ),
-        const SizedBox(height: AppSpacing.component),
-        _section(
-          context,
-          title: s.text('Workspace and Backup'),
-          children: [
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(
-                context,
-                idealWidth: 540,
-                maxWidth: 720,
-              ),
-              child: TextField(
-                controller: _workspaceRootController,
-                enabled: canExport || canBackupRestore,
-                decoration: _settingInputDecoration(
-                  s.text('Workspace Root Path (optional)'),
-                  helperText: s.text('Optional root folder for the workspace.'),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: ResponsiveConstraints.itemWidth(
-                context,
-                idealWidth: 540,
-                maxWidth: 720,
-              ),
-              child: Text(
-                s.lastBackupLabel(
-                  settings.lastBackupAt == null
-                      ? s.never
-                      : DateTime.fromMillisecondsSinceEpoch(
-                        settings.lastBackupAt!,
-                      ).toIso8601String(),
-                  settings.lastBackupPath == null
-                      ? ''
-                      : ' | ${settings.lastBackupPath}',
-                ),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            Wrap(
-              spacing: 8,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: canExport ? _createBackup : null,
-                  icon: const Icon(Icons.save_alt),
-                  label: Text(s.text('Create Backup ZIP')),
-                ),
-                OutlinedButton.icon(
-                  onPressed: canBackupRestore ? _restoreBackup : null,
-                  icon: const Icon(Icons.restore),
-                  label: Text(s.text('Restore from ZIP')),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  /// Applies an in-place draft edit from a section part and rebuilds. Section
+  /// builders are extensions on this state and must not call the protected
+  /// `setState` directly, so they route toggle changes through here.
+  void _editDraft(VoidCallback change) => setState(change);
 
   void _handleDraftChanged() {
     if (_isHydrating || !mounted) {
@@ -1540,7 +1007,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(description),
           if (warning != null) ...[
@@ -1711,10 +1183,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final settings = await ref.read(inputsRepositoryProvider).getSettings();
-    final workspace = await ref
-        .read(workspaceRepositoryProvider)
-        .resolvePaths(settings);
+    final AppSettingsRecord settings;
+    final WorkspacePaths workspace;
+    try {
+      settings = await ref.read(inputsRepositoryProvider).getSettings();
+      workspace =
+          await ref.read(workspaceRepositoryProvider).resolvePaths(settings);
+    } catch (error) {
+      _isHydrating = false;
+      // A refresh after a mutation keeps its caller's existing error handling;
+      // only the initial load falls back to the on-screen retry state.
+      if (_settings != null) {
+        rethrow;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadError = error;
+      });
+      return;
+    }
     _isHydrating = true;
     _currencyController.text = settings.currencyCode;
     _localeController.text = settings.locale;
@@ -1772,6 +1261,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     setState(() {
       _settings = settings;
+      _loadError = null;
       _enableDemoSeed = settings.enableDemoSeed;
       _enableTaskNotifications = settings.enableTaskNotifications;
       _lastSavedAt = DateTime.fromMillisecondsSinceEpoch(settings.updatedAt);

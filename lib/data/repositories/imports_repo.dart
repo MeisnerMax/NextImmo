@@ -94,6 +94,16 @@ class ImportsRepository {
     return rows.map(ImportJobRecord.fromMap).toList();
   }
 
+  /// Every stored mapping, newest first. `runCsvImport` only ever reads the one
+  /// most recent mapping for the job it is running, so nothing enumerated them
+  /// before; the P2-D04 legacy read adapter needs the full set, because a job
+  /// projected without its mappings would report an empty mapping object that
+  /// the source data contradicts.
+  Future<List<ImportMappingRecord>> listMappings() async {
+    final rows = await _db.query('import_mappings', orderBy: 'created_at DESC');
+    return rows.map(ImportMappingRecord.fromMap).toList();
+  }
+
   Future<int> runCsvImport({
     required String jobId,
     required String csvPath,

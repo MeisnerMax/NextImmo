@@ -16,7 +16,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Cap Rate'), findsOneWidget);
+    // The label is uppercased by NxKpiTile: uppercase-with-tracking is the
+    // design system's marker for metadata, applied in the component so call
+    // sites cannot drift into sentence case.
+    expect(find.text('CAP RATE'), findsOneWidget);
     expect(find.text('5.20%'), findsOneWidget);
     expect(find.text('i'), findsOneWidget);
   });

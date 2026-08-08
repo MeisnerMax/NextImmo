@@ -45,3 +45,25 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Golden-test diff artifacts (regenerated on every failing run)
+test/**/failures/
+
+# Environment files. Never commit real values -- only NEXIMMO_ENV,
+# NEXIMMO_DATA_BACKEND, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY may ever reach
+# a client, and they arrive through --dart-define, not through a file. Server
+# credentials (service role key, secret key, DB password, access token) must
+# never be written to the working tree at all.
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Next.js build output (marketing/)
+.next/
+out/
+.vercel/

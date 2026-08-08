@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/search.dart';
 import '../../core/models/security.dart';
 import '../components/command_palette.dart';
+import '../components/nx_glass_panel.dart';
 import '../i18n/app_strings.dart';
 import '../navigation/app_navigation.dart';
 import '../navigation/navigation_actions.dart';
@@ -16,7 +17,9 @@ import '../state/security_state.dart';
 import '../theme/app_theme.dart';
 
 class TopBar extends ConsumerStatefulWidget {
-  const TopBar({super.key});
+  const TopBar({super.key, this.showMenuButton = false});
+
+  final bool showMenuButton;
 
   @override
   ConsumerState<TopBar> createState() => _TopBarState();
@@ -45,7 +48,6 @@ class _TopBarState extends ConsumerState<TopBar> {
     final propertiesAsync = ref.watch(propertiesControllerProvider);
     final security = ref.watch(securityControllerProvider).valueOrNull;
     final semantic = context.semanticColors;
-    final colorScheme = Theme.of(context).colorScheme;
     final inPropertyDetail =
         page == GlobalPage.properties && selectedPropertyId != null;
     final title = _title(
@@ -60,20 +62,25 @@ class _TopBarState extends ConsumerState<TopBar> {
       propertyPage: propertyPage,
     );
 
-    return Container(
-      color: colorScheme.surface,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.page,
-        vertical: 6,
+    return NxGlassPanel(
+      borderRadius: BorderRadius.zero,
+      padding: EdgeInsets.symmetric(
+        horizontal: context.adaptivePagePadding,
+        vertical:
+            inPropertyDetail
+                ? 6
+                : context.compactLayout
+                ? 10
+                : 12,
       ),
-      alignment: Alignment.centerLeft,
+      border: Border(bottom: BorderSide(color: semantic.border)),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final zone = AppLayout.desktopZoneForWidth(constraints.maxWidth);
           final compact = zone == AppDesktopLayoutZone.narrow;
           final hideWorkspaceUser = zone != AppDesktopLayoutZone.large;
           final searchWidth =
-              zone == AppDesktopLayoutZone.large ? 340.0 : 240.0;
+              zone == AppDesktopLayoutZone.large ? 320.0 : 240.0;
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -97,22 +104,15 @@ class _TopBarState extends ConsumerState<TopBar> {
             ],
           );
           final actions = <Widget>[
-            if (!compact)
-              OutlinedButton.icon(
-                onPressed: () => showCommandPalette(context),
-                icon: const Icon(Icons.search, size: 16),
-                label: const Text('Ctrl+K'),
-              ),
-            if (compact)
-              IconButton(
-                tooltip: s.text('Command Palette'),
-                onPressed:
-                    () => showCommandPalette(
-                      context,
-                      initialQuery: _searchController.text,
-                    ),
-                icon: const Icon(Icons.search),
-              ),
+            IconButton(
+              tooltip: s.text('Command Palette'),
+              onPressed:
+                  () => showCommandPalette(
+                    context,
+                    initialQuery: _searchController.text,
+                  ),
+              icon: const Icon(Icons.search),
+            ),
             if (!compact && !hideWorkspaceUser && security != null) ...[
               OutlinedButton.icon(
                 onPressed: _openWorkspaceDialog,
@@ -127,7 +127,7 @@ class _TopBarState extends ConsumerState<TopBar> {
                 ),
               ),
             ],
-            if (!compact)
+            if (!compact && zone == AppDesktopLayoutZone.large)
               SizedBox(
                 width: searchWidth,
                 child: _buildSearchAutocomplete(searchWidth),
@@ -146,24 +146,30 @@ class _TopBarState extends ConsumerState<TopBar> {
                 onPressed: _logout,
                 icon: const Icon(Icons.logout_outlined),
               ),
-            if (ref.watch(selectedPropertyIdProvider) != null)
-              compact
-                  ? IconButton(
-                    tooltip: s.text('Back to list'),
-                    onPressed: _backToList,
-                    icon: const Icon(Icons.arrow_back),
-                  )
-                  : TextButton.icon(
-                    onPressed: _backToList,
-                    icon: const Icon(Icons.arrow_back),
-                    label: Text(s.text('Back to list')),
-                  ),
           ];
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                titleBlock,
+                Row(
+                  children: [
+                    if (widget.showMenuButton) ...[
+                      IconButton(
+                        tooltip: s.text('Open navigation'),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                        icon: const Icon(Icons.menu),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (selectedPropertyId != null)
+                      IconButton(
+                        tooltip: s.text('Back'),
+                        onPressed: _backToList,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                    Expanded(child: titleBlock),
+                  ],
+                ),
                 const SizedBox(height: AppSpacing.component),
                 Wrap(spacing: 8, runSpacing: 8, children: actions),
               ],
@@ -171,9 +177,33 @@ class _TopBarState extends ConsumerState<TopBar> {
           }
           return Row(
             children: [
+              if (widget.showMenuButton) ...[
+                IconButton(
+                  tooltip: s.text('Open navigation'),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (selectedPropertyId != null)
+                TextButton.icon(
+                  onPressed: _backToList,
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(s.text('Back')),
+                ),
               Expanded(child: titleBlock),
+              if (!inPropertyDetail) ...[
+                Text(
+                  'NexImmo',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+              ],
               Wrap(
-                spacing: AppSpacing.component,
+                spacing: 8,
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: actions,
@@ -187,15 +217,26 @@ class _TopBarState extends ConsumerState<TopBar> {
 
   void _backToList() {
     final selectedScenarioId = ref.read(selectedScenarioIdProvider);
-    if (selectedScenarioId != null) {
-      ref
-          .read(scenarioAnalysisControllerProvider(selectedScenarioId).notifier)
-          .flushPendingSave();
+    final propertyPage = ref.read(propertyDetailPageProvider);
+
+    if (propertyPage != PropertyDetailPage.overview) {
+      // Wenn nicht auf Overview, gehe zum Overview
+      ref.read(propertyDetailPageProvider.notifier).state =
+          PropertyDetailPage.overview;
+    } else {
+      // Wenn auf Overview, gehe zur Liste
+      if (selectedScenarioId != null) {
+        ref
+            .read(
+              scenarioAnalysisControllerProvider(selectedScenarioId).notifier,
+            )
+            .flushPendingSave();
+      }
+      ref.read(selectedPropertyIdProvider.notifier).state = null;
+      ref.read(selectedScenarioIdProvider.notifier).state = null;
+      ref.read(propertyDetailPageProvider.notifier).state =
+          PropertyDetailPage.overview;
     }
-    ref.read(selectedPropertyIdProvider.notifier).state = null;
-    ref.read(selectedScenarioIdProvider.notifier).state = null;
-    ref.read(propertyDetailPageProvider.notifier).state =
-        PropertyDetailPage.overview;
   }
 
   void _logout() {
@@ -243,8 +284,8 @@ class _TopBarState extends ConsumerState<TopBar> {
         return Align(
           alignment: Alignment.topRight,
           child: Material(
-            elevation: 6,
-            borderRadius: BorderRadius.circular(8),
+            elevation: 8,
+            borderRadius: BorderRadius.circular(AppRadiusTokens.md),
             child: SizedBox(
               width: width,
               child: ListView.builder(
@@ -393,10 +434,7 @@ class _TopBarState extends ConsumerState<TopBar> {
                 ElevatedButton(
                   onPressed: () async {
                     await controller.switchWorkspace(selectedId);
-                    if (!mounted) {
-                      return;
-                    }
-                    if (!context.mounted) {
+                    if (!mounted || !context.mounted) {
                       return;
                     }
                     Navigator.of(context).pop();
@@ -438,17 +476,16 @@ class _TopBarState extends ConsumerState<TopBar> {
                   children: [
                     DropdownButtonFormField<String>(
                       value: selectedId,
-                      items:
-                          users
-                              .map(
-                                (user) => DropdownMenuItem<String>(
-                                  value: user.id,
-                                  child: Text(
-                                    '${user.displayName} (${context.strings.userRoleLabel(user.role)})',
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
+                      items: users
+                          .map(
+                            (user) => DropdownMenuItem<String>(
+                              value: user.id,
+                              child: Text(
+                                '${user.displayName} (${context.strings.userRoleLabel(user.role)})',
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
                       onChanged: (value) {
                         if (value == null) {
                           return;
@@ -495,18 +532,16 @@ class _TopBarState extends ConsumerState<TopBar> {
                         selectedId,
                         password: passwordController.text,
                       );
-                      if (!mounted) {
-                        return;
-                      }
-                      if (!context.mounted) {
+                      if (!mounted || !context.mounted) {
                         return;
                       }
                       Navigator.of(context).pop();
                     } catch (error) {
                       setDialogState(() {
-                        errorText = error
-                            .toString()
-                            .replaceFirst('Bad state: ', '');
+                        errorText = error.toString().replaceFirst(
+                          'Bad state: ',
+                          '',
+                        );
                       });
                     }
                   },

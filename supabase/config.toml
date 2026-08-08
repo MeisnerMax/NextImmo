@@ -12,6 +12,21 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
+[db.seed]
+# Off by design. supabase/seed.sql is a manual bootstrap fixture -- its own
+# header says to apply it with `psql -f`, and tool/bootstrap_p2_x01_local.ps1 is
+# the only consumer, which does exactly that. Every tool/verify_*.ps1 script and
+# the CI database job reset with --no-seed.
+#
+# Leaving it on was not harmless: `supabase migration down` performs a full
+# reset and seeds as part of it, with no --no-seed flag of its own. So the CI
+# rollback replay started from an unseeded database and silently became a seeded
+# one, and the final `supabase test db` then died in 25 pgTAP files on
+# `permissions_key_unique` -- the fixtures insert their own permission catalogue
+# because migrations deliberately do not seed one.
+
+enabled = false
+
 [db.pooler]
 enabled = false
 port = 54329

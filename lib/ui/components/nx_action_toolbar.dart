@@ -13,9 +13,9 @@ class NxActionToolbar extends StatelessWidget {
     return Container(
       padding: padding ?? const EdgeInsets.all(AppSpacing.component),
       decoration: BoxDecoration(
-        color: context.semanticColors.surfaceAlt,
+        color: context.semanticColors.surfaceAlt.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppRadiusTokens.lg),
-        border: Border.all(color: context.semanticColors.border),
+        border: Border.all(color: context.semanticColors.glassStroke),
       ),
       child: Wrap(
         spacing: 8,

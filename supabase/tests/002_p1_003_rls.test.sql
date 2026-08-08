@@ -7,13 +7,99 @@ select plan(62);
 select functions_are(
   'private',
   array[
+    'broadcast_membership_entitlement_change',
+    'broadcast_role_permission_entitlement_change',
+    'apply_valuation_factors',
+    'assert_unit_occupancy',
+    'capex_project_snapshot',
+    'capex_project_status_transition_allowed',
+    'claim_document_mutation',
+    'claim_leasing_mutation',
+    'claim_maintenance_mutation',
+    'claim_membership_mutation',
+    'claim_party_mutation',
+    'claim_valuation_mutation',
+    'contractor_details_snapshot',
+    'document_command_gate',
+    'document_entity_ref_state',
+    'document_requirement_state',
+    'document_link_snapshot',
+    'document_snapshot',
+    'document_storage_workspace',
+    'document_type_snapshot',
+    'document_version_snapshot',
+    'domain_event_topic_permission',
+    'domain_event_topic_workspace',
+    'finish_document_mutation',
+    'finish_leasing_mutation',
+    'finish_maintenance_mutation',
+    'finish_membership_mutation',
+    'finish_party_mutation',
+    'finish_valuation_mutation',
+    'has_entity_scope',
+    'has_scoped_entity_permission',
     'has_workspace_permission',
+    'import_job_snapshot',
+    'import_job_status_can_transition',
+    'claim_platform_mutation',
+    'finish_platform_mutation',
     'is_active_workspace_member',
     'is_current_active_membership',
+    'lease_snapshot',
+    'lease_status_is_effective',
+    'lease_status_transition_allowed',
+    'leases_assert_occupancy',
+    'leasing_case_snapshot',
+    'leasing_case_stage_rank',
+    'leasing_case_status_is_terminal',
+    'leasing_case_transition_allowed',
+    'leasing_command_gate',
+    'leasing_property_in_workspace',
+    'maintenance_command_gate',
+    'maintenance_contractor_party_valid',
+    'maintenance_ticket_snapshot',
+    'maintenance_ticket_status_transition_allowed',
+    'membership_command_gate',
+    'membership_invitation_snapshot',
+    'membership_snapshot',
+    'notification_snapshot',
+    'operations_signal_state_snapshot',
+    'party_command_gate',
+    'party_role_snapshot',
+    'party_snapshot',
+    'platform_command_gate',
     'prepare_audit_event',
+    'properties_apply_delete_marker',
+    'publish_document_link_event',
+    'publish_domain_event',
+    'publish_required_document_event',
     'reject_audit_event_change',
+    'reject_domain_event_change',
     'reject_protected_column_update',
-    'update_property_core'
+    'reject_rent_roll_change',
+    'rent_roll_currencies',
+    'rent_roll_snapshot_document',
+    'rent_roll_snapshot_header',
+    'rent_roll_unit_currencies',
+    'rent_roll_unit_rows',
+    'required_document_snapshot',
+    'search_index_snapshot',
+    'send_entitlement_revalidation',
+    'sync_unit_occupancy',
+    'task_snapshot',
+    'task_status_can_transition',
+    'unit_effective_lease_count',
+    'unit_snapshot',
+    'units_assert_occupancy',
+    'update_property_core',
+    'validate_valuation_factor_payload',
+    'valuation_case_detail',
+    'valuation_case_snapshot',
+    'valuation_command_gate',
+    'valuation_factor_set',
+    'valuation_factor_snapshot',
+    'valuation_status_can_transition',
+    'would_remove_last_security_manager'
   ],
   'private function inventory is complete'
 );
@@ -276,7 +362,14 @@ select set_config('request.jwt.claim.sub', 'c0000000-0000-0000-0000-000000000001
 
 select isnt(private.is_active_workspace_member('10000000-0000-0000-0000-000000000001'), true, 'suspended membership is inactive');
 select is((select count(*)::integer from public.workspaces), 0, 'suspended user sees no workspace');
-select is((select count(*)::integer from public.memberships), 0, 'suspended user sees no membership');
+-- P2-D01: members always see their own membership row (any status) so a
+-- suspended or invited user can see where they stand; nothing beyond it.
+select ok(
+  (select count(*) = 1
+     and bool_and(user_id = 'c0000000-0000-0000-0000-000000000001'::uuid)
+   from public.memberships),
+  'suspended user sees exactly their own membership row'
+);
 select is((select count(*)::integer from public.roles), 0, 'suspended user sees no roles');
 select is((select count(*)::integer from public.entity_scopes), 0, 'suspended user sees no scopes');
 
@@ -286,7 +379,14 @@ select set_config('request.jwt.claim.sub', 'd0000000-0000-0000-0000-000000000001
 
 select ok(private.is_active_workspace_member('10000000-0000-0000-0000-000000000001'), 'permissionless user remains an active member');
 select is((select count(*)::integer from public.workspaces), 0, 'active membership without workspace.read is denied');
-select is((select count(*)::integer from public.memberships), 0, 'active membership without required permission is hidden');
+-- P2-D01: own-row visibility does not depend on a permission; foreign
+-- memberships stay hidden without security.manage.
+select ok(
+  (select count(*) = 1
+     and bool_and(user_id = 'd0000000-0000-0000-0000-000000000001'::uuid)
+   from public.memberships),
+  'active member without permissions sees exactly their own membership row'
+);
 select is((select count(*)::integer from public.entity_scopes), 0, 'own scope without workspace.read is hidden');
 
 reset role;

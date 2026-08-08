@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/nx_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/operations.dart';
@@ -50,7 +51,8 @@ class _OperationsAlertsScreenState
           const SizedBox(height: AppSpacing.component),
           Expanded(
             child: _filteredAlerts.isEmpty
-                ? const Card(
+                ? const NxCard(
+                    padding: EdgeInsets.zero,
                     child: Center(
                       child: Padding(
                         padding: EdgeInsets.all(AppSpacing.cardPadding),
@@ -398,7 +400,8 @@ class _SummaryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Card(
+      child: NxCard(
+        padding: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.cardPadding),
           child: Column(
@@ -441,7 +444,8 @@ class _AlertCard extends StatelessWidget {
     final createdAt = alert.createdAt == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(alert.createdAt!);
-    return Card(
+    return NxCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(
@@ -452,7 +456,7 @@ class _AlertCard extends StatelessWidget {
               children: [
                 Icon(
                   _severityIcon(alert.severity),
-                  color: _severityColor(alert.severity),
+                  color: _severityColor(context, alert.severity),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -538,14 +542,17 @@ class _AlertCard extends StatelessWidget {
     }
   }
 
-  Color _severityColor(String severity) {
+  /// Severity colour. Takes a [BuildContext] because the mapping resolves
+  /// through the theme — a helper that hardcodes colours cannot follow the
+  /// design system.
+  Color _severityColor(BuildContext context, String severity) {
     switch (severity) {
       case 'critical':
-        return Colors.red;
+        return context.semanticColors.error;
       case 'warning':
-        return Colors.orange;
+        return context.semanticColors.warning;
       default:
-        return Colors.blueGrey;
+        return context.semanticColors.textSecondary;
     }
   }
 
@@ -590,10 +597,10 @@ class _SeverityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         severity == 'critical'
-            ? Colors.red
+            ? context.semanticColors.error
             : severity == 'warning'
-            ? Colors.orange
-            : Colors.blueGrey;
+            ? context.semanticColors.warning
+            : context.semanticColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

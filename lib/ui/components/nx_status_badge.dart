@@ -21,7 +21,7 @@ class NxStatusBadge extends StatelessWidget {
     final colors = switch (kind) {
       NxBadgeKind.neutral => (
         colorScheme.surfaceContainerHighest,
-        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black,
+        Theme.of(context).textTheme.bodyMedium?.color ?? colorScheme.onSurface,
       ),
       NxBadgeKind.success => (semantic.success.withValues(alpha: 0.14), semantic.success),
       NxBadgeKind.warning => (semantic.warning.withValues(alpha: 0.16), semantic.warning),
@@ -32,7 +32,7 @@ class NxStatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: colors.$1,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppRadiusTokens.pill),
         border: Border.all(color: colors.$2.withValues(alpha: 0.32)),
       ),
       child: Text(

@@ -1,0 +1,77 @@
+name: Goldens
+
+# Regenerates the reference-slice goldens on Linux and hands back both the
+# before/after diffs and the new PNGs as artifacts.
+#
+# Why this exists: the goldens in the tree were generated on Windows. Font
+# rasterization differs from the ubuntu runner, so the same six tests pass
+# locally and have failed in CI on every push since 2026-07-18. A golden that
+# is shared across platforms cannot hold; the resolution is to make CI the
+# single authority for what a golden looks like.
+#
+# Deliberately manual. Goldens are regenerated on purpose, never incidentally
+# (CLAUDE.md), and the diffs are reviewed before the new PNGs are committed --
+# a rasterization difference and a layout regression look identical to
+# --update-goldens.
+
+on:
+  # GitHub only offers workflow_dispatch for files that already exist on the
+  # default branch, and this file cannot reach main until CI is green -- which
+  # is what it exists to fix. The branch trigger breaks that circle: pushing
+  # any goldens/** branch runs it. workflow_dispatch takes over once this is
+  # merged.
+  push:
+    branches:
+      - 'goldens/**'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Test path to regenerate'
+        required: true
+        default: test/features/reference_slice/
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.29.2
+          channel: stable
+          cache: true
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # First the failing run, purely to capture what actually differs.
+      - name: Capture current diffs
+        continue-on-error: true
+        run: flutter test --no-pub "${{ inputs.target || 'test/features/reference_slice/' }}"
+      - name: Upload diffs
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-diffs
+          path: test/**/failures/
+          if-no-files-found: warn
+          retention-days: 7
+
+      # Then the regeneration. The failures/ directory is cleared first so the
+      # uploaded goldens artifact contains only the new reference images.
+      - name: Regenerate goldens
+        run: |
+          rm -rf test/**/failures/
+          flutter test --no-pub --update-goldens "${{ inputs.target || 'test/features/reference_slice/' }}"
+      - name: Verify the regenerated goldens pass
+        run: flutter test --no-pub "${{ inputs.target || 'test/features/reference_slice/' }}"
+      - name: Upload regenerated goldens
+        uses: actions/upload-artifact@v4
+        with:
+          name: goldens-linux
+          path: test/**/goldens/**/*.png
+          if-no-files-found: error
+          retention-days: 7

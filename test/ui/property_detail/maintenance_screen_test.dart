@@ -60,25 +60,32 @@ void main() {
     await appDatabase.close();
   });
 
-  testWidgets('renders property maintenance actions', (tester) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  for (final size in const [
+    Size(390, 844),
+    Size(1024, 768),
+    Size(1440, 900),
+  ]) {
+    testWidgets('renders without overflow at ${size.width.toInt()} px', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          appDatabaseProvider.overrideWithValue(appDatabase),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(body: PropertyMaintenanceScreen(propertyId: 'p1')),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            appDatabaseProvider.overrideWithValue(appDatabase),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: PropertyMaintenanceScreen(propertyId: 'p1')),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Neues Ticket'), findsOneWidget);
-  });
+      expect(find.text('Instandhaltung & CapEx'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

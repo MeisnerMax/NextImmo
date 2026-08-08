@@ -8,8 +8,73 @@ import 'package:neximmo_app/features/portfolio_property/application/property_rep
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/navigation/app_navigation.dart';
+import 'package:neximmo_app/ui/shell/app_scaffold.dart';
+import 'package:neximmo_app/ui/shell/sidebar.dart';
 
 void main() {
+  testWidgets('Supabase stays fail-closed without an authenticated session', (
+    tester,
+  ) async {
+    const environment = AppEnvironment(
+      environment: NexImmoEnvironment.local,
+      dataBackend: DataBackend.supabase,
+      supabaseUrl: 'http://127.0.0.1:54321',
+      supabasePublishableKey: 'public-test-key',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          identityAccessRepositoryProvider.overrideWithValue(
+            _IdentityRepository(session: null),
+          ),
+          referencePropertyRepositoryProvider.overrideWithValue(
+            _PropertyRepository(),
+          ),
+        ],
+        child: const NexImmoApp(environment: environment),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in to NexImmo'), findsOneWidget);
+    expect(find.byType(AppScaffold), findsNothing);
+  });
+
+  testWidgets('Supabase root opens the canonical shell without SQLite', (
+    tester,
+  ) async {
+    const environment = AppEnvironment(
+      environment: NexImmoEnvironment.local,
+      dataBackend: DataBackend.supabase,
+      supabaseUrl: 'http://127.0.0.1:54321',
+      supabasePublishableKey: 'public-test-key',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          identityAccessRepositoryProvider.overrideWithValue(
+            _IdentityRepository(),
+          ),
+          referencePropertyRepositoryProvider.overrideWithValue(
+            _PropertyRepository(),
+          ),
+        ],
+        child: const NexImmoApp(environment: environment),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppScaffold), findsOneWidget);
+    expect(find.byType(Sidebar), findsOneWidget);
+    expect(
+      find.byKey(const Key('cloud-destination-migration-dashboard')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Supabase property deep link opens the scoped stable id', (
     tester,
   ) async {
@@ -42,6 +107,8 @@ void main() {
 
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
     expect(properties.detailPropertyIds, <String>['property-a']);
+    expect(find.byType(AppScaffold), findsOneWidget);
+    expect(find.byType(Sidebar), findsOneWidget);
     expect(find.text('Atlas House'), findsWidgets);
     expect(find.byKey(const Key('reference-detail-pane')), findsOneWidget);
     expect(navigator.canPop(), isFalse);
@@ -49,14 +116,18 @@ void main() {
 }
 
 class _IdentityRepository implements IdentityAccessRepository {
+  _IdentityRepository({AuthenticatedSession? session = _session})
+    : _currentSession = session;
+
   static const _session = AuthenticatedSession(
     userId: 'user-a',
     currentAssuranceLevel: AuthenticationAssuranceLevel.aal2,
     nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
   );
+  final AuthenticatedSession? _currentSession;
 
   @override
-  AuthenticatedSession get currentSession => _session;
+  AuthenticatedSession? get currentSession => _currentSession;
 
   @override
   Future<IdentityAccessResult<TotpChallenge>> challengeTotp({

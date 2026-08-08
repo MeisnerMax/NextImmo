@@ -648,14 +648,16 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       physics: const NeverScrollableScrollPhysics(),
       children: [
         if (datedTickets.isEmpty)
-          const Card(
+          const NxCard(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: EdgeInsets.all(24.0),
               child: Center(child: Text('Keine geplanten Termine vorhanden.')),
             ),
           )
         else
-          Card(
+          NxCard(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.cardPadding),
               child: Column(
@@ -752,7 +754,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
                                 color: isRenovation 
-                                    ? Colors.orangeAccent 
+                                    ? context.semanticColors.warning 
                                     : Theme.of(context).colorScheme.primary,
                                 backgroundColor: Theme.of(context).colorScheme.outlineVariant,
                               ),
@@ -768,7 +770,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           ),
         if (undatedTickets.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Card(
+          NxCard(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.cardPadding),
               child: Column(
@@ -956,7 +959,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                 'Abweichung: ${_formatCurrency(dev)}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: dev > 0 ? Colors.red : Colors.green,
+                  color: dev > 0 ? context.semanticColors.error : context.semanticColors.success,
                 ),
               );
             }),

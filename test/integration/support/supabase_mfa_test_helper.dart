@@ -13,7 +13,7 @@ SupabaseClient createSupabaseTestClient(String url, String publishableKey) {
   );
 }
 
-Future<void> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
+Future<String> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
   final enrollment = await client.auth.mfa.enroll(
     factorType: FactorType.totp,
     friendlyName:
@@ -34,6 +34,7 @@ Future<void> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
   if (assurance.currentLevel != AuthenticatorAssuranceLevels.aal2) {
     throw StateError('Supabase session did not reach AAL2.');
   }
+  return enrollment.id;
 }
 
 class _InMemoryGotrueAsyncStorage extends GotrueAsyncStorage {

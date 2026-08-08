@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../components/nx_kpi_tile.dart';
 import '../theme/app_theme.dart';
 import 'info_tooltip.dart';
 
 enum KpiTileStatus { normal, positive, negative, warning }
 
+/// Metric tile with a mandatory explanation tooltip.
+///
+/// Thin wrapper over [NxKpiTile] — it exists only to map [KpiTileStatus] onto
+/// a semantic colour and to attach the [InfoTooltip] that every derived
+/// financial figure is required to carry. It used to be the third independent
+/// implementation of this tile (fixed 240px, Material `Card`, a status colour
+/// on a 3px left border rather than the shared status dot); the visual
+/// contract now lives in one place.
 class KpiTile extends StatelessWidget {
   const KpiTile({
     super.key,
@@ -14,7 +23,7 @@ class KpiTile extends StatelessWidget {
     this.subtitle,
     this.delta,
     this.status = KpiTileStatus.normal,
-    this.width = 240,
+    this.width,
   });
 
   final String title;
@@ -23,66 +32,31 @@ class KpiTile extends StatelessWidget {
   final String? subtitle;
   final String? delta;
   final KpiTileStatus status;
-  final double width;
+
+  /// Optional fixed width. Prefer leaving this null and letting [NxKpiRow]
+  /// distribute the tiles — a fixed width in a `Wrap` is what left KPI bands
+  /// stranded in the left third of the page.
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
     final semantic = context.semanticColors;
     final statusColor = switch (status) {
-      KpiTileStatus.normal => semantic.border,
+      KpiTileStatus.normal => null,
       KpiTileStatus.positive => semantic.success,
       KpiTileStatus.negative => semantic.error,
       KpiTileStatus.warning => semantic.warning,
     };
 
-    return SizedBox(
-      width: width,
-      child: Card(
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.cardPadding),
-          decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: statusColor, width: 3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ),
-                  InfoTooltip(metricKey: metricKey),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                ).merge(context.tabularNumericStyle),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 4),
-                Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
-              ],
-              if (delta != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  delta!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    final tile = NxKpiTile(
+      label: title,
+      value: value,
+      caption: subtitle,
+      status: statusColor,
+      delta: delta,
+      trailing: InfoTooltip(metricKey: metricKey),
     );
+
+    return width == null ? tile : SizedBox(width: width, child: tile);
   }
 }
