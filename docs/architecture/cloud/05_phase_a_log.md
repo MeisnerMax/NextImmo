@@ -736,6 +736,46 @@ ausdrücklich.
 
 ---
 
+## 2026-08-08 · Phase A: **integrated into main** — nicht „abgeschlossen"
+
+PR [#1](https://github.com/MeisnerMax/NextImmo/pull/1) ist gemergt.
+
+| | |
+|---|---|
+| Strategie | **Merge-Commit** — kein Squash, kein Rebase, kein Force-Push |
+| Merge-SHA | `49eab16a72a1588ffe07d60dd09bf50bf98e84e3` |
+| Zeitpunkt | 2026-08-08T11:09:14Z |
+| Umfang | 37 Commits, 634 Dateien, +164 380 / −27 530 |
+| Vorher `origin/main` | `e46ed00` (Marketing-Commit vom 2026-07-18) |
+| Branch | `cloud/foundation-stabilization` **nicht gelöscht** |
+
+Die Merge-Commit-Strategie war eine bewusste Wahl: die 37 Commits sind einzeln
+verifizierte Arbeitspakete und Architekturentscheidungen, und genau diese Evidenz soll
+nachvollziehbar bleiben.
+
+**Hosted CI auf dem PR-Head `5a6b772`:** alle fünf Jobs PASS.
+**Hosted CI auf dem Merge-Commit `49eab16`:** `verify`, `supply_chain`, `marketing` und
+`database` (39/39 Schritte, 16,7 min) PASS. CLI-Wächter meldet `2.109.1` aus allen drei
+Quellen, null echte Registry-Nachinstallationen, `025_ph01_entity_scope` und
+`032_ph01_entity_scope_down` beide `ok`.
+
+**`Web App Deploy` läuft auf `main` nicht** — kein Fehler, sondern der Trigger: die Datei
+hat `pull_request` und `workflow_dispatch`, keinen `push`. Auf `main` sind es vier Jobs.
+Ein `push`-Trigger wird erst sinnvoll, wenn das zweite Vercel-Projekt existiert; bis dahin
+ist der Workflow ohnehin inert.
+
+**Nebenwirkung des Merges:** Dependabot ist auf `main` aktiv geworden (`github_actions`,
+`pub`, `npm_and_yarn` in `marketing`) — die erwartete Wirkung der `dependabot.yml`. Es sind
+gruppierte Monats-PRs zu erwarten.
+
+### Status: `integrated into main`, **nicht** `complete`
+
+Der Foundation-**Code** ist auf `main`. Die Foundation als Ganzes ist nicht abgeschlossen,
+solange offen sind: Branch Protection, `AP-X02-2b`, Desktop-Deep-Link-Port, `C-07`, das
+zweite Vercel-Projekt, der interaktive Cloud-Golden-Path und `DEC-017`.
+
+---
+
 ## 2026-08-08 · `PH-01` — Entity-Scope-Enforcement, neu implementiert
 
 Nicht die Rescue-Migration portiert. Sie diente als Referenz; drei ihrer Annahmen gelten
