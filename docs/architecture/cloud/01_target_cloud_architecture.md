@@ -86,10 +86,16 @@ Verzweigung: `NEXIMMO_DATA_BACKEND` und `CloudDestinationReadiness` entfallen er
 | Berechtigungen | feingranulare Capabilities (`property.update`, `capex.approve`, …), aggregiert zu Rollen |
 | Entzug zur Laufzeit | privater nutzergebundener Realtime-Broadcast → Cache-Leerung → kanonische Revalidation (`DEC-022`) |
 
-**Offen (`DEC-016`, `proposed`):** Property-Mutationen verlangen bereits serverseitig AAL2.
-Eine allgemeine verpflichtende MFA-Regel für privilegierte Rollen fehlt noch.
-Empfehlung für Phase C: `admin` und `security.manage` verlangen AAL2; jede privilegierte
-Mutation erzwingt AAL2 **serverseitig**; keine rein clientseitige Sicherheitsregel.
+**Entschieden (`DEC-016`, accepted 2026-08-08):** Privilegierte Sicherheits- und
+Administrationsaktionen verlangen AAL2, **serverseitig und fail-closed** erzwungen über RLS,
+RPC-/DB-Guards oder Supabase-Auth-Claims — nie allein im Flutter-Client. Nicht jede
+gewöhnliche Aktion verlangt AAL2. Verpflichtend mindestens für Capabilities mit Einfluss auf
+Access Control, Memberships, Rollen/Berechtigungen und sicherheitskritische
+Workspace-Administration; die Capability-Matrix darf fachlich erweitert werden.
+
+Property-Mutationen erfüllen das bereits. Der Rest ist **Umsetzungsarbeit je Capability**,
+keine offene Entscheidung mehr. Die vollständige Rollen-zu-Permission-Matrix und die
+Vier-Augen-Freigaben bleiben offen (`DEC-SEC-001`, `partial`).
 
 ---
 
@@ -149,8 +155,8 @@ Auth-Redirects, eigenem SMTP:
 | Umgebung | Zweck | Zustand |
 |---|---|---|
 | `local` | Entwicklung gegen den Docker-Stack | **existiert** |
-| `staging` | Integration, E2E, Abnahme | **existiert nicht** — gegated durch `DEC-017` |
-| `production` | Echtdaten, Region Frankfurt/EU (`DEC-015`, `proposed`) | **existiert nicht** |
+| `staging` | Integration, E2E, Abnahme | **existiert nicht** — gegated durch `DEC-017`. Region: dieselbe regulatorisch-geografische Zielregion wie Production, soweit das Supabase-Environment-Modell das zulässt (`DEC-015`) |
+| `production` | Echtdaten, EU-Region mit Zielregion Frankfurt (`DEC-015`, **accepted**) | **existiert nicht** |
 
 Client-Konfiguration ausschließlich über vier `--dart-define`:
 `NEXIMMO_ENV`, `NEXIMMO_DATA_BACKEND`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`.
@@ -260,11 +266,16 @@ Erreichbarkeit zu verteidigen wäre.
 
 | ID | Frage | Blockiert |
 |---|---|---|
-| `DEC-015` | Production-Region (Empfehlung Frankfurt/EU) | bezahlte Provisionierung |
-| `DEC-016` | verpflichtende MFA-Matrix für privilegierte Rollen | Production-Auth |
 | `DEC-017` | Freigabe für Remote-Provisioning (erst Staging, dann Production) | jede nicht-lokale Umgebung |
 | `OPN-DOM-004` | Freigabegrenzen | `P2-D08` Finance/Debt |
 | `OPN-DOM-005` | Retention-Policy | Storage-Hardening |
 
 Solange `DEC-017` offen ist, endet die Plattform beim lokalen Stack. Alles in diesem
 Dokument, was Staging oder Production betrifft, ist Zielbild, nicht Ist-Zustand.
+
+**`DEC-015` und `DEC-016` sind am 2026-08-08 entschieden und stehen hier nicht mehr.** Die
+drei sind bewusst zu trennen: `DEC-015` entscheidet **wo** produktiv gelaufen wird,
+`DEC-016` **wie** privilegierter Zugriff gesichert wird, `DEC-017` ob überhaupt eine
+Remote-Ressource **angelegt** werden darf. Die ersten beiden zu entscheiden ändert an der
+Sperre der dritten nichts — es gibt weiterhin kein Production-Projekt, keine bezahlte
+Ressource, keine Production-Secrets, keine Datenmigration und keinen DNS-Cutover.

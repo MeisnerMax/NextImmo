@@ -104,7 +104,8 @@ See [docs/architecture/phase_1/01_environment_contract.md](docs/architecture/pha
   `SUPABASE_ACCESS_TOKEN` are server-only and must never be committed, dart-defined, put in
   `supabase/config.toml`, logged, or exported.
 - Remote (non-local) Supabase provisioning is **not authorized** yet — pending decisions
-  `DEC-015`..`DEC-017` in `docs/architecture/phase_0/11_decision_register.md`. Don't wire up or
+  `DEC-017` in `docs/architecture/phase_0/11_decision_register.md` (`DEC-015` region and
+  `DEC-016` privileged AAL2 were accepted 2026-08-08; neither authorizes provisioning). Don't wire up or
   suggest staging/production Supabase provisioning without checking that register first.
 
 ## Architecture

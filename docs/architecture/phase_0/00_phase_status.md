@@ -149,7 +149,7 @@ Status: `done`.
 ## Phase-1-Freigabe
 
 - Freigegeben: lokale, reversible Phase-1-Inkremente gemaess `12_phase_1_execution_backlog.md`; der budgetfreie Messvertrag `P1-021A` ist abgeschlossen, `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen.
-- Noch nicht freigegeben: Remote-Supabase-Provisionierung und produktive Cloud-Aktionen bis DEC-015, DEC-016 und DEC-017 entschieden sind.
+- Noch nicht freigegeben: Remote-Supabase-Provisionierung und produktive Cloud-Aktionen bis DEC-017 entschieden ist. DEC-015 (EU-Region, Ziel Frankfurt) und DEC-016 (AAL2 fuer privilegierte Capabilities, serverseitig fail-closed) sind am 2026-08-08 accepted; beide entscheiden Ort und Absicherung, nicht die Freigabe zum Anlegen von Ressourcen.
 - Phase-1-Gate bleibt: nachgewiesene Cross-Tenant-Isolation gemaess RLS-T001..RLS-T015.
 
 ## Offene Risiken

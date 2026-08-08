@@ -703,6 +703,39 @@ jedem Aufruf aus der Registry. **Keine Workflow-Aufteilung.**
 
 ---
 
+## 2026-08-08 · `HIGH-03` — Decision-Reconciliation der geretteten Owner-Entscheidungen
+
+Quelle: `rescue/codex-ai-ph00-baseline` (`9f4bbc1`), Owner-Entscheidungen vom 2026-08-02,
+bestätigt durch Owner-Auftrag am 2026-08-08. Der Rescue-Branch ist historische Evidenz,
+**keine** Source of Truth — keine Datei wurde als Ganzes übernommen.
+
+| Rescue-Entscheidung | Inhalt | kanonisches Ziel | Ergebnis |
+|---|---|---|---|
+| `AI-PH01-DEC-001` | Frankfurt/EU als Zielregion; Provisionierung bleibt separat freigabepflichtig | `DEC-015` | **accepted** (war `proposed`) |
+| `AI-PH01-DEC-002` | AAL2 für privilegierte Capabilities; `ai.use` verleiht kein Domainrecht | `DEC-016`, `DEC-SEC-001` | **accepted** (war `proposed`); `DEC-SEC-001` → `partial` |
+| `AI-PH01-DEC-003` | Entity-Scope als `property`/`portfolio`-Allowlist, unbekannte Typen Deny | `DEC-SEC-002` | **nicht übernommen** — Review vorgelegt, Entscheidung steht aus |
+| `AI-PH01-DEC-004` | keine produktive PII an Provider, keine automatische physische Löschung | `DEC-SEC-003`, `DEC-SEC-004` | **nicht übernommen** — durch diesen Auftrag nicht entschieden |
+
+**`DEC-017` bleibt `open`.** Die drei sind bewusst getrennt: `DEC-015` entscheidet **wo**,
+`DEC-016` **wie gesichert**, `DEC-017` ob überhaupt eine Remote-Ressource **angelegt** werden
+darf. Kein Production-Projekt, keine bezahlte Ressource, keine Production-Secrets, keine
+Datenmigration, kein DNS-Cutover.
+
+**Geänderte kanonische Dokumente:** `phase_0/11_decision_register.md` (DEC-015, DEC-016,
+zentraler Index), `phase_0/07_security_and_tenancy_baseline.md` (`DEC-SEC-001` → `partial`),
+`cloud/01_target_cloud_architecture.md` (§4, §8, §14), `phase_0/00_phase_status.md`,
+`CLAUDE.md`, dieses Protokoll.
+
+**Bewusst nicht umgeschrieben** — zeitpunktbezogene Berichte, die den damaligen Stand
+korrekt festhalten: `cloud/00_repository_audit.md`, `phase_0/12_phase_1_execution_backlog.md`,
+`phase_1/03_reference_slice_gate_review.md` (`GATE-BLK-002`/`003`),
+`phase_1/02_backup_restore_runbook.md`, `phase_1/01_environment_contract.md`,
+`phase_2/00_phase_2_charter.md`. Wo sie `DEC-015`..`DEC-017` gemeinsam als Gate nennen, ist
+seit dem 2026-08-08 nur noch `DEC-017` offen; der zentrale Index im Register sagt das
+ausdrücklich.
+
+---
+
 ## 2026-08-07 · `AP-X02-2` — Audit erstellt, nichts gelöscht
 
 `cloud/02_ap_x02_2_legacy_adapter_audit.md`. 24 Artefakte, 12 511 LOC, je Artefakt
@@ -738,7 +771,7 @@ Kernbefunde:
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
 | 4 | Interaktiver Golden-Path im sichtbaren Browser-Pane | gemeinsam | A5 |
 | 5 | Entscheidung Szenariovergleich | Nutzer | `AP-X02-5` |
-| 6 | `DEC-015`..`DEC-017` entscheiden | Nutzer | Phase C, jede nicht-lokale Umgebung |
+| 6 | `DEC-017` entscheiden (`DEC-015` und `DEC-016` sind am 2026-08-08 accepted) | Nutzer | Phase C, jede nicht-lokale Umgebung |
 
 **Erledigt seit der ersten Fassung dieser Liste:** `C-01` und `C-02` (beide `b3d613a`),
 `AP-X02-1` (`101325c` — Charter und `CLAUDE.md` an `DEC-024` angeglichen).

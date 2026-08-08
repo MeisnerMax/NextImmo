@@ -157,7 +157,7 @@ Append-only-Entitaeten tragen dieselben Herkunftsspalten; `updated_at = created_
 
 | ID | Status | Auswirkung | Default-Annahme | Spaetester Zeitpunkt |
 |---|---|---|---|---|
-| DEC-SEC-001 | open | Konkrete Rollen-zu-Permission-Matrix und Vier-Augen-Freigaben | Lokale Rollen nur als Migrationsinput, keine automatische 1:1-Uebernahme | vor RLS-Prototyp-Abnahme |
+| DEC-SEC-001 | **partial** (war `open` bis 2026-08-08) | Konkrete Rollen-zu-Permission-Matrix und Vier-Augen-Freigaben | Der AAL2-Teil ist entschieden: privilegierte Capabilities verlangen AAL2, serverseitig und fail-closed erzwungen (`DEC-016`, accepted 2026-08-08). Offen bleiben die vollstaendige Rollen-zu-Permission-Matrix und die Vier-Augen-Freigaben. Lokale Rollen weiterhin nur als Migrationsinput | Restumfang vor RLS-Prototyp-Abnahme |
 | DEC-SEC-002 | open | Objekt-/Portfolio-Scope-Vererbung bei Mehrfachzuordnung | Zugriff nur, wenn mindestens ein explizit erlaubter Scope den Datensatz eindeutig umfasst | vor Phase-2-Import |
 | DEC-SEC-003 | open | PII-Klassifikation und Feldmaskierung fuer Mieter/Kontakte | Least privilege; separate Permission fuer sensible Kontaktdaten | vor Leasing-Migration |
 | DEC-SEC-004 | open | Retention, Legal Hold und physische Loeschung | Keine automatische physische Loeschung | vor produktiver Dokumentmigration |
