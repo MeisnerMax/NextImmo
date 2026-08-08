@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride, TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:neximmo_app/features/identity_access/application/desktop_auth_callback.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/identity_access/data/supabase_identity_access_repository_adapter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -181,6 +184,44 @@ void main() {
       expect(gateway.passwordlessEmails, <String>['user@example.test']);
     });
 
+    test('sends the desktop callback as the passwordless redirect', () async {
+      // Without this the sign-in mail points at the Site URL, the browser
+      // completes the flow there, and the desktop app is never called back.
+      gateway.currentSession = null;
+      final desktop = SupabaseIdentityAccessRepositoryAdapter.withGateway(
+        gateway,
+        passwordlessRedirectTo: desktopAuthCallbackUri,
+      );
+
+      await desktop.requestPasswordlessSignIn(email: 'user@example.test');
+
+      expect(gateway.passwordlessRedirects, <String?>[desktopAuthCallbackUri]);
+    });
+
+    test('resolves the redirect per platform when none is given', () async {
+      // The platform override is set explicitly so the expectation holds on
+      // every host the suite runs on, not just on Windows.
+      gateway.currentSession = null;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      await SupabaseIdentityAccessRepositoryAdapter.withGateway(
+        gateway,
+      ).requestPasswordlessSignIn(email: 'user@example.test');
+
+      // Anything that is not the desktop app keeps GoTrue's default: a custom
+      // scheme would send a browser to a URL it cannot open.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await SupabaseIdentityAccessRepositoryAdapter.withGateway(
+        gateway,
+      ).requestPasswordlessSignIn(email: 'user@example.test');
+
+      expect(gateway.passwordlessRedirects, <String?>[
+        desktopAuthCallbackUri,
+        null,
+      ]);
+    });
+
     test(
       'maps passwordless rate limits without leaking provider details',
       () async {
@@ -327,6 +368,7 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   Completer<void>? workspaceBlocker;
   Completer<void>? rolePermissionBlocker;
   final List<String> passwordlessEmails = <String>[];
+  final List<String?> passwordlessRedirects = <String?>[];
   Object? passwordlessError;
   TotpEnrollment enrollment = const TotpEnrollment(
     factorId: 'factor-new',
@@ -348,8 +390,12 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
       const Stream<AuthenticatedSession?>.empty();
 
   @override
-  Future<void> requestPasswordlessSignIn(String email) async {
+  Future<void> requestPasswordlessSignIn(
+    String email, {
+    String? redirectTo,
+  }) async {
     passwordlessEmails.add(email);
+    passwordlessRedirects.add(redirectTo);
     final error = passwordlessError;
     if (error != null) {
       throw error;

@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../application/desktop_auth_callback.dart';
 import '../application/identity_access_repository.dart';
 
 abstract interface class IdentityAccessSupabaseGateway {
@@ -7,7 +10,7 @@ abstract interface class IdentityAccessSupabaseGateway {
 
   Stream<AuthenticatedSession?> watchSession();
 
-  Future<void> requestPasswordlessSignIn(String email);
+  Future<void> requestPasswordlessSignIn(String email, {String? redirectTo});
 
   Future<TotpEnrollment> enrollTotp();
 
@@ -53,8 +56,12 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
   }
 
   @override
-  Future<void> requestPasswordlessSignIn(String email) {
-    return _client.auth.signInWithOtp(email: email, shouldCreateUser: false);
+  Future<void> requestPasswordlessSignIn(String email, {String? redirectTo}) {
+    return _client.auth.signInWithOtp(
+      email: email,
+      emailRedirectTo: redirectTo,
+      shouldCreateUser: false,
+    );
   }
 
   @override
@@ -187,14 +194,26 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
 
 class SupabaseIdentityAccessRepositoryAdapter
     implements IdentityAccessRepository {
-  SupabaseIdentityAccessRepositoryAdapter({required SupabaseClient client})
-    : _gateway = SupabaseIdentityAccessGateway(client);
+  SupabaseIdentityAccessRepositoryAdapter({
+    required SupabaseClient client,
+    String? passwordlessRedirectTo,
+  }) : _gateway = SupabaseIdentityAccessGateway(client),
+       _passwordlessRedirectTo =
+           passwordlessRedirectTo ?? _platformPasswordlessRedirectTo();
 
   SupabaseIdentityAccessRepositoryAdapter.withGateway(
-    IdentityAccessSupabaseGateway gateway,
-  ) : _gateway = gateway;
+    IdentityAccessSupabaseGateway gateway, {
+    String? passwordlessRedirectTo,
+  }) : _gateway = gateway,
+       _passwordlessRedirectTo =
+           passwordlessRedirectTo ?? _platformPasswordlessRedirectTo();
 
   final IdentityAccessSupabaseGateway _gateway;
+
+  /// Where the sign-in mail should send the user back to. `null` means "use the
+  /// project's Site URL", which is what the browser flow wants; only a platform
+  /// that cannot be reached by a web URL overrides it.
+  final String? _passwordlessRedirectTo;
 
   @override
   AuthenticatedSession? get currentSession => _gateway.currentSession;
@@ -220,7 +239,10 @@ class SupabaseIdentityAccessRepositoryAdapter
       );
     }
     try {
-      await _gateway.requestPasswordlessSignIn(normalized);
+      await _gateway.requestPasswordlessSignIn(
+        normalized,
+        redirectTo: _passwordlessRedirectTo,
+      );
       return const IdentityAccessSuccess<void>(null);
     } catch (error) {
       return _authFailure<void>(error);
@@ -463,6 +485,18 @@ class SupabaseIdentityAccessRepositoryAdapter
       );
     }
   }
+}
+
+/// Windows is the only platform that registers [desktopAuthCallbackUri], so it
+/// is the only one that asks for it. Web must keep the default: forcing a
+/// custom scheme there would send the browser to a URL it cannot open.
+String? _platformPasswordlessRedirectTo() {
+  if (kIsWeb) {
+    return null;
+  }
+  return defaultTargetPlatform == TargetPlatform.windows
+      ? desktopAuthCallbackUri
+      : null;
 }
 
 String _requiredString(Map<String, dynamic> json, String key) {
