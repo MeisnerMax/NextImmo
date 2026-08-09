@@ -48,66 +48,90 @@ class _OperationalTasksPanelState extends ConsumerState<OperationalTasksPanel> {
     final selected = _taskById(visible, _selectedTaskId);
     _listenForActionFeedback();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        NxPageHeader(
-          title: 'Aufgaben',
-          subtitle:
-              'Operative Arbeit objektbezogen steuern: Verantwortlichkeit, '
-              'Priorität, Fälligkeit und Status in einer gemeinsamen Queue.',
-          primaryAction: FilledButton.icon(
-            onPressed: controller.canMutate
-                ? () => _createTask(controller, properties)
-                : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Aufgabe anlegen'),
-          ),
-          secondaryActions: <Widget>[
-            OutlinedButton.icon(
-              onPressed: () => unawaited(controller.load()),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Aktualisieren'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.component),
-        _SummaryStrip(tasks: state.tasks),
-        const SizedBox(height: AppSpacing.component),
-        _Filters(
-          state: state,
-          searchController: _searchController,
-          onSearchChanged: controller.setQuery,
-          onStatusChanged: controller.setStatusFilter,
-          onPriorityChanged: controller.setPriorityFilter,
-          onAssignmentChanged: controller.setAssignmentFilter,
-          onEntityChanged: controller.setEntityTypeFilter,
-          onAttentionChanged: controller.setAttentionFilter,
-          onClear: () {
-            _searchController.clear();
-            controller.clearFilters();
-          },
-        ),
-        const SizedBox(height: AppSpacing.component),
-        if (state.truncated) ...<Widget>[
-          const _InfoBanner(
-            message:
-                'Es werden maximal 1.000 aktive Aufgaben geladen. Für größere '
-                'Queues wird in einer späteren Ausbaustufe serverseitige Suche '
-                'und Filter-Paginierung ergänzt.',
-          ),
-          const SizedBox(height: AppSpacing.component),
-        ],
-        Expanded(
-          child: _buildContent(
-            state: state,
-            controller: controller,
-            visible: visible,
-            selected: selected,
-            properties: properties,
-          ),
+    final pageHeader = NxPageHeader(
+      title: 'Aufgaben',
+      subtitle:
+          'Operative Arbeit objektbezogen steuern: Verantwortlichkeit, '
+          'Priorität, Fälligkeit und Status in einer gemeinsamen Queue.',
+      primaryAction: FilledButton.icon(
+        onPressed: controller.canMutate
+            ? () => _createTask(controller, properties)
+            : null,
+        icon: const Icon(Icons.add),
+        label: const Text('Aufgabe anlegen'),
+      ),
+      secondaryActions: <Widget>[
+        OutlinedButton.icon(
+          onPressed: () => unawaited(controller.load()),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Aktualisieren'),
         ),
       ],
+    );
+    final summary = _SummaryStrip(tasks: state.tasks);
+    final filters = _Filters(
+      state: state,
+      searchController: _searchController,
+      onSearchChanged: controller.setQuery,
+      onStatusChanged: controller.setStatusFilter,
+      onPriorityChanged: controller.setPriorityFilter,
+      onAssignmentChanged: controller.setAssignmentFilter,
+      onEntityChanged: controller.setEntityTypeFilter,
+      onAttentionChanged: controller.setAttentionFilter,
+      onClear: () {
+        _searchController.clear();
+        controller.clearFilters();
+      },
+    );
+    final workspace = _buildContent(
+      state: state,
+      controller: controller,
+      visible: visible,
+      selected: selected,
+      properties: properties,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 1050;
+        final chrome = <Widget>[
+          pageHeader,
+          const SizedBox(height: AppSpacing.component),
+          summary,
+          const SizedBox(height: AppSpacing.component),
+          filters,
+          const SizedBox(height: AppSpacing.component),
+          if (state.truncated) ...<Widget>[
+            const _InfoBanner(
+              message:
+                  'Es werden maximal 1.000 aktive Aufgaben geladen. Für größere '
+                  'Queues wird in einer späteren Ausbaustufe serverseitige Suche '
+                  'und Filter-Paginierung ergänzt.',
+            ),
+            const SizedBox(height: AppSpacing.component),
+          ],
+        ];
+
+        if (compact) {
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                ...chrome,
+                SizedBox(height: 680, child: workspace),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            ...chrome,
+            Expanded(child: workspace),
+          ],
+        );
+      },
     );
   }
 
