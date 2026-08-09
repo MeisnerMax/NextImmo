@@ -1181,3 +1181,65 @@ mechanismen werden nicht umgangen.
 
 Der Nachweis gilt ausschließlich für eine frische **lokale** Umgebung. Er sagt nichts über
 Remote-Auth, Staging, Production oder Packaging.
+
+---
+
+## 2026-08-09 · `STAGING-PREP-01` — Staging-Deploymentpfad gehärtet, ohne Remote-Ressource
+
+Repo-seitige Vorbereitung für Staging. **Keine Remote-Ressource erzeugt oder verändert**;
+`DEC-017` bleibt offen. Runbook und Provisionierungsverfahren:
+[07_staging_runbook.md](07_staging_runbook.md).
+
+**SPA-Fallback (R-1).** Zuerst die Build-Wahrheit geprüft statt eine Konfiguration zu raten:
+`build/web` enthält ausschließlich Flutter-Output, die Root-`vercel.json` wird **nicht**
+mitkopiert, und ein statischer Server ohne Fallback liefert für `/properties` und
+`/properties/abc` sauber `404` — bei `/` dagegen `200`. Die App deklariert durchgehend
+pfadförmige Routen (`/properties`, `/members`, `/parties`, …).
+
+Die Lösung ist die kleinstmögliche: `flutter build web` kopiert `web/` unverändert nach
+`build/web` — empirisch mit einer Probedatei nachgewiesen. Die SPA-Konfiguration liegt
+deshalb als **Quelldatei** in `web/vercel.json` und landet bei jedem Build, lokal wie in CI,
+identisch im Artefakt. Kein Prepare-Skript, kein Kopierschritt, nichts, was nach einem Build
+vergessen werden kann.
+
+Die beiden Dateien bleiben getrennt und meinen Gegensätzliches: Root = Git-Policy
+(`deploymentEnabled: false`, `DEPLOY-DRIFT-01`), Artefakt = Routing. Ein Vertauschen würde
+entweder den Drift zurückholen oder den Fallback entfernen, und beides fällt von allein
+nicht auf — `test/tool/web_deploy_artifact_test.dart` prüft deshalb beide Richtungen.
+
+**Workflow (R-3, R-4, R-7, R-12).** Der alte `preflight` prüfte drei von fünf Werten, ein
+Deploy konnte also ohne `VERCEL_ORG_ID` oder ohne Publishable Key starten. Neu:
+
+| | vorher | nachher |
+|---|---|---|
+| Trigger | `pull_request`, `workflow_dispatch` | nur `workflow_dispatch` mit Pflicht-SHA |
+| Enable-Gate | keins | Repository-Variable `STAGING_DEPLOY_ENABLED`, **nicht gesetzt** |
+| Wertprüfung | 3/5, außerhalb des Environments | **5/5**, innerhalb `environment: staging` |
+| Commit | impliziter Checkout | expliziter SHA, verifiziert, vier Required Checks müssen `success` sein |
+| Artefaktprüfung | keine | `index.html`, `vercel.json`, Rewriteziel, keine Server-Credential-Marker |
+| Vercel CLI | `vercel@latest` | `vercel@58.9.0` |
+
+Das Enable-Gate ist mehr als Bequemlichkeit: GitHub legt ein referenziertes Environment beim
+ersten Lauf automatisch an und zwar laut Doku „without any protection rules or secrets".
+Solange der Job nicht laufen darf, kann er `staging` auch nicht in diesem ungeschützten
+Zustand erzeugen. Deshalb liegt Gate 1 außerhalb des Environments und liest nur einen
+nicht-geheimen Schalter, Gate 2 innerhalb und liest die Secrets.
+
+Der `pull_request`-Trigger ist entfernt: nach einer späteren Aktivierung hätte sonst jeder
+PR eine echte Remote-Ressource erzeugt. Das Ruleset ist davon nicht betroffen — required
+sind ausschließlich `verify`, `supply_chain`, `marketing`, `database` aus `flutter.yml`.
+
+**Destructive-Migration-Audit (R-2).** Über alle 35 Migrationen: kein `DROP TABLE`,
+`DROP COLUMN`, `DROP SCHEMA`, `DROP TYPE`, `DROP FUNCTION`, `DROP TRIGGER`, `DROP INDEX`,
+`DROP CONSTRAINT`, kein `ALTER COLUMN … TYPE`, kein `SET NOT NULL`. Die zwei
+`TRUNCATE`-Treffer sind ein `revoke … truncate` und ein Kommentartext; alle 150
+`DELETE FROM` stehen in Funktions-/`DO`-Rümpfen, **null** auf Top-Level; die vier
+`DROP POLICY` sind jeweils unmittelbar von einem `create policy` gleichen Namens gefolgt.
+**Ergebnis: keine destruktive Operation.**
+
+**Dokumentiert statt behoben.** `R-5` (Vercel Deployment Protection — `302` auf
+`vercel.com/sso-api`, Standard Protection greift projektweit) und `R-6` (eingebauter
+Mailversand: nur Teamadressen, 2 Nachrichten/Stunde) lassen sich nicht im Repository lösen.
+Beide stehen mit Minimalvariante, Sicherheitsfolgen und benötigten Daten im Runbook.
+
+**Status: `repo ready for staging provisioning`.** Ausdrücklich **nicht** `staging exists`.

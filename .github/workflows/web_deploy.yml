@@ -4,73 +4,143 @@ name: Web App Deploy
 # lives in its own Vercel project built from marketing/ and is never touched
 # here (see docs/architecture/cloud/01_target_cloud_architecture.md).
 #
-# This workflow is INERT until three things exist:
-#   1. a second Vercel project for the Flutter app,
-#   2. the repository secrets listed below,
-#   3. a provisioned Supabase environment (DEC-015..DEC-017).
-# Without them every job short-circuits, so merging it changes nothing.
+# INERT BY DEFAULT, on two independent gates:
 #
-# Required repository secrets:
+#   1. the repository variable STAGING_DEPLOY_ENABLED must equal "true". It is
+#      not a secret and is deliberately not set. Until an owner sets it, the
+#      deploy job cannot run -- and because it cannot run, it also cannot
+#      create the `staging` environment by referencing it. GitHub creates a
+#      referenced environment on first use *without any protection rules or
+#      secrets*, which is exactly the unguarded state this gate prevents.
+#   2. inside the `staging` environment, all five values the deploy needs must
+#      be present. Presence only -- no value is ever printed.
+#
+# There is no automatic trigger. A staging deploy is an explicit act on one
+# named commit that has already passed the four required checks, not a side
+# effect of opening a pull request.
+#
+# Production is intentionally absent: no --prod, no production alias, no custom
+# domain. Promotion stays a manual, reviewed decision (Phase O).
+#
+# Required values, all inside the `staging` environment:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_APP
 #   SUPABASE_URL_STAGING, SUPABASE_PUBLISHABLE_KEY_STAGING
-# Only the publishable key may ever appear here. Service role key, secret key,
-# DB password and access token are server-only and must never reach a client
-# build (phase_1/01_environment_contract.md).
+# Only the publishable key may ever reach a client build. Service role key,
+# secret key, DB password and access token are server-only
+# (phase_1/01_environment_contract.md).
 
 on:
-  pull_request:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target environment'
+      sha:
+        description: 'Full commit SHA to deploy. Must be on main and green.'
         required: true
-        default: staging
-        type: choice
-        options:
-          - staging
+        type: string
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
-  group: web-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  group: web-deploy-staging
+  cancel-in-progress: false
+
+env:
+  # Pinned rather than @latest: a deploy that cannot be reproduced tomorrow is
+  # not evidence of anything. Bump deliberately, in its own reviewed change.
+  VERCEL_CLI_VERSION: '58.9.0'
 
 jobs:
-  preflight:
+  gate:
     runs-on: ubuntu-latest
     outputs:
-      configured: ${{ steps.check.outputs.configured }}
+      enabled: ${{ steps.check.outputs.enabled }}
     steps:
       - id: check
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID_APP: ${{ secrets.VERCEL_PROJECT_ID_APP }}
-          SUPABASE_URL_STAGING: ${{ secrets.SUPABASE_URL_STAGING }}
+          STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
         run: |
-          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_PROJECT_ID_APP" ] \
-             && [ -n "$SUPABASE_URL_STAGING" ]; then
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          if [ "$STAGING_DEPLOY_ENABLED" = "true" ]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::Web app deploy is not configured yet; skipping.'
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Staging deploy is disabled. Set the repository variable STAGING_DEPLOY_ENABLED=true to enable it.'
           fi
 
-  deploy_preview:
-    needs: preflight
-    if: needs.preflight.outputs.configured == 'true'
+  deploy_staging:
+    needs: gate
+    if: needs.gate.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The exact commit, never a moving ref: the artifact has to be
+          # traceable to one SHA, and that SHA is what the gate below checks.
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Confirm the deployed commit
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "${{ inputs.sha }}" ]; then
+            echo "::error::Checked out $actual but was asked for ${{ inputs.sha }}."
+            exit 1
+          fi
+          echo "Deploying $actual"
+
+      - name: Require the four checks to be green on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A staging deploy of a commit that never passed CI would make the
+          # environment meaningless as a test of that commit.
+          missing=''
+          for check in verify supply_chain marketing database; do
+            conclusion="$(gh api "repos/${{ github.repository }}/commits/${{ inputs.sha }}/check-runs" \
+              --jq ".check_runs[] | select(.name==\"$check\") | .conclusion" | head -n1)"
+            if [ "$conclusion" != "success" ]; then
+              missing="$missing $check(${conclusion:-absent})"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Required checks are not green on ${{ inputs.sha }}:$missing"
+            exit 1
+          fi
+
+      - name: Require all five deploy values
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_APP: ${{ secrets.VERCEL_PROJECT_ID_APP }}
+          SUPABASE_URL_STAGING: ${{ secrets.SUPABASE_URL_STAGING }}
+          SUPABASE_PUBLISHABLE_KEY_STAGING: ${{ secrets.SUPABASE_PUBLISHABLE_KEY_STAGING }}
+        run: |
+          # Presence only. Naming which one is missing is safe; printing any
+          # value is not. A partial configuration used to pass: the old
+          # preflight checked three of these five, so a deploy could start
+          # without an org id or without the publishable key.
+          missing=''
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_APP \
+                      SUPABASE_URL_STAGING SUPABASE_PUBLISHABLE_KEY_STAGING; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Staging deploy is incompletely configured; missing:$missing"
+            exit 1
+          fi
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.29.2
           channel: stable
           cache: true
+
       - name: Resolve locked dependencies
         run: flutter pub get --enforce-lockfile
+
       # Flutter is pinned to the same version the verify job uses. Building here
       # rather than in Vercel's build image is deliberate: Vercel has no Flutter
       # toolchain, and a drifting SDK version would deploy something CI never
@@ -82,14 +152,32 @@ jobs:
             --dart-define=NEXIMMO_DATA_BACKEND=supabase \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL_STAGING }} \
             --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY_STAGING }}
+
+      - name: Verify the artifact before it leaves CI
+        run: |
+          test -f build/web/index.html || { echo '::error::build/web/index.html is missing.'; exit 1; }
+          test -f build/web/vercel.json || { echo '::error::build/web/vercel.json is missing; the SPA fallback would be absent and every path route would 404.'; exit 1; }
+
+          destination="$(jq -r '.rewrites[0].destination' build/web/vercel.json)"
+          [ "$destination" = "/index.html" ] || { echo "::error::SPA rewrite points at $destination."; exit 1; }
+
+          # The artifact is public the moment it is deployed.
+          if grep -rqE 'service_role|SUPABASE_SECRET|SERVICE_ROLE_KEY|sb_secret' build/web; then
+            echo '::error::The artifact contains a server-only credential marker.'
+            exit 1
+          fi
+          if jq -e '.git' build/web/vercel.json >/dev/null 2>&1; then
+            echo '::error::The artifact carries a git policy; that belongs to the repository root.'
+            exit 1
+          fi
+
+      # No --prod and no --target: a preview deployment. Production would need
+      # an authorized decision that does not exist.
       - name: Deploy preview to Vercel
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_APP }}
         run: |
-          npx --yes vercel@latest deploy build/web \
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy build/web \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --yes
-      # Production is intentionally absent. It stays a manual, reviewed
-      # promotion of an approved commit until Phase O -- see the cutover
-      # checklist in docs/architecture/cloud/01_target_cloud_architecture.md.
