@@ -1406,3 +1406,154 @@ angewandt und liegen keine NexImmo-Daten.
 
 **Status: `PostgreSQL 17 compatibility proven`.** Ausdrücklich **nicht** `remote migrated`.
 Phase 3 braucht eine gesonderte Freigabe.
+
+---
+
+## 2026-08-09 · `STAGING-PROVISION-01` Phase 3 — Erste Remote-Migration auf Staging
+
+**`The initial 35-migration NexImmo schema is applied and verified on the isolated remote
+staging project. No seed, no data, no auth configuration, no SMTP, no users.`**
+
+Baseline `279e8f1`, Arbeitsbranch `cloud/staging-initial-migration`, eigener isolierter
+Worktree. Erste Schemaänderung, die NexImmo je remote vorgenommen hat.
+
+### Ziel und Secret-Handhabung
+
+Target: `NexImmo Staging` / `vhxdgchhgyzbjnogjicb` / `eu-central-1` / PostgreSQL 17.6.1.155.
+`supabase/.temp/linked-project.json` bestätigt Ref, Name und Organisation unabhängig; das
+Altprojekt `deckt.` blieb `linked=false`.
+
+`supabase link` gelang **ohne jedes Passwort** — der Link braucht nur den Access Token. Für die
+datenbanknahen Befehle wird das DPAPI-Passwort im selben Prozess in `SUPABASE_DB_PASSWORD`
+gelegt, nie in `argv`. Damit entfällt das Restrisiko aus Phase 1: **das Passwort stand in
+keiner Kommandozeile.**
+
+### Pre-Push-Beweis
+
+| Prüfung | Befund |
+|---|---|
+| `migration list --linked` | 35 lokale Einträge, **alle mit leerem `remote`** → 0 angewandt |
+| `inspect db table-stats --linked` | `rows: []` — keine Nutzertabelle |
+| Katalogabfrage (read-only) | `auth_users=0`, `public_base_tables=0`, `public_any_objects=0`, `realtime_pub_tables=0` |
+| `supabase_migrations`-Schema | existierte **nicht** |
+| Migration-Integrität | 35 Dateien, `20260712140000` … `20260808120000`; `git diff a371d22..origin/main -- supabase/migrations` **leer** — derselbe Satz wie im Destructive-Audit |
+
+### Dry Run als Pflichtgate
+
+`db push --linked --dry-run`, ohne `--include-seed`, `--include-roles`, `--include-all`:
+**genau 35** Migrationen, Dateiliste **identisch** zu den 35 lokalen Dateien, aufsteigende
+Timestamp-Reihenfolge, keine unbekannte Remote-Migration, kein Seed- und kein Roles-Schritt.
+
+### Der Push
+
+`npx supabase db push --linked` — Exit `0`, 6 s, **35 Migrationen angewandt**, keine Fehler,
+keine Warnung, kein Seed. Genau ein Lauf, kein zweiter Versuch, kein `migration repair`, kein
+Remote-Reset, kein manuelles SQL.
+
+| Nach dem Push | Befund |
+|---|---|
+| `migration list --linked` | **35/35 angewandt**, jede `local`-ID identisch zur `remote`-ID, aufsteigend, keine zusätzliche, keine fehlende |
+| erneuter Dry Run | `Remote database is up to date.` → **0 pending** |
+| `supabase_migrations.schema_migrations` | 35 Zeilen |
+
+### Seed-/Daten-Gate
+
+`auth_users=0`, `workspaces=0`, `properties=0`, `permissions=0`, `audit_events=0`,
+`realtime.messages=0`, **0 nicht-leere `public`-Tabellen**. Der Stand ist migrations-only,
+exakt wie die frische lokale PG17-Basis aus Phase 2.
+
+### Strukturparität gegen die Phase-2-Basis
+
+Nicht nur Mengen, sondern Namen verglichen — Differenz beider Objektlisten:
+
+| | lokal | remote |
+|---|---:|---:|
+| `public`-Tabellen | 38 | **38** (namensidentisch) |
+| RLS aktiv / ohne RLS | 38 / 0 | **38 / 0** |
+| Policies | 37 | **37** |
+| Trigger | 52 | **52** |
+| Funktionen | 65 | **65** |
+| Indizes | 174 | **174** |
+| `public`-Enums | 23 | **23** (namensidentisch) |
+| Generated Columns | 1 | **1** |
+| `supabase_realtime` | 11 | **11** (namensidentisch) |
+
+Einzige Abweichung im Namensvergleich: `net.request_status`, ein Enum der
+Plattform-Extension **pg_net**, die im lokalen Stack installiert ist und auf dem gehosteten
+Projekt nicht. NexImmo referenziert `pg_net` an **keiner** Stelle in `supabase/` — die
+Abweichung ist plattformseitig und ohne Bezug zum Anwendungsschema. Die fünf gemeinsamen
+Extensions sind versionsgleich.
+
+### Remote-Validierung
+
+| Gate | Ergebnis |
+|---|---|
+| `db lint --linked --schema public --level error --fail-on error` | **PASS**, `results: []` |
+| Security Advisors | Exit 0 — 1 `INFO`, **65 `WARN`**, 0 `ERROR` |
+| Performance Advisors | Exit 0 — 85 `INFO`, 0 `WARN`, 0 `ERROR` |
+| pgTAP `--linked` | **PASS** — 26 Dateien, **1274** Prüfungen, 0 Failures, 69 s |
+
+**Die 65 `WARN` sind erklärungsbedürftig und werden nicht weggeschwiegen.** Sie sind
+ausnahmslos dieselbe Regel `authenticated_security_definer_function_executable`: RPCs, die
+`authenticated` als `SECURITY DEFINER` über PostgREST aufrufen darf. Das ist die tragende
+Mutationsarchitektur von NexImmo, nicht ein Migrationsfehler — remote und lokal existieren
+**je 65** `SECURITY DEFINER`-Funktionen in `public`, das Schema ist also identisch. Neu ist
+allein die Regel: der gehostete Advisor kennt sie, der lokale CLI-Advisor nicht. Kein
+`ERROR`, kein Blocker, **keine Advisor-Empfehlung wurde umgesetzt** — die Bewertung dieser
+Regelklasse gehört in eine eigene Sicherheitsentscheidung.
+
+### pgTAP-Remote-Sicherheitsaudit vor der Ausführung
+
+Vor dem ersten Remote-Testlauf geprüft, nicht unterstellt: alle **26 von 26** Dateien beginnen
+mit `begin;` und enden mit `rollback;`, **kein einziges `commit;`**. Kein `ALTER SYSTEM`, kein
+`CREATE/ALTER/DROP ROLE`, kein `CREATE DATABASE`, kein `VACUUM`, kein
+`CREATE INDEX CONCURRENTLY` (das Wort steht nur in Kommentaren und Testnamen), kein `dblink`,
+kein Datei-/Large-Object-I/O, kein `pg_net`/HTTP, kein `pg_cron`, kein `pg_sleep`. Die einzige
+DDL ist `create extension if not exists pgtap` — innerhalb der Transaktion, also rollbackbar.
+
+**Empirisch bestätigt:** nach dem Lauf ist `pgtap` auf Staging **nicht** installiert und alle
+Tabellen sind weiterhin leer. Der Testlauf hat nichts hinterlassen.
+
+### Befund — Realtime-Broadcast ohne Partition
+
+110 Warnungen `WarnSendingBroadcastMessage: no partition of relation "messages" found for row`
+über 21 Testdateien. `realtime.messages` ist gehostet partitioniert, und ein frisches Projekt
+hat noch keine Partition für den laufenden Tag. Die pgTAP-Prüfungen bestehen trotzdem, weil
+sie den DB-seitigen Vertrag prüfen und nicht die Zustellung. **Für Phase 3 kein Blocker**, aber
+ein offener Punkt für den späteren Golden Path: die Entitlement-Broadcasts nach `DEC-022`
+können auf Staging erst zugestellt werden, wenn Partitionen existieren. Lokal tritt das nicht
+auf. Nicht repariert — das gehört in das Paket, das Realtime real gegen Clients beweist.
+
+### Integration-Gates — bewusst zurückgestellt
+
+Klassifikation der 19 Skripte des `database`-Jobs:
+
+| Klasse | Anzahl | Begründung |
+|---|---:|---|
+| **LOCAL-ONLY** | 17 | lösen den Container über `label=com.supabase.cli.project=neximmo-local` auf, rufen `supabase db reset --local` und beziehen `SUPABASE_URL` aus `supabase status` des lokalen Stacks |
+| **nicht DB-gebunden** | 2 | `test_p1_014_backup_restore_guard.ps1` und `test_p1_021_performance_profile_guard.ps1` prüfen reine Parametervalidierung, ohne Docker, psql oder Supabase — sie würden remote „bestehen", ohne über Staging etwas auszusagen |
+| **REMOTE-SAFE** | **0** | **kein** Skript kennt `--linked` oder einen Remote-Zielparameter |
+
+Ein Remote-Lauf wäre nur durch Umbau der Skripte möglich, und der ist in diesem Paket
+ausgeschlossen. Deshalb wurde **keines** remote ausgeführt.
+
+**`Remote application Golden Path / authenticated integration remains intentionally deferred.`**
+Runbook-Abschnitt 4 Schritt 14 bleibt daher ausdrücklich **offen**.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Remote-Schema (35 Migrationen) | **APPLIED & VERIFIED** |
+| Remote-Daten / Seed | **KEINE** |
+| Auth | **NOT CONFIGURED** |
+| SMTP | **NOT CONFIGURED** |
+| Synthetische Nutzer / Golden-Path-Daten | **NOT CREATED** |
+| GitHub-Environment `staging` | **NOT CREATED** |
+| Vercel Staging Deploy | **NOT STARTED** |
+| Golden Paths (Web/Windows) | **NOT RUN** |
+| Authentifizierte Remote-Integration | **DEFERRED** |
+| Production | **NOT AUTHORIZED** |
+
+**Status: `remote staging schema exists and is verified`.** Ausdrücklich **nicht**
+`staging is usable by the application`. Phase 4 braucht eine gesonderte Freigabe.

@@ -5,13 +5,16 @@ Stand: 2026-08-09 · Basis `a371d22` · Vorbereitet in `STAGING-PREP-01`
 `DEC-017` ist seit dem **2026-08-09 `accepted`** — für genau eine isolierte Umgebung mit
 ausschließlich synthetischen Daten.
 
-**Ausführungsstand (2026-08-09):** Abschnitt 4 Schritte 1–3 sind erledigt —
+**Ausführungsstand (2026-08-09):** Abschnitt 4 Schritte **1–13 und 15** sind erledigt.
 `STAGING-PROVISION-01` Phase 1 hat das Projekt `NexImmo Staging` (`vhxdgchhgyzbjnogjicb`,
-`eu-central-1`, Free, `ACTIVE_HEALTHY`) angelegt und bestätigt, dass darauf keine
-NexImmo-Anwendungsmigration angewandt ist und keine NexImmo-Daten liegen. **Alles Übrige ist
-weiterhin nicht ausgeführt:** ab Abschnitt 4 Schritt 4 (Link, Migrationen, Lint, Advisors,
-pgTAP) sowie die Abschnitte 3, 6, 7, 8, 9 und 10 vollständig. Jede weitere Phase braucht eine
-gesonderte Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
+`eu-central-1`, Free, `ACTIVE_HEALTHY`) angelegt; Phase 3 hat es gelinkt und die 35
+Migrationen angewandt und verifiziert — 35/35 remote, 0 pending, kein Seed, keine Daten,
+Lint/Advisors/pgTAP grün.
+
+**Weiterhin nicht ausgeführt:** Schritt **14** (Integration-Gates — keines der 19 Skripte ist
+remote ausführbar, siehe unten), Schritt 16 (Auth) und Schritt 17 (synthetische Daten) sowie
+die Abschnitte 3, 6, 7, 8, 9 und 10 vollständig. Jede weitere Phase braucht eine gesonderte
+Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
 
 Zusätzlich gilt die **Kostenregel** aus `DEC-017`: was ohne Zusatzkosten in bestehende
 Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt hält
@@ -99,21 +102,39 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 3. ~~Bestätigen, dass das Projekt leer ist.~~ **erledigt**: `ACTIVE_HEALTHY`, ohne angewandte
    NexImmo-Anwendungsmigrationen und ohne NexImmo-Daten. Plattform- und Systemschemas bringt
    jedes frische Supabase-Projekt mit; „leer" meint hier ausschließlich die Anwendungsseite.
-4. Admin-Auth herstellen (`supabase login`), Zugangsdaten nicht dauerhaft ablegen.
-5. Projekt kontrolliert linken (`supabase link --project-ref <ref>`).
-6. Remote-Migrationshistorie **vor** dem Push auslesen (`supabase migration list --linked`)
-   — Erwartung: leer.
-7. Lokalen Migrationssatz zählen — Erwartung: **35**.
-8. Ausstehende Migrationen prüfen, soweit die CLI das unterstützt.
-9. `supabase db push --linked`.
-10. Migrationshistorie **danach** vergleichen — Erwartung: dieselben 35, gleiche Reihenfolge.
-11. `supabase db lint --linked --level error --fail-on error`.
-12. Advisors: `security` und `performance`.
-13. pgTAP-Suite.
-14. Relevante Integration-Gates.
-15. Realtime prüfen.
-16. **Erst danach** Auth konfigurieren (Abschnitt 8).
-17. **Erst danach** synthetische Golden-Path-Daten erzeugen.
+4. ~~Admin-Auth herstellen (`supabase login`)~~ **erledigt**, Zugangsdaten nicht abgelegt.
+5. ~~Projekt kontrolliert linken.~~ **erledigt** — `link --project-ref vhxdgchhgyzbjnogjicb`
+   gelingt **ohne Passwort**; nur der Access Token wird gebraucht.
+6. ~~Remote-Migrationshistorie **vor** dem Push auslesen.~~ **erledigt**: 35 lokale Einträge,
+   alle mit leerem `remote` → **0 angewandt**; `supabase_migrations` existierte nicht.
+7. ~~Lokalen Migrationssatz zählen.~~ **erledigt**: **35**, unverändert seit `a371d22`.
+8. ~~Ausstehende Migrationen prüfen.~~ **erledigt**: `db push --linked --dry-run` meldet
+   **genau 35**, dateiidentisch, aufsteigend, ohne Seed-/Roles-Schritt.
+9. ~~`supabase db push --linked`.~~ **erledigt am 2026-08-09**: Exit 0, 35 angewandt.
+   Passwort über `SUPABASE_DB_PASSWORD`, nicht über `argv`.
+10. ~~Migrationshistorie **danach** vergleichen.~~ **erledigt**: 35/35, IDs identisch,
+    gleiche Reihenfolge; erneuter Dry Run meldet `Remote database is up to date`.
+11. ~~`db lint --linked`.~~ **erledigt**: PASS, keine Befunde.
+12. ~~Advisors.~~ **erledigt**: Security 1 `INFO` + 65 `WARN` (ausschließlich
+    `authenticated_security_definer_function_executable` — die bestehende
+    `SECURITY DEFINER`-RPC-Architektur, lokal wie remote je 65 Funktionen), Performance
+    85 `INFO`. **Kein `ERROR`.** Keine Empfehlung umgesetzt.
+13. ~~pgTAP-Suite.~~ **erledigt**: 26 Dateien, 1274 Prüfungen, 0 Failures — vorher als
+    remote-sicher auditiert (alle Dateien `begin;`/`rollback;`, kein `commit;`), danach
+    empirisch bestätigt, dass nichts zurückblieb.
+14. **OFFEN — Relevante Integration-Gates.** Von den 19 Skripten des `database`-Jobs sind
+    **0 remote ausführbar**: 17 lösen den lokalen Container über
+    `label=com.supabase.cli.project=neximmo-local` auf bzw. rufen `db reset --local`, 2 sind
+    reine Parameterguards ohne DB. Keines kennt `--linked`. Ein Remote-Lauf setzt einen Umbau
+    voraus, der bewusst nicht Teil von Phase 3 war.
+    **`Remote application Golden Path / authenticated integration remains intentionally deferred.`**
+15. ~~Realtime prüfen (DB-seitig).~~ **erledigt**: `supabase_realtime` enthält exakt die 11
+    erwarteten Tabellen, namensidentisch zur lokalen Basis. Ein echter Multi-Client-Beweis
+    steht weiterhin aus. **Befund:** auf einem frischen Projekt fehlt die Tagespartition von
+    `realtime.messages`, Broadcasts warnen deshalb (`WarnSendingBroadcastMessage`) — vor dem
+    Golden Path zu klären.
+16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt**
+17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt**
 
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
