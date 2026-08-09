@@ -307,7 +307,7 @@ class _FakeTaskRepository implements TaskRepository {
     }
     final offset = query.page.cursor == null ? 0 : int.parse(query.page.cursor!);
     final effective = pageSize < query.page.limit ? pageSize : query.page.limit;
-    final end = (offset + effective).clamp(0, tasks.length);
+    final end = (offset + effective).clamp(0, tasks.length).toInt();
     final items = tasks.sublist(offset, end);
     final next = end < tasks.length ? '$end' : null;
     return PlatformRepositorySuccess<PlatformPageResult<TaskDto>>(
