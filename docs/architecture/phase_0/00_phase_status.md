@@ -149,7 +149,8 @@ Status: `done`.
 ## Phase-1-Freigabe
 
 - Freigegeben: lokale, reversible Phase-1-Inkremente gemaess `12_phase_1_execution_backlog.md`; der budgetfreie Messvertrag `P1-021A` ist abgeschlossen, `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen.
-- Noch nicht freigegeben: Remote-Supabase-Provisionierung und produktive Cloud-Aktionen bis DEC-017 entschieden ist. DEC-015 (EU-Region, Ziel Frankfurt) und DEC-016 (AAL2 fuer privilegierte Capabilities, serverseitig fail-closed) sind am 2026-08-08 accepted; beide entscheiden Ort und Absicherung, nicht die Freigabe zum Anlegen von Ressourcen.
+- Freigegeben seit 2026-08-09: genau EINE isolierte Remote-Staging-Umgebung mit ausschliesslich synthetischen Daten (DEC-017 accepted). Freigegeben ist nicht angelegt — die Provisionierung ist ein eigenes Arbeitspaket und hat nicht begonnen. Kostenregel: was in bestehende Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt haelt an und braucht eine gesonderte Freigabe. DEC-015 (EU-Region, Ziel Frankfurt) und DEC-016 (AAL2 fuer privilegierte Capabilities, serverseitig fail-closed) sind seit 2026-08-08 accepted.
+- Weiterhin nicht freigegeben: jede Production-Ressource und -Aktion — Production-Supabase, Production-Vercel, Production-Secrets, Production-SMTP, Echtdaten, Datenmigration aus Production, eigene Domain, DNS.
 - Phase-1-Gate bleibt: nachgewiesene Cross-Tenant-Isolation gemaess RLS-T001..RLS-T015.
 
 ## Offene Risiken

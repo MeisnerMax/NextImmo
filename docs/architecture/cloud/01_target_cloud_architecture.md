@@ -166,7 +166,7 @@ Auth-Redirects, eigenem SMTP:
 | Umgebung | Zweck | Zustand |
 |---|---|---|
 | `local` | Entwicklung gegen den Docker-Stack | **existiert** |
-| `staging` | Integration, E2E, Abnahme | **existiert nicht** — gegated durch `DEC-017`. Region: dieselbe regulatorisch-geografische Zielregion wie Production, soweit das Supabase-Environment-Modell das zulässt (`DEC-015`) |
+| `staging` | Integration, E2E, Abnahme | **freigegeben, aber noch nicht angelegt** — `DEC-017` ist am 2026-08-09 `accepted` für genau eine isolierte Umgebung mit ausschließlich synthetischen Daten; die Provisionierung ist ein eigenes Arbeitspaket und hat nicht begonnen. Region `eu-central-1` (`DEC-015`) |
 | `production` | Echtdaten, EU-Region mit Zielregion Frankfurt (`DEC-015`, **accepted**) | **existiert nicht** |
 
 Client-Konfiguration ausschließlich über vier `--dart-define`:
@@ -318,16 +318,23 @@ Erreichbarkeit zu verteidigen wäre.
 
 | ID | Frage | Blockiert |
 |---|---|---|
-| `DEC-017` | Freigabe für Remote-Provisioning (erst Staging, dann Production) | jede nicht-lokale Umgebung |
 | `OPN-DOM-004` | Freigabegrenzen | `P2-D08` Finance/Debt |
 | `OPN-DOM-005` | Retention-Policy | Storage-Hardening |
 
-Solange `DEC-017` offen ist, endet die Plattform beim lokalen Stack. Alles in diesem
-Dokument, was Staging oder Production betrifft, ist Zielbild, nicht Ist-Zustand.
-
-**`DEC-015` und `DEC-016` sind am 2026-08-08 entschieden und stehen hier nicht mehr.** Die
-drei sind bewusst zu trennen: `DEC-015` entscheidet **wo** produktiv gelaufen wird,
+**`DEC-015`, `DEC-016` und `DEC-017` stehen hier nicht mehr** — entschieden am 2026-08-08
+bzw. 2026-08-09. Die drei waren bewusst getrennt: `DEC-015` **wo** produktiv gelaufen wird,
 `DEC-016` **wie** privilegierter Zugriff gesichert wird, `DEC-017` ob überhaupt eine
-Remote-Ressource **angelegt** werden darf. Die ersten beiden zu entscheiden ändert an der
-Sperre der dritten nichts — es gibt weiterhin kein Production-Projekt, keine bezahlte
-Ressource, keine Production-Secrets, keine Datenmigration und keinen DNS-Cutover.
+Remote-Ressource **angelegt** werden darf.
+
+`DEC-017` ist `accepted` für **genau eine** isolierte Staging-Umgebung mit ausschließlich
+synthetischen Daten, mit einer harten Kostenregel: was in bestehende Kontingente passt, darf
+entstehen; alles mit einem von null verschiedenen Kostenpunkt hält an und braucht eine
+gesonderte Freigabe.
+
+Damit endet die Plattform **faktisch** weiterhin beim lokalen Stack: freigegeben ist nicht
+angelegt, und zum Zeitpunkt dieser Zeile existiert keine Remote-Umgebung. Alles in diesem
+Dokument, was Staging oder Production betrifft, bleibt Zielbild, nicht Ist-Zustand.
+
+**Production ist unverändert nicht autorisiert** — kein Production-Projekt, keine
+Production-Secrets, kein Production-SMTP, keine Echtdaten, keine Datenmigration, keine
+eigene Domain und kein DNS-Cutover.
