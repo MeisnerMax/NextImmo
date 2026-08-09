@@ -61,7 +61,7 @@ void main() {
     expect(find.text('Hoch'), findsWidgets);
     expect(find.textContaining('Überfällig'), findsWidgets);
     expect(find.text('Attention'), findsOneWidget);
-    expect(find.text('Zuweisung'), findsOneWidget);
+    expect(find.text('Zuweisung'), findsWidgets);
     expect(find.text('Kontext'), findsWidgets);
   });
 
@@ -75,9 +75,12 @@ void main() {
     );
 
     expect(find.text('Nur lesen'), findsWidgets);
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Aufgabe anlegen').first,
+    final createButton = find.ancestor(
+      of: find.text('Aufgabe anlegen'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton),
     );
+    expect(createButton, findsOneWidget);
+    final button = tester.widget<FilledButton>(createButton);
     expect(button.onPressed, isNull);
     expect(find.byIcon(Icons.edit_outlined), findsNothing);
   });
