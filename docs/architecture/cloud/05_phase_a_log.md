@@ -1498,9 +1498,27 @@ ausnahmslos dieselbe Regel `authenticated_security_definer_function_executable`:
 `authenticated` als `SECURITY DEFINER` über PostgREST aufrufen darf. Das ist die tragende
 Mutationsarchitektur von NexImmo, nicht ein Migrationsfehler — remote und lokal existieren
 **je 65** `SECURITY DEFINER`-Funktionen in `public`, das Schema ist also identisch. Neu ist
-allein die Regel: der gehostete Advisor kennt sie, der lokale CLI-Advisor nicht. Kein
-`ERROR`, kein Blocker, **keine Advisor-Empfehlung wurde umgesetzt** — die Bewertung dieser
-Regelklasse gehört in eine eigene Sicherheitsentscheidung.
+allein die Regel: der gehostete Advisor kennt sie, der lokale CLI-Advisor nicht. Es gibt
+kein `ERROR`, und **keine Advisor-Empfehlung wurde umgesetzt.**
+
+**Die 65 WARNs sind kein Phase-3-Migrationsblocker und kein Schema-Drift. Sie sind jedoch vor
+jeder Freigabe von Staging-Auth bzw. authentifizierten synthetischen Nutzern in einem
+separaten Security-Gate vollständig zu bewerten.** Diese Unterscheidung ist wichtig genug, um
+sie nicht zu verkürzen: dass lokales und remotes Schema identisch sind, beweist **nicht**,
+dass die Grants sicher sind — es beweist nur, dass die Migration nichts verändert hat.
+`SECURITY DEFINER` bedeutet Ausführung im erhöhten Funktionskontext; solange niemand
+authentifiziert ist, ist die Angriffsfläche theoretisch, mit dem ersten authentifizierten
+Staging-Nutzer wird sie real.
+
+Vor der Freigabe von Auth sind deshalb mindestens zu prüfen: Function Owner,
+`SECURITY DEFINER`, `search_path`, `EXECUTE`-Grants an `PUBLIC`/`anon`/`authenticated`, die
+internen Authorization-Guards, Workspace-/Membership-Scoping, Entity-Scoping soweit relevant,
+AAL2 für privilegierte Capabilities nach `DEC-016` sowie mögliche
+Privilege-Escalation-Pfade.
+
+Das ist **nicht** Teil dieses Pakets. Es ist das nächste erforderliche Arbeitspaket:
+**`REMOTE-SECURITY-GATE-01` — required before staging auth or authenticated synthetic users.**
+Noch nicht ausgeführt; braucht eine eigene Owner-Freigabe.
 
 ### pgTAP-Remote-Sicherheitsaudit vor der Ausführung
 
@@ -1517,12 +1535,25 @@ Tabellen sind weiterhin leer. Der Testlauf hat nichts hinterlassen.
 ### Befund — Realtime-Broadcast ohne Partition
 
 110 Warnungen `WarnSendingBroadcastMessage: no partition of relation "messages" found for row`
-über 21 Testdateien. `realtime.messages` ist gehostet partitioniert, und ein frisches Projekt
-hat noch keine Partition für den laufenden Tag. Die pgTAP-Prüfungen bestehen trotzdem, weil
-sie den DB-seitigen Vertrag prüfen und nicht die Zustellung. **Für Phase 3 kein Blocker**, aber
-ein offener Punkt für den späteren Golden Path: die Entitlement-Broadcasts nach `DEC-022`
-können auf Staging erst zugestellt werden, wenn Partitionen existieren. Lokal tritt das nicht
-auf. Nicht repariert — das gehört in das Paket, das Realtime real gegen Clients beweist.
+über 21 Testdateien.
+
+**Das ist kein Fehler im NexImmo-Anwendungsschema.** Das Anwendungsschema ist korrekt
+migriert, und die 11 erwarteten Publication-Mitgliedschaften sind vorhanden.
+`realtime.messages` ist eine **Plattformstruktur**, die gehostetes Supabase Realtime selbst
+partitioniert verwaltet; auf dem frischen Projekt existierte während des DB-Testlaufs noch
+keine aktuelle Tagespartition, weshalb die DB-seitigen Broadcast-Versuche warnten. Die
+pgTAP-Verträge bestanden trotzdem, weil sie den DB-seitigen Vertrag prüfen und nicht die
+Zustellung.
+
+Entscheidend für die Bewertung: zu diesem Zeitpunkt war **kein echter WebSocket-Client
+verbunden**. Die tatsächliche Broadcast-Zustellung ist deshalb weiterhin **UNPROVEN**. Vor
+`GP-STAGING` muss Realtime initialisiert bzw. durch einen echten Client-Connect empirisch
+bewiesen werden.
+
+Status: **`NOT A PHASE-3 BLOCKER`**, aber **`OPEN FOR REALTIME / GOLDEN PATH VALIDATION`**.
+
+Nicht repariert, und bewusst nicht: keine Partition von Hand erzeugt, kein SQL gegen
+`realtime.messages`, keine Änderung am Plattformschema, keine Migration dafür.
 
 ### Integration-Gates — bewusst zurückgestellt
 
@@ -1542,18 +1573,35 @@ Runbook-Abschnitt 4 Schritt 14 bleibt daher ausdrücklich **offen**.
 
 ### Statusgrenze
 
+**Bewiesen:**
+
 | | |
 |---|---|
 | Remote-Schema (35 Migrationen) | **APPLIED & VERIFIED** |
+| Migration History / Pending | **35/35 · 0** |
+| DB-Struktur, RLS, Publication-Membership | **PARITÄTISCH ZUR PG17-BASIS** |
+| Remote `db lint` · pgTAP | **PASS · 26/1274/0** |
 | Remote-Daten / Seed | **KEINE** |
-| Auth | **NOT CONFIGURED** |
+
+**Nicht bewiesen und nicht freigegeben:**
+
+| | |
+|---|---|
+| Authenticated Security Exposure (65 `SECURITY DEFINER`-RPCs) | **UNRESOLVED — `REMOTE-SECURITY-GATE-01` erforderlich** |
+| Realtime-Zustellung | **UNPROVEN — kein Client war je verbunden** |
+| Auth · MFA remote | **NOT CONFIGURED** |
 | SMTP | **NOT CONFIGURED** |
 | Synthetische Nutzer / Golden-Path-Daten | **NOT CREATED** |
+| Authentifizierte Remote-Integration | **DEFERRED** |
 | GitHub-Environment `staging` | **NOT CREATED** |
 | Vercel Staging Deploy | **NOT STARTED** |
 | Golden Paths (Web/Windows) | **NOT RUN** |
-| Authentifizierte Remote-Integration | **DEFERRED** |
 | Production | **NOT AUTHORIZED** |
 
+**Nächstes erforderliches Paket: `REMOTE-SECURITY-GATE-01`** — vor jeder Staging-Auth und vor
+jedem authentifizierten synthetischen Nutzer. Braucht eine eigene Owner-Freigabe.
+
 **Status: `remote staging schema exists and is verified`.** Ausdrücklich **nicht**
-`staging is usable by the application`. Phase 4 braucht eine gesonderte Freigabe.
+`staging is usable by the application` und ausdrücklich **nicht**
+`staging is security-cleared for authenticated use`. Phase 4 braucht eine gesonderte
+Freigabe, und `REMOTE-SECURITY-GATE-01` geht ihr voraus.

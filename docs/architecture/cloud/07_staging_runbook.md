@@ -119,6 +119,9 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     `authenticated_security_definer_function_executable` — die bestehende
     `SECURITY DEFINER`-RPC-Architektur, lokal wie remote je 65 Funktionen), Performance
     85 `INFO`. **Kein `ERROR`.** Keine Empfehlung umgesetzt.
+    **Achtung:** kein Phase-3-Migrationsblocker und kein Schema-Drift, aber **ein Blocker vor
+    Schritt 16/17** — die Regelklasse ist in `REMOTE-SECURITY-GATE-01` zu bewerten, bevor
+    Staging-Auth oder authentifizierte synthetische Nutzer freigegeben werden.
 13. ~~pgTAP-Suite.~~ **erledigt**: 26 Dateien, 1274 Prüfungen, 0 Failures — vorher als
     remote-sicher auditiert (alle Dateien `begin;`/`rollback;`, kein `commit;`), danach
     empirisch bestätigt, dass nichts zurückblieb.
@@ -128,13 +131,19 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     reine Parameterguards ohne DB. Keines kennt `--linked`. Ein Remote-Lauf setzt einen Umbau
     voraus, der bewusst nicht Teil von Phase 3 war.
     **`Remote application Golden Path / authenticated integration remains intentionally deferred.`**
-15. ~~Realtime prüfen (DB-seitig).~~ **erledigt**: `supabase_realtime` enthält exakt die 11
-    erwarteten Tabellen, namensidentisch zur lokalen Basis. Ein echter Multi-Client-Beweis
-    steht weiterhin aus. **Befund:** auf einem frischen Projekt fehlt die Tagespartition von
-    `realtime.messages`, Broadcasts warnen deshalb (`WarnSendingBroadcastMessage`) — vor dem
-    Golden Path zu klären.
-16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt**
-17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt**
+15. ~~Realtime **DB-seitig** prüfen.~~ **erledigt**: `supabase_realtime` enthält exakt die 11
+    erwarteten Tabellen, namensidentisch zur lokalen Basis — das Anwendungsschema ist korrekt
+    migriert. **Die Zustellung ist damit nicht geprüft.** `realtime.messages` ist eine
+    Plattformstruktur; auf dem frischen Projekt fehlte die Tagespartition, weshalb die
+    DB-seitigen Broadcast-Versuche warnten (`WarnSendingBroadcastMessage`). Dabei war **kein
+    echter WebSocket-Client verbunden**.
+    **`Realtime delivery remains UNPROVEN until a real connected staging client exercises the
+    broadcast path.`** Vor `GP-STAGING` zu beweisen. Keine Partition von Hand erzeugt, kein
+    Eingriff in das Plattformschema.
+16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt; zusätzlich durch
+    `REMOTE-SECURITY-GATE-01` gesperrt** (siehe Schritt 12).
+17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt; ebenfalls
+    durch `REMOTE-SECURITY-GATE-01` gesperrt.**
 
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
