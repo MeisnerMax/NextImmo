@@ -1078,9 +1078,106 @@ Kernbefunde:
 | 1 | PR #1 mergen, sobald der Lauf grün ist | Nutzer | Abschluss A2/A3 |
 | 2 | Branch Protection auf `main` mit vier Required Checks | Nutzer (Repo-Settings; API-Aufruf aus der Sitzung heraus abgelehnt) | A3 |
 | 3 | Zweites Vercel-Projekt für die Flutter-Web-App plus Secrets | Nutzer | A4 |
-| 4 | Interaktiver Golden-Path im sichtbaren Browser-Pane | gemeinsam | A5 |
+| 4 | ~~Interaktiver Golden-Path im sichtbaren Browser-Pane~~ — **erledigt als `GP-LOCAL-01`**, gefahren gegen den Windows-Desktop-Client statt im Browser-Pane (siehe unten) | gemeinsam | A5 |
 | 5 | Entscheidung Szenariovergleich | Nutzer | `AP-X02-5` |
 | 6 | `DEC-017` entscheiden (`DEC-015` und `DEC-016` sind am 2026-08-08 accepted) | Nutzer | Phase C, jede nicht-lokale Umgebung |
 
 **Erledigt seit der ersten Fassung dieser Liste:** `C-01` und `C-02` (beide `b3d613a`),
-`AP-X02-1` (`101325c` — Charter und `CLAUDE.md` an `DEC-024` angeglichen).
+`AP-X02-1` (`101325c` — Charter und `CLAUDE.md` an `DEC-024` angeglichen), Punkt 4 als
+`GP-LOCAL-01`.
+
+---
+
+## 2026-08-09 · `GP-LOCAL-01` — lokaler interaktiver Cloud-Golden-Path DONE
+
+> The current Supabase-only application completes its primary authenticated property
+> read/write/realtime path end-to-end against a fresh local Supabase environment.
+
+Erstmals als **laufende Anwendung** durchgefahren, nicht über Tests oder Adapterprüfungen.
+Kein Produktcode musste dafür geändert werden.
+
+**Baseline.** `main` `e763887` · Windows-Desktop-Release-Build · frischer lokaler
+Supabase-Stack, `db reset --local --no-seed` · ausschließlich synthetische Daten
+(`golden-path@example.test`, `golden-path-peer@example.test`, `Golden Path Workspace`,
+`Golden Path Property`). Service Role nur außerhalb der Anwendung für den Bootstrap.
+
+Die offene Zeile 4 sprach vom „Browser-Pane". Gefahren wurde stattdessen der
+Windows-Desktop-Client — der Pfad mit dem größeren Risiko, weil nur dort der Rückweg über
+ein Custom-URI-Scheme läuft.
+
+**Auth.** Sign-in aus der echten UI gestartet, keine Session-Injektion und kein
+Provider-Override. Der Magic Link trug `token=pkce_…`, der Verifier lag also in der App.
+GoTrue antwortete mit `303` auf `neximmo://auth/callback?code=…`; die URI ging über die
+Windows-Protokollzuordnung an die **bereits laufende** Instanz — die Warm-Delivery aus
+`AUTH-DL-01`, hier zum ersten Mal mit einer echten Session am Ende. Während des gesamten
+Laufs existierte genau ein App-Prozess.
+
+**Workspace.** `Golden Path Workspace` mit echter aktiver Admin-Membership aufgelöst und im
+App-Header sichtbar.
+
+**MFA/AAL.** `MFA_READY`. Enrollment über `Set up MFA` in der echten Oberfläche, TOTP-Code
+eingegeben.
+
+| | vorher | nachher |
+|---|---|---|
+| `session.aal` | `aal1` | `aal2` |
+| Faktor | keiner | `totp`, `verified` |
+| AMR | `[magiclink]` | `[magiclink, totp]` |
+
+Das Edit-Formular erschien erst danach — der Client spiegelt die serverseitige AAL2-Pflicht
+aus `DEC-016`.
+
+**Property.** Read aus Supabase, initial Version 1. Edit über das UI-Formular, über den
+bestehenden `update_property`-RPC mit `expectedVersion`. Version **1 → 2**, Audit-Eintrag
+`property.update`, `source: rpc`, Rolle `admin`, `old_version 1` → `new_version 2`, mit
+`correlation_id` und `mutation_id`.
+
+**Realtime.** Zweiter **echter** Benutzer mit eigenem Auth- und MFA-Kontext — Magic Link,
+eigenes TOTP-Enrollment, Step-up auf `aal2` —, keine Service Role. Externe Mutation über
+dieselbe RPC, Version **2 → 3**. Die laufende App zeigte Version und Notes des zweiten
+Benutzers **ohne Neustart, ohne Navigation und ohne manuellen Refresh**; zwischen den beiden
+Messungen wurde die Anwendung nicht berührt.
+
+**Concurrency.** Stale `expectedVersion = 2` gegen die aktuelle Version 3 →
+`version_conflict` mit `actual_version: 3`. Der Datensatz blieb unverändert auf Version 3:
+kein stilles Überschreiben.
+
+**No-Fallback.** Supabase-only Runtime, `enum DataBackend { supabase }`, kein
+`DataBackend.sqlite` in `lib/`, keine Mocks. Im gebauten Artefakt keine Treffer für
+`service_role`, `sb_secret`, `SUPABASE_SECRET` oder `SERVICE_ROLE_KEY`. Die Anwendung hat
+keine SQLite-Datei erzeugt oder angefasst; die im Datenverzeichnis liegenden Dateien
+stammen vom 02.–05.08., also von vor `AP-X02-2b`.
+
+**Cleanup.** App beendet, temporäre `neximmo://`-Registrierung entfernt (Ausgangszustand
+war „kein Key", HKLM durchgehend leer), lokaler Stack gestoppt, temporäre Auth- und
+TOTP-Daten gelöscht.
+
+### Zwei neue Befunde
+
+**LOW — irreführende Read-only-Meldung.** Bei `aal1` zeigt das Property-Detail
+`Read-only access: Your workspace role cannot update this property`. Das Gate ist aber
+`assuranceLevel == aal2 && allows('property.update')`. Beim getesteten Admin lag die
+Blockade damit am fehlenden MFA-Step-up und nicht an der Workspace-Rolle — die Meldung
+schickt den Nutzer an die falsche Stelle. Reiner UX-Befund, in `GP-LOCAL-01` bewusst nicht
+behoben.
+
+**LOW — Browser-Custom-Protocol-Bestätigung.** Edge verlangt eine Nutzerbestätigung, bevor
+es `neximmo://` an Windows übergibt. Im Golden Path wurde die echte GoTrue-`303`-Weiterleitung
+auf `neximmo://auth/callback?code=…` beobachtet und dieselbe URI anschließend über die
+Windows-Protokollzuordnung dispatcht — also genau das, was der Browser nach der Bestätigung
+tut. Kein Auth-Defekt, aber ein zusätzlicher Klick pro Desktop-Anmeldung. Browser-Sicherheits-
+mechanismen werden nicht umgangen.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Lokaler interaktiver Golden Path | **DONE** |
+| Remote Staging Golden Path | **OPEN** |
+| Remote Supabase | **NOT PROVISIONED / NOT VERIFIED** |
+| Production | **NOT READY** |
+| Custom Domain `app.neximmo.de` | **NOT CONFIGURED** |
+| Production Installer / MSIX | **NOT VERIFIED** |
+
+Der Nachweis gilt ausschließlich für eine frische **lokale** Umgebung. Er sagt nichts über
+Remote-Auth, Staging, Production oder Packaging.
