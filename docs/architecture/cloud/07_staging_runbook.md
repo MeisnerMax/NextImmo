@@ -7,7 +7,8 @@ ausschließlich synthetischen Daten.
 
 **Ausführungsstand (2026-08-09):** Abschnitt 4 Schritte 1–3 sind erledigt —
 `STAGING-PROVISION-01` Phase 1 hat das Projekt `NexImmo Staging` (`vhxdgchhgyzbjnogjicb`,
-`eu-central-1`, Free, `ACTIVE_HEALTHY`) angelegt und als leer bestätigt. **Alles Übrige ist
+`eu-central-1`, Free, `ACTIVE_HEALTHY`) angelegt und bestätigt, dass darauf keine
+NexImmo-Anwendungsmigration angewandt ist und keine NexImmo-Daten liegen. **Alles Übrige ist
 weiterhin nicht ausgeführt:** ab Abschnitt 4 Schritt 4 (Link, Migrationen, Lint, Advisors,
 pgTAP) sowie die Abschnitte 3, 6, 7, 8, 9 und 10 vollständig. Jede weitere Phase braucht eine
 gesonderte Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
@@ -95,7 +96,9 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 1. ~~Supabase CLI prüfen: **genau 2.109.1**~~ **erledigt** (`2.109.1`).
 2. ~~Projekt anlegen; Project Ref und Region **doppelt** verifizieren.~~ **erledigt am
    2026-08-09**: `NexImmo Staging` / `vhxdgchhgyzbjnogjicb` / `eu-central-1`.
-3. ~~Bestätigen, dass das Projekt leer ist.~~ **erledigt**: `ACTIVE_HEALTHY`, ohne Schema.
+3. ~~Bestätigen, dass das Projekt leer ist.~~ **erledigt**: `ACTIVE_HEALTHY`, ohne angewandte
+   NexImmo-Anwendungsmigrationen und ohne NexImmo-Daten. Plattform- und Systemschemas bringt
+   jedes frische Supabase-Projekt mit; „leer" meint hier ausschließlich die Anwendungsseite.
 4. Admin-Auth herstellen (`supabase login`), Zugangsdaten nicht dauerhaft ablegen.
 5. Projekt kontrolliert linken (`supabase link --project-ref <ref>`).
 6. Remote-Migrationshistorie **vor** dem Push auslesen (`supabase migration list --linked`)

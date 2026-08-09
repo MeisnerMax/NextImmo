@@ -1248,8 +1248,8 @@ Beide stehen mit Minimalvariante, Sicherheitsfolgen und benötigten Daten im Run
 
 ## 2026-08-09 · `STAGING-PROVISION-01` Phase 1 — Remote-Staging-Projekt provisioniert
 
-**`An isolated remote Supabase staging project exists in eu-central-1 at no additional cost. It is
-empty: no migration, no auth configuration, no SMTP, no data.`**
+**`An isolated remote Supabase staging project exists in eu-central-1 at no additional cost. None
+of the NexImmo application migrations, auth configuration, SMTP or data have been applied to it.`**
 
 Baseline `e0a39e5`, Arbeitsbranch `cloud/staging-provision-01`, direkt von `origin/main`
 abgezweigt. Erste tatsächlich erzeugte Remote-Ressource des Projekts.
@@ -1314,7 +1314,7 @@ Billing blieben unangetastet.
 
 | | |
 |---|---|
-| Remote Staging Supabase | **PROVISIONED** (leer) |
+| Remote Staging Supabase | **PROVISIONED** (ohne NexImmo-Anwendungsmigrationen und -daten) |
 | Migrationen | **NOT STARTED** |
 | Auth | **NOT CONFIGURED** |
 | SMTP | **NOT CONFIGURED** |
@@ -1390,7 +1390,8 @@ Installiert sind ausschließlich Supabase-Plattformvorgaben in ihren PG17-Fassun
 Kein `supabase link`, kein `db push`, keine Remote-Migration, kein Remote-SQL, kein
 Remote-Seed, keine Remote-Testnutzer, keine Auth-Konfiguration, kein SMTP, keine
 GitHub-Environment- oder Secret-Änderung, keine Vercel-Änderung, kein DNS, keine
-Production-Aktion. Das Staging-Projekt ist inhaltlich weiterhin leer und unmigriert.
+Production-Aktion. Auf dem Staging-Projekt ist weiterhin keine NexImmo-Anwendungsmigration
+angewandt und liegen keine NexImmo-Daten.
 
 ### Statusgrenze
 
