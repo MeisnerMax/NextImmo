@@ -1,0 +1,465 @@
+name: Debug Operational Task Golden Path
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: debug-operational-task-golden-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden_path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.29.2
+          channel: stable
+          cache: true
+
+      - name: Resolve locked dependencies
+        run: |
+          npm ci
+          flutter pub get --enforce-lockfile
+
+      - name: Start local Supabase
+        run: npx supabase start
+
+      - name: Build the existing P2-D04 local fixture and verify the real Task contract
+        shell: pwsh
+        run: ./tool/verify_p2_d04_integration.ps1
+
+      - name: Read local Supabase client values
+        id: local_supabase
+        shell: bash
+        run: |
+          status="$(npx supabase status -o env)"
+          value() {
+            printf '%s\n' "$status" | sed -n "s/^$1=\"\(.*\)\"$/\1/p" | head -n1
+          }
+          api_url="$(value API_URL)"
+          publishable_key="$(value PUBLISHABLE_KEY)"
+          if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
+            echo '::error::Local Supabase status did not expose API_URL/PUBLISHABLE_KEY.'
+            exit 1
+          fi
+          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
+          echo "publishable_key=$publishable_key" >> "$GITHUB_OUTPUT"
+
+      - name: Seed attention states through the real TaskRepository
+        shell: bash
+        env:
+          API_URL: ${{ steps.local_supabase.outputs.api_url }}
+          PUBLISHABLE_KEY: ${{ steps.local_supabase.outputs.publishable_key }}
+        run: |
+          cat > test/_operational_tasks_golden_seed_test.dart <<'DART'
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+          import 'package:neximmo_app/features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
+          import 'package:neximmo_app/features/platform_audit_jobs/domain/platform_entity_type.dart';
+          import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
+
+          import 'integration/support/supabase_mfa_test_helper.dart';
+
+          void main() {
+            const url = String.fromEnvironment('SUPABASE_URL');
+            const publishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+            const workspaceId = 'f1000000-0000-0000-0000-000000000001';
+            const managerId = 'fa000000-0000-0000-0000-000000000001';
+            const propertyRef = PlatformEntityRef(
+              type: PlatformEntityType.property,
+              id: 'f5000000-0000-0000-0000-000000000001',
+            );
+
+            test('seed operational task browser golden path', () async {
+              final client = createSupabaseTestClient(url, publishableKey);
+              await client.auth.signInWithPassword(
+                email: 'p2-d04-manager@example.test',
+                password: 'NexImmo-Test-2026!',
+              );
+              final repository = SupabasePlatformRepositoryAdapter(client: client);
+              var sequence = 0;
+              PlatformCommandContext context() {
+                sequence++;
+                final suffix = sequence.toString().padLeft(2, '0');
+                return PlatformCommandContext(
+                  workspaceId: workspaceId,
+                  actorId: managerId,
+                  mutationId: 'a6000000-0000-0000-0000-0000000000$suffix',
+                  correlationId: 'a7000000-0000-0000-0000-0000000000$suffix',
+                  reason: 'temporary browser golden-path fixture',
+                );
+              }
+
+              Future<TaskDto> create(TaskDraft draft) async {
+                final result = await repository.createTask(
+                  CreateTaskCommand(context: context(), draft: draft),
+                );
+                expect(result, isA<PlatformRepositorySuccess<TaskDto>>());
+                return (result as PlatformRepositorySuccess<TaskDto>).value;
+              }
+
+              await create(
+                TaskDraft(
+                  title: 'Golden Overdue Property',
+                  description: 'Overdue manager task for the interactive golden path.',
+                  category: 'golden-path',
+                  assignedTo: managerId,
+                  priority: TaskPriority.high,
+                  dueAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
+                  entity: propertyRef,
+                ),
+              );
+
+              final blocked = await create(
+                const TaskDraft(
+                  title: 'Golden Blocked Property',
+                  description: 'Blocked task for Attention filtering.',
+                  category: 'golden-path',
+                  priority: TaskPriority.normal,
+                  entity: propertyRef,
+                ),
+              );
+              final blockedResult = await repository.transitionTaskStatus(
+                TransitionTaskStatusCommand(
+                  context: context(),
+                  taskId: blocked.id,
+                  expectedVersion: blocked.version,
+                  targetStatus: TaskStatus.blocked,
+                ),
+              );
+              expect(blockedResult, isA<PlatformRepositorySuccess<TaskDto>>());
+
+              await create(
+                TaskDraft(
+                  title: 'Golden Due Soon Unassigned',
+                  description: 'Unassigned task due within seven days.',
+                  category: 'golden-path',
+                  priority: TaskPriority.low,
+                  dueAt: DateTime.now().toUtc().add(const Duration(days: 3)),
+                  entity: propertyRef,
+                ),
+              );
+
+              await client.dispose();
+            });
+          }
+          DART
+
+          flutter test --no-pub test/_operational_tasks_golden_seed_test.dart \
+            --dart-define=SUPABASE_URL="$API_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          rm -f test/_operational_tasks_golden_seed_test.dart
+
+      - name: Start the real Cloud web application
+        shell: bash
+        env:
+          API_URL: ${{ steps.local_supabase.outputs.api_url }}
+          PUBLISHABLE_KEY: ${{ steps.local_supabase.outputs.publishable_key }}
+        run: |
+          nohup flutter run -d web-server \
+            --web-hostname=127.0.0.1 \
+            --web-port=3000 \
+            --dart-define=NEXIMMO_ENV=local \
+            --dart-define=NEXIMMO_DATA_BACKEND=supabase \
+            --dart-define=SUPABASE_URL="$API_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+            > /tmp/neximmo-flutter.log 2>&1 &
+          echo $! > /tmp/neximmo-flutter.pid
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/neximmo-flutter.log
+          exit 1
+
+      - name: Install scratch Playwright browser
+        shell: bash
+        run: |
+          mkdir -p /tmp/neximmo-playwright
+          cd /tmp/neximmo-playwright
+          npm init -y >/dev/null
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Drive the interactive Operational Tasks golden path
+        shell: bash
+        run: |
+          cat > /tmp/neximmo-playwright/golden.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs/promises';
+
+          const baseUrl = 'http://127.0.0.1:3000';
+          const mailpit = 'http://127.0.0.1:54324';
+          const managerEmail = 'p2-d04-manager@example.test';
+          const readerEmail = 'p2-d04-recipient@example.test';
+          const errors = [];
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function enableSemantics(page) {
+            const placeholder = page.locator('flt-semantics-placeholder');
+            if (await placeholder.count()) {
+              await placeholder.first().click({ force: true }).catch(() => {});
+              await sleep(400);
+            }
+          }
+
+          async function dump(page, name) {
+            const labels = await page.locator('[aria-label]').evaluateAll((nodes) =>
+              nodes.slice(0, 250).map((node) => ({
+                label: node.getAttribute('aria-label'),
+                role: node.getAttribute('role'),
+              })),
+            ).catch(() => []);
+            console.log(`SEMANTICS ${name}:`, JSON.stringify(labels));
+            await page.screenshot({ path: `/tmp/${name}.png`, fullPage: true }).catch(() => {});
+          }
+
+          async function waitText(page, value, timeout = 20000) {
+            await page.getByText(value, { exact: true }).first().waitFor({ state: 'visible', timeout });
+          }
+
+          async function magicLinkFor(email) {
+            for (let attempt = 0; attempt < 40; attempt++) {
+              const response = await fetch(`${mailpit}/api/v1/messages`);
+              if (response.ok) {
+                const listing = await response.json();
+                for (const message of listing.messages ?? []) {
+                  const recipients = JSON.stringify(message.To ?? message.to ?? '');
+                  if (!recipients.includes(email)) continue;
+                  const id = message.ID ?? message.Id ?? message.id;
+                  if (!id) continue;
+                  const detailResponse = await fetch(`${mailpit}/api/v1/message/${id}`);
+                  if (!detailResponse.ok) continue;
+                  const detail = await detailResponse.json();
+                  const haystack = JSON.stringify(detail).replaceAll('&amp;', '&');
+                  const urls = haystack.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
+                  const link = urls.find((url) => url.includes('/auth/v1/verify'));
+                  if (link) return link.replace(/\\u0026/g, '&');
+                }
+              }
+              await sleep(500);
+            }
+            throw new Error(`No local Mailpit magic link found for ${email}`);
+          }
+
+          async function signIn(page, email) {
+            await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+            await enableSemantics(page);
+            await waitText(page, 'Sign in to NexImmo');
+            const emailBox = page.getByRole('textbox', { name: 'Email' });
+            await emailBox.fill(email);
+            await page.getByText('Send sign-in link', { exact: true }).click();
+            const link = await magicLinkFor(email);
+            await page.goto(link, { waitUntil: 'domcontentloaded' });
+            await page.waitForURL((url) => url.origin === baseUrl, { timeout: 20000 }).catch(() => {});
+            await sleep(1200);
+            await enableSemantics(page);
+
+            const workspaceControl = page.locator('[aria-label*="Workspace"]').first();
+            if (await workspaceControl.count()) {
+              const label = await workspaceControl.getAttribute('aria-label');
+              if (!label?.includes('P2-D04')) {
+                await workspaceControl.click({ force: true });
+                await waitText(page, 'P2-D04');
+                await page.getByText('P2-D04', { exact: true }).last().click({ force: true });
+                await sleep(1000);
+                await enableSemantics(page);
+              }
+            }
+            await waitText(page, 'Aufgaben', 25000);
+          }
+
+          async function openTasks(page) {
+            const candidates = page.getByText('Aufgaben', { exact: true });
+            await candidates.first().click({ force: true });
+            await sleep(800);
+            await enableSemantics(page);
+            await waitText(page, 'Aufgabe anlegen');
+          }
+
+          async function chooseSemantic(page, field, option) {
+            const fieldNode = page.locator(`[aria-label*="${field}"]`).last();
+            if (!await fieldNode.count()) throw new Error(`Dropdown semantics missing: ${field}`);
+            await fieldNode.click({ force: true });
+            await sleep(200);
+            await enableSemantics(page);
+            await page.getByText(option, { exact: true }).last().click({ force: true });
+            await sleep(250);
+          }
+
+          async function managerGoldenPath(page) {
+            await signIn(page, managerEmail);
+            await openTasks(page);
+
+            for (const label of ['Aktiv', 'Überfällig', 'Blockiert', 'Nächste 7 Tage', 'Gesamt geladen']) {
+              await waitText(page, label);
+            }
+            await waitText(page, 'Golden Overdue Property');
+            await page.getByText('Golden Overdue Property', { exact: true }).first().click({ force: true });
+            await waitText(page, 'P2-D04 Objekt');
+            await waitText(page, 'Hoch');
+            await waitText(page, 'Mir zugewiesen');
+
+            const search = page.getByRole('textbox', { name: 'Aufgaben durchsuchen' });
+            await search.fill('Golden Due Soon Unassigned');
+            await waitText(page, 'Golden Due Soon Unassigned');
+            if (await page.getByText('Golden Overdue Property', { exact: true }).count()) {
+              throw new Error('Text search left a non-matching task visible.');
+            }
+            await search.fill('');
+            await waitText(page, 'Golden Overdue Property');
+
+            await chooseSemantic(page, 'Attention', 'Überfällig');
+            await waitText(page, 'Golden Overdue Property');
+            if (await page.getByText('Golden Due Soon Unassigned', { exact: true }).count()) {
+              throw new Error('Overdue Attention filter left a due-soon task visible.');
+            }
+            await page.getByText('Filter löschen', { exact: true }).click({ force: true });
+            await waitText(page, 'Golden Due Soon Unassigned');
+
+            await chooseSemantic(page, 'Zuweisung', 'Nicht zugewiesen');
+            await waitText(page, 'Golden Due Soon Unassigned');
+            if (await page.getByText('Golden Overdue Property', { exact: true }).count()) {
+              throw new Error('Unassigned filter left an assigned task visible.');
+            }
+            await page.getByText('Filter löschen', { exact: true }).click({ force: true });
+
+            await page.getByText('Aufgabe anlegen', { exact: true }).click({ force: true });
+            await sleep(250);
+            await enableSemantics(page);
+            await page.getByRole('textbox', { name: 'Titel *' }).fill('Golden UI Created');
+            await page.getByRole('textbox', { name: 'Beschreibung' }).fill('Created through the running NexImmo UI.');
+            await page.getByRole('textbox', { name: 'Kategorie' }).fill('ui-golden');
+            await chooseSemantic(page, 'Objekt-Kontext', 'P2-D04 Objekt');
+            await page.getByText('Anlegen', { exact: true }).last().click({ force: true });
+            await sleep(900);
+            await enableSemantics(page);
+            await waitText(page, 'Golden UI Created');
+            await page.getByText('Golden UI Created', { exact: true }).first().click({ force: true });
+            await waitText(page, 'P2-D04 Objekt');
+            await waitText(page, 'Version');
+
+            const edit = page.locator('[aria-label*="Aufgabe bearbeiten"]').last();
+            if (!await edit.count()) throw new Error('Edit action semantics missing.');
+            await edit.click({ force: true });
+            await sleep(200);
+            await enableSemantics(page);
+            const editTitle = page.getByRole('textbox', { name: 'Titel *' });
+            await editTitle.fill('Golden UI Edited');
+            await page.getByText('Speichern', { exact: true }).last().click({ force: true });
+            await sleep(900);
+            await enableSemantics(page);
+            await waitText(page, 'Golden UI Edited');
+
+            await page.getByText('Golden UI Edited', { exact: true }).first().click({ force: true });
+            await waitText(page, 'Status ändern');
+            await page.getByText('In Bearbeitung', { exact: true }).last().click({ force: true });
+            await sleep(900);
+            await enableSemantics(page);
+            await waitText(page, 'In Bearbeitung');
+
+            await page.getByText('Aktualisieren', { exact: true }).click({ force: true });
+            await sleep(700);
+            await enableSemantics(page);
+            await waitText(page, 'Golden UI Edited');
+
+            for (const viewport of [
+              { width: 1024, height: 768, name: 'golden-1024' },
+              { width: 390, height: 844, name: 'golden-390' },
+              { width: 1440, height: 900, name: 'golden-1440' },
+            ]) {
+              await page.setViewportSize({ width: viewport.width, height: viewport.height });
+              await sleep(500);
+              await enableSemantics(page);
+              await waitText(page, 'Aufgaben');
+              const searchVisible = await page.getByRole('textbox', { name: 'Aufgaben durchsuchen' }).isVisible();
+              if (!searchVisible) throw new Error(`Search hidden at ${viewport.width}x${viewport.height}`);
+              if (viewport.width < 1050) await waitText(page, 'Weitere Filter');
+              await page.screenshot({ path: `/tmp/${viewport.name}.png`, fullPage: true });
+            }
+          }
+
+          async function readerGoldenPath(context) {
+            const page = await context.newPage();
+            page.on('console', (message) => {
+              if (message.type() === 'error') errors.push(`reader console: ${message.text()}`);
+            });
+            page.on('pageerror', (error) => errors.push(`reader pageerror: ${error.message}`));
+            await signIn(page, readerEmail);
+            await openTasks(page);
+            await waitText(page, 'Golden Overdue Property');
+            const create = page.getByText('Aufgabe anlegen', { exact: true }).first();
+            if (await create.isEnabled()) throw new Error('Read-only task user can create tasks.');
+            const edit = page.locator('[aria-label*="Aufgabe bearbeiten"]');
+            if (await edit.count()) throw new Error('Read-only task user sees the edit action.');
+            await page.screenshot({ path: '/tmp/golden-read-only.png', fullPage: true });
+            await page.close();
+          }
+
+          const browser = await chromium.launch({ headless: true });
+          const managerContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+          const managerPage = await managerContext.newPage();
+          managerPage.on('console', (message) => {
+            if (message.type() === 'error') errors.push(`manager console: ${message.text()}`);
+          });
+          managerPage.on('pageerror', (error) => errors.push(`manager pageerror: ${error.message}`));
+
+          try {
+            await managerGoldenPath(managerPage);
+            await managerContext.close();
+            const readerContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+            await readerGoldenPath(readerContext);
+            await readerContext.close();
+            if (errors.length) throw new Error(`Browser/runtime errors:\n${errors.join('\n')}`);
+            console.log('GOLDEN_PATH_OK');
+          } catch (error) {
+            console.error(error);
+            await dump(managerPage, 'golden-failure').catch(() => {});
+            throw error;
+          } finally {
+            await browser.close();
+          }
+          JS
+
+          cd /tmp/neximmo-playwright
+          node golden.mjs
+
+      - name: Show Flutter runtime log
+        if: always()
+        shell: bash
+        run: tail -n 250 /tmp/neximmo-flutter.log || true
+
+      - name: Upload golden-path evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operational-task-golden-path
+          path: |
+            /tmp/golden-390.png
+            /tmp/golden-1024.png
+            /tmp/golden-1440.png
+            /tmp/golden-read-only.png
+            /tmp/golden-failure.png
+            /tmp/neximmo-flutter.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup || true
