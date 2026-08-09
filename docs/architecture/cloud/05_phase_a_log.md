@@ -1243,3 +1243,166 @@ Mailversand: nur Teamadressen, 2 Nachrichten/Stunde) lassen sich nicht im Reposi
 Beide stehen mit Minimalvariante, Sicherheitsfolgen und benötigten Daten im Runbook.
 
 **Status: `repo ready for staging provisioning`.** Ausdrücklich **nicht** `staging exists`.
+
+---
+
+## 2026-08-09 · `STAGING-PROVISION-01` Phase 1 — Remote-Staging-Projekt provisioniert
+
+**`An isolated remote Supabase staging project exists in eu-central-1 at no additional cost. None
+of the NexImmo application migrations, auth configuration, SMTP or data have been applied to it.`**
+
+Baseline `e0a39e5`, Arbeitsbranch `cloud/staging-provision-01`, direkt von `origin/main`
+abgezweigt. Erste tatsächlich erzeugte Remote-Ressource des Projekts.
+
+### Kosten-Gate vor der Mutation
+
+`DEC-017` erlaubt nur, was in bestehende Kontingente passt. Der Nachweis wurde read-only
+geführt, nicht aus der allgemeinen Preisregel abgeleitet:
+
+| Prüfung | Befund |
+|---|---|
+| Organisationen | genau eine — `deckt.` (`yuxkzhynfqnchscqzgyo`), Plan **Free** (Owner-Prüfung im Dashboard) |
+| Aktive Projekte vor der Mutation | **0** — das einzige Bestandsprojekt `deckt.` ist `INACTIVE` |
+| Free-Kontingent | 2 aktive Projekte; pausierte zählen laut Supabase-Doku nicht mit |
+| Bereits vorhandenes Staging | keines |
+| Zusatzkosten | **0,00 € einmalig / 0,00 € monatlich** |
+
+Beim Create-Vorgang erschien **kein** Hinweis auf Upgrade, kostenpflichtigen Compute,
+Zahlungsmethode, Billing-Aktivierung oder Add-on. Der Befehl lief ohne `--size` (Default-
+Instanz) und ohne `--high-availability`; `--yes` wurde bewusst **nicht** gesetzt, damit eine
+unerwartete Kostenabfrage fehlschlägt statt automatisch bestätigt zu werden.
+
+### Ergebnis
+
+| | |
+|---|---|
+| Name | `NexImmo Staging` |
+| Project Ref | `vhxdgchhgyzbjnogjicb` |
+| Organisation | `deckt.` (`yuxkzhynfqnchscqzgyo`), Free |
+| Region | **`eu-central-1`** (Frankfurt, `DEC-015`) |
+| Status | `ACTIVE_HEALTHY` |
+| PostgreSQL | `17.6.1.155` |
+| Angelegt | 2026-08-09T14:44:31Z |
+
+Das Bestandsprojekt `deckt.` ist unverändert `INACTIVE`, mit unveränderter Erstellungszeit und
+Version. Genau zwei Projekte in der Organisation, genau eines davon aktiv.
+
+Das DB-Passwort wurde lokal zufällig erzeugt (48 Zeichen, alphanumerisch), DPAPI-verschlüsselt
+und nutzergebunden **außerhalb des Repositories** abgelegt und nie ausgegeben. Es steht in
+keinem Commit, keiner Dokumentation, keinem `.env` und keinem GitHub-Secret.
+
+### Befund — PostgreSQL 17 remote gegen 15 lokal
+
+`supabase/config.toml` pinnt `major_version = 15`; das neue Projekt läuft auf **17.6.1.155**.
+Alle 35 Migrationen, die pgTAP-Suite und beide CI-Jobs sind bisher ausschließlich gegen
+PostgreSQL 15 verifiziert. Die Supabase-CLI `2.109.1` bietet bei `projects create` **keinen**
+Parameter für die Major-Version (`--org-id`, `--db-password`, `--region`, `--size`,
+`--high-availability`) — die Version war auf diesem Weg nicht wählbar.
+
+Für Phase 1 ist das kein Blocker; für Phase 3 ist es ein reales Risiko und vor dem ersten
+`db push` zu entscheiden. Kein Versuch, das remote zu umgehen.
+
+### Was ausdrücklich **nicht** geschah
+
+Keine Migration, kein Seed, kein SQL, keine Tabelle, keine Auth-Konfiguration, kein Redirect,
+kein MFA-Setting, kein SMTP, kein Nutzer, kein Link, kein Secret, kein GitHub-Environment,
+keine GitHub-Secrets, keine Vercel-Änderung, kein DNS, keine Production-Ressource. Das
+Bestandsprojekt wurde weder reaktiviert noch pausiert noch verändert; Organisation, Plan und
+Billing blieben unangetastet.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Remote Staging Supabase | **PROVISIONED** (ohne NexImmo-Anwendungsmigrationen und -daten) |
+| Migrationen | **NOT STARTED** |
+| Auth | **NOT CONFIGURED** |
+| SMTP | **NOT CONFIGURED** |
+| GitHub-Environment `staging` | **NOT CREATED** |
+| Vercel Staging Deploy | **NOT STARTED** |
+| Golden Paths (Web/Windows) | **NOT RUN** |
+| Production | **NOT AUTHORIZED** |
+
+**Status: `remote staging project exists`.** Ausdrücklich **nicht** `staging works`. Phase 2
+braucht eine gesonderte Freigabe.
+
+---
+
+## 2026-08-09 · `STAGING-PROVISION-01` Phase 2 — PostgreSQL-17-Kompatibilitätsgate
+
+**`The current NexImmo database baseline is proven compatible with PostgreSQL 17 before the
+first remote migration. No remote migration has been applied.`**
+
+Phase 1 hat ein Staging-Projekt auf PostgreSQL 17.6.1.155 bekommen, während die lokale Basis
+auf 15 stand. Statt gegen eine ungeprüfte Major-Version zu pushen, gleicht dieses Paket
+zuerst die lokale und die CI-Basis an und beweist den vollständigen Datenbankstand darauf.
+Gearbeitet wurde in einem separaten Worktree (`C:\Users\maxme\NexImmo-pg17-compat`), damit
+eine fremde, unverwandte Arbeitsbaumänderung im Hauptverzeichnis unangetastet bleibt.
+
+### Die einzige Produktivänderung
+
+`supabase/config.toml`: `major_version = 15` → `17`. Repo-weit ist das die einzige Stelle, die
+eine Major-Version festlegt — weder ein Test noch ein `tool/`-Skript referenziert
+`major_version` oder `config.toml`. Der laufende Stack wurde danach empirisch geprüft:
+Image `public.ecr.aws/supabase/postgres:17.6.1.143`, `server_version = 17.6`.
+
+**Die 35 Migrationen sind byte-identisch geblieben.** Keine geändert, keine gelöscht, keine
+umnummeriert, keine hinzugefügt. Ebenso unverändert: alle pgTAP- und Rollback-Tests.
+
+### Gates, alle gegen PostgreSQL 17.6
+
+| Gate | Ergebnis |
+|---|---|
+| Fresh-from-zero: 35/35 Migrationen, `20260712140000` → `20260808120000` | PASS |
+| Kein impliziter Seed (`[db.seed] enabled=false` unverändert) | PASS — 0 Zeilen in allen `public`-Tabellen, 0 `auth.users` |
+| `db lint --level error --fail-on error` | PASS |
+| Advisors `security` + `performance` | PASS — 85 Befunde, ausnahmslos `INFO`, kein `ERROR`/`WARN` |
+| pgTAP-Suite | PASS — 26 Dateien, **1274** Prüfungen |
+| Rollback-Replay, 30 Stufen in CI-Reihenfolge | PASS — 30/30 |
+| `migration up` + erneute pgTAP-Suite | PASS — wieder 1274 |
+| 19 Integration-/Concurrency-/Parity-Skripte des `database`-Jobs | PASS — 19/19, 0 Fehler |
+
+Autoritativ war der aktuelle `database`-Job aus `.github/workflows/flutter.yml`, nicht eine
+Rekonstruktion aus dem Gedächtnis. Keine Stufe übersprungen.
+
+### PG15→PG17-Audit an der tatsächlichen Nutzung
+
+**Keine einzige Migration legt eine Extension an** — die einzigen `create extension` stehen in
+Testdateien und betreffen `pgtap`. Der Migrationsstrang trägt damit kein Extension-Versionsrisiko.
+Installiert sind ausschließlich Supabase-Plattformvorgaben in ihren PG17-Fassungen: `pg_net`
+0.20.3, `pg_stat_statements` 1.11, `pgcrypto` 1.3, `plpgsql` 1.0, `supabase_vault` 0.3.1,
+`uuid-ossp` 1.1.
+
+| Konstrukt | Nutzung | Bewertung |
+|---|---|---|
+| `generated always as (…) stored` | 1× (`operations_signal_states.signal_key`) | COMPATIBLE — seit PG12 stabil, durch P2-D05a abgedeckt |
+| `regexp_replace(…, '\D', '', 'g')` | 3× (P2-D02) | COMPATIBLE — die in PG16 ergänzte `start`-Überladung greift nicht, `'g'` bindet an die `flags`-Variante; durch P2-D02 abgedeckt |
+| Enum-Typen | 36 | COMPATIBLE |
+| Trigger / Funktionen / Indizes | 52 / 65 / 174 | COMPATIBLE |
+| RLS | **38 von 38 Tabellen aktiv, 0 ohne** | COMPATIBLE — Default-Deny hält unter 17 |
+| Realtime-Publication | 11 Tabellen in `supabase_realtime`, wie deklariert | COMPATIBLE |
+| `IDENTITY`-Spalten, `MERGE`, `JSON_TABLE`, `CREATE STATISTICS`, `pg_stat_statements`-Abfragen, in 16/17 entfernte GUCs | **nicht verwendet** | — |
+
+**WARNINGS: keine. BLOCKERS: keine.**
+
+### Was ausdrücklich **nicht** geschah
+
+Kein `supabase link`, kein `db push`, keine Remote-Migration, kein Remote-SQL, kein
+Remote-Seed, keine Remote-Testnutzer, keine Auth-Konfiguration, kein SMTP, keine
+GitHub-Environment- oder Secret-Änderung, keine Vercel-Änderung, kein DNS, keine
+Production-Aktion. Auf dem Staging-Projekt ist weiterhin keine NexImmo-Anwendungsmigration
+angewandt und liegen keine NexImmo-Daten.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| PG17-Kompatibilität lokal | **PROVEN** |
+| Lokale/CI-Basis | **PostgreSQL 17** |
+| Migration History | **unverändert (35)** |
+| Remote-Migration | **NOT STARTED** |
+| Auth / SMTP / GitHub-Environment / Vercel / Golden Paths | **unverändert offen** |
+| Production | **NOT AUTHORIZED** |
+
+**Status: `PostgreSQL 17 compatibility proven`.** Ausdrücklich **nicht** `remote migrated`.
+Phase 3 braucht eine gesonderte Freigabe.
