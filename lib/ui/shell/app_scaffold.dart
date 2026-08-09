@@ -45,6 +45,7 @@ import '../screens/valuations/valuations_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/admin/users_screen.dart';
+import '../screens/tasks/operational_tasks_panel.dart';
 import '../screens/tasks/task_templates_screen.dart';
 import '../screens/tasks/tasks_screen.dart';
 import '../state/app_state.dart';
@@ -357,6 +358,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             : const PartiesScreen();
       case GlobalPage.rentalOverview:
         return const RentalOverviewPanel();
+      case GlobalPage.tasks:
+        return const OperationalTasksPanel();
       case GlobalPage.maintenance:
         return const MaintenanceTicketsPanel();
       case GlobalPage.contractors:

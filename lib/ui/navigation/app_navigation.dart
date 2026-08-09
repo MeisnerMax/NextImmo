@@ -166,7 +166,10 @@ CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
       propertyId: leasesPropertyId,
     );
   }
-  final pipelinePropertyId = _idFromRoute(routeName, leasingPipelineRoute);
+  final pipelinePropertyId = _idFromRoute(
+    routeName,
+    leasingPipelineRoute,
+  );
   if (pipelinePropertyId != null) {
     return CloudRouteTarget(
       page: GlobalPage.properties,
@@ -246,6 +249,8 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     GlobalPage.parties ||
     GlobalPage.documents ||
     GlobalPage.valuations ||
+    // Cloud-native operational Tasks use the existing DOM-010 TaskRepository.
+    GlobalPage.tasks ||
     // Welle 3: reads units, leases and properties through their contracts only.
     GlobalPage.rentalOverview ||
     // Welle 4: reads maintenance_capex/contacts_parties through their
