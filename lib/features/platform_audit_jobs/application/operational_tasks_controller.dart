@@ -6,6 +6,8 @@
 /// audited/idempotent/versioned command envelope.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -252,8 +254,10 @@ class OperationalTasksController extends StateNotifier<OperationalTasksState> {
           break;
         case OperationalTaskAssignmentFilter.mine:
           if (actor == null || task.assignedTo != actor) return false;
+          break;
         case OperationalTaskAssignmentFilter.unassigned:
           if (task.assignedTo != null) return false;
+          break;
       }
       if (state.entityTypeFilter != null &&
           task.entity?.type != state.entityTypeFilter) {
@@ -487,6 +491,6 @@ final operationalTasksControllerProvider = StateNotifierProvider.autoDispose<
     repository: ref.watch(taskRepositoryProvider),
     scope: ref.watch(workspaceSessionScopeProvider),
   );
-  controller.load();
+  unawaited(controller.load());
   return controller;
 });
