@@ -677,6 +677,73 @@ sich auf den `main`-Rückgabewert zu verlassen, plus je eine Negativprobe.
 
 ---
 
+## 2026-08-09 · `C-07` behoben — die Exit-Codes erreichen den Prozess
+
+**Status: DONE.** Der Befund oben bleibt als Ursachenbeschreibung stehen; hier steht, was
+tatsächlich ausgeführt wurde.
+
+**Ursache.** Dart verwirft den Rückgabewert von `main`. `return 64` beendet den Prozess
+mit `0`. Die `verify_p2_x01_*`-Wrapper lesen `$LASTEXITCODE` — sie lasen also eine
+Konstante.
+
+**Betroffene Entrypoints.** Ein repositoryweiter Audit fand exakt drei, keinen weiteren;
+keiner nutzte `exit()` oder `exitCode`:
+
+| Tool | vorher | fachliche Codes |
+|---|---|---|
+| `tool/generate_cutover_fixture.dart` | `Future<int> main` | 0, 64 |
+| `tool/p2_x01_property_cutover.dart` | `Future<int> main` | 0, 64, 65, 66 |
+| `tool/p2_x01_domain_cutover.dart` | `Future<int> main` | 0, 64, 65, 66 |
+
+**Lösung.** Je Tool `Future<void> main(...) async { exitCode = await _run(args); }`; der
+fachliche Code bleibt unverändert in `_run`. Bewusst `exitCode` statt `exit()`: `exit()`
+beendet sofort und würde das `finally` überspringen, das die Legacy-Datenbank schließt,
+und die stdout-Zeile abschneiden, die der Wrapper als JSON parst. Die Codes selbst wurden
+nicht umnummeriert.
+
+**Prozess-Level-Nachweis.** Alle zehn Werte sind echte OS-Prozesscodes, gemessen vor und
+nach der Änderung:
+
+| Fall | vorher | nachher |
+|---|---:|---:|
+| generator usage / property usage / domain usage | 0 | **64** |
+| property missing DB / domain missing DB | 0 | **66** |
+| property not-ready / domain not-ready | 0 | **65** |
+| generator / property / domain success | 0 | 0 |
+
+`65` wurde ohne Codepatch erreicht. Property: ein `--source-workspace-id`, das nicht zur
+Fixture passt, erzeugt `ownership.workspace_not_found`. Domain: der Planner validiert
+Zeilen statt des Requests, also bekommt eine **temporäre Kopie** der regulär erzeugten
+Fixture genau ein Feld geändert — die Lease `FX-L-0001` endet vor ihrem Beginn, was
+`source.end_before_start` auslöst. Eine Zeile, ein Feld, ein Fehler; der Generator bleibt
+unangetastet und es liegt keine Fixture-Binärdatei im Repository.
+
+**Seiteneffekte unverändert.** `66` legt weder Datenbank noch Ausgabeverzeichnis an, `65`
+schreibt `report.json` aber **kein** `import.sql`, `0` schreibt beides — vor und nach der
+Änderung identisch.
+
+**Guard.** `test/tool/cutover_cli_exit_code_test.dart` startet jede CLI mit `Process.run`
+und prüft den realen Prozesscode; ein Unit-Test von `_run` könnte das nicht, weil genau die
+Grenze Rückgabewert → Prozess der Defekt war. Der Test läuft im bestehenden `verify`-Job,
+braucht kein Docker und legt keine neue Infrastruktur an. Er prüft zusätzlich stderr, das
+Vorhandensein von `report.json`, die Abwesenheit von `import.sql` und den erwarteten
+fachlichen Issue — damit steht fest, dass `65` aus dem Planner kam und nicht aus einem
+Absturz.
+
+**C-05 berücksichtigt.** Der Guard ist ein Dart-Test, kein dot-sourcetes PowerShell-Skript;
+erwartete Negativcodes werden von `Process.run` als Rückgabewert konsumiert und können
+nicht als `$LASTEXITCODE` in einen Wrapper lecken.
+
+**C-06 unverändert.** Relativer Pfad → 0, absoluter Pfad → 0, fehlender Pfad → 66 mit
+`requested`/`resolved` im Klartext, keine leere SQLite-Datenbank, kein angelegtes
+sqflite-Default-Verzeichnis.
+
+**Die Wrapper wurden nicht geschwächt.** `verify_p2_x01_property_cutover.ps1` prüft weiter
+`production_import_ready`, Manifest, Checksummen und Idempotenz. Der echte Exit-Code ist
+das frühere Fail-Fast, nicht der Ersatz für diese Prüfungen.
+
+---
+
 ## 2026-08-08 · Laufzeitprofil des vollständig grünen `database`-Jobs
 
 | | |
