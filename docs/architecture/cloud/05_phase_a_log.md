@@ -1243,3 +1243,85 @@ Mailversand: nur Teamadressen, 2 Nachrichten/Stunde) lassen sich nicht im Reposi
 Beide stehen mit Minimalvariante, Sicherheitsfolgen und benötigten Daten im Runbook.
 
 **Status: `repo ready for staging provisioning`.** Ausdrücklich **nicht** `staging exists`.
+
+---
+
+## 2026-08-09 · `STAGING-PROVISION-01` Phase 1 — Remote-Staging-Projekt provisioniert
+
+**`An isolated remote Supabase staging project exists in eu-central-1 at no additional cost. It is
+empty: no migration, no auth configuration, no SMTP, no data.`**
+
+Baseline `e0a39e5`, Arbeitsbranch `cloud/staging-provision-01`, direkt von `origin/main`
+abgezweigt. Erste tatsächlich erzeugte Remote-Ressource des Projekts.
+
+### Kosten-Gate vor der Mutation
+
+`DEC-017` erlaubt nur, was in bestehende Kontingente passt. Der Nachweis wurde read-only
+geführt, nicht aus der allgemeinen Preisregel abgeleitet:
+
+| Prüfung | Befund |
+|---|---|
+| Organisationen | genau eine — `deckt.` (`yuxkzhynfqnchscqzgyo`), Plan **Free** (Owner-Prüfung im Dashboard) |
+| Aktive Projekte vor der Mutation | **0** — das einzige Bestandsprojekt `deckt.` ist `INACTIVE` |
+| Free-Kontingent | 2 aktive Projekte; pausierte zählen laut Supabase-Doku nicht mit |
+| Bereits vorhandenes Staging | keines |
+| Zusatzkosten | **0,00 € einmalig / 0,00 € monatlich** |
+
+Beim Create-Vorgang erschien **kein** Hinweis auf Upgrade, kostenpflichtigen Compute,
+Zahlungsmethode, Billing-Aktivierung oder Add-on. Der Befehl lief ohne `--size` (Default-
+Instanz) und ohne `--high-availability`; `--yes` wurde bewusst **nicht** gesetzt, damit eine
+unerwartete Kostenabfrage fehlschlägt statt automatisch bestätigt zu werden.
+
+### Ergebnis
+
+| | |
+|---|---|
+| Name | `NexImmo Staging` |
+| Project Ref | `vhxdgchhgyzbjnogjicb` |
+| Organisation | `deckt.` (`yuxkzhynfqnchscqzgyo`), Free |
+| Region | **`eu-central-1`** (Frankfurt, `DEC-015`) |
+| Status | `ACTIVE_HEALTHY` |
+| PostgreSQL | `17.6.1.155` |
+| Angelegt | 2026-08-09T14:44:31Z |
+
+Das Bestandsprojekt `deckt.` ist unverändert `INACTIVE`, mit unveränderter Erstellungszeit und
+Version. Genau zwei Projekte in der Organisation, genau eines davon aktiv.
+
+Das DB-Passwort wurde lokal zufällig erzeugt (48 Zeichen, alphanumerisch), DPAPI-verschlüsselt
+und nutzergebunden **außerhalb des Repositories** abgelegt und nie ausgegeben. Es steht in
+keinem Commit, keiner Dokumentation, keinem `.env` und keinem GitHub-Secret.
+
+### Befund — PostgreSQL 17 remote gegen 15 lokal
+
+`supabase/config.toml` pinnt `major_version = 15`; das neue Projekt läuft auf **17.6.1.155**.
+Alle 35 Migrationen, die pgTAP-Suite und beide CI-Jobs sind bisher ausschließlich gegen
+PostgreSQL 15 verifiziert. Die Supabase-CLI `2.109.1` bietet bei `projects create` **keinen**
+Parameter für die Major-Version (`--org-id`, `--db-password`, `--region`, `--size`,
+`--high-availability`) — die Version war auf diesem Weg nicht wählbar.
+
+Für Phase 1 ist das kein Blocker; für Phase 3 ist es ein reales Risiko und vor dem ersten
+`db push` zu entscheiden. Kein Versuch, das remote zu umgehen.
+
+### Was ausdrücklich **nicht** geschah
+
+Keine Migration, kein Seed, kein SQL, keine Tabelle, keine Auth-Konfiguration, kein Redirect,
+kein MFA-Setting, kein SMTP, kein Nutzer, kein Link, kein Secret, kein GitHub-Environment,
+keine GitHub-Secrets, keine Vercel-Änderung, kein DNS, keine Production-Ressource. Das
+Bestandsprojekt wurde weder reaktiviert noch pausiert noch verändert; Organisation, Plan und
+Billing blieben unangetastet.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Remote Staging Supabase | **PROVISIONED** (leer) |
+| Migrationen | **NOT STARTED** |
+| Auth | **NOT CONFIGURED** |
+| SMTP | **NOT CONFIGURED** |
+| GitHub-Environment `staging` | **NOT CREATED** |
+| Vercel Staging Deploy | **NOT STARTED** |
+| Golden Paths (Web/Windows) | **NOT RUN** |
+| Production | **NOT AUTHORIZED** |
+
+**Status: `remote staging project exists`.** Ausdrücklich **nicht** `staging works`. Phase 2
+braucht eine gesonderte Freigabe.

@@ -2,12 +2,15 @@
 
 Stand: 2026-08-09 · Basis `a371d22` · Vorbereitet in `STAGING-PREP-01`
 
-**Nichts hiervon ist ausgeführt.** Dieses Dokument beschreibt, was nach einem ausdrücklichen
-`DEC-017`-ACCEPT zu tun ist.
-
 `DEC-017` ist seit dem **2026-08-09 `accepted`** — für genau eine isolierte Umgebung mit
-ausschließlich synthetischen Daten. Eine Remote-Umgebung existiert trotzdem **nicht**:
-freigegeben ist nicht angelegt.
+ausschließlich synthetischen Daten.
+
+**Ausführungsstand (2026-08-09):** Abschnitt 4 Schritte 1–3 sind erledigt —
+`STAGING-PROVISION-01` Phase 1 hat das Projekt `NexImmo Staging` (`vhxdgchhgyzbjnogjicb`,
+`eu-central-1`, Free, `ACTIVE_HEALTHY`) angelegt und als leer bestätigt. **Alles Übrige ist
+weiterhin nicht ausgeführt:** ab Abschnitt 4 Schritt 4 (Link, Migrationen, Lint, Advisors,
+pgTAP) sowie die Abschnitte 3, 6, 7, 8, 9 und 10 vollständig. Jede weitere Phase braucht eine
+gesonderte Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
 
 Zusätzlich gilt die **Kostenregel** aus `DEC-017`: was ohne Zusatzkosten in bestehende
 Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt hält
@@ -89,10 +92,10 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 
 ### Ablauf, exakt
 
-1. Supabase CLI prüfen: **genau 2.109.1** (`npx supabase --version`), wie in `package.json`
-   gepinnt.
-2. Projekt anlegen; Project Ref und Region **doppelt** verifizieren.
-3. Bestätigen, dass das Projekt leer ist.
+1. ~~Supabase CLI prüfen: **genau 2.109.1**~~ **erledigt** (`2.109.1`).
+2. ~~Projekt anlegen; Project Ref und Region **doppelt** verifizieren.~~ **erledigt am
+   2026-08-09**: `NexImmo Staging` / `vhxdgchhgyzbjnogjicb` / `eu-central-1`.
+3. ~~Bestätigen, dass das Projekt leer ist.~~ **erledigt**: `ACTIVE_HEALTHY`, ohne Schema.
 4. Admin-Auth herstellen (`supabase login`), Zugangsdaten nicht dauerhaft ablegen.
 5. Projekt kontrolliert linken (`supabase link --project-ref <ref>`).
 6. Remote-Migrationshistorie **vor** dem Push auslesen (`supabase migration list --linked`)
@@ -108,6 +111,14 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 15. Realtime prüfen.
 16. **Erst danach** Auth konfigurieren (Abschnitt 8).
 17. **Erst danach** synthetische Golden-Path-Daten erzeugen.
+
+**Vor Schritt 9 zu entscheiden — PostgreSQL-Major-Version.** Das angelegte Projekt läuft auf
+**17.6.1.155**; `supabase/config.toml` pinnt lokal `major_version = 15`. Die 35 Migrationen,
+die pgTAP-Suite und beide CI-Jobs sind bisher ausschließlich gegen 15 verifiziert. Die CLI
+`2.109.1` kennt bei `projects create` keinen Parameter für die Major-Version, die Wahl war auf
+diesem Weg also nicht möglich. Optionen: gegen 17 pushen und die Abweichung als bewusstes
+Risiko tragen, lokal auf 17 angleichen, oder das Projekt verwerfen und über das Dashboard mit
+15 neu anlegen. **Nicht remote improvisieren.**
 
 **Verboten:** Production-Project-Ref, echter Datenseed, Aufheben von
 `[db.seed] enabled = false`, Service-Role-Key im Flutter-Build, dauerhaftes Speichern des
