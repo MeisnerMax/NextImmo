@@ -178,9 +178,14 @@ jobs:
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
             > /tmp/neximmo-flutter.log 2>&1 &
           echo $! > /tmp/neximmo-flutter.pid
-          for attempt in $(seq 1 90); do
-            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then
+          for attempt in $(seq 1 120); do
+            if grep -q 'lib/main.dart is being served at http://127.0.0.1:3000' /tmp/neximmo-flutter.log 2>/dev/null; then
+              curl -fsS http://127.0.0.1:3000/ >/dev/null
               exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/neximmo-flutter.pid)" 2>/dev/null; then
+              cat /tmp/neximmo-flutter.log
+              exit 1
             fi
             sleep 1
           done
@@ -201,7 +206,6 @@ jobs:
         run: |
           cat > /tmp/neximmo-playwright/golden.mjs <<'JS'
           import { chromium } from 'playwright';
-          import fs from 'node:fs/promises';
 
           const baseUrl = 'http://127.0.0.1:3000';
           const mailpit = 'http://127.0.0.1:54324';
@@ -212,10 +216,11 @@ jobs:
           const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
           async function enableSemantics(page) {
+            await page.locator('flt-semantics-placeholder').first().waitFor({ state: 'attached', timeout: 20000 }).catch(() => {});
             const placeholder = page.locator('flt-semantics-placeholder');
             if (await placeholder.count()) {
               await placeholder.first().click({ force: true }).catch(() => {});
-              await sleep(400);
+              await sleep(500);
             }
           }
 
@@ -260,15 +265,16 @@ jobs:
 
           async function signIn(page, email) {
             await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+            await sleep(1200);
             await enableSemantics(page);
-            await waitText(page, 'Sign in to NexImmo');
+            await waitText(page, 'Sign in to NexImmo', 30000);
             const emailBox = page.getByRole('textbox', { name: 'Email' });
             await emailBox.fill(email);
             await page.getByText('Send sign-in link', { exact: true }).click();
             const link = await magicLinkFor(email);
             await page.goto(link, { waitUntil: 'domcontentloaded' });
             await page.waitForURL((url) => url.origin === baseUrl, { timeout: 20000 }).catch(() => {});
-            await sleep(1200);
+            await sleep(1500);
             await enableSemantics(page);
 
             const workspaceControl = page.locator('[aria-label*="Workspace"]').first();
@@ -282,13 +288,13 @@ jobs:
                 await enableSemantics(page);
               }
             }
-            await waitText(page, 'Aufgaben', 25000);
+            await waitText(page, 'Aufgaben', 30000);
           }
 
           async function openTasks(page) {
             const candidates = page.getByText('Aufgaben', { exact: true });
             await candidates.first().click({ force: true });
-            await sleep(800);
+            await sleep(900);
             await enableSemantics(page);
             await waitText(page, 'Aufgabe anlegen');
           }
