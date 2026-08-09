@@ -112,13 +112,12 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 16. **Erst danach** Auth konfigurieren (Abschnitt 8).
 17. **Erst danach** synthetische Golden-Path-Daten erzeugen.
 
-**Vor Schritt 9 zu entscheiden — PostgreSQL-Major-Version.** Das angelegte Projekt läuft auf
-**17.6.1.155**; `supabase/config.toml` pinnt lokal `major_version = 15`. Die 35 Migrationen,
-die pgTAP-Suite und beide CI-Jobs sind bisher ausschließlich gegen 15 verifiziert. Die CLI
-`2.109.1` kennt bei `projects create` keinen Parameter für die Major-Version, die Wahl war auf
-diesem Weg also nicht möglich. Optionen: gegen 17 pushen und die Abweichung als bewusstes
-Risiko tragen, lokal auf 17 angleichen, oder das Projekt verwerfen und über das Dashboard mit
-15 neu anlegen. **Nicht remote improvisieren.**
+**PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
+**17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
+Phase 2 hat lokale und CI-Basis auf **17** angeglichen, statt gegen eine ungeprüfte Version zu
+pushen: frischer Stack auf PostgreSQL 17.6, alle 35 Migrationen **unverändert** von null
+angewandt, vollständige pgTAP-, Rollback- und Integrationsmatrix grün. Vor Schritt 9 ist damit
+nichts mehr zu entscheiden.
 
 **Verboten:** Production-Project-Ref, echter Datenseed, Aufheben von
 `[db.seed] enabled = false`, Service-Role-Key im Flutter-Build, dauerhaftes Speichern des

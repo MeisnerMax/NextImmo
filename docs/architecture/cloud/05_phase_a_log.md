@@ -1325,3 +1325,83 @@ Billing blieben unangetastet.
 
 **Status: `remote staging project exists`.** Ausdrücklich **nicht** `staging works`. Phase 2
 braucht eine gesonderte Freigabe.
+
+---
+
+## 2026-08-09 · `STAGING-PROVISION-01` Phase 2 — PostgreSQL-17-Kompatibilitätsgate
+
+**`The current NexImmo database baseline is proven compatible with PostgreSQL 17 before the
+first remote migration. No remote migration has been applied.`**
+
+Phase 1 hat ein Staging-Projekt auf PostgreSQL 17.6.1.155 bekommen, während die lokale Basis
+auf 15 stand. Statt gegen eine ungeprüfte Major-Version zu pushen, gleicht dieses Paket
+zuerst die lokale und die CI-Basis an und beweist den vollständigen Datenbankstand darauf.
+Gearbeitet wurde in einem separaten Worktree (`C:\Users\maxme\NexImmo-pg17-compat`), damit
+eine fremde, unverwandte Arbeitsbaumänderung im Hauptverzeichnis unangetastet bleibt.
+
+### Die einzige Produktivänderung
+
+`supabase/config.toml`: `major_version = 15` → `17`. Repo-weit ist das die einzige Stelle, die
+eine Major-Version festlegt — weder ein Test noch ein `tool/`-Skript referenziert
+`major_version` oder `config.toml`. Der laufende Stack wurde danach empirisch geprüft:
+Image `public.ecr.aws/supabase/postgres:17.6.1.143`, `server_version = 17.6`.
+
+**Die 35 Migrationen sind byte-identisch geblieben.** Keine geändert, keine gelöscht, keine
+umnummeriert, keine hinzugefügt. Ebenso unverändert: alle pgTAP- und Rollback-Tests.
+
+### Gates, alle gegen PostgreSQL 17.6
+
+| Gate | Ergebnis |
+|---|---|
+| Fresh-from-zero: 35/35 Migrationen, `20260712140000` → `20260808120000` | PASS |
+| Kein impliziter Seed (`[db.seed] enabled=false` unverändert) | PASS — 0 Zeilen in allen `public`-Tabellen, 0 `auth.users` |
+| `db lint --level error --fail-on error` | PASS |
+| Advisors `security` + `performance` | PASS — 85 Befunde, ausnahmslos `INFO`, kein `ERROR`/`WARN` |
+| pgTAP-Suite | PASS — 26 Dateien, **1274** Prüfungen |
+| Rollback-Replay, 30 Stufen in CI-Reihenfolge | PASS — 30/30 |
+| `migration up` + erneute pgTAP-Suite | PASS — wieder 1274 |
+| 19 Integration-/Concurrency-/Parity-Skripte des `database`-Jobs | PASS — 19/19, 0 Fehler |
+
+Autoritativ war der aktuelle `database`-Job aus `.github/workflows/flutter.yml`, nicht eine
+Rekonstruktion aus dem Gedächtnis. Keine Stufe übersprungen.
+
+### PG15→PG17-Audit an der tatsächlichen Nutzung
+
+**Keine einzige Migration legt eine Extension an** — die einzigen `create extension` stehen in
+Testdateien und betreffen `pgtap`. Der Migrationsstrang trägt damit kein Extension-Versionsrisiko.
+Installiert sind ausschließlich Supabase-Plattformvorgaben in ihren PG17-Fassungen: `pg_net`
+0.20.3, `pg_stat_statements` 1.11, `pgcrypto` 1.3, `plpgsql` 1.0, `supabase_vault` 0.3.1,
+`uuid-ossp` 1.1.
+
+| Konstrukt | Nutzung | Bewertung |
+|---|---|---|
+| `generated always as (…) stored` | 1× (`operations_signal_states.signal_key`) | COMPATIBLE — seit PG12 stabil, durch P2-D05a abgedeckt |
+| `regexp_replace(…, '\D', '', 'g')` | 3× (P2-D02) | COMPATIBLE — die in PG16 ergänzte `start`-Überladung greift nicht, `'g'` bindet an die `flags`-Variante; durch P2-D02 abgedeckt |
+| Enum-Typen | 36 | COMPATIBLE |
+| Trigger / Funktionen / Indizes | 52 / 65 / 174 | COMPATIBLE |
+| RLS | **38 von 38 Tabellen aktiv, 0 ohne** | COMPATIBLE — Default-Deny hält unter 17 |
+| Realtime-Publication | 11 Tabellen in `supabase_realtime`, wie deklariert | COMPATIBLE |
+| `IDENTITY`-Spalten, `MERGE`, `JSON_TABLE`, `CREATE STATISTICS`, `pg_stat_statements`-Abfragen, in 16/17 entfernte GUCs | **nicht verwendet** | — |
+
+**WARNINGS: keine. BLOCKERS: keine.**
+
+### Was ausdrücklich **nicht** geschah
+
+Kein `supabase link`, kein `db push`, keine Remote-Migration, kein Remote-SQL, kein
+Remote-Seed, keine Remote-Testnutzer, keine Auth-Konfiguration, kein SMTP, keine
+GitHub-Environment- oder Secret-Änderung, keine Vercel-Änderung, kein DNS, keine
+Production-Aktion. Das Staging-Projekt ist inhaltlich weiterhin leer und unmigriert.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| PG17-Kompatibilität lokal | **PROVEN** |
+| Lokale/CI-Basis | **PostgreSQL 17** |
+| Migration History | **unverändert (35)** |
+| Remote-Migration | **NOT STARTED** |
+| Auth / SMTP / GitHub-Environment / Vercel / Golden Paths | **unverändert offen** |
+| Production | **NOT AUTHORIZED** |
+
+**Status: `PostgreSQL 17 compatibility proven`.** Ausdrücklich **nicht** `remote migrated`.
+Phase 3 braucht eine gesonderte Freigabe.
