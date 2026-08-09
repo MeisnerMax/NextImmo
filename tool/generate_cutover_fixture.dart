@@ -39,7 +39,19 @@ const _createdAt = 1700000000000;
 const _updatedAt = 1700000100000;
 const _deletedAt = 1700000200000;
 
-Future<int> main(List<String> args) async {
+/// Dart discards whatever `main` returns — the process exits 0 regardless — so
+/// the exit code has to be assigned, not returned. The PowerShell wrappers have
+/// been reading `$LASTEXITCODE` all along; until this was fixed they were
+/// reading a constant.
+///
+/// `exitCode` rather than `exit()`: `exit()` terminates immediately and would
+/// skip the `finally` blocks that close the database, and it would truncate
+/// stdout that a caller parses as JSON.
+Future<void> main(List<String> args) async {
+  exitCode = await _run(args);
+}
+
+Future<int> _run(List<String> args) async {
   final output = _parseOutput(args);
   if (output == null) {
     stderr.writeln(

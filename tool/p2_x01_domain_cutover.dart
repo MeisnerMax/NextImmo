@@ -208,7 +208,20 @@ const Map<LegacyCutoverEntity, _TableSpec> _specs =
       ),
     };
 
-Future<int> main(List<String> args) async {
+/// Dart discards whatever `main` returns — the process exits 0 regardless — so
+/// the exit code has to be assigned, not returned. `verify_p2_x01_domain_
+/// cutover.ps1` has been reading `$LASTEXITCODE` all along; until this was
+/// fixed it was reading a constant, and only the later `import_ready` check
+/// kept the gate closed.
+///
+/// `exitCode` rather than `exit()`: `exit()` terminates immediately and would
+/// skip the `finally` that closes the legacy database, and it would truncate
+/// the stdout line the wrapper parses as JSON.
+Future<void> main(List<String> args) async {
+  exitCode = await _run(args);
+}
+
+Future<int> _run(List<String> args) async {
   final options = _parseArgs(args);
   if (options == null) {
     stderr.writeln(
