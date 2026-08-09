@@ -45,7 +45,7 @@ class _OperationalTasksPanelState extends ConsumerState<OperationalTasksPanel> {
     final controller = ref.read(operationalTasksControllerProvider.notifier);
     final properties = ref.watch(referenceSliceControllerProvider).properties;
     final visible = controller.visibleTasks();
-    final selected = _taskById(state.tasks, _selectedTaskId);
+    final selected = _taskById(visible, _selectedTaskId);
     _listenForActionFeedback();
 
     return Column(
@@ -612,6 +612,7 @@ class _TaskDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final allowedNextStatuses = _allowedNextStatuses(task.status);
     return NxCard(
       child: ListView(
         children: <Widget>[
@@ -656,7 +657,7 @@ class _TaskDetail extends StatelessWidget {
             task.description?.trim().isNotEmpty == true ? task.description! : '—',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          if (canMutate && task.status.allowedNextStatuses.isNotEmpty) ...<Widget>[
+          if (canMutate && allowedNextStatuses.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpacing.section),
             Text('Status ändern', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
@@ -664,7 +665,7 @@ class _TaskDetail extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: <Widget>[
-                for (final target in task.status.allowedNextStatuses)
+                for (final target in allowedNextStatuses)
                   OutlinedButton(
                     onPressed: () => onTransition(task, target),
                     child: Text(taskStatusLabel(target)),
@@ -1087,6 +1088,10 @@ TaskDto? _taskById(List<TaskDto> tasks, String? id) {
   }
   return null;
 }
+
+List<TaskStatus> _allowedNextStatuses(TaskStatus status) => TaskStatus.values
+    .where(status.canTransitionTo)
+    .toList(growable: false);
 
 bool _isActive(TaskDto task) =>
     task.status != TaskStatus.done && task.status != TaskStatus.archived;
