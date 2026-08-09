@@ -3,8 +3,18 @@
 Stand: 2026-08-09 · Basis `a371d22` · Vorbereitet in `STAGING-PREP-01`
 
 **Nichts hiervon ist ausgeführt.** Dieses Dokument beschreibt, was nach einem ausdrücklichen
-`DEC-017`-ACCEPT zu tun ist. `DEC-017` ist zum Zeitpunkt dieses Dokuments **offen**, und es
-existiert keine Remote-Umgebung.
+`DEC-017`-ACCEPT zu tun ist.
+
+`DEC-017` ist seit dem **2026-08-09 `accepted`** — für genau eine isolierte Umgebung mit
+ausschließlich synthetischen Daten. Eine Remote-Umgebung existiert trotzdem **nicht**:
+freigegeben ist nicht angelegt.
+
+Zusätzlich gilt die **Kostenregel** aus `DEC-017`: was ohne Zusatzkosten in bestehende
+Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt hält
+an und braucht eine gesonderte Freigabe mit Anbieter, Tarif, einmaligen und monatlichen
+Kosten und Kündbarkeit. In diesem Runbook betrifft das konkret Supabase (Abschnitt 4),
+Custom SMTP (Abschnitt 9) und jede Vercel-Planänderung oder kostenpflichtige
+Protection-Funktion (Abschnitt 6).
 
 ---
 
@@ -32,7 +42,7 @@ diesem SHA nicht alle vier Required Checks `success` sind.
 Diese Reihenfolge ist bewusst: erst die Umgebung, dann die Secrets, dann der Schalter.
 Wer den Schalter zuerst setzt, riskiert genau das ungeschützte Auto-Environment.
 
-1. `DEC-017` entscheiden.
+1. ~~`DEC-017` entscheiden.~~ **erledigt am 2026-08-09, `accepted`.**
 2. Supabase-Staging-Projekt anlegen (Abschnitt 4).
 3. GitHub-Environment `staging` **manuell** anlegen und konfigurieren (Abschnitt 3).
 4. Die fünf Werte als **Environment**-Secrets hinterlegen, nicht repositoryweit.
