@@ -309,17 +309,25 @@ class _SummaryStrip extends StatelessWidget {
           !due.isAfter(now.add(const Duration(days: 7)));
     }).length;
 
+    final metrics = <Widget>[
+      _Metric(label: 'Aktiv', value: '${active.length}'),
+      _Metric(label: 'Überfällig', value: '$overdue', critical: overdue > 0),
+      _Metric(label: 'Blockiert', value: '$blocked', critical: blocked > 0),
+      _Metric(label: 'Nächste 7 Tage', value: '$dueSoon'),
+      _Metric(label: 'Gesamt geladen', value: '${tasks.length}'),
+    ];
+
     return NxCard(
-      child: Wrap(
-        spacing: AppSpacing.section,
-        runSpacing: AppSpacing.sm,
-        children: <Widget>[
-          _Metric(label: 'Aktiv', value: '${active.length}'),
-          _Metric(label: 'Überfällig', value: '$overdue', critical: overdue > 0),
-          _Metric(label: 'Blockiert', value: '$blocked', critical: blocked > 0),
-          _Metric(label: 'Nächste 7 Tage', value: '$dueSoon'),
-          _Metric(label: 'Gesamt geladen', value: '${tasks.length}'),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            for (var index = 0; index < metrics.length; index++) ...<Widget>[
+              if (index > 0) const SizedBox(width: AppSpacing.section),
+              metrics[index],
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -378,25 +386,38 @@ class _Filters extends StatelessWidget {
   final ValueChanged<OperationalTaskAttentionFilter> onAttentionChanged;
   final VoidCallback onClear;
 
+  bool get _hasStructuredFilters =>
+      state.statusFilter != null ||
+      state.priorityFilter != null ||
+      state.assignmentFilter != OperationalTaskAssignmentFilter.all ||
+      state.entityTypeFilter != null ||
+      state.attentionFilter != OperationalTaskAttentionFilter.all;
+
+  int get _structuredFilterCount => <bool>[
+    state.statusFilter != null,
+    state.priorityFilter != null,
+    state.assignmentFilter != OperationalTaskAssignmentFilter.all,
+    state.entityTypeFilter != null,
+    state.attentionFilter != OperationalTaskAttentionFilter.all,
+  ].where((active) => active).length;
+
   @override
   Widget build(BuildContext context) {
-    return NxCard(
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: <Widget>[
-          SizedBox(
-            width: 250,
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchChanged,
-              decoration: const InputDecoration(
-                labelText: 'Aufgaben durchsuchen',
-                prefixIcon: Icon(Icons.search),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 1050;
+        final search = SizedBox(
+          width: compact ? double.infinity : 250,
+          child: TextField(
+            controller: searchController,
+            onChanged: onSearchChanged,
+            decoration: const InputDecoration(
+              labelText: 'Aufgaben durchsuchen',
+              prefixIcon: Icon(Icons.search),
             ),
           ),
+        );
+        final filters = <Widget>[
           _dropdown<TaskStatus?>(
             width: 175,
             label: 'Status',
@@ -498,8 +519,60 @@ class _Filters extends StatelessWidget {
               icon: const Icon(Icons.filter_alt_off, size: 18),
               label: const Text('Filter löschen'),
             ),
-        ],
-      ),
+        ];
+
+        if (!compact) {
+          return NxCard(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[search, ...filters],
+            ),
+          );
+        }
+
+        return NxCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              search,
+              const SizedBox(height: 4),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 8),
+                  initiallyExpanded: _hasStructuredFilters,
+                  title: const Text('Weitere Filter'),
+                  subtitle: Text(
+                    _structuredFilterCount == 0
+                        ? 'Status, Priorität, Zuweisung, Kontext und Attention'
+                        : '$_structuredFilterCount Filter aktiv',
+                  ),
+                  children: <Widget>[
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: SingleChildScrollView(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: filters,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
