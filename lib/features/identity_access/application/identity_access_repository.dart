@@ -100,6 +100,11 @@ enum IdentityAccessFailureKind {
   verificationFailed,
   rateLimited,
   infrastructureFailure,
+
+  /// Email and password did not match an account. Deliberately a single kind
+  /// for "no such user" and "wrong password": distinguishing them would let an
+  /// unauthenticated caller enumerate accounts.
+  invalidCredentials,
 }
 
 sealed class IdentityAccessResult<T> {
@@ -128,6 +133,15 @@ abstract interface class IdentityAccessRepository {
     required String userId,
   });
 
+  /// The primary sign-in. Yields an `aal1` session; privileged capabilities
+  /// stay closed until a TOTP factor lifts it to `aal2`.
+  Future<IdentityAccessResult<void>> signInWithPassword({
+    required String email,
+    required String password,
+  });
+
+  /// Retained for link-based flows such as password recovery, which still need
+  /// the desktop deep link. It is no longer part of the primary sign-in path.
   Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
     required String email,
   });

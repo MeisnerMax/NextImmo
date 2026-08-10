@@ -39,23 +39,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('submits passwordless email and TOTP step-up actions', (
+    testWidgets('submits email and password and TOTP step-up actions', (
       tester,
     ) async {
-      String? requestedEmail;
+      String? submittedEmail;
+      String? submittedPassword;
       await _pumpView(
         tester,
         state: _state(authPhase: ReferenceAuthPhase.unauthenticated),
-        onRequestPasswordlessSignIn: (email) async => requestedEmail = email,
+        onSignInWithPassword: (email, password) async {
+          submittedEmail = email;
+          submittedPassword = password;
+        },
       );
+
+      // The primary form is email + password, not a magic-link request.
+      expect(find.byKey(const Key('reference-auth-password')), findsOneWidget);
+      expect(find.text('Sign in'), findsOneWidget);
+      expect(find.textContaining('sign-in link'), findsNothing);
+
+      final passwordField = tester.widget<TextField>(
+        find.byKey(const Key('reference-auth-password')),
+      );
+      expect(passwordField.obscureText, isTrue);
 
       await tester.enterText(
         find.byKey(const Key('reference-auth-email')),
         'user@example.test',
       );
+      await tester.enterText(
+        find.byKey(const Key('reference-auth-password')),
+        'correct-horse',
+      );
       await tester.tap(find.byKey(const Key('reference-auth-submit')));
       await tester.pump();
-      expect(requestedEmail, 'user@example.test');
+      expect(submittedEmail, 'user@example.test');
+      expect(submittedPassword, 'correct-horse');
 
       String? factorId;
       String? code;
@@ -176,7 +195,7 @@ void main() {
                   onLoadNextPage: _noop,
                   onUpdateProperty: (_) async {},
                   onRetryUpdate: _noop,
-                  onRequestPasswordlessSignIn: _noopString,
+                  onSignInWithPassword: _noopSignIn,
                   onBeginTotpEnrollment: _noop,
                   onVerifyTotp: _noopVerify,
                   onSignOut: _noop,
@@ -321,7 +340,7 @@ Future<void> _pumpView(
   required ReferenceSliceState state,
   Size viewport = const Size(1440, 900),
   bool dark = false,
-  Future<void> Function(String email)? onRequestPasswordlessSignIn,
+  Future<void> Function(String email, String password)? onSignInWithPassword,
   Future<void> Function({
     required String selectedFactorId,
     required String selectedCode,
@@ -342,7 +361,7 @@ Future<void> _pumpView(
         onOpenProperty: _noopString,
         onUpdateProperty: (_) async {},
         onRetryUpdate: _noop,
-        onRequestPasswordlessSignIn: onRequestPasswordlessSignIn ?? _noopString,
+        onSignInWithPassword: onSignInWithPassword ?? _noopSignIn,
         onBeginTotpEnrollment: _noop,
         onVerifyTotp:
             ({required factorId, required code}) =>
@@ -378,6 +397,8 @@ void _setViewport(WidgetTester tester, Size viewport) {
 Future<void> _noop() async {}
 
 Future<void> _noopString(String _) async {}
+
+Future<void> _noopSignIn(String _, String __) async {}
 
 Future<void> _noopVerify({
   required String factorId,

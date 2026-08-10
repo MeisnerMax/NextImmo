@@ -10,6 +10,8 @@ abstract interface class IdentityAccessSupabaseGateway {
 
   Stream<AuthenticatedSession?> watchSession();
 
+  Future<void> signInWithPassword(String email, String password);
+
   Future<void> requestPasswordlessSignIn(String email, {String? redirectTo});
 
   Future<TotpEnrollment> enrollTotp();
@@ -53,6 +55,11 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
               previous?.currentAssuranceLevel == next?.currentAssuranceLevel &&
               previous?.nextAssuranceLevel == next?.nextAssuranceLevel,
         );
+  }
+
+  @override
+  Future<void> signInWithPassword(String email, String password) {
+    return _client.auth.signInWithPassword(email: email, password: password);
   }
 
   @override
@@ -220,6 +227,39 @@ class SupabaseIdentityAccessRepositoryAdapter
 
   @override
   Stream<AuthenticatedSession?> watchSession() => _gateway.watchSession();
+
+  @override
+  Future<IdentityAccessResult<void>> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    final normalized = email.trim();
+    if (!_validEmail(normalized)) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'Enter a valid email address.',
+      );
+    }
+    // Not trimmed: leading or trailing whitespace is part of a password.
+    if (password.isEmpty) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'Enter your password.',
+      );
+    }
+    if (_gateway.currentSession != null) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.forbidden,
+        message: 'Sign out before signing in again.',
+      );
+    }
+    try {
+      await _gateway.signInWithPassword(normalized, password);
+      return const IdentityAccessSuccess<void>(null);
+    } catch (error) {
+      return _authFailure<void>(error);
+    }
+  }
 
   @override
   Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
@@ -529,6 +569,9 @@ bool _validEmail(String value) {
 
 IdentityAccessFailure<T> _authFailure<T>(Object error) {
   final kind = switch (error) {
+    AuthException(code: final code)
+        when _invalidCredentialCodes.contains(code) =>
+      IdentityAccessFailureKind.invalidCredentials,
     AuthException(code: final code) when _rateLimitCodes.contains(code) =>
       IdentityAccessFailureKind.rateLimited,
     AuthException(code: final code) when _verificationCodes.contains(code) =>
@@ -540,6 +583,10 @@ IdentityAccessFailure<T> _authFailure<T>(Object error) {
     _ => IdentityAccessFailureKind.infrastructureFailure,
   };
   final message = switch (kind) {
+    // One message for a wrong password and for an address with no account.
+    // Anything more specific is an account-enumeration oracle.
+    IdentityAccessFailureKind.invalidCredentials =>
+      'Email or password is incorrect.',
     IdentityAccessFailureKind.rateLimited =>
       'Too many authentication attempts. Try again later.',
     IdentityAccessFailureKind.verificationFailed =>
@@ -552,6 +599,14 @@ IdentityAccessFailure<T> _authFailure<T>(Object error) {
   return IdentityAccessFailure<T>(kind: kind, message: message);
 }
 
+// GoTrue answers a wrong password and an unknown address with the same code,
+// which is the behaviour this relies on; `email_not_confirmed` is folded in so
+// that confirmation state is not observable from the sign-in form either.
+const _invalidCredentialCodes = <String?>{
+  'invalid_credentials',
+  'invalid_grant',
+  'email_not_confirmed',
+};
 const _rateLimitCodes = <String?>{
   'over_request_rate_limit',
   'over_email_send_rate_limit',
