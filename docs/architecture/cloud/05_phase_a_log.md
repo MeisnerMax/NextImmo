@@ -1876,3 +1876,95 @@ Environment-Secret `VERCEL_TOKEN` in `staging` hinterlegen; danach `STAGING_DEPL
 setzen und den Conversion-PR mergen.
 
 **Status: `automatic staging deploy is prepared, still fail-closed`.**
+
+---
+
+## 2026-08-10 · `STAGING-DEPLOY-ACTIVATION-01` — Erster automatischer Deploy
+
+**`Merging a green PR into protected main now builds and deploys that exact SHA to the NexImmo
+staging Vercel preview and moves a stable public vercel.app alias onto it — with no manual
+deployment step.`**
+
+Der Owner hat den dedizierten CI-Token als Environment-Secret hinterlegt; damit waren erstmals
+**5/5** Deploy-Werte vorhanden. Danach `STAGING_DEPLOY_ENABLED=true` und PR #24 regulär
+gemergt — der Rest lief ohne Eingriff.
+
+### Die Kette, real durchlaufen
+
+| Schritt | Nachweis |
+|---|---|
+| Merge PR #24 (Expected-Head-Guard auf `fd4ebfb`) | Merge-SHA **`00b19d35db70322174792280f6caf3c7dcaf522b`**, `main` danach exakt dieser SHA |
+| `Flutter` startet automatisch auf dem Merge | Run **31408857987**, `event=push`, `branch=main`, `sha=00b19d3…` |
+| Vier Jobs | `verify`, `supply_chain`, `marketing`, `database` — alle `success` |
+| `Web App Deploy` startet automatisch | Run **31410150765**, `event=workflow_run` — **kein** manueller Dispatch |
+| Gate | `Triggering commit: 00b19d3…`, dann `Deployable: 00b19d3… is current main and green` |
+| Deploy-Job | Checkout, `Deploying 00b19d3…`, Vier-Check-Reverifikation, 5/5 Werte, Flutter 3.29.2, Artefaktprüfung, Preview-Deploy — alle Schritte `success` |
+
+Der Alias-Schritt wurde in diesem ersten Lauf korrekt **übersprungen**, weil
+`VERCEL_STAGING_ALIAS` noch nicht existierte — genau die Absicherung, die verhindert, dass der
+erste Deploy an einer fehlenden stabilen Adresse scheitert.
+
+### Das Deployment
+
+| | |
+|---|---|
+| Projekt | `app.neximmo.de` / `prj_jEJXOtnXzZelrFhie8PbE8JKdUKD` |
+| Deployment ID | **`dpl_DREwbgxwtECmLRacGJsRfNPRSpzT`** |
+| Unique Preview URL | `https://appneximmo-ffa9eyfvd-meisners-projects.vercel.app` |
+| Target | **`preview`** — nicht Production |
+| Status | `● Ready` |
+| Git-Metadaten | Filter `--meta githubCommitSha=00b19d3…` liefert genau dieses Deployment |
+
+### Vercel Authentication deaktiviert
+
+Vorher `ssoProtection.deploymentType = all_except_custom_domains`; der Preview antwortete mit
+`302` auf `vercel.com/sso-api`. Genau eine Mutation:
+`project protection disable app.neximmo.de --sso`. Nachher `ssoProtection: null`,
+`gitForkProtection` unverändert `true`; Password Protection, Firewall, Attack Mode, Skew
+Protection und Automation Bypass wurden nicht angefasst.
+
+**Wirkung projektweit, ausdrücklich akzeptiert:** die Abschaltung gilt auch für die
+historischen Deployments dieses App-Projekts. `DEC-017` erlaubt das für APP-STAGING. Die Daten
+bleiben durch Supabase-Auth, RLS, Permissions und AAL2 geschützt — öffentlich ist nur das
+statische Client-Artefakt. Added cost €0.
+
+### SPA-Routing erstmals **remote** bewiesen
+
+Ohne Login und ohne Protection-Bypass: `/` → `200`, `/properties` → `200` (direkter Request,
+keine Client-Navigation), Reload von `/properties` → `200`, und `/properties/abc123` → `200`.
+Kein SSO-Redirect, kein `401`, kein `404`. Damit greift der Rewrite aus `web/vercel.json`
+nachweislich auf Vercel selbst — bisher war nur das Artefakt geprüft.
+
+### Staging-Bindung im ausgelieferten Client
+
+`main.dart.js` (4,27 MB) enthält die Ref `vhxdgchhgyzbjnogjicb` und **ausschließlich** diese —
+kein zweites Supabase-Projekt. Vorhanden ist ein `sb_publishable_`-Key (Wert nicht
+protokolliert). **Nicht** enthalten: `service_role`, `sb_secret`, `SUPABASE_SECRET`,
+`SERVICE_ROLE_KEY`, `postgres://`-URI, Legacy-`anon`-JWT.
+
+### Stabile Staging-Adresse
+
+`neximmo-staging.vercel.app` war unbelegt (`x-vercel-error: DEPLOYMENT_NOT_FOUND`) und wurde
+per `alias set` auf genau dieses Deployment gelegt. `inspect` der Adresse liefert
+`dpl_DREwbgxwtECmLRacGJsRfNPRSpzT`, Target `preview`. Auf der stabilen Adresse: `/` und
+`/properties` → `200`, Reload → `200`, kein SSO, korrekte Staging-Ref, keine Server-Credentials.
+Kein Custom Domain, kein DNS, kein Production-Alias.
+
+Anschließend als Repository-Variable **`VERCEL_STAGING_ALIAS = neximmo-staging.vercel.app`**
+persistiert. Ab jetzt verschiebt jeder erfolgreiche Auto-Deploy diese Adresse auf den neuesten
+Preview.
+
+### Zustand danach
+
+| | |
+|---|---|
+| `STAGING_DEPLOY_ENABLED` | `true` |
+| `VERCEL_STAGING_ALIAS` | `neximmo-staging.vercel.app` |
+| Staging-Secrets | 5/5 vorhanden (Namen; Werte nie gelesen) |
+| Supabase `vhxdgchhgyzbjnogjicb` | 35/35 Migrationen, `auth.users=0`, 0 Business-Daten, 65 SECURITY-DEFINER-Funktionen, 0 `PUBLIC`/`anon` EXECUTE, RLS auf 38 Tabellen — **unverändert** |
+| Auth · SMTP · Nutzer · Golden Paths | **weiterhin nicht konfiguriert / nicht gelaufen** |
+| Marketing `prj_egbIYUEGWzonI4dCxaVZwsurxEmy` | unverändert, Protection weiterhin `all_except_custom_domains` |
+| Production | **NOT AUTHORIZED** — kein `--prod`, kein Promote, kein Production-Alias, keine Domain, kein DNS |
+
+**Status: `the automatic staging deployment chain works end to end`.** Ausdrücklich **nicht**
+`staging is authenticated` — das ist das nächste Paket.

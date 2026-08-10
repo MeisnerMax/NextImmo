@@ -27,12 +27,27 @@ Protection-Funktion (Abschnitt 6).
 
 ## 1. Was der Deploy-Pfad heute tut
 
-**Entscheidung (2026-08-10, Owner):** Staging aktualisiert sich künftig **automatisch** nach
+**Entscheidung (2026-08-10, Owner):** Staging aktualisiert sich **automatisch** nach
 einem grünen protected-main-Lauf. Kette: PR → Required CI → Merge auf `main` → der
 `Flutter`-Workflow läuft auf diesem Push → bei Erfolg feuert `Web App Deploy` über
 `workflow_run` und deployt genau diesen Commit als Vercel **Preview**. Der manuelle
 Environment-Reviewer für Staging entfällt damit. **Production bleibt vollständig manuell und
 weiterhin nicht autorisiert.**
+
+**Am 2026-08-10 real durchlaufen** (Merge-SHA `00b19d3…`, `Flutter` 31408857987,
+`Web App Deploy` 31410150765, Deployment `dpl_DREwbgxwtECmLRacGJsRfNPRSpzT`, Target `preview`).
+Aktivierungszustand seither:
+
+| Schalter | Wert |
+|---|---|
+| `STAGING_DEPLOY_ENABLED` | `true` |
+| `VERCEL_STAGING_ALIAS` | `neximmo-staging.vercel.app` |
+| Staging-Secrets | 5/5 |
+| Vercel Authentication (SSO) auf dem App-Projekt | **deaktiviert** (projektweit, nach `DEC-017` akzeptiert) |
+
+**Stabile Staging-Adresse: `https://neximmo-staging.vercel.app`.** Jeder erfolgreiche
+Auto-Deploy verschiebt diesen Alias auf den neuesten Preview. Diese Adresse ist der Kandidat
+für die Supabase Site URL — **noch nicht gesetzt**, das gehört in das Auth-Paket.
 
 Vercel baut den Flutter-Source **nicht** selbst: der autoritative Pfad bleibt GitHub Actions
 → Flutter 3.29.2 → `flutter build web` → `build/web` → Vercel CLI (nur Upload). Die Vercel
