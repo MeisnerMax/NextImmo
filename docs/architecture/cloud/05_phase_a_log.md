@@ -1844,19 +1844,35 @@ verifiziert. Publishable Key ist ein echter `sb_publishable_`-Key genau dieser R
 
 ### Weiterhin fail-closed — kein Deploy in diesem Paket
 
-`VERCEL_TOKEN` fehlt: `vercel tokens add --project …` wird für diese OAuth-Session mit
+`VERCEL_TOKEN` fehlt: `vercel tokens add` wird für diese OAuth-Session mit
 `403 Cannot create tokens for this app` abgelehnt (alle vorhandenen Credentials sind
 „Sign in with Vercel"-Sessions). Der 403 erzeugte **kein** Orphan-Token. Es wurde bewusst kein
-breiter Account-Token als Ersatz verwendet. Zusätzlich ist `STAGING_DEPLOY_ENABLED` **unset**.
-Damit ist der Pfad auf zwei unabhängigen Sperren geschlossen.
+bestehender ChatGPT-, CLI- oder Browser-Session-Token als Ersatz verwendet. Zusätzlich ist
+`STAGING_DEPLOY_ENABLED` **unset**. Damit ist der Pfad auf zwei unabhängigen Sperren
+geschlossen.
 
 Nicht geschehen: kein Deploy, kein `STAGING_DEPLOY_ENABLED=true`, keine Vercel-Protection-
 Änderung, kein Alias gesetzt, keine Supabase-Auth/Site-URL/Redirects, kein SMTP, keine Nutzer,
 keine Production-Aktion. Staging-DB read-only unverändert (35/35, `auth.users=0`, 0
 Business-Daten, 65 SECURITY-DEFINER-Funktionen, 0 `PUBLIC`/`anon` EXECUTE).
 
-**Offener Owner-Schritt vor dem ersten Auto-Deploy:** einen dedizierten, projektgescopten
-Vercel-Token (`app.neximmo.de`) erstellen und als Environment-Secret `VERCEL_TOKEN` in `staging`
-hinterlegen; danach `STAGING_DEPLOY_ENABLED=true` setzen und den Conversion-PR mergen.
+### Credential-Modell
+
+Die Vercel-Authentisierung erfolgt **ausschließlich** über die Environment-Variable
+`VERCEL_TOKEN`; der Workflow übergibt **kein** `--token`-Argument. Die Vercel-Doku empfiehlt
+genau das für CI, „because it avoids exposing the token in command-line arguments, which can be
+visible in process lists and logs".
+
+Verwendet wird ein **eigener, dedizierter CI-Token** allein für NexImmo Staging — Name
+`NexImmo Staging GitHub Actions`, Scope `meisners-projects` —, hinterlegt ausschließlich als
+Environment-Secret `VERCEL_TOKEN` im GitHub-Environment `staging`. Ausdrücklich **kein**
+bestehender ChatGPT-/CLI-/Browser-Session-Token und kein Production-Credential. Die technische
+Eingrenzung auf das richtige Ziel leistet der Workflow selbst über
+`VERCEL_ORG_ID = team_y0Oo1StxpcV8ChFf85AKjEtC` und
+`VERCEL_PROJECT_ID_APP = prj_jEJXOtnXzZelrFhie8PbE8JKdUKD`.
+
+**Offener Owner-Schritt vor dem ersten Auto-Deploy:** diesen Token erstellen und als
+Environment-Secret `VERCEL_TOKEN` in `staging` hinterlegen; danach `STAGING_DEPLOY_ENABLED=true`
+setzen und den Conversion-PR mergen.
 
 **Status: `automatic staging deploy is prepared, still fail-closed`.**

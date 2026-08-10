@@ -261,9 +261,16 @@ jobs:
           DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
         run: |
           # stdout of `vercel deploy` is always the deployment URL. It is not a
-          # secret; the token is passed via env and never printed.
+          # secret and is safe to surface.
+          #
+          # Authentication comes solely from the VERCEL_TOKEN environment
+          # variable above; the credential is deliberately never passed as a
+          # command argument. Vercel documents the environment variable as the
+          # recommended CI form "because it avoids exposing the token in
+          # command-line arguments, which can be visible in process lists and
+          # logs". VERCEL_ORG_ID and VERCEL_PROJECT_ID likewise pin the target
+          # without project linking.
           url="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy build/web \
-            --token="$VERCEL_TOKEN" \
             --yes \
             --meta githubDeployment=1 \
             --meta githubCommitRef=main \
@@ -287,8 +294,11 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS }}
         run: |
+          # Same as the deploy step: authentication via the VERCEL_TOKEN
+          # environment variable only, never as an argument. --scope carries the
+          # team id, which is an identifier rather than a credential, and the
+          # alias docs note it may be required here.
           npx --yes "vercel@${VERCEL_CLI_VERSION}" alias set "$DEPLOYMENT_URL" "$STAGING_ALIAS" \
-            --token="$VERCEL_TOKEN" \
             --scope="$VERCEL_ORG_ID"
           echo "Stable staging alias $STAGING_ALIAS -> $DEPLOYMENT_URL"
 
