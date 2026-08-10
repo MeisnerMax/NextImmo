@@ -2061,3 +2061,69 @@ Feldnamen sind bereits aus der offiziellen OpenAPI-Spezifikation verifiziert:
 | `auth.users` | **0** — kein Testnutzer, kein Login durchgeführt |
 | Golden Path | **NOT RUN** |
 | Production | **NOT AUTHORIZED** |
+
+---
+
+## 2026-08-10 · `STAGING-PASSWORD-AUTH-01` — Remote-Auth-Konfiguration gesetzt (Closeout)
+
+**`STAGING-PASSWORD-AUTH-01 PASS — NexImmo now uses email/password as its primary authentication
+method, preserves TOTP as the AAL2 second factor, keeps public and anonymous signup disabled, and
+no longer depends on Magic Link or SMTP for normal login. No users, recovery flow or production
+resource were created or changed.`**
+
+Der im vorigen Eintrag offene Punkt ist geschlossen. Der Owner stellte für diesen Prozess ein
+`SUPABASE_ACCESS_TOKEN` als lokale Environment-Variable bereit (User-Scope). Das Token wurde
+ausschließlich als `Authorization`-Header über einen In-Process-HTTP-Call verwendet — nie als
+CLI-Argument, nie geloggt, nie in eine Datei geschrieben; berichtet wurde nur seine Präsenz.
+
+### Vorgehen
+
+Baseline erneut exakt bestätigt (`origin/main` = `0c8e27b`, PR #26 open, Head `90f3438`,
+Worktree sauber, 4/4 Required-CI-Jobs grün). Die Feldnamen wurden vor dem PATCH erneut gegen die
+aktuelle offizielle OpenAPI-Spezifikation (`UpdateAuthConfigBody` in
+`https://api.supabase.com/api/v1-json`) verifiziert und stimmten mit der früheren Verifikation
+überein. Read-only-Preflight: `GET /v1/projects/vhxdgchhgyzbjnogjicb` → `ACTIVE_HEALTHY`,
+Region `eu-central-1`.
+
+### BEFORE → AFTER (nur nicht-sensitive Felder)
+
+| Feld | BEFORE | AFTER |
+|---|---|---|
+| `external_email_enabled` | `true` | `true` (unverändert) |
+| `disable_signup` | `false` | **`true`** (einzige Änderung) |
+| `external_anonymous_users_enabled` | `false` | `false` (unverändert) |
+| `mfa_totp_enroll_enabled` | `true` | `true` (unverändert) |
+| `mfa_totp_verify_enabled` | `true` | `true` (unverändert) |
+| `mfa_phone_enroll_enabled` / `mfa_phone_verify_enabled` | `false` / `false` | unverändert |
+| `site_url` | `http://localhost:3000` | unverändert (bewusst; Passwortlogin braucht keinen Redirect) |
+| `uri_allow_list` | leer | unverändert |
+| SMTP | NOT CONFIGURED | NOT CONFIGURED |
+| `password_min_length` | `6` | `6` (unverändert; nicht Teil des autorisierten Feld-Sets) |
+
+Email-Auth, Anonymous-off und TOTP enroll/verify waren remote bereits korrekt — der
+Minimal-Diff bestand aus **genau einem Feld**. Es gab **genau einen** `PATCH
+/v1/projects/vhxdgchhgyzbjnogjicb/config/auth` mit dem Payload `{"disable_signup":true}`;
+keine Defaults, keine weiteren Felder, kein `supabase config push`. Der vollständige Readback
+bestätigte die Zieldurchsetzung und dass sich kein anderes Feld geändert hat.
+
+### Negative Verifikation
+
+Read-only per SQL (`SELECT`-only) gegen `vhxdgchhgyzbjnogjicb`: **35/35 Migrationen** (35 lokale
+Dateien, pending 0), `auth.users = 0`, `auth.mfa_factors = 0`, **0 Business-Zeilen** (exakte
+Zählung über alle 38 public-Tabellen), **65 SECURITY-DEFINER-Funktionen**, `PUBLIC` EXECUTE = 0,
+`anon` EXECUTE = 0, **RLS 38/38**. Stable Staging unverändert: `/` und `/properties` liefern
+`200`. Kein Vercel-Setting verändert, Marketing (`prj_egbIYUEGWzonI4dCxaVZwsurxEmy`) und
+Production unangetastet. Kein Nutzer angelegt, keine E-Mail versendet, kein Login, kein
+MFA-Enrollment, kein Golden Path. Added cost €0.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Client: E-Mail/Passwort-Login | **implementiert und getestet** |
+| Remote-Auth-Konfiguration | **GESETZT** — Signup aus, Anonymous aus, Email an, TOTP enroll/verify an |
+| Site URL / URI Allow List | **unverändert** (Redirect-Themen folgen mit Recovery separat) |
+| SMTP | **NOT CONFIGURED** (blockiert den Login nicht) |
+| `auth.users` | **0** — Testnutzer folgt erst in `STAGING-TEST-USER-01` |
+| Golden Path | **NOT RUN** (`GP-STAGING-WEB` folgt später) |
+| Production | **NOT AUTHORIZED** |
