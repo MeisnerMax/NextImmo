@@ -1705,3 +1705,84 @@ eigenes Folgepaket, kein Teil dieses Audits.
 | SMTP · synthetische Nutzer · Golden Paths | **unverändert offen** |
 | Remote-Mutation in diesem Paket | **keine** |
 | Production | **NOT AUTHORIZED** |
+
+---
+
+## 2026-08-10 · `SECURITY-REGRESSION-TESTS-01` — Die Sicherheitsbeweise werden dauerhaft
+
+**`The authorization boundaries proven once in REMOTE-SECURITY-GATE-01 are now asserted on
+every CI run. No runtime security code, migration or remote resource was touched.`**
+
+Baseline `c1971f9`, eigener isolierter Worktree. Das Security Gate hatte seine adversarialen
+Proben nur temporär gefahren; genau diese Lücke schließt dieses Paket.
+
+### Zuerst geprüft, was bereits dauerhaft abgedeckt ist
+
+Die bestehende Suite ist stark: 1274 Prüfungen in 26 Dateien, davon 83 `throws_ok`-Verweigerungen
+inklusive echter `anon`-RPC-Aufrufe. Anonymer Zugriff, Cross-Workspace- und
+Foreign-Entity-Abweisung, Membership- und Rolleneskalation, `aal1`-deny mit `aal2`-allow,
+direkter Tabellenschreibzugriff, Audit-Append-only und `version_conflict` sind damit **bereits
+dauerhaft bewiesen** und wurden bewusst **nicht dupliziert**.
+
+**Die tatsächliche Lücke war eine andere:** jede vorhandene Katalogprüfung ist mit
+`proname in (...)` auf die Funktionen ihres eigenen Feature-Schnitts eingegrenzt. Eine **neue**
+Funktion, die mit `EXECUTE` an `PUBLIC` oder ohne gepinnten `search_path` ausgeliefert wird,
+besteht sie alle. Deshalb genau **eine** neue Datei mit bewusst **ungescopten** Invarianten
+statt zwanzig neuer Testdateien:
+`supabase/tests/026_security_regression_invariants.test.sql`, **22 Prüfungen**.
+
+### Was jetzt schemaweit gilt
+
+| Invariante | Prüfung |
+|---|---|
+| `EXECUTE` an `PUBLIC` | 0 — inklusive `proacl is null`, wo PostgreSQL sonst still `EXECUTE` an `PUBLIC` vergibt |
+| `EXECUTE` an `anon` | 0, in `public` wie in `private` |
+| `search_path=""` · Owner `postgres` | für jede `SECURITY DEFINER`-Funktion in `public` |
+| Inventar | 65 — Änderungen sind erlaubt, müssen aber im selben PR sichtbar nachgezogen werden |
+| Direkt aufrufbare private `SECURITY DEFINER`-Helper | 0 |
+| `private`-Helper für `authenticated` | nur die fünf aufrufergebundenen Autorisierungsprädikate |
+| Schreibrechte für `authenticated` auf Tabellen | 0 · `anon`/`PUBLIC` halten überhaupt nichts |
+| RLS | auf jeder Tabelle in `public` |
+| `mutation_receipts` | für jede Client-Rolle geschlossen |
+| Aufreferidentität als Parameter | keine — und `p_owner_user_id` erreicht kein Autorisierungsprädikat |
+| `DEC-016` | jede RPC, die Membership-Zustand ändert, läuft über das Gate; das Gate erzwingt weiterhin `aal2`; die Menge ist weiterhin die auditierten fünf |
+| Dynamisches SQL | 0 in `public` und `private` |
+| Identitätsloser Aufrufer | wird abgewiesen — geprüft auf die exakte Meldung, nicht nur auf `forbidden` |
+
+`service_role` wird bewusst **nicht** als abwesend behauptet: der Grant existiert gehostet und
+wurde im Gate akzeptiert. Eine Invariante „darf nie `EXECUTE` haben" würde eine Erwartung
+festschreiben, über die lokal und gehostet uneins sind.
+
+### Die Tests wurden selbst geprüft
+
+Im Security Gate waren zwei Proben zunächst aus dem falschen Grund grün. Deshalb wurde jede
+neue Invariante **mutationsgetestet**: die zugehörige Grenze wurde in einer zurückgerollten
+Transaktion gezielt gebrochen — `EXECUTE` an `PUBLIC` und an `anon` vergeben, `search_path`
+zurückgesetzt, `insert` auf einer Tabelle gewährt, RLS abgeschaltet, `mutation_receipts`
+geöffnet. **6/6 schlugen dabei nachweislich an.** Eine Prüfung, die ihre eigene Regression nicht
+erkennt, ist keine Prüfung.
+
+Die identitätslose Laufzeitprobe prüft zusätzlich die genaue Fehlermeldung: ein fehlender
+Workspace würde ebenfalls `forbidden` liefern, sodass der Code allein aus dem falschen Grund
+grün sein könnte.
+
+### Validierung
+
+| Gate | Ergebnis |
+|---|---|
+| Frischer Reset, 35 Migrationen, `db lint`, beide Advisors | PASS |
+| pgTAP-Suite | **27 Dateien, 1296 Prüfungen** (vorher 26 / 1274), 0 Failures |
+| Rollback-Replay, 30 Stufen + erneute 1296 | PASS |
+| 19 Integration-/Concurrency-/Parity-Skripte | **19/19** |
+| Zusätzliche CI-Laufzeit | **< 1 s** — die Invarianten sind Katalogabfragen in derselben Transaktion, ohne eigenen Reset |
+
+Die Datei liegt in `supabase/tests/`, das der `database`-Job ohne Dateiliste einliest. Sie läuft
+damit im Required-Job mit, ohne Workflow-Änderung und ohne `continue-on-error`.
+
+### Ohne Nebenwirkung
+
+Kein Runtime-Security-Code, keine Function, kein Grant, keine Policy, keine Migration, keine
+`config.toml`, kein App-Code. **Keine Remote-Verbindung**: dieses Paket brauchte keine und hat
+keine hergestellt. Auth bleibt `not configured`.
+
+**Status: `the audited authorization boundaries are now CI-enforced`.**
