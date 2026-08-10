@@ -4,23 +4,35 @@ name: Web App Deploy
 # lives in its own Vercel project built from marketing/ and is never touched
 # here (see docs/architecture/cloud/01_target_cloud_architecture.md).
 #
-# INERT BY DEFAULT, on two independent gates:
+# AUTOMATIC after a green protected-main CI run. The chain is:
+#
+#   PR -> required CI -> merge to protected main -> the `Flutter` workflow runs
+#   on that push -> if it succeeds, this workflow fires via workflow_run and
+#   deploys that exact commit as a Vercel PREVIEW.
+#
+# This is not a bare push-deploy and it is not Vercel's own Git integration.
+# The Flutter toolchain still builds `build/web` in GitHub Actions and the
+# Vercel CLI only uploads the finished artifact. Vercel's Git integration stays
+# disconnected (DEPLOY-DRIFT-02) and the root vercel.json keeps
+# git.deploymentEnabled=false as a second, independent guard.
+#
+# Still fail-closed on two independent gates, so an unconfigured repository
+# cannot deploy:
 #
 #   1. the repository variable STAGING_DEPLOY_ENABLED must equal "true". It is
-#      not a secret and is deliberately not set. Until an owner sets it, the
-#      deploy job cannot run -- and because it cannot run, it also cannot
-#      create the `staging` environment by referencing it. GitHub creates a
-#      referenced environment on first use *without any protection rules or
-#      secrets*, which is exactly the unguarded state this gate prevents.
+#      not a secret and is deliberately unset until an owner flips it. Until
+#      then the deploy job never runs, so it also cannot create the `staging`
+#      environment in the unguarded state GitHub gives a first-referenced one.
 #   2. inside the `staging` environment, all five values the deploy needs must
 #      be present. Presence only -- no value is ever printed.
 #
-# There is no automatic trigger. A staging deploy is an explicit act on one
-# named commit that has already passed the four required checks, not a side
-# effect of opening a pull request.
+# workflow_run runs with access to secrets even though the triggering workflow
+# did not, so the eligibility gate below is deliberately strict: it deploys only
+# a successful push to main of this very repository, only the SHA that is still
+# the current tip of main, and only when the four named checks are green on it.
 #
-# Production is intentionally absent: no --prod, no production alias, no custom
-# domain. Promotion stays a manual, reviewed decision (Phase O).
+# Production is intentionally absent: no --prod, no --target, no production
+# alias, no custom domain. Promotion stays a separate, manual decision.
 #
 # Required values, all inside the `staging` environment:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_APP
@@ -30,20 +42,27 @@ name: Web App Deploy
 # (phase_1/01_environment_contract.md).
 
 on:
-  workflow_dispatch:
-    inputs:
-      sha:
-        description: 'Full commit SHA to deploy. Must be on main and green.'
-        required: true
-        type: string
+  workflow_run:
+    # The exact name of the CI workflow in .github/workflows/flutter.yml.
+    workflows:
+      - Flutter
+    types:
+      - completed
+    # Only completions of `Flutter` runs that happened on main are considered;
+    # the job-level guard below re-checks this and more before anything runs.
+    branches:
+      - main
 
 permissions:
   contents: read
   checks: read
 
 concurrency:
+  # A newer eligible run cancels an older in-flight one: staging should reflect
+  # the newest green main, never an older deploy that finished last. The
+  # stale-main guard in `gate` is the second half of that guarantee.
   group: web-deploy-staging
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   # Pinned rather than @latest: a deploy that cannot be reproduced tomorrow is
@@ -51,41 +70,99 @@ env:
   VERCEL_CLI_VERSION: '58.9.0'
 
 jobs:
+  # No environment and no secrets here: eligibility is decided entirely from the
+  # event payload and public API before the `staging` environment is touched.
   gate:
     runs-on: ubuntu-latest
+    # Every clause must hold. Because workflow_run can read secrets, none of
+    # these may be skipped: a successful *push* (not a PR run, not a manual
+    # dispatch of Flutter) on *main* of *this* repository (not a fork), with the
+    # kill switch explicitly on.
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == 'MeisnerMax/NextImmo' &&
+      vars.STAGING_DEPLOY_ENABLED == 'true'
     outputs:
-      enabled: ${{ steps.check.outputs.enabled }}
+      proceed: ${{ steps.decide.outputs.proceed }}
+      deploy_sha: ${{ steps.sha.outputs.deploy_sha }}
     steps:
-      - id: check
-        env:
-          STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
+      - name: Resolve the triggering commit
+        id: sha
         run: |
-          if [ "$STAGING_DEPLOY_ENABLED" = "true" ]; then
-            echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'enabled=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::Staging deploy is disabled. Set the repository variable STAGING_DEPLOY_ENABLED=true to enable it.'
+          # For workflow_run, GITHUB_SHA points at the tip of the default
+          # branch, not the commit that triggered the upstream run. head_sha is
+          # the authoritative one and everything downstream uses only this.
+          deploy_sha='${{ github.event.workflow_run.head_sha }}'
+          if ! printf '%s' "$deploy_sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::Unexpected head_sha '$deploy_sha'."
+            exit 1
           fi
+          echo "deploy_sha=$deploy_sha" >> "$GITHUB_OUTPUT"
+          echo "Triggering commit: $deploy_sha"
+
+      - name: Decide whether this commit is still the deployable tip of main
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ steps.sha.outputs.deploy_sha }}
+        run: |
+          # An older CI run must never overwrite a newer staging state. If main
+          # has already moved past the triggering commit, skip cleanly -- this
+          # is a no-op, not a failure, and needs no secrets.
+          current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current" != "$DEPLOY_SHA" ]; then
+            echo "::notice::Trigger SHA is no longer current main; stale staging deployment skipped."
+            echo "  trigger: $DEPLOY_SHA"
+            echo "  current: $current"
+            echo 'proceed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Belt and suspenders: the Flutter run already concluded success, but
+          # confirm the four named checks are individually green on this exact
+          # commit before we touch the environment.
+          missing=''
+          for check in verify supply_chain marketing database; do
+            conclusion="$(gh api "repos/${{ github.repository }}/commits/$DEPLOY_SHA/check-runs" \
+              --jq ".check_runs[] | select(.name==\"$check\") | .conclusion" | head -n1)"
+            if [ "$conclusion" != "success" ]; then
+              missing="$missing $check(${conclusion:-absent})"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::Required checks are not green on $DEPLOY_SHA; deployment skipped:$missing"
+            echo 'proceed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          echo "Deployable: $DEPLOY_SHA is current main and green."
 
   deploy_staging:
     needs: gate
-    if: needs.gate.outputs.enabled == 'true'
+    if: needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: staging
     steps:
       - uses: actions/checkout@v4
         with:
-          # The exact commit, never a moving ref: the artifact has to be
-          # traceable to one SHA, and that SHA is what the gate below checks.
-          ref: ${{ inputs.sha }}
+          # The exact triggering commit, never a moving ref: the artifact has to
+          # be traceable to one SHA, and that SHA is what is re-verified below.
+          # No artifact from the upstream Flutter run is trusted or downloaded;
+          # the source is checked out fresh here.
+          ref: ${{ needs.gate.outputs.deploy_sha }}
           persist-credentials: false
 
       - name: Confirm the deployed commit
+        env:
+          DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
         run: |
           actual="$(git rev-parse HEAD)"
-          if [ "$actual" != "${{ inputs.sha }}" ]; then
-            echo "::error::Checked out $actual but was asked for ${{ inputs.sha }}."
+          if [ "$actual" != "$DEPLOY_SHA" ]; then
+            echo "::error::Checked out $actual but was asked for $DEPLOY_SHA."
             exit 1
           fi
           echo "Deploying $actual"
@@ -93,19 +170,20 @@ jobs:
       - name: Require the four checks to be green on this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
         run: |
           # A staging deploy of a commit that never passed CI would make the
           # environment meaningless as a test of that commit.
           missing=''
           for check in verify supply_chain marketing database; do
-            conclusion="$(gh api "repos/${{ github.repository }}/commits/${{ inputs.sha }}/check-runs" \
+            conclusion="$(gh api "repos/${{ github.repository }}/commits/$DEPLOY_SHA/check-runs" \
               --jq ".check_runs[] | select(.name==\"$check\") | .conclusion" | head -n1)"
             if [ "$conclusion" != "success" ]; then
               missing="$missing $check(${conclusion:-absent})"
             fi
           done
           if [ -n "$missing" ]; then
-            echo "::error::Required checks are not green on ${{ inputs.sha }}:$missing"
+            echo "::error::Required checks are not green on $DEPLOY_SHA:$missing"
             exit 1
           fi
 
@@ -118,9 +196,8 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY_STAGING: ${{ secrets.SUPABASE_PUBLISHABLE_KEY_STAGING }}
         run: |
           # Presence only. Naming which one is missing is safe; printing any
-          # value is not. A partial configuration used to pass: the old
-          # preflight checked three of these five, so a deploy could start
-          # without an org id or without the publishable key.
+          # value is not. Exactly these five, no sixth: no service role key, no
+          # DB password, no access token belongs in a client build.
           missing=''
           for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_APP \
                       SUPABASE_URL_STAGING SUPABASE_PUBLISHABLE_KEY_STAGING; do
@@ -171,13 +248,51 @@ jobs:
             exit 1
           fi
 
-      # No --prod and no --target: a preview deployment. Production would need
-      # an authorized decision that does not exist.
+      # No --prod and no --target: a preview deployment. Production would need an
+      # authorized decision that does not exist. Because Vercel's Git integration
+      # is disconnected, the commit attribution is supplied explicitly via
+      # --meta so the deployment is still traceable to this exact main commit.
       - name: Deploy preview to Vercel
+        id: deploy
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_APP }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
         run: |
-          npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy build/web \
-            --token=${{ secrets.VERCEL_TOKEN }} \
-            --yes
+          # stdout of `vercel deploy` is always the deployment URL. It is not a
+          # secret; the token is passed via env and never printed.
+          url="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy build/web \
+            --token="$VERCEL_TOKEN" \
+            --yes \
+            --meta githubDeployment=1 \
+            --meta githubCommitRef=main \
+            --meta "githubCommitSha=$DEPLOY_SHA" \
+            --meta githubOrg=MeisnerMax \
+            --meta githubRepo=NextImmo)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview deployment: $url"
+
+      # A stable staging address, updated to point at each newest preview. This
+      # step is inert until an owner sets the repository variable
+      # VERCEL_STAGING_ALIAS to a proven, free *.vercel.app host -- so the first
+      # ever deploy cannot fail here for lack of a stable address. No custom
+      # domain, no DNS.
+      - name: Point the stable staging alias at this preview
+        if: vars.VERCEL_STAGING_ALIAS != ''
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_APP }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS }}
+        run: |
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" alias set "$DEPLOYMENT_URL" "$STAGING_ALIAS" \
+            --token="$VERCEL_TOKEN" \
+            --scope="$VERCEL_ORG_ID"
+          echo "Stable staging alias $STAGING_ALIAS -> $DEPLOYMENT_URL"
+
+      - name: Note when no stable alias is configured yet
+        if: vars.VERCEL_STAGING_ALIAS == ''
+        run: |
+          echo "::notice::No stable staging alias configured; set the repository variable VERCEL_STAGING_ALIAS to a proven *.vercel.app host to enable it. Preview URL: ${{ steps.deploy.outputs.url }}"

@@ -27,7 +27,19 @@ Protection-Funktion (Abschnitt 6).
 
 ## 1. Was der Deploy-Pfad heute tut
 
-Der Workflow ist **inert** und zwar über zwei voneinander unabhängige Sperren:
+**Entscheidung (2026-08-10, Owner):** Staging aktualisiert sich künftig **automatisch** nach
+einem grünen protected-main-Lauf. Kette: PR → Required CI → Merge auf `main` → der
+`Flutter`-Workflow läuft auf diesem Push → bei Erfolg feuert `Web App Deploy` über
+`workflow_run` und deployt genau diesen Commit als Vercel **Preview**. Der manuelle
+Environment-Reviewer für Staging entfällt damit. **Production bleibt vollständig manuell und
+weiterhin nicht autorisiert.**
+
+Vercel baut den Flutter-Source **nicht** selbst: der autoritative Pfad bleibt GitHub Actions
+→ Flutter 3.29.2 → `flutter build web` → `build/web` → Vercel CLI (nur Upload). Die Vercel
+Git-Integration bleibt **disconnected** (`DEPLOY-DRIFT-02`), und die Root-`vercel.json` behält
+zusätzlich `git.deploymentEnabled=false`.
+
+Der Workflow ist trotz Automatik **fail-closed** über zwei voneinander unabhängige Sperren:
 
 1. Die Repository-Variable `STAGING_DEPLOY_ENABLED` muss `true` sein. Sie ist kein Secret,
    und sie ist **nicht gesetzt**.
@@ -38,9 +50,13 @@ Environment beim ersten Lauf automatisch an — laut Dokumentation „will not h
 protection rules or secrets configured". Solange der Deploy-Job nicht laufen darf, kann er
 das Environment auch nicht in diesem ungeschützten Zustand erzeugen.
 
-Es gibt **keinen** automatischen Trigger mehr. Ein Staging-Deploy ist `workflow_dispatch`
-mit einem ausdrücklichen Commit-SHA, und der Workflow verweigert die Arbeit, wenn auf
-diesem SHA nicht alle vier Required Checks `success` sind.
+Weil ein `workflow_run`-Workflow laut GitHub-Doku **Zugriff auf Secrets** erhält (anders als
+der auslösende Lauf), ist das Eligibility-Gate bewusst streng: deployt wird nur ein
+`event == 'push'`, `conclusion == 'success'` auf `head_branch == 'main'` **dieses** Repos
+(kein Fork), nur der SHA aus `github.event.workflow_run.head_sha`, nur solange dieser noch die
+aktuelle Spitze von `main` ist (Stale-Main-Guard), und nur wenn die vier Required Checks auf
+genau diesem SHA `success` sind. Kein Artefakt des vorherigen Laufs wird übernommen; der
+Source wird über den exakten SHA frisch ausgecheckt.
 
 ---
 
