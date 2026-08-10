@@ -1786,3 +1786,93 @@ Kein Runtime-Security-Code, keine Function, kein Grant, keine Policy, keine Migr
 keine hergestellt. Auth bleibt `not configured`.
 
 **Status: `the audited authorization boundaries are now CI-enforced`.**
+
+---
+
+## 2026-08-10 · `DEPLOY-DRIFT-02` + `STAGING-DEPLOY-ACTIVATION-01` (Auto-Conversion)
+
+**`The Flutter app Vercel project is no longer Git-connected, and the staging deploy workflow
+now fires automatically after a green protected-main CI run — but stays fail-closed because
+VERCEL_TOKEN is absent and STAGING_DEPLOY_ENABLED is unset.`**
+
+### `DEPLOY-DRIFT-02` — Vercel Git-Integration getrennt
+
+Read-only war bewiesen, dass das Flutter-App-Projekt trotz `git.deploymentEnabled=false` in
+der Root-`vercel.json` weiterhin Git-getriggerte Deployments erzeugte (ein Preview mit
+Dependabot-Branch-Alias). Genau eine externe Mutation: `vercel git disconnect` auf
+`app.neximmo.de` / `prj_jEJXOtnXzZelrFhie8PbE8JKdUKD` — Ergebnis `Disconnected MeisnerMax/NextImmo`.
+Danach: Projekt existiert, ID unverändert, bestehende Deployments erhalten, Domains unverändert,
+kein neuer Deploy ausgelöst, ein erneutes `git disconnect` meldet „No Git repository connected".
+Das Marketing-Projekt `prj_egbIYUEGWzonI4dCxaVZwsurxEmy` blieb unangetastet. Der Root-Guard
+`git.deploymentEnabled=false` bleibt als zweite, unabhängige Schicht. Added cost €0.
+
+### Owner-Entscheidung: automatischer Staging-Deploy
+
+Die frühere Vorgabe „manueller Environment-Reviewer" wurde aufgehoben. Staging aktualisiert
+sich künftig automatisch nach grünem protected-main-CI; Production bleibt getrennt und manuell.
+Vercel baut den Flutter-Source **nicht** selbst — GitHub Actions bleibt Build-/Deploy-
+Orchestrator, die Git-Integration bleibt disconnected.
+
+### `web_deploy.yml` konvertiert
+
+| | vorher | nachher |
+|---|---|---|
+| Trigger | `workflow_dispatch(sha)` | `workflow_run` des `Flutter`-Workflows, `types: [completed]`, `branches: [main]` |
+| Deploy-SHA | manueller Input | `github.event.workflow_run.head_sha` (nicht `GITHUB_SHA`, das zeigt bei `workflow_run` auf die Default-Branch-Spitze) |
+| Eligibility | — | `event=='push'` ∧ `conclusion=='success'` ∧ `head_branch=='main'` ∧ `head_repository=='MeisnerMax/NextImmo'` ∧ `STAGING_DEPLOY_ENABLED=='true'` |
+| Stale-Main-Guard | — | vergleicht Trigger-SHA gegen aktuelle `refs/heads/main`; ältere Läufe **skippen** sauber, ohne Fehler |
+| Concurrency | `cancel-in-progress: false` | `web-deploy-staging`, `cancel-in-progress: true` |
+| Git-Metadaten | — | `--meta githubDeployment=1/githubCommitRef=main/githubCommitSha=$SHA/githubOrg/githubRepo` |
+| Stabiler Alias | — | vorbereitet, läuft nur wenn `vars.VERCEL_STAGING_ALIAS` gesetzt ist; erster Deploy scheitert sonst nicht |
+
+Unverändert: `--prod`/`--target`/`promote` kommen nur in Kommentaren vor, die ihre bewusste
+Abwesenheit erklären; Flutter 3.29.2, Vercel CLI 58.9.0, die 5-Secret-Preflight, die
+Artefaktprüfungen (SPA-Rewrite, keine Server-Credentials, keine Git-Policy im Artefakt).
+
+### GitHub-Environment `staging`
+
+Angelegt (kein fremdes vorhanden), dann für die Automatik der Required Reviewer entfernt:
+`required_reviewers`-Regel jetzt 0, Wait-Timer 0, Deployment-Branch-Policy custom mit **exakt**
+`main`, keine Tags. Die vier Environment-Secrets `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_APP`,
+`SUPABASE_URL_STAGING`, `SUPABASE_PUBLISHABLE_KEY_STAGING` blieben erhalten (Werte nie
+ausgegeben). Die vier historischen Environments (`Preview`, `Production`,
+`Preview – app.neximmo.de`, `Production – app.neximmo.de`) unangetastet.
+
+`SUPABASE_URL_STAGING` = `https://vhxdgchhgyzbjnogjicb.supabase.co`, live gegen `/auth/v1/health`
+verifiziert. Publishable Key ist ein echter `sb_publishable_`-Key genau dieser Ref; kein
+`sb_secret`, kein `service_role`, kein Legacy-`anon`-JWT, kein DB-Passwort, kein Access-Token.
+
+### Weiterhin fail-closed — kein Deploy in diesem Paket
+
+`VERCEL_TOKEN` fehlt: `vercel tokens add` wird für diese OAuth-Session mit
+`403 Cannot create tokens for this app` abgelehnt (alle vorhandenen Credentials sind
+„Sign in with Vercel"-Sessions). Der 403 erzeugte **kein** Orphan-Token. Es wurde bewusst kein
+bestehender ChatGPT-, CLI- oder Browser-Session-Token als Ersatz verwendet. Zusätzlich ist
+`STAGING_DEPLOY_ENABLED` **unset**. Damit ist der Pfad auf zwei unabhängigen Sperren
+geschlossen.
+
+Nicht geschehen: kein Deploy, kein `STAGING_DEPLOY_ENABLED=true`, keine Vercel-Protection-
+Änderung, kein Alias gesetzt, keine Supabase-Auth/Site-URL/Redirects, kein SMTP, keine Nutzer,
+keine Production-Aktion. Staging-DB read-only unverändert (35/35, `auth.users=0`, 0
+Business-Daten, 65 SECURITY-DEFINER-Funktionen, 0 `PUBLIC`/`anon` EXECUTE).
+
+### Credential-Modell
+
+Die Vercel-Authentisierung erfolgt **ausschließlich** über die Environment-Variable
+`VERCEL_TOKEN`; der Workflow übergibt **kein** `--token`-Argument. Die Vercel-Doku empfiehlt
+genau das für CI, „because it avoids exposing the token in command-line arguments, which can be
+visible in process lists and logs".
+
+Verwendet wird ein **eigener, dedizierter CI-Token** allein für NexImmo Staging — Name
+`NexImmo Staging GitHub Actions`, Scope `meisners-projects` —, hinterlegt ausschließlich als
+Environment-Secret `VERCEL_TOKEN` im GitHub-Environment `staging`. Ausdrücklich **kein**
+bestehender ChatGPT-/CLI-/Browser-Session-Token und kein Production-Credential. Die technische
+Eingrenzung auf das richtige Ziel leistet der Workflow selbst über
+`VERCEL_ORG_ID = team_y0Oo1StxpcV8ChFf85AKjEtC` und
+`VERCEL_PROJECT_ID_APP = prj_jEJXOtnXzZelrFhie8PbE8JKdUKD`.
+
+**Offener Owner-Schritt vor dem ersten Auto-Deploy:** diesen Token erstellen und als
+Environment-Secret `VERCEL_TOKEN` in `staging` hinterlegen; danach `STAGING_DEPLOY_ENABLED=true`
+setzen und den Conversion-PR mergen.
+
+**Status: `automatic staging deploy is prepared, still fail-closed`.**
