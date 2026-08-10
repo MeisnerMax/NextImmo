@@ -36,7 +36,7 @@ class SupabaseSecurityGate extends ConsumerWidget {
         onOpenProperty: controller.openProperty,
         onUpdateProperty: controller.updateSelectedProperty,
         onRetryUpdate: controller.retryUpdate,
-        onRequestPasswordlessSignIn: controller.requestPasswordlessSignIn,
+        onSignInWithPassword: controller.signInWithPassword,
         onBeginTotpEnrollment: controller.beginTotpEnrollment,
         onVerifyTotp: controller.verifyTotp,
         onSignOut: controller.signOut,

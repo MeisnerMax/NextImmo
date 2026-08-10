@@ -165,6 +165,102 @@ void main() {
       expect(failure.message, isNot(contains('missing-permission')));
     });
 
+    test('signs in with email and password', () async {
+      gateway.currentSession = null;
+
+      final result = await repository.signInWithPassword(
+        email: '  user@example.test  ',
+        password: 'correct-horse',
+      );
+
+      expect(result, isA<IdentityAccessSuccess<void>>());
+      expect(gateway.passwordSignIns, hasLength(1));
+      // The email is normalised, the password is passed through untouched:
+      // surrounding whitespace is part of a password.
+      expect(gateway.passwordSignIns.single.email, 'user@example.test');
+      expect(gateway.passwordSignIns.single.password, 'correct-horse');
+      // The primary path must not fall back to a magic link.
+      expect(gateway.passwordlessEmails, isEmpty);
+    });
+
+    test('rejects malformed input before contacting the gateway', () async {
+      gateway.currentSession = null;
+
+      final badEmail = await repository.signInWithPassword(
+        email: 'invalid',
+        password: 'correct-horse',
+      );
+      expect(
+        (badEmail as IdentityAccessFailure<void>).kind,
+        IdentityAccessFailureKind.invalidInput,
+      );
+
+      final noPassword = await repository.signInWithPassword(
+        email: 'user@example.test',
+        password: '',
+      );
+      expect(
+        (noPassword as IdentityAccessFailure<void>).kind,
+        IdentityAccessFailureKind.invalidInput,
+      );
+
+      expect(gateway.passwordSignIns, isEmpty);
+    });
+
+    test('does not disclose whether an account exists', () async {
+      // GoTrue answers a wrong password and an unknown address with the same
+      // code; the adapter must not turn that into two different messages.
+      gateway.currentSession = null;
+      gateway.passwordError = const AuthException(
+        'Invalid login credentials',
+        code: 'invalid_credentials',
+      );
+
+      final failure =
+          await repository.signInWithPassword(
+                email: 'user@example.test',
+                password: 'wrong',
+              )
+              as IdentityAccessFailure<void>;
+
+      expect(failure.kind, IdentityAccessFailureKind.invalidCredentials);
+      expect(failure.message, 'Email or password is incorrect.');
+      expect(failure.message, isNot(contains('Invalid login credentials')));
+      expect(failure.message.toLowerCase(), isNot(contains('not found')));
+      expect(failure.message.toLowerCase(), isNot(contains('no user')));
+    });
+
+    test('reports an unconfirmed email the same way', () async {
+      // Otherwise the sign-in form reveals that the address is registered.
+      gateway.currentSession = null;
+      gateway.passwordError = const AuthException(
+        'Email not confirmed',
+        code: 'email_not_confirmed',
+      );
+
+      final failure =
+          await repository.signInWithPassword(
+                email: 'user@example.test',
+                password: 'correct-horse',
+              )
+              as IdentityAccessFailure<void>;
+
+      expect(failure.kind, IdentityAccessFailureKind.invalidCredentials);
+      expect(failure.message, 'Email or password is incorrect.');
+    });
+
+    test('refuses a second sign-in while a session exists', () async {
+      final failure =
+          await repository.signInWithPassword(
+                email: 'user@example.test',
+                password: 'correct-horse',
+              )
+              as IdentityAccessFailure<void>;
+
+      expect(failure.kind, IdentityAccessFailureKind.forbidden);
+      expect(gateway.passwordSignIns, isEmpty);
+    });
+
     test('requests passwordless sign-in without implicit signup', () async {
       gateway.currentSession = null;
 
@@ -357,6 +453,10 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
     nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
   );
 
+  final List<({String email, String password})> passwordSignIns =
+      <({String email, String password})>[];
+  Object? passwordError;
+
   List<Map<String, dynamic>> memberships = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> workspaces = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> rolePermissions = <Map<String, dynamic>>[];
@@ -388,6 +488,15 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   @override
   Stream<AuthenticatedSession?> watchSession() =>
       const Stream<AuthenticatedSession?>.empty();
+
+  @override
+  Future<void> signInWithPassword(String email, String password) async {
+    passwordSignIns.add((email: email, password: password));
+    final error = passwordError;
+    if (error != null) {
+      throw error;
+    }
+  }
 
   @override
   Future<void> requestPasswordlessSignIn(

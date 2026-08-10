@@ -67,7 +67,7 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
       },
       onUpdateProperty: controller.updateSelectedProperty,
       onRetryUpdate: controller.retryUpdate,
-      onRequestPasswordlessSignIn: controller.requestPasswordlessSignIn,
+      onSignInWithPassword: controller.signInWithPassword,
       onBeginTotpEnrollment: controller.beginTotpEnrollment,
       onVerifyTotp: controller.verifyTotp,
       onSignOut: controller.signOut,
@@ -128,7 +128,7 @@ class ReferenceSliceView extends StatefulWidget {
     required this.onOpenProperty,
     required this.onUpdateProperty,
     required this.onRetryUpdate,
-    required this.onRequestPasswordlessSignIn,
+    required this.onSignInWithPassword,
     required this.onBeginTotpEnrollment,
     required this.onVerifyTotp,
     required this.onSignOut,
@@ -146,7 +146,8 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function(String propertyId) onOpenProperty;
   final Future<void> Function(PropertyUpdateDto changes) onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
-  final Future<void> Function(String email) onRequestPasswordlessSignIn;
+  final Future<void> Function(String email, String password)
+  onSignInWithPassword;
   final Future<void> Function() onBeginTotpEnrollment;
   final Future<void> Function({required String factorId, required String code})
   onVerifyTotp;
@@ -161,14 +162,18 @@ class ReferenceSliceView extends StatefulWidget {
 class _ReferenceSliceViewState extends State<ReferenceSliceView> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _totpCodeController = TextEditingController();
   String _query = '';
   String? _selectedFactorId;
+  bool _passwordObscured = true;
 
   @override
   void dispose() {
     _searchController.dispose();
     _emailController.dispose();
+    // Drops the only in-memory copy of the password with the form.
+    _passwordController.dispose();
     _totpCodeController.dispose();
     super.dispose();
   }
@@ -183,7 +188,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
           child: CircularProgressIndicator(),
         );
       case ReferenceAuthPhase.unauthenticated:
-        return _buildPasswordlessSignIn();
+        return _buildPasswordSignIn();
       case ReferenceAuthPhase.mfaRequired:
         return _buildMfaStepUp();
       case ReferenceAuthPhase.error:
@@ -293,7 +298,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
 
   bool get _authActionBusy {
     return switch (widget.state.authActionPhase) {
-      ReferenceAuthActionPhase.sendingEmail ||
+      ReferenceAuthActionPhase.signingIn ||
       ReferenceAuthActionPhase.loadingFactors ||
       ReferenceAuthActionPhase.enrolling ||
       ReferenceAuthActionPhase.verifying ||
@@ -302,7 +307,19 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     };
   }
 
-  Widget _buildPasswordlessSignIn() {
+  // Single entry point for the button and for the keyboard submit, so both go
+  // through the same busy check and cannot double-submit.
+  void _submitPasswordSignIn() {
+    if (_authActionBusy) {
+      return;
+    }
+    widget.onSignInWithPassword(
+      _emailController.text,
+      _passwordController.text,
+    );
+  }
+
+  Widget _buildPasswordSignIn() {
     final state = widget.state;
     return _AuthFormShell(
       key: const Key('reference-unauthenticated'),
@@ -310,7 +327,7 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Icon(
-            Icons.mark_email_read_outlined,
+            Icons.lock_outline,
             size: 32,
             color: Theme.of(context).colorScheme.primary,
           ),
@@ -322,7 +339,8 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Enter your existing account email. We will send a passwordless sign-in link.',
+            'Sign in with your email and password. '
+            'A second factor is required afterwards.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -332,28 +350,49 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(labelText: 'Email'),
+          ),
+          const SizedBox(height: AppSpacing.component),
+          TextField(
+            key: const Key('reference-auth-password'),
+            controller: _passwordController,
+            // Never rendered in clear text unless the user asks, and never
+            // written anywhere but this controller.
+            obscureText: _passwordObscured,
+            autofillHints: const [AutofillHints.password],
             textInputAction: TextInputAction.done,
             onSubmitted:
-                _authActionBusy ? null : widget.onRequestPasswordlessSignIn,
-            decoration: const InputDecoration(labelText: 'Email'),
+                _authActionBusy ? null : (_) => _submitPasswordSignIn(),
+            decoration: InputDecoration(
+              labelText: 'Password',
+              suffixIcon: IconButton(
+                key: const Key('reference-auth-password-visibility'),
+                tooltip: _passwordObscured ? 'Show password' : 'Hide password',
+                icon: Icon(
+                  _passwordObscured
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                onPressed:
+                    () => setState(
+                      () => _passwordObscured = !_passwordObscured,
+                    ),
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.component),
           FilledButton.icon(
             key: const Key('reference-auth-submit'),
-            onPressed:
-                _authActionBusy
-                    ? null
-                    : () => widget.onRequestPasswordlessSignIn(
-                      _emailController.text,
-                    ),
+            onPressed: _authActionBusy ? null : _submitPasswordSignIn,
             icon:
-                state.authActionPhase == ReferenceAuthActionPhase.sendingEmail
+                state.authActionPhase == ReferenceAuthActionPhase.signingIn
                     ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                    : const Icon(Icons.send_outlined),
-            label: const Text('Send sign-in link'),
+                    : const Icon(Icons.login_outlined),
+            label: const Text('Sign in'),
           ),
           if (state.authMessage != null) ...[
             const SizedBox(height: AppSpacing.component),

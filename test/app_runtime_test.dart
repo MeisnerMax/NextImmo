@@ -167,6 +167,12 @@ class _IdentityRepository implements IdentityAccessRepository {
   }
 
   @override
+  Future<IdentityAccessResult<void>> signInWithPassword({
+    required String email,
+    required String password,
+  }) async => throw UnimplementedError();
+
+  @override
   Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
     required String email,
   }) async => throw UnimplementedError();

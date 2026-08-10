@@ -1968,3 +1968,96 @@ Preview.
 
 **Status: `the automatic staging deployment chain works end to end`.** Ausdrücklich **nicht**
 `staging is authenticated` — das ist das nächste Paket.
+
+---
+
+## 2026-08-10 · `STAGING-PASSWORD-AUTH-01` — E-Mail/Passwort als primärer Login, TOTP bleibt AAL2
+
+**`Email and password is the primary sign-in; TOTP remains the AAL2 second factor. Magic Link is
+no longer the primary login, so normal sign-in no longer depends on SMTP.`**
+
+Baseline `0c8e27b`, eigener isolierter Worktree.
+
+### Owner-Entscheidung
+
+Der Login ist künftig `E-Mail + Passwort → aal1 → TOTP → aal2 → NexImmo`. Damit ist SMTP für den
+normalen Login **keine Voraussetzung mehr**; Passwort-Recovery und SMTP folgen separat und
+blockieren den Login nicht.
+
+### Der Client-Vertrag, vorher erneut geprüft
+
+Nicht aus dem alten Audit übernommen, sondern gegen den aktuellen `main` bestätigt:
+`_platformPasswordlessRedirectTo()` liefert auf Web `null` (Site URL greift) und auf Windows
+exakt `neximmo://auth/callback`; der OTP-Aufruf trug `shouldCreateUser: false`. Alle drei
+stimmten noch.
+
+### Was sich im Code ändert
+
+| Ebene | Änderung |
+|---|---|
+| `identity_access_repository.dart` | neue `signInWithPassword({email, password})`; neue Failure-Art `invalidCredentials` |
+| Gateway/Adapter | `signInWithPassword` auf `auth.signInWithPassword`; Validierung, Guard gegen zweiten Login, generische Fehlerabbildung |
+| `reference_slice_controller.dart` | `signInWithPassword`-Aktion; Phasen `sendingEmail`/`emailSent` → `signingIn`; `requestPasswordlessSignIn` ist nicht mehr Teil des Login-Pfads |
+| Login-UI | E-Mail **und** Passwortfeld (`obscureText`, Show/Hide-Toggle), Submit per Button und Enter über **einen** Pfad mit Busy-Guard |
+| Security Gate | auf die neue Aktion verdrahtet |
+
+**Kein Klartext-Leck:** das Passwort lebt ausschließlich im `TextEditingController`, wird mit
+dem Formular verworfen, nie geloggt, nie in den State geschrieben und bei Erfolg **nicht** in
+einer Meldung gespiegelt. Es wird bewusst **nicht** getrimmt — führende und abschließende
+Leerzeichen gehören zum Passwort.
+
+**Keine Account-Enumeration:** falsches Passwort, unbekannte Adresse und `email_not_confirmed`
+werden alle auf dieselbe Meldung `Email or password is incorrect.` abgebildet. Das ist der
+Grund für die eigene Failure-Art statt der bisherigen Sammelkategorie „Authentication is
+temporarily unavailable“.
+
+### Magic Link und Deep Links
+
+Der Magic Link ist als **primärer Login** entfernt: die UI bietet ihn nicht mehr an, und der
+Login-Pfad ruft ihn nicht mehr auf. Die Deep-Link-/PKCE-Infrastruktur (`AUTH-DL-01`,
+`neximmo://auth/callback`) und die Repository-Methode `requestPasswordlessSignIn` bleiben
+bewusst erhalten — Password Recovery und Email-Verifikation brauchen sie später.
+
+### AAL-Grenze unverändert
+
+Passwortlogin ergibt `aal1`. Erst ein verifizierter TOTP-Faktor hebt die Session auf `aal2`. Die
+serverseitigen `DEC-016`-Guards wurden **nicht** angefasst; die Invarianten aus
+`SECURITY-REGRESSION-TESTS-01` laufen unverändert.
+
+### Nachweise
+
+`flutter analyze` sauber; **1408 Tests bestanden, 24 übersprungen, 0 Fehler**; beide Web-Builds
+(plain und Cloud-Entrypoint) erfolgreich. Neu sind Tests für Passwort-Login, Validierung ohne
+Gateway-Kontakt, Nicht-Enumerierbarkeit bei falschen Credentials und bei unbestätigter E-Mail,
+Ablehnung eines zweiten Logins bei bestehender Session, generische Fehlermeldung im Controller,
+Doppel-Submit-Schutz sowie ein Widget-Test, der Passwortfeld, `obscureText` und die Abwesenheit
+des Magic-Link-Textes prüft.
+
+### Offen: Remote-Auth-Konfiguration
+
+Die Staging-Auth-Konfiguration (Signup aus, Email-Auth an, TOTP enroll/verify an) konnte in
+diesem Paket **nicht** gesetzt werden: die Supabase Management API antwortet ohne Token mit
+`401`, und das CLI-Token liegt im Windows Credential Manager, den die Ausführungsumgebung nicht
+lesen darf. `supabase config push` wäre kein Ersatz — es schreibt die **lokale** `config.toml`
+(`site_url = http://127.0.0.1:3000`, `enable_signup = true`) nach Staging und bewirkte damit
+genau das Gegenteil. Es wurde deshalb **keine** Remote-Konfiguration verändert.
+
+Erforderlicher Owner-Schritt: einen Supabase Personal Access Token bereitstellen; danach ist der
+Rest ein einzelner minimaler `PATCH /v1/projects/vhxdgchhgyzbjnogjicb/config/auth`. Die exakten
+Feldnamen sind bereits aus der offiziellen OpenAPI-Spezifikation verifiziert:
+`site_url`, `uri_allow_list`, `disable_signup`, `external_email_enabled`,
+`mfa_totp_enroll_enabled`, `mfa_totp_verify_enabled`.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Client: E-Mail/Passwort-Login | **implementiert und getestet** |
+| Magic Link als primärer Login | **entfernt** |
+| Deep-Link-Infrastruktur | **erhalten** |
+| TOTP als AAL2-Faktor | **unverändert** |
+| Remote-Auth-Konfiguration | **NOCH NICHT GESETZT** |
+| SMTP | **NOT CONFIGURED** |
+| `auth.users` | **0** — kein Testnutzer, kein Login durchgeführt |
+| Golden Path | **NOT RUN** |
+| Production | **NOT AUTHORIZED** |

@@ -21,8 +21,7 @@ enum ReferenceAuthPhase {
 
 enum ReferenceAuthActionPhase {
   idle,
-  sendingEmail,
-  emailSent,
+  signingIn,
   loadingFactors,
   enrolling,
   enrollmentReady,
@@ -240,33 +239,37 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     await _handleSession(_identityRepository.currentSession, force: true);
   }
 
-  Future<void> requestPasswordlessSignIn(String email) async {
+  /// Primary sign-in. On success the session watcher drives the phase onwards:
+  /// to `mfaRequired` when a second factor is still owed, or to `authenticated`
+  /// once the session already carries `aal2`.
+  Future<void> signInWithPassword(String email, String password) async {
     if (state.authPhase != ReferenceAuthPhase.unauthenticated ||
         _identityActionBusy) {
       return;
     }
     final generation = ++_identityActionGeneration;
     state = state.copyWith(
-      authActionPhase: ReferenceAuthActionPhase.sendingEmail,
+      authActionPhase: ReferenceAuthActionPhase.signingIn,
       authMessage: null,
       totpFactors: const <TotpFactor>[],
       totpEnrollment: null,
     );
-    final result = await _identityRepository.requestPasswordlessSignIn(
+    final result = await _identityRepository.signInWithPassword(
       email: email,
+      password: password,
     );
-    if (generation != _identityActionGeneration ||
-        state.authPhase != ReferenceAuthPhase.unauthenticated) {
+    if (generation != _identityActionGeneration) {
       return;
     }
     switch (result) {
       case IdentityAccessSuccess<void>():
-        state = state.copyWith(
-          authActionPhase: ReferenceAuthActionPhase.emailSent,
-          authMessage:
-              'If the account exists, a passwordless sign-in link was sent.',
-        );
+        // No success message: the phase change is the feedback, and the
+        // password is never echoed back in any form.
+        state = state.copyWith(authActionPhase: ReferenceAuthActionPhase.idle);
       case IdentityAccessFailure<void>():
+        if (state.authPhase != ReferenceAuthPhase.unauthenticated) {
+          return;
+        }
         state = state.copyWith(
           authActionPhase: ReferenceAuthActionPhase.failed,
           authMessage: result.message,
@@ -382,7 +385,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
 
   bool get _identityActionBusy {
     return switch (state.authActionPhase) {
-      ReferenceAuthActionPhase.sendingEmail ||
+      ReferenceAuthActionPhase.signingIn ||
       ReferenceAuthActionPhase.loadingFactors ||
       ReferenceAuthActionPhase.enrolling ||
       ReferenceAuthActionPhase.verifying ||

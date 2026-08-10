@@ -51,21 +51,52 @@ void main() {
       expect(identity.listCalls, 0);
     });
 
-    test(
-      'requests a passwordless sign-in link with explicit feedback',
-      () async {
-        await controller.start();
+    test('signs in with email and password', () async {
+      await controller.start();
 
-        await controller.requestPasswordlessSignIn('user@example.test');
+      await controller.signInWithPassword('user@example.test', 'correct-horse');
 
-        expect(
-          controller.state.authActionPhase,
-          ReferenceAuthActionPhase.emailSent,
-        );
-        expect(identity.passwordlessEmails, <String>['user@example.test']);
-        expect(controller.state.authMessage, contains('sign-in link'));
-      },
-    );
+      expect(identity.passwordSignIns, hasLength(1));
+      expect(identity.passwordSignIns.single.email, 'user@example.test');
+      expect(identity.passwordSignIns.single.password, 'correct-horse');
+      // No magic link is sent on the primary path any more.
+      expect(identity.passwordlessEmails, isEmpty);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.idle,
+      );
+      // Nothing about the credentials is echoed back into the state.
+      expect(controller.state.authMessage, isNull);
+    });
+
+    test('reports a generic message for wrong credentials', () async {
+      identity.passwordResult = const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.invalidCredentials,
+        message: 'Email or password is incorrect.',
+      );
+      await controller.start();
+
+      await controller.signInWithPassword('user@example.test', 'wrong');
+
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.failed,
+      );
+      // Must not disclose whether the account exists.
+      expect(controller.state.authMessage, 'Email or password is incorrect.');
+      expect(controller.state.authMessage, isNot(contains('not found')));
+      expect(controller.state.authMessage, isNot(contains('no account')));
+    });
+
+    test('ignores a second submit while a sign-in is in flight', () async {
+      await controller.start();
+
+      final first = controller.signInWithPassword('user@example.test', 'pw');
+      final second = controller.signInWithPassword('user@example.test', 'pw');
+      await Future.wait(<Future<void>>[first, second]);
+
+      expect(identity.passwordSignIns, hasLength(1));
+    });
 
     test('blocks all data while an enrolled MFA factor is pending', () async {
       identity.currentSession = const AuthenticatedSession(
@@ -873,6 +904,11 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
   );
   int listCalls = 0;
   final List<String> passwordlessEmails = <String>[];
+  final List<({String email, String password})> passwordSignIns =
+      <({String email, String password})>[];
+  IdentityAccessResult<void> passwordResult = const IdentityAccessSuccess<void>(
+    null,
+  );
   int enrollmentCalls = 0;
   int factorCalls = 0;
   final List<String> challengedFactorIds = <String>[];
@@ -883,6 +919,15 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
 
   @override
   Stream<AuthenticatedSession?> watchSession() => _sessions.stream;
+
+  @override
+  Future<IdentityAccessResult<void>> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    passwordSignIns.add((email: email, password: password));
+    return passwordResult;
+  }
 
   @override
   Future<IdentityAccessResult<void>> requestPasswordlessSignIn({
