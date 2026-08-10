@@ -119,9 +119,9 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     `authenticated_security_definer_function_executable` — die bestehende
     `SECURITY DEFINER`-RPC-Architektur, lokal wie remote je 65 Funktionen), Performance
     85 `INFO`. **Kein `ERROR`.** Keine Empfehlung umgesetzt.
-    **Achtung:** kein Phase-3-Migrationsblocker und kein Schema-Drift, aber **ein Blocker vor
-    Schritt 16/17** — die Regelklasse ist in `REMOTE-SECURITY-GATE-01` zu bewerten, bevor
-    Staging-Auth oder authentifizierte synthetische Nutzer freigegeben werden.
+    **Nachgereicht:** die Regelklasse wurde am 2026-08-10 in `REMOTE-SECURITY-GATE-01`
+    bewertet — **PASS**, 0 Blocker, 0 unproven. Damit ist die Sperre vor Schritt 16/17
+    aufgehoben.
 13. ~~pgTAP-Suite.~~ **erledigt**: 26 Dateien, 1274 Prüfungen, 0 Failures — vorher als
     remote-sicher auditiert (alle Dateien `begin;`/`rollback;`, kein `commit;`), danach
     empirisch bestätigt, dass nichts zurückblieb.
@@ -140,10 +140,12 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     **`Realtime delivery remains UNPROVEN until a real connected staging client exercises the
     broadcast path.`** Vor `GP-STAGING` zu beweisen. Keine Partition von Hand erzeugt, kein
     Eingriff in das Plattformschema.
-16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt; zusätzlich durch
-    `REMOTE-SECURITY-GATE-01` gesperrt** (siehe Schritt 12).
-17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt; ebenfalls
-    durch `REMOTE-SECURITY-GATE-01` gesperrt.**
+16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt.** Die
+    Security-Sperre ist seit `REMOTE-SECURITY-GATE-01` (PASS) aufgehoben; das Paket darf
+    vorbereitet werden und braucht weiterhin eine eigene Owner-Freigabe. Dabei ist auch zu
+    zeigen, dass GoTrue auf Staging `aal2` tatsächlich korrekt ausstellt — die
+    DB-Erzwingung ist geprüft, der Auth-Betrieb nicht.
+17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt.**
 
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`

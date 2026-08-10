@@ -1605,3 +1605,103 @@ jedem authentifizierten synthetischen Nutzer. Braucht eine eigene Owner-Freigabe
 `staging is usable by the application` und ausdrücklich **nicht**
 `staging is security-cleared for authenticated use`. Phase 4 braucht eine gesonderte
 Freigabe, und `REMOTE-SECURITY-GATE-01` geht ihr voraus.
+
+---
+
+## 2026-08-10 · `REMOTE-SECURITY-GATE-01` — Pre-Auth-Audit der `SECURITY DEFINER`-RPCs
+
+**`The 65 SECURITY DEFINER RPCs were audited before any staging authentication exists. No
+privilege escalation, tenant escape or AAL bypass was demonstrated. 0 blockers, 0 unproven.`**
+
+Baseline `8528e8b`, eigener isolierter Worktree. **Reines Audit-Paket**: keine Funktion, kein
+Grant, keine Migration und keine Remote-Ressource wurde verändert. Anlass waren die 65
+`WARN` der Regel `authenticated_security_definer_function_executable` aus Phase 3.
+
+### Auditiert wurde nachweislich der Stand, der auf Staging läuft
+
+Für alle 65 Funktionen wurden Signatur, kanonischer `pg_get_functiondef`-MD5, Owner,
+Security-Modus und `search_path` remote **read-only** (`begin read only`, ohne Link) erhoben und
+gegen die lokale Basis verglichen: **identisch in allen fünf Feldern.**
+
+### Aggregierte Ergebnisse
+
+| Metrik | Wert |
+|---|---:|
+| Inventarisiert | **65/65** |
+| Klasse A (öffentliche API-RPC) | 59 |
+| Klasse B (privilegiert, AAL2) | 6 |
+| Klasse C (intern, direkt erreichbar) | **0** |
+| Klasse D (nur Backend/Admin) | 0 |
+| Klasse E (ungeklärt) | **0** |
+| `EXECUTE` für `PUBLIC` | **0** |
+| `EXECUTE` für `anon` | **0** |
+| `EXECUTE` für `authenticated` | 65 |
+| Expliziter, kontrollierter `search_path` (`""`) | **65/65** |
+| Ohne ausreichenden `search_path` | **0** |
+| Nach `DEC-016` AAL2-pflichtig | 5 |
+| davon serverseitig fail-closed erzwungen | **5/5** |
+| Zusätzlich AAL2-erzwingend über die Pflicht hinaus | 1 (`update_property`) |
+| Interne Helper direkt erreichbar | **0** |
+| Funktionen mit dynamischem SQL | **0** |
+| **BLOCKER** | **0** |
+| **UNPROVEN** | **0** |
+
+Pro Funktion: **64 `PASS`**, **1 `WARNING ACCEPTABLE`**, 0 `BLOCKER`, 0 `UNPROVEN`.
+
+### Die tragenden Kontrollen
+
+Alle 65 gehören `postgres`, laufen mit `search_path=""` und referenzieren jedes Objekt
+schemaqualifiziert. Weil der Owner `BYPASSRLS` besitzt, ist RLS **innerhalb** dieser Funktionen
+kein Schutz — die Autorisierung liegt deshalb im Funktionsrumpf selbst und wurde dort geprüft,
+nicht aus der Existenz von RLS abgeleitet.
+
+Die Aufruferidentität stammt ausnahmslos serverseitig aus `auth.uid()`; kein Parameter setzt
+sie. Ein `NULL`-Aufrufer fällt fail-closed durch. Schreibrechte auf Tabellen besitzen die
+Client-Rollen nicht — jede Mutation muss durch die RPC-Fläche. In allen 55 Funktionen mit
+Seiteneffekt liegt die Autorisierungsprüfung **vor** dem ersten Seiteneffekt. Es gibt kein
+dynamisches SQL; die 13 `format(`-Aufrufe erzeugen ausschließlich Meldungstexte.
+
+### Zwei Befunde, bewusst nicht behoben
+
+**1. `service_role`-Grant nur remote.** Auf Staging besitzt zusätzlich `service_role`
+`EXECUTE` auf allen 65 Funktionen — eine Plattformvorgabe des gehosteten Supabase, lokal
+nicht vorhanden. Kein Privilegiengewinn: `service_role` ist ohnehin `BYPASSRLS`, sein Schlüssel
+ist serverseitig und erreicht den Client nie, und ohne Nutzer-JWT ist `auth.uid()` `NULL`,
+sodass die Gates fail-closed greifen. `anon` und `PUBLIC` sind auf beiden Seiten ausgeschlossen.
+**Bewertung: `WARNING ACCEPTABLE`.**
+
+**2. Eine RPC ohne App-Aufrufstelle.** `upsert_valuation_reference_data` ist für
+`authenticated` ausführbar, wird aber von keiner Stelle der App aufgerufen. Sie trägt dieselbe
+Guard-Kette wie jede andere Valuation-RPC und ist durch pgTAP abgedeckt; Least Privilege würde
+trotzdem nahelegen, sie erst mit ihrer Nutzung freizugeben. **Bewertung: `WARNING ACCEPTABLE`.**
+
+### Adversariale Prüfung, lokal und verworfen
+
+Gegen einen frischen lokalen PG17-Stack liefen **20 adversariale Proben** in einer Transaktion,
+die vollständig zurückgerollt wurde — anonymer RPC-Aufruf, Aufruf ohne `sub`-Claim,
+Cross-Workspace-Zugriff, gefälschte Workspace-ID, fremde Entity-ID, Rollen- und
+Membership-Eskalation, direkter Helper-Aufruf, privilegierte RPC mit `aal1` und mit `aal2`,
+veraltete `expectedVersion`, Entity-Scope-Ausbruch, direkter Tabellenschreibzugriff und
+Audit-Manipulation. **20/20 erwartungsgemäß abgewiesen bzw. erlaubt.** Danach war die lokale
+Datenbank wieder leer; auf Staging entstand zu keinem Zeitpunkt ein Nutzer oder ein Datensatz.
+
+Zwei Proben bestanden zunächst aus dem falschen Grund — ein Syntaxfehler statt einer
+Rechteverweigerung. Sie wurden korrigiert und erst danach als Nachweis gewertet.
+
+### Grenze dieses Pakets
+
+Das Gate bewertet die **Datenbankautorisierung**. Es ersetzt keinen Auth-Betriebstest: dass
+GoTrue auf Staging `aal2` überhaupt korrekt ausstellt, ist erst mit konfigurierter Auth und
+echten Nutzern zu zeigen und bleibt Gegenstand des Auth-Pakets. Dauerhafte Testabdeckung für
+die hier nur temporär geprüften Angriffspfade existiert im Repository **nicht** — sie wäre ein
+eigenes Folgepaket, kein Teil dieses Audits.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| `REMOTE-SECURITY-GATE-01` | **PASS** |
+| Auth | **NOT CONFIGURED** — darf jetzt als nächstes Paket vorbereitet werden |
+| SMTP · synthetische Nutzer · Golden Paths | **unverändert offen** |
+| Remote-Mutation in diesem Paket | **keine** |
+| Production | **NOT AUTHORIZED** |
