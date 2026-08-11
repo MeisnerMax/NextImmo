@@ -729,6 +729,293 @@ void main() {
       },
     );
 
+    test(
+      'periodic reconcile keeps workspace and property state in place',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read', 'property.update'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+        expect(controller.state.selectedProperty, isNotNull);
+
+        final pending =
+            Completer<IdentityAccessResult<List<WorkspaceAccess>>>();
+        identity.listHandler = (_) => pending.future;
+        entitlementInvalidations.emit(
+          const EntitlementInvalidation.reconcile(userId: 'user-a'),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        // While the quiet check is in flight nothing is torn down, so the
+        // widget tree above this state — and any unsaved form input in it —
+        // stays mounted.
+        expect(controller.state.workspacePhase, WorkspacePhase.selected);
+        expect(controller.state.selectedWorkspaceId, 'workspace-a');
+        expect(controller.state.properties, hasLength(1));
+        expect(controller.state.selectedProperty, isNotNull);
+        expect(invalidations.cancelCalls['workspace-a'], isNull);
+
+        pending.complete(
+          IdentityAccessSuccess<List<WorkspaceAccess>>(<WorkspaceAccess>[
+            _access(permissions: <String>{'property.read', 'property.update'}),
+          ]),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        expect(controller.state.workspacePhase, WorkspacePhase.selected);
+        expect(controller.state.selectedWorkspaceId, 'workspace-a');
+        expect(controller.state.properties, hasLength(1));
+        expect(controller.state.selectedProperty, isNotNull);
+        expect(controller.state.propertyDetailPhase, PropertyDetailPhase.ready);
+        expect(invalidations.cancelCalls['workspace-a'], isNull);
+      },
+    );
+
+    test('repeated reconciles stay non-destructive', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+
+      for (var round = 0; round < 3; round++) {
+        entitlementInvalidations.emit(
+          const EntitlementInvalidation.reconcile(userId: 'user-a'),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        expect(controller.state.workspacePhase, WorkspacePhase.selected);
+        expect(controller.state.properties, hasLength(1));
+        expect(controller.state.selectedProperty, isNotNull);
+        expect(invalidations.cancelCalls['workspace-a'], isNull);
+      }
+    });
+
+    test('reconcile applies refreshed permissions in place', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      expect(
+        controller.state.selectedWorkspace!.allows('property.update'),
+        isTrue,
+      );
+
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      entitlementInvalidations.emit(
+        const EntitlementInvalidation.reconcile(userId: 'user-a'),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      // The revoked capability takes effect while list and detail stay.
+      expect(
+        controller.state.selectedWorkspace!.allows('property.update'),
+        isFalse,
+      );
+      expect(controller.state.workspacePhase, WorkspacePhase.selected);
+      expect(controller.state.properties, hasLength(1));
+      expect(controller.state.selectedProperty, isNotNull);
+    });
+
+    test('reconcile revokes read access fail closed', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'workspace.read'}),
+        ],
+      );
+      entitlementInvalidations.emit(
+        const EntitlementInvalidation.reconcile(userId: 'user-a'),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(controller.state.propertyListPhase, PropertyListPhase.forbidden);
+      expect(
+        controller.state.propertyDetailPhase,
+        PropertyDetailPhase.forbidden,
+      );
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.selectedProperty, isNull);
+      expect(invalidations.cancelCalls['workspace-a'], 1);
+    });
+
+    test(
+      'reconcile that loses the workspace falls back to the reload',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(
+              workspaceId: 'workspace-b',
+              permissions: <String>{'property.read'},
+            ),
+          ],
+        );
+        entitlementInvalidations.emit(
+          const EntitlementInvalidation.reconcile(userId: 'user-a'),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        // The stale selection is gone; the standard reload took over and
+        // auto-selected the only remaining workspace.
+        expect(controller.state.selectedWorkspaceId, 'workspace-b');
+        expect(controller.state.selectedProperty, isNull);
+        expect(invalidations.cancelCalls['workspace-a'], 1);
+      },
+    );
+
+    test(
+      'reconcile infrastructure failure keeps the last authorized state',
+      () async {
+        identity.authenticate();
+        identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+          <WorkspaceAccess>[
+            _access(permissions: <String>{'property.read'}),
+          ],
+        );
+        properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+          PropertyPageResult(items: <PropertyDto>[_property()]),
+        );
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(),
+        );
+
+        await controller.start();
+        await controller.openProperty('property-a');
+
+        identity.result =
+            const IdentityAccessFailure<List<WorkspaceAccess>>(
+              kind: IdentityAccessFailureKind.infrastructureFailure,
+              message: 'Network unavailable.',
+            );
+        entitlementInvalidations.emit(
+          const EntitlementInvalidation.reconcile(userId: 'user-a'),
+        );
+        await _flushEvents();
+        await _flushEvents();
+
+        // A transient failure of the quiet check must not destroy the shell;
+        // the next interval retries and server-side guards stay
+        // authoritative.
+        expect(controller.state.workspacePhase, WorkspacePhase.selected);
+        expect(controller.state.properties, hasLength(1));
+        expect(controller.state.selectedProperty, isNotNull);
+      },
+    );
+
+    test('update uses the version the form was seeded from', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read', 'property.update'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property(version: 3)]),
+      );
+      properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+        _property(version: 3),
+      );
+      final current = _property(version: 3);
+      properties.updateResults.add(
+        PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.versionConflict,
+          message: 'Version is stale.',
+          versionConflict: PropertyVersionConflict(
+            expectedVersion: 1,
+            actualVersion: 3,
+            currentProperty: current,
+          ),
+        ),
+      );
+
+      await controller.start();
+      await controller.openProperty('property-a');
+      expect(controller.state.selectedProperty?.version, 3);
+
+      // The form seeded its fields at version 1; a remote actor has since
+      // moved the property to version 3. The explicit base version must win
+      // over the refreshed canonical version, so the server can surface the
+      // conflict instead of silently losing the remote change.
+      await controller.updateSelectedProperty(_changes(), expectedVersion: 1);
+
+      expect(properties.updateCommands, hasLength(1));
+      expect(properties.updateCommands.single.context.expectedVersion, 1);
+      expect(controller.state.mutationPhase, PropertyMutationPhase.conflict);
+    });
+
     test('workspace switch cancels the old Realtime scope', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(

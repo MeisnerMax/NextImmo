@@ -144,7 +144,8 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function() onReloadProperties;
   final Future<void> Function() onLoadNextPage;
   final Future<void> Function(String propertyId) onOpenProperty;
-  final Future<void> Function(PropertyUpdateDto changes) onUpdateProperty;
+  final Future<void> Function(PropertyUpdateDto changes, {int? expectedVersion})
+  onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
   final Future<void> Function(String email, String password)
   onSignInWithPassword;
