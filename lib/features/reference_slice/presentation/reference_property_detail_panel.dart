@@ -23,7 +23,8 @@ class ReferencePropertyDetailPanel extends StatefulWidget {
   final bool canUpdate;
   final bool showBack;
   final VoidCallback onBack;
-  final Future<void> Function(PropertyUpdateDto changes) onUpdate;
+  final Future<void> Function(PropertyUpdateDto changes, {int? expectedVersion})
+  onUpdate;
   final Future<void> Function() onRetry;
 
   @override
@@ -45,6 +46,14 @@ class _ReferencePropertyDetailPanelState
   String? _loadedPropertyId;
   PropertyStatus _status = PropertyStatus.active;
 
+  /// The property version the current field contents are based on. Saves are
+  /// sent with this version, so edits made on top of a state that a remote
+  /// actor has since replaced surface as a version conflict instead of
+  /// silently overwriting the concurrent change.
+  int? _seededVersion;
+  PropertyStatus _seededStatus = PropertyStatus.active;
+  Map<String, String> _seededText = const <String, String>{};
+
   @override
   void initState() {
     super.initState();
@@ -57,11 +66,39 @@ class _ReferencePropertyDetailPanelState
     final property = widget.state.selectedProperty;
     if (property?.id != _loadedPropertyId) {
       _loadProperty(property);
+      return;
+    }
+    if (property == null) {
+      return;
+    }
+    final mutationPhase = widget.state.mutationPhase;
+    if (mutationPhase != oldWidget.state.mutationPhase) {
+      if (mutationPhase == PropertyMutationPhase.succeeded) {
+        // Our own save landed: the canonical record now carries this form's
+        // values, so reseeding leaves a clean form on the new version.
+        _loadProperty(property);
+        return;
+      }
+      if (mutationPhase == PropertyMutationPhase.conflict) {
+        // The conflict banner shows the server version while the input stays
+        // (documented contract). Re-saving then proceeds against the version
+        // the user has been shown.
+        _seededVersion = property.version;
+        return;
+      }
+    }
+    if (!_isDirty && property.version != _seededVersion) {
+      // A clean form follows canonical refreshes (realtime, reload). A dirty
+      // form keeps both its input and the version it was seeded from — the
+      // conflict mechanism, not a background refresh, decides what happens
+      // to unsaved edits.
+      _loadProperty(property);
     }
   }
 
   void _loadProperty(PropertyDto? property) {
     _loadedPropertyId = property?.id;
+    _seededVersion = property?.version;
     if (property == null) {
       return;
     }
@@ -74,6 +111,37 @@ class _ReferencePropertyDetailPanelState
     _units.text = property.units.toString();
     _notes.text = property.notes ?? '';
     _status = property.status;
+    _seededStatus = property.status;
+    _seededText = _currentText();
+  }
+
+  Map<String, String> _currentText() {
+    return <String, String>{
+      'name': _name.text,
+      'address': _address.text,
+      'zip': _zip.text,
+      'city': _city.text,
+      'country': _country.text,
+      'propertyType': _propertyType.text,
+      'units': _units.text,
+      'notes': _notes.text,
+    };
+  }
+
+  bool get _isDirty {
+    if (_loadedPropertyId == null) {
+      return false;
+    }
+    if (_status != _seededStatus) {
+      return true;
+    }
+    final current = _currentText();
+    for (final entry in current.entries) {
+      if (_seededText[entry.key] != entry.value) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -272,7 +340,12 @@ class _ReferencePropertyDetailPanelState
             spacing: AppSpacing.component,
             runSpacing: AppSpacing.component,
             children: [
-              _field(fieldWidth, _name, 'Name'),
+              _field(
+                fieldWidth,
+                _name,
+                'Name',
+                key: const Key('reference-edit-name'),
+              ),
               _field(fieldWidth, _address, 'Address'),
               _field(fieldWidth, _zip, 'ZIP'),
               _field(fieldWidth, _city, 'City'),
@@ -309,6 +382,7 @@ class _ReferencePropertyDetailPanelState
               SizedBox(
                 width: constraints.maxWidth,
                 child: TextFormField(
+                  key: const Key('reference-edit-notes'),
                   controller: _notes,
                   decoration: const InputDecoration(labelText: 'Notes'),
                   minLines: 2,
@@ -344,12 +418,14 @@ class _ReferencePropertyDetailPanelState
     double width,
     TextEditingController controller,
     String label, {
+    Key? key,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
     return SizedBox(
       width: width,
       child: TextFormField(
+        key: key,
         controller: controller,
         keyboardType: keyboardType,
         decoration: InputDecoration(labelText: label),
@@ -379,6 +455,7 @@ class _ReferencePropertyDetailPanelState
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         status: _status,
       ),
+      expectedVersion: _seededVersion,
     );
   }
 }

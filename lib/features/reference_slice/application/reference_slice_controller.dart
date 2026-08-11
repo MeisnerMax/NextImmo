@@ -225,6 +225,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   bool _started = false;
   bool _entitlementRevalidationPending = false;
   bool _entitlementRevalidationRunning = false;
+  bool _entitlementRevalidationDestructive = false;
   String? _entitlementPreservedWorkspaceId;
 
   Future<void> start() async {
@@ -562,9 +563,16 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
   }
 
+  /// [expectedVersion] is the version the caller's edits are based on — the
+  /// detail form passes the version it seeded its fields from. When a remote
+  /// change has moved the property past that version in the meantime, the
+  /// server answers with a version conflict instead of silently overwriting
+  /// the concurrent edit. Falls back to the current canonical version when
+  /// not provided.
   Future<void> updateSelectedProperty(
     PropertyUpdateDto changes, {
     String? reason,
+    int? expectedVersion,
   }) async {
     final access = state.selectedWorkspace;
     final property = state.selectedProperty;
@@ -589,7 +597,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         workspaceId: access.workspace.id,
         actorId: userId,
         mutationId: _idFactory(),
-        expectedVersion: property.version,
+        expectedVersion: expectedVersion ?? property.version,
         correlationId: _idFactory(),
         reason: reason,
       ),
@@ -881,6 +889,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   Future<void> _stopEntitlementInvalidations() async {
     _entitlementSubscriptionGeneration++;
     _entitlementRevalidationPending = false;
+    _entitlementRevalidationDestructive = false;
     _entitlementPreservedWorkspaceId = null;
     _entitlementRevalidationTimer?.cancel();
     _entitlementRevalidationTimer = null;
@@ -906,8 +915,16 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       return;
     }
     _entitlementRevalidationPending = true;
-    _entitlementPreservedWorkspaceId ??= state.selectedWorkspaceId;
-    _clearWorkspaceCachesForRevalidation();
+    if (!invalidation.isReconciliation) {
+      // A targeted entitlement signal says this user's authorization changed:
+      // the cached workspace state is suspect and is dropped before the
+      // reload completes (fail closed). The periodic reconcile tick carries
+      // no such evidence, so it revalidates without tearing down the state —
+      // discarding it every interval also discards unsaved form input.
+      _entitlementRevalidationDestructive = true;
+      _entitlementPreservedWorkspaceId ??= state.selectedWorkspaceId;
+      _clearWorkspaceCachesForRevalidation();
+    }
     if (!_entitlementRevalidationRunning) {
       _entitlementRevalidationRunning = true;
       unawaited(
@@ -941,6 +958,75 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     );
   }
 
+  /// Periodic entitlement reconciliation. Unlike a targeted signal this
+  /// carries no evidence that anything changed, so the currently authorized
+  /// state keeps being served while the check runs. The result still applies
+  /// fail closed: lost access clears the affected surfaces exactly like the
+  /// destructive path, only a confirmed-unchanged authorization leaves the
+  /// workspace, property list and detail (and with them any unsaved form
+  /// input in the UI layer) untouched.
+  Future<void> _revalidateWorkspacesQuietly(String userId) async {
+    final generation = _scopeGeneration;
+    final result = await _identityRepository.listWorkspaceAccesses(
+      userId: userId,
+    );
+    if (generation != _scopeGeneration ||
+        state.authPhase != ReferenceAuthPhase.authenticated ||
+        state.userId != userId) {
+      // Another flow (workspace switch, sign-out, targeted signal) took over
+      // while the check was in flight; that flow owns the state now.
+      return;
+    }
+    switch (result) {
+      case IdentityAccessSuccess<List<WorkspaceAccess>>():
+        final accesses = result.value;
+        final selectedId = state.selectedWorkspaceId;
+        WorkspaceAccess? selectedAccess;
+        for (final access in accesses) {
+          if (access.workspace.id == selectedId) {
+            selectedAccess = access;
+          }
+        }
+        if (selectedId == null || selectedAccess == null) {
+          // The current selection did not survive the refresh; the standard
+          // reload owns empty/selection handling and clears fail closed.
+          await _loadWorkspaces(userId, preserveWorkspaceId: selectedId);
+          return;
+        }
+        // Same workspace, still a member: swap in the refreshed authorization
+        // so revoked capabilities (e.g. property.update) take effect, without
+        // resetting the surfaces built on top of it.
+        state = state.copyWith(workspaces: accesses);
+        if (!selectedAccess.allows(propertyReadPermission)) {
+          _scopeGeneration++;
+          _detailGeneration++;
+          _mutationGeneration++;
+          _retryCommand = null;
+          await _stopPropertyInvalidations();
+          state = state.copyWith(
+            propertyListPhase: PropertyListPhase.forbidden,
+            propertyDetailPhase: PropertyDetailPhase.forbidden,
+            mutationPhase: PropertyMutationPhase.idle,
+            properties: const <PropertySummaryDto>[],
+            nextCursor: null,
+            selectedProperty: null,
+            failureKind: PropertyRepositoryFailureKind.forbidden,
+            versionConflict: null,
+            message: 'Property access is not permitted.',
+          );
+        }
+      case IdentityAccessFailure<List<WorkspaceAccess>>():
+        if (result.kind == IdentityAccessFailureKind.unauthenticated) {
+          await _handleSession(null, force: true);
+          return;
+        }
+        // A transient reconcile failure is no evidence of revocation: the
+        // next interval retries and the server-side guards stay
+        // authoritative, so the last authorized state keeps being served
+        // instead of being destroyed by a network hiccup.
+    }
+  }
+
   Future<void> _drainEntitlementRevalidations(
     String userId, {
     required int subscriptionGeneration,
@@ -951,10 +1037,16 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           state.authPhase == ReferenceAuthPhase.authenticated &&
           state.userId == userId) {
         _entitlementRevalidationPending = false;
-        await _loadWorkspaces(
-          userId,
-          preserveWorkspaceId: _entitlementPreservedWorkspaceId,
-        );
+        final destructive = _entitlementRevalidationDestructive;
+        _entitlementRevalidationDestructive = false;
+        if (destructive) {
+          await _loadWorkspaces(
+            userId,
+            preserveWorkspaceId: _entitlementPreservedWorkspaceId,
+          );
+        } else {
+          await _revalidateWorkspacesQuietly(userId);
+        }
       }
     } finally {
       _entitlementRevalidationRunning = false;
