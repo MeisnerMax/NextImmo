@@ -47,30 +47,22 @@ void main() {
         email: 'p1-007@example.test',
         password: 'NexImmo-Test-2026!',
       );
-      final accessResult = await identityRepository.listWorkspaceAccesses(
+      // SECURITY-AAL-ENFORCEMENT-01 / DEC-025: the boundary now covers reads,
+      // not just mutations. A password-only session is a first factor and
+      // nothing more -- it reaches no workspace at all. This is the same
+      // property 027 proves in pgTAP, asserted here through a real HTTP client
+      // so the PostgREST path is covered too.
+      final aal1AccessResult = await identityRepository.listWorkspaceAccesses(
         userId: actorId,
       );
-      final access =
-          (accessResult as IdentityAccessSuccess<List<WorkspaceAccess>>)
-              .value
-              .single;
-      expect(access.workspace.id, workspaceId);
       expect(
-        access.permissions,
-        containsAll(<String>[
-          'workspace.read',
-          'property.read',
-          'property.update',
-        ]),
+        (aal1AccessResult as IdentityAccessSuccess<List<WorkspaceAccess>>)
+            .value,
+        isEmpty,
+        reason: 'A password-only session must not see any workspace access.',
       );
-      final repository = SupabasePropertyRepositoryAdapter(client: client);
 
-      final pageResult = await repository.list(
-        const PropertyListQuery(workspaceId: workspaceId),
-      );
-      final page =
-          (pageResult as PropertyRepositorySuccess<PropertyPageResult>).value;
-      expect(page.items.map((property) => property.id), <String>[propertyId]);
+      final repository = SupabasePropertyRepositoryAdapter(client: client);
 
       final command = PropertyUpdateCommand(
         propertyId: propertyId,
@@ -104,6 +96,34 @@ void main() {
       );
 
       await elevateSupabaseTestClientToAal2(client);
+
+      // The identical reads now succeed. Running them on both sides of the
+      // elevation is what makes the denial above attributable to the assurance
+      // level rather than to a missing membership or permission.
+      final accessResult = await identityRepository.listWorkspaceAccesses(
+        userId: actorId,
+      );
+      final access =
+          (accessResult as IdentityAccessSuccess<List<WorkspaceAccess>>)
+              .value
+              .single;
+      expect(access.workspace.id, workspaceId);
+      expect(
+        access.permissions,
+        containsAll(<String>[
+          'workspace.read',
+          'property.read',
+          'property.update',
+        ]),
+      );
+
+      final pageResult = await repository.list(
+        const PropertyListQuery(workspaceId: workspaceId),
+      );
+      final page =
+          (pageResult as PropertyRepositorySuccess<PropertyPageResult>).value;
+      expect(page.items.map((property) => property.id), <String>[propertyId]);
+
       final first = await repository.update(command);
       final retry = await repository.update(command);
       expect(

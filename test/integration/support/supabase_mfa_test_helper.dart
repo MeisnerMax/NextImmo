@@ -13,7 +13,24 @@ SupabaseClient createSupabaseTestClient(String url, String publishableKey) {
   );
 }
 
-Future<String> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
+/// A verified TOTP factor plus the secret it was enrolled with, so a second
+/// session of the same user can be elevated without enrolling again.
+class TotpTestFactor {
+  const TotpTestFactor({required this.id, required this.secret});
+
+  final String id;
+  final String secret;
+}
+
+/// Enrols a fresh TOTP factor and elevates this session to AAL2.
+///
+/// Only valid for a user that has no verified factor yet: GoTrue answers
+/// `403 insufficient_aal` to an enrolment attempt from an aal1 session once
+/// one exists. For a second session of the same user use
+/// [elevateSupabaseTestClientWithFactor] with the returned factor.
+Future<TotpTestFactor> enrolSupabaseTestClientToAal2(
+  SupabaseClient client,
+) async {
   final enrollment = await client.auth.mfa.enroll(
     factorType: FactorType.totp,
     friendlyName:
@@ -24,17 +41,31 @@ Future<String> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
     throw StateError('Supabase did not return a TOTP enrollment secret.');
   }
 
-  final challenge = await client.auth.mfa.challenge(factorId: enrollment.id);
+  final factor = TotpTestFactor(id: enrollment.id, secret: secret);
+  await elevateSupabaseTestClientWithFactor(client, factor);
+  return factor;
+}
+
+/// Elevates a session to AAL2 using an already verified factor -- the flow a
+/// real user follows when signing in on a second device.
+Future<void> elevateSupabaseTestClientWithFactor(
+  SupabaseClient client,
+  TotpTestFactor factor,
+) async {
+  final challenge = await client.auth.mfa.challenge(factorId: factor.id);
   await client.auth.mfa.verify(
-    factorId: enrollment.id,
+    factorId: factor.id,
     challengeId: challenge.id,
-    code: _totpCode(secret, DateTime.now().toUtc()),
+    code: _totpCode(factor.secret, DateTime.now().toUtc()),
   );
   final assurance = client.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assurance.currentLevel != AuthenticatorAssuranceLevels.aal2) {
     throw StateError('Supabase session did not reach AAL2.');
   }
-  return enrollment.id;
+}
+
+Future<String> elevateSupabaseTestClientToAal2(SupabaseClient client) async {
+  return (await enrolSupabaseTestClientToAal2(client)).id;
 }
 
 class _InMemoryGotrueAsyncStorage extends GotrueAsyncStorage {

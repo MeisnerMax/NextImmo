@@ -229,6 +229,11 @@ select throws_ok(
 -- === Create ===========================================================
 
 set local role authenticated;
+-- These fixtures authenticate through request.jwt.claim.sub, which auth.uid()
+-- reads but auth.jwt() does not. State the assurance level once for the
+-- transaction so the reads below exercise authorization rather than the
+-- AAL2 boundary, which 027 covers on its own.
+select set_config('request.jwt.claims', '{"aal":"aal2"}', true);
 select set_config('request.jwt.claim.sub', 'ca000000-0000-0000-0000-000000000001', true);
 
 insert into p2_d07_results (key, result)

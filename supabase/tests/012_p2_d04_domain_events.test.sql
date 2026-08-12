@@ -317,7 +317,7 @@ select throws_ok(
 -- ---------------------------------------------------------------------------
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 
 select is(
   (
@@ -354,7 +354,7 @@ select is(
 );
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}';
 
 select is(
   (
@@ -382,14 +382,14 @@ select is(
 -- ---------------------------------------------------------------------------
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 
 select ok(
   (select count(*) from public.domain_events) > 0,
   'a holder of document.read sees the document envelopes'
 );
 
-set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}';
 
 select is(
   (select count(*)::integer from public.domain_events),
@@ -488,7 +488,7 @@ select is(
 
 -- A foreign workspace never sees another workspace's stream.
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"aa000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 select is(
   (select count(*)::integer from public.domain_events
    where workspace_id = 'b1000000-0000-0000-0000-000000000002'),

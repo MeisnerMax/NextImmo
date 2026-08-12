@@ -7,12 +7,14 @@ begin
     'ec000000-0000-0000-0000-000000000001',
     false
   );
-  -- Leasing has no AAL2 gate (units and leases are ordinary workspace business
-  -- data, like properties and parties). The claim is set anyway so both workers
-  -- present an identical session shape and only the race differs.
+  -- Since SECURITY-AAL-ENFORCEMENT-01 / DEC-025 every workspace business
+  -- surface requires aal2, leasing included -- this file previously carried a
+  -- comment claiming the opposite. Both workers present the identical session
+  -- shape so that only the race differs; without the assurance claim both
+  -- would simply be refused and the concurrency contract would go untested.
   perform set_config(
     'request.jwt.claims',
-    '{"aal":"aal1"}',
+    '{"aal":"aal2"}',
     false
   );
   perform pg_sleep(1);

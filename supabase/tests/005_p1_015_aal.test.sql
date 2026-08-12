@@ -107,7 +107,13 @@ select set_config(
   true
 );
 
-select is((select count(*)::integer from public.properties), 1, 'AAL1 retains authorized reads');
+-- Deliberately inverted by SECURITY-AAL-ENFORCEMENT-01. This assertion pinned
+-- the pre-amendment boundary of DEC-016: AAL2 for privileged capabilities,
+-- ordinary business reads left at aal1. The amended decision extends the
+-- boundary to the whole workspace business surface, so an aal1 session now
+-- reads nothing. The aal2 arm below still proves the read works with a
+-- verified second factor, and 027 covers the boundary in full.
+select is((select count(*)::integer from public.properties), 0, 'AAL1 no longer reads business data');
 select is(
   public.update_property(
     '11500000-0000-0000-0000-000000000001',

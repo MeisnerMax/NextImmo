@@ -7,9 +7,10 @@ begin
     'ec000000-0000-0000-0000-000000000001',
     false
   );
+  -- Mirrors worker A: aal2 since SECURITY-AAL-ENFORCEMENT-01 / DEC-025.
   perform set_config(
     'request.jwt.claims',
-    '{"aal":"aal1"}',
+    '{"aal":"aal2"}',
     false
   );
   perform pg_sleep(1);

@@ -43,14 +43,10 @@ void main() {
       final writerA = createSupabaseTestClient(url, publishableKey);
       final writerB = createSupabaseTestClient(url, publishableKey);
       StreamSubscription<PropertyQueryInvalidation>? subscription;
-      String? writerAFactorId;
+      TotpTestFactor? writerAFactor;
       String? writerBFactorId;
       try {
         await Future.wait(<Future<AuthResponse>>[
-          observer.auth.signInWithPassword(
-            email: 'p1-007@example.test',
-            password: 'NexImmo-Test-2026!',
-          ),
           writerA.auth.signInWithPassword(
             email: 'p1-007@example.test',
             password: 'NexImmo-Test-2026!',
@@ -60,8 +56,22 @@ void main() {
             password: 'NexImmo-Test-2026!',
           ),
         ]);
-        writerAFactorId = await elevateSupabaseTestClientToAal2(writerA);
+        writerAFactor = await enrolSupabaseTestClientToAal2(writerA);
         writerBFactorId = await elevateSupabaseTestClientToAal2(writerB);
+
+        // The observer is the same auth user as writerA on a second client and
+        // signs in only now, after the factor exists: verifying a user's first
+        // factor revokes that user's other live sessions, so a session opened
+        // before the enrolment could no longer talk to GoTrue. It then elevates
+        // with the existing factor -- GoTrue refuses a second enrolment from an
+        // aal1 session once one is verified. Without the elevation the realtime
+        // payload is filtered out by RLS and the assertion below would hold for
+        // the assurance level rather than for workspace scoping.
+        await observer.auth.signInWithPassword(
+          email: 'p1-007@example.test',
+          password: 'NexImmo-Test-2026!',
+        );
+        await elevateSupabaseTestClientWithFactor(observer, writerAFactor);
 
         final source = SupabasePropertyQueryInvalidationAdapter(
           client: observer,
@@ -140,8 +150,8 @@ void main() {
         expect(property.version, 2);
       } finally {
         await subscription?.cancel();
-        if (writerAFactorId != null) {
-          await writerA.auth.mfa.unenroll(writerAFactorId);
+        if (writerAFactor != null) {
+          await writerA.auth.mfa.unenroll(writerAFactor.id);
         }
         if (writerBFactorId != null) {
           await writerB.auth.mfa.unenroll(writerBFactorId);
@@ -181,14 +191,11 @@ void main() {
       StreamSubscription<EntitlementInvalidation>? probeSubscription;
       StreamSubscription<EntitlementInvalidation>? foreignSubscription;
       ReferenceSliceController? controller;
-      String? observerFactorId;
+      TotpTestFactor? observerFactor;
+      String? revokerFactorId;
       try {
         await Future.wait(<Future<AuthResponse>>[
           observer.auth.signInWithPassword(
-            email: 'p1-007@example.test',
-            password: 'NexImmo-Test-2026!',
-          ),
-          probe.auth.signInWithPassword(
             email: 'p1-007@example.test',
             password: 'NexImmo-Test-2026!',
           ),
@@ -197,7 +204,24 @@ void main() {
             password: 'NexImmo-Test-2026!',
           ),
         ]);
-        observerFactorId = await elevateSupabaseTestClientToAal2(observer);
+        observerFactor = await enrolSupabaseTestClientToAal2(observer);
+        // revoker is elevated too, and for the opposite reason to probe: its
+        // denial below must stay attributable to the foreign uid. At aal1 the
+        // topic would refuse it for the assurance level instead, and the only
+        // cross-user isolation assertion in this file would silently stop
+        // testing what it was written to test.
+        revokerFactorId = await elevateSupabaseTestClientToAal2(revoker);
+
+        // probe is the same auth user as observer on a second client, and signs
+        // in after the enrolment for the same reason as the observer in the
+        // first test. It has to reach aal2: the entitlement topic follows the
+        // assurance boundary, and an aal1 probe would be denied the join before
+        // it could observe anything.
+        await probe.auth.signInWithPassword(
+          email: 'p1-007@example.test',
+          password: 'NexImmo-Test-2026!',
+        );
+        await elevateSupabaseTestClientWithFactor(probe, observerFactor);
 
         final foreignDenied = Completer<void>();
         foreignSubscription = SupabaseEntitlementInvalidationAdapter(
@@ -321,8 +345,11 @@ void main() {
         controller?.dispose();
         await probeSubscription?.cancel();
         await foreignSubscription?.cancel();
-        if (observerFactorId != null) {
-          await observer.auth.mfa.unenroll(observerFactorId);
+        if (observerFactor != null) {
+          await observer.auth.mfa.unenroll(observerFactor.id);
+        }
+        if (revokerFactorId != null) {
+          await revoker.auth.mfa.unenroll(revokerFactorId);
         }
         await Future.wait<void>(<Future<void>>[
           observer.auth.signOut(),

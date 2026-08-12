@@ -69,12 +69,26 @@ void main() {
     );
   }
 
+  // Every test in this file signs the same two users in again, and GoTrue
+  // refuses a second enrolment from an aal1 session once a factor is verified
+  // (403 insufficient_aal). The first sign-in for an address therefore enrols,
+  // and later ones challenge that factor -- the flow a user follows on a second
+  // device. Sessions opened before the enrolment are revoked by the verify, so
+  // each client is created fresh here rather than reused.
+  final enrolledFactors = <String, TotpTestFactor>{};
+
   Future<SupabaseClient> signIn(String email) async {
     final client = createSupabaseTestClient(url, publishableKey);
     await client.auth.signInWithPassword(
       email: email,
       password: 'NexImmo-Test-2026!',
     );
+    final existing = enrolledFactors[email];
+    if (existing == null) {
+      enrolledFactors[email] = await enrolSupabaseTestClientToAal2(client);
+    } else {
+      await elevateSupabaseTestClientWithFactor(client, existing);
+    }
     return client;
   }
 
