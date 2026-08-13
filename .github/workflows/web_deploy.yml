@@ -147,7 +147,7 @@ jobs:
     timeout-minutes: 25
     environment: staging
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The exact triggering commit, never a moving ref: the artifact has to
           # be traceable to one SHA, and that SHA is what is re-verified below.
