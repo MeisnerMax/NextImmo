@@ -55,6 +55,22 @@ class AuthenticatedSession {
   final AuthenticationAssuranceLevel currentAssuranceLevel;
   final AuthenticationAssuranceLevel nextAssuranceLevel;
 
+  /// The only condition under which workspace business data may be requested.
+  ///
+  /// `DEC-025` makes aal2 the server-side boundary for the whole workspace
+  /// business surface, so anything below it is an incomplete authentication
+  /// rather than an account without access. The distinction matters because a
+  /// denied read answers `200` with an empty body: a client that waits for the
+  /// server to object cannot tell "not elevated yet" from "no workspaces", and
+  /// would show an empty shell to a perfectly authorized member.
+  bool get isAal2 =>
+      currentAssuranceLevel == AuthenticationAssuranceLevel.aal2;
+
+  /// Whether reaching aal2 runs through a *challenge* of an existing verified
+  /// factor. False for a session that has no verified factor yet -- that one
+  /// reaches aal2 through enrolment instead. Both are below the boundary; this
+  /// only says which path leads out of it, never whether business data may
+  /// load. Use [isAal2] for that.
   bool get requiresMfaChallenge =>
       currentAssuranceLevel == AuthenticationAssuranceLevel.unknown ||
       nextAssuranceLevel == AuthenticationAssuranceLevel.unknown ||

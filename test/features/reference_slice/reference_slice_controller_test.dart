@@ -180,6 +180,114 @@ void main() {
       expect(identity.signOutCalls, 1);
     });
 
+    // SECURITY-AAL-CLIENT-02. DEC-025 made aal2 the server-side boundary for
+    // every workspace business surface, so an aal1 session is an incomplete
+    // authentication, not an account without access. The client has to reach
+    // that conclusion on its own: a denied read now answers 200 with an empty
+    // body, which is indistinguishable from "no workspaces" if the client waits
+    // for the server to tell it.
+    test('a factorless aal1 session is MFA-required, not authenticated', () async {
+      // current == next == aal1: an administratively created user who has not
+      // enrolled a factor yet. There is no challenge to answer, only an
+      // enrolment to complete.
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
+        <TotpFactor>[],
+      );
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentRequired,
+      );
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0, reason: 'no workspace read below aal2');
+      expect(properties.listCalls, 0, reason: 'no property read below aal2');
+    });
+
+    test('a factorless aal1 session can enrol its first factor', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
+        <TotpFactor>[],
+      );
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+
+      await controller.start();
+      // Enrolment has to be reachable from mfaRequired -- that is the only
+      // state a factorless user can ever be in.
+      await controller.beginTotpEnrollment();
+
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentReady,
+      );
+      expect(identity.listCalls, 0, reason: 'still below aal2');
+
+      await controller.verifyTotp(factorId: 'factor-new', code: '654321');
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(
+        controller.state.assuranceLevel,
+        AuthenticationAssuranceLevel.aal2,
+      );
+      expect(identity.listCalls, 1, reason: 'business load starts only now');
+    });
+
+    test('an assurance downgrade leaves the business shell fail-closed', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+
+      await controller.start();
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(controller.state.selectedWorkspaceId, 'workspace-a');
+
+      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
+        <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
+      );
+      identity.emit(
+        const AuthenticatedSession(
+          userId: 'user-a',
+          currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+          nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(controller.state.selectedWorkspaceId, isNull);
+      expect(controller.state.properties, isEmpty);
+      expect(controller.state.selectedProperty, isNull);
+    });
+
+    test('a factor lookup failure is an MFA error, not an empty workspace', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = const IdentityAccessFailure<List<TotpFactor>>(
+        kind: IdentityAccessFailureKind.infrastructureFailure,
+        message: 'Factor lookup failed.',
+      );
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.failed,
+      );
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0);
+    });
+
     test('loads the only active workspace and explicit empty list', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(

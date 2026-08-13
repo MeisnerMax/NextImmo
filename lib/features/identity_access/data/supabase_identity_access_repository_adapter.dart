@@ -401,7 +401,10 @@ class SupabaseIdentityAccessRepositoryAdapter
     required String userId,
   }) async {
     final session = _gateway.currentSession;
-    if (session?.userId != userId || session!.requiresMfaChallenge) {
+    // Defence in depth behind the controller's own barrier: below aal2 the
+    // server answers every business read with an empty body, so refusing here
+    // keeps that from ever being mistaken for an empty workspace list.
+    if (session?.userId != userId || !session!.isAal2) {
       return const IdentityAccessFailure<List<WorkspaceAccess>>(
         kind: IdentityAccessFailureKind.unauthenticated,
         message: 'The requested user is not authenticated.',

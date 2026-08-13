@@ -49,6 +49,26 @@ void main() {
       },
     );
 
+    // SECURITY-AAL-CLIENT-02: the factorless case. current == next == aal1 has
+    // no pending challenge, so the old guard let it through and the server
+    // answered every business read with an empty body -- which the client then
+    // showed as "no workspace access" to an authorized member.
+    test('rejects workspace access for a session with no factor yet', () async {
+      gateway.currentSession = const AuthenticatedSession(
+        userId: 'user-a',
+        currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+        nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+      );
+
+      final result = await repository.listWorkspaceAccesses(userId: 'user-a');
+
+      expect(
+        (result as IdentityAccessFailure<List<WorkspaceAccess>>).kind,
+        IdentityAccessFailureKind.unauthenticated,
+      );
+      expect(gateway.membershipCalls, 0);
+    });
+
     test('fails closed for an unknown assurance level', () async {
       gateway.currentSession = const AuthenticatedSession(
         userId: 'user-a',
@@ -446,11 +466,17 @@ Map<String, dynamic> _workspaceJson() {
 }
 
 class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
+  // aal2 by default. The mapping and fail-closed tests below are about
+  // membership and permission handling, and since DEC-025 a session below aal2
+  // never reaches that code at all -- the default used to be aal1/aal1, which
+  // meant those tests were quietly asserting that a factorless session could
+  // read workspace access. The boundary itself is covered by the three
+  // assurance-level tests at the top of this file.
   @override
   AuthenticatedSession? currentSession = const AuthenticatedSession(
     userId: 'user-a',
-    currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
-    nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+    currentAssuranceLevel: AuthenticationAssuranceLevel.aal2,
+    nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
   );
 
   final List<({String email, String password})> passwordSignIns =
