@@ -52,6 +52,7 @@ void main() {
           email: 'p2-d05-manager@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(managerClient);
         final units = SupabaseUnitRepositoryAdapter(client: managerClient);
         final leases = SupabaseLeaseRepositoryAdapter(client: managerClient);
         final cases = SupabaseLeasingCaseRepositoryAdapter(
@@ -536,6 +537,7 @@ void main() {
           email: 'p2-d05-viewer@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(viewerClient);
         final viewerUnits = SupabaseUnitRepositoryAdapter(client: viewerClient);
         final viewerLeases = SupabaseLeaseRepositoryAdapter(
           client: viewerClient,

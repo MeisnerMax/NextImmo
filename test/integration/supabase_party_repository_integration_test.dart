@@ -46,6 +46,7 @@ void main() {
           email: 'p2-d02-admin@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(adminClient);
         final adminRepo = SupabasePartyRepositoryAdapter(client: adminClient);
 
         // Create the canonical contractor party (no AAL2 gate for parties).
@@ -227,6 +228,7 @@ void main() {
           email: 'p2-d02-viewer@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(viewerClient);
         final viewerRepo = SupabasePartyRepositoryAdapter(client: viewerClient);
 
         final viewerSearch =

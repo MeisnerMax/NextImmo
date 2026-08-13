@@ -55,6 +55,7 @@ void main() {
           email: 'p2-d06-manager@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(managerClient);
         final tickets = SupabaseMaintenanceTicketRepositoryAdapter(
           client: managerClient,
         );
@@ -331,6 +332,7 @@ void main() {
           email: 'p2-d06-approver@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(approverClient);
         final approverProjects = SupabaseCapexProjectRepositoryAdapter(
           client: approverClient,
         );
@@ -409,6 +411,7 @@ void main() {
           email: 'p2-d06-viewer@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(viewerClient);
         final viewerTickets = SupabaseMaintenanceTicketRepositoryAdapter(
           client: viewerClient,
         );

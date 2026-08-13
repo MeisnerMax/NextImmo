@@ -22,7 +22,7 @@ create extension if not exists pgtap with schema extensions;
 -- whole schema, so a regression has to be introduced visibly rather than
 -- silently.
 
-select plan(22);
+select plan(27);
 
 -- === Function grant surface, across the entire public schema ============
 
@@ -353,6 +353,97 @@ select is(
 
 reset role;
 reset request.jwt.claims;
+
+-- === The AAL2 boundary stays central ====================================
+--
+-- SECURITY-AAL-ENFORCEMENT-01. The behavioural proof lives in 027; these are
+-- the structural gates, and they turn red when a *new* RPC or policy is added
+-- without the boundary -- which no behavioural test can see.
+--
+-- Two different mechanisms, deliberately. For policies, pg_depend genuinely
+-- records the functions an expression references, so the check below is a
+-- catalogue dependency: reformatting the expression or renaming through a
+-- wrapper cannot evade it. For functions it cannot -- pg_depend does not
+-- record calls made from a plpgsql body, as SR-12 above already documents --
+-- so there the definition text stays the only available evidence.
+
+select is(
+  (select count(*)::integer
+   from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'public'
+     and function.prokind = 'f'
+     and function.prosecdef
+     and pg_get_functiondef(function.oid) !~
+           'private\.(has_workspace_permission|has_scoped_entity_permission|is_aal2|[a-z_]+_command_gate)'),
+  0,
+  'SR-21: every public RPC reaches the central AAL2/permission guard'
+);
+
+select is(
+  (select count(*)::integer
+   from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'private'
+     and function.prokind = 'f'
+     and function.proname like '%command_gate'
+     and pg_get_functiondef(function.oid) !~ 'aal2'),
+  0,
+  'SR-21: every private command gate enforces aal2'
+);
+
+-- Asserted in the forward direction on purpose. The rollback suite proves the
+-- predicate is absent before the migration; nothing proved it present after,
+-- so deleting the call from the helper body would have left every other test
+-- green while opening the whole read surface.
+select ok(
+  (select pg_get_functiondef(function.oid) ~ 'private\.is_aal2'
+   from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'private'
+     and function.proname = 'has_workspace_permission'),
+  'SR-21: the central permission helper still calls the assurance predicate'
+);
+
+select is(
+  (select count(*)::integer
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname in ('public', 'storage', 'realtime')
+     and not exists (
+       select 1
+       from pg_depend as dependency
+       join pg_proc as guard on guard.oid = dependency.refobjid
+       where dependency.classid = 'pg_policy'::regclass
+         and dependency.objid = policy.oid
+         and dependency.refclassid = 'pg_proc'::regclass
+         and guard.proname in (
+           'is_aal2', 'has_workspace_permission', 'has_scoped_entity_permission'
+         )
+     )
+     and policy.polname not in (
+       -- The single deliberate aal1 exception. It answers only about the
+       -- caller's own identity row, carries no workspace data, and belongs to
+       -- the bootstrap surface a password-only session must still reach.
+       'user_profiles_select_own'
+     )),
+  0,
+  'SR-22: every client-reachable policy binds the AAL2 guard or is a named aal1 exception'
+);
+
+-- Same intent as SR-20 for functions: a new policy is allowed, but it has to be
+-- acknowledged in the pull request that adds it, which puts its USING and WITH
+-- CHECK expressions in front of a reviewer.
+select is(
+  (select count(*)::integer
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname in ('public', 'storage', 'realtime')),
+  41,
+  'SR-22: the client-reachable policy inventory is still 41 -- update this expectation deliberately'
+);
 
 select * from finish();
 

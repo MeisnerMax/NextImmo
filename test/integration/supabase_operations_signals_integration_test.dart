@@ -72,6 +72,7 @@ void main() {
           email: 'p2-d05a-manager@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(managerClient);
         final units = SupabaseUnitRepositoryAdapter(client: managerClient);
         final leases = SupabaseLeaseRepositoryAdapter(client: managerClient);
         final signals = SupabaseOperationsSignalsAdapter(client: managerClient);
@@ -218,6 +219,7 @@ void main() {
           email: 'p2-d05a-viewer@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(viewerClient);
         final viewerSignals = SupabaseOperationsSignalsAdapter(
           client: viewerClient,
         );

@@ -67,6 +67,7 @@ void main() {
           email: 'p2-d03-admin@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(adminClient);
         final adminRepo = SupabaseDocumentRepositoryAdapter(client: adminClient);
 
         // --- type registry and a workspace requirement rule -----------------
@@ -492,6 +493,7 @@ void main() {
           email: 'p2-d03-viewer@example.test',
           password: 'NexImmo-Test-2026!',
         );
+        await elevateSupabaseTestClientToAal2(viewerClient);
         final viewerRepo = SupabaseDocumentRepositoryAdapter(
           client: viewerClient,
         );

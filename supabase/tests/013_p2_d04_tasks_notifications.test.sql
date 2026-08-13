@@ -114,7 +114,7 @@ insert into public.memberships (id, workspace_id, user_id, role_id, status) valu
   ('c4000000-0000-0000-0000-000000000002', 'c1000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000002', 'c2000000-0000-0000-0000-000000000002', 'active');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 
 -- ---------------------------------------------------------------------------
 -- create_task and the two idempotency layers
@@ -361,7 +361,7 @@ select is(
 -- ---------------------------------------------------------------------------
 
 -- The member marks their own read.
-set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}';
 select ok(
   (public.mark_notification_read(
     'c1000000-0000-0000-0000-000000000001',
@@ -401,7 +401,7 @@ select is(
 );
 
 -- The manager (notification.read) sees the whole feed.
-set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 select ok(
   (select count(*) from public.notifications) >= 2,
   'a holder of notification.read sees the whole feed'
@@ -412,7 +412,7 @@ select ok(
 );
 
 -- Permission denial for a manage-less caller.
-set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}';
 select is(
   public.create_task(
     'c1000000-0000-0000-0000-000000000001', 'Sollte scheitern',
@@ -484,7 +484,7 @@ select is(
 -- ---------------------------------------------------------------------------
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 select is(
   public.create_task(
     'c1000000-0000-0000-0000-000000000002', 'Fremder Workspace',

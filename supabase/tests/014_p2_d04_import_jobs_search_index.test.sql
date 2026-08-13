@@ -144,7 +144,7 @@ select throws_ok(
 );
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"d1000000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"d1000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}';
 
 -- ---------------------------------------------------------------------------
 -- import_jobs lifecycle (STM-013)
@@ -518,7 +518,7 @@ select ok(
 -- ---------------------------------------------------------------------------
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"d1000000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"d1000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}';
 
 select is(
   public.create_import_job(

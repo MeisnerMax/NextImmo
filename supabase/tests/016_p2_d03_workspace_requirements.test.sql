@@ -142,6 +142,11 @@ grant all on table p2_d03w_results to authenticated;
 -- === Authorization ====================================================
 
 set local role authenticated;
+-- These fixtures authenticate through request.jwt.claim.sub, which auth.uid()
+-- reads but auth.jwt() does not. State the assurance level once for the
+-- transaction so the reads below exercise authorization rather than the
+-- AAL2 boundary, which 027 covers on its own.
+select set_config('request.jwt.claims', '{"aal":"aal2"}', true);
 select set_config('request.jwt.claim.sub', 'ba000000-0000-0000-0000-000000000002', true);
 
 insert into p2_d03w_results (key, result)
