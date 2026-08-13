@@ -39,6 +39,38 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // SECURITY-AAL-CLIENT-02: an account with no verified factor has nothing to
+    // challenge. It must be offered setup, and must never be told it has no
+    // workspace access -- it has access, the session is simply not elevated.
+    testWidgets('offers enrolment when no verified factor exists', (
+      tester,
+    ) async {
+      var beganEnrollment = false;
+      await _pumpView(
+        tester,
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          authActionPhase: ReferenceAuthActionPhase.enrollmentRequired,
+        ),
+        onBeginTotpEnrollment: () async {
+          beganEnrollment = true;
+        },
+      );
+
+      expect(find.text('Set up multi-factor authentication'), findsOneWidget);
+      expect(find.textContaining('No workspace access'), findsNothing);
+      expect(find.byKey(const Key('reference-mfa-code')), findsNothing);
+      expect(find.byKey(const Key('reference-list-pane')), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('reference-mfa-begin-enrollment')),
+      );
+      await tester.pump();
+
+      expect(beganEnrollment, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('submits email and password and TOTP step-up actions', (
       tester,
     ) async {
@@ -341,6 +373,7 @@ Future<void> _pumpView(
   Size viewport = const Size(1440, 900),
   bool dark = false,
   Future<void> Function(String email, String password)? onSignInWithPassword,
+  Future<void> Function()? onBeginTotpEnrollment,
   Future<void> Function({
     required String selectedFactorId,
     required String selectedCode,
@@ -362,7 +395,7 @@ Future<void> _pumpView(
         onUpdateProperty: (_, {int? expectedVersion}) async {},
         onRetryUpdate: _noop,
         onSignInWithPassword: onSignInWithPassword ?? _noopSignIn,
-        onBeginTotpEnrollment: _noop,
+        onBeginTotpEnrollment: onBeginTotpEnrollment ?? _noop,
         onVerifyTotp:
             ({required factorId, required code}) =>
                 onVerifyTotp == null
@@ -408,9 +441,11 @@ Future<void> _noopVerify({
 ReferenceSliceState _state({
   required ReferenceAuthPhase authPhase,
   List<TotpFactor> factors = const <TotpFactor>[],
+  ReferenceAuthActionPhase authActionPhase = ReferenceAuthActionPhase.idle,
 }) {
   return ReferenceSliceState(
     authPhase: authPhase,
+    authActionPhase: authActionPhase,
     workspacePhase: WorkspacePhase.idle,
     propertyListPhase: PropertyListPhase.idle,
     propertyDetailPhase: PropertyDetailPhase.idle,

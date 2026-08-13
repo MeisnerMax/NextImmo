@@ -23,6 +23,11 @@ enum ReferenceAuthActionPhase {
   idle,
   signingIn,
   loadingFactors,
+  /// The session is below aal2 and the account has no verified factor yet, so
+  /// there is nothing to challenge -- the user has to enrol one first. Distinct
+  /// from [failed]: nothing went wrong, this is the expected state for an
+  /// administratively created account on its first sign-in.
+  enrollmentRequired,
   enrolling,
   enrollmentReady,
   verifying,
@@ -279,10 +284,17 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   }
 
   Future<void> beginTotpEnrollment() async {
-    if (state.authPhase != ReferenceAuthPhase.authenticated ||
+    // Reachable from mfaRequired, which is the only state a factorless account
+    // can be in, and still from authenticated so an elevated user can add a
+    // further factor. Enrolling from mfaRequired is what lets an
+    // administratively created user complete their first factor at all --
+    // public signup stays off, so nobody arrives here with one already.
+    if ((state.authPhase != ReferenceAuthPhase.authenticated &&
+            state.authPhase != ReferenceAuthPhase.mfaRequired) ||
         _identityActionBusy) {
       return;
     }
+    final enrollmentPhase = state.authPhase;
     final generation = ++_identityActionGeneration;
     state = state.copyWith(
       authActionPhase: ReferenceAuthActionPhase.enrolling,
@@ -291,7 +303,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     );
     final result = await _identityRepository.enrollTotp();
     if (generation != _identityActionGeneration ||
-        state.authPhase != ReferenceAuthPhase.authenticated) {
+        state.authPhase != enrollmentPhase) {
       return;
     }
     switch (result) {
@@ -650,7 +662,13 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       return;
     }
     final userId = session.userId;
-    if (session.requiresMfaChallenge) {
+    // The business-load barrier. Anything below aal2 is an authentication
+    // state, never a workspace state -- including a session whose next level is
+    // also aal1, which is what an administratively created account looks like
+    // before it enrols its first factor. Routing that to `authenticated` would
+    // load a workspace the server is bound to answer empty, and the user would
+    // be told they have no access when they simply have no second factor yet.
+    if (!session.isAal2) {
       state = ReferenceSliceState(
         authPhase: ReferenceAuthPhase.mfaRequired,
         authActionPhase: ReferenceAuthActionPhase.loadingFactors,
@@ -689,14 +707,21 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
     switch (result) {
       case IdentityAccessSuccess<List<TotpFactor>>():
+        // listTotpFactors reports verified factors only -- gotrue filters
+        // listFactors().totp on FactorStatus.verified -- so an empty list means
+        // the account has no second factor yet. That is the expected state for
+        // an administratively created user on first sign-in, not a failure, and
+        // the way out of it is enrolment rather than a challenge.
+        final needsEnrollment = result.value.isEmpty;
         state = state.copyWith(
           authActionPhase:
-              result.value.isEmpty
-                  ? ReferenceAuthActionPhase.failed
+              needsEnrollment
+                  ? ReferenceAuthActionPhase.enrollmentRequired
                   : ReferenceAuthActionPhase.idle,
           authMessage:
-              result.value.isEmpty
-                  ? 'No verified authenticator is available.'
+              needsEnrollment
+                  ? 'NexImmo requires an authenticator before workspace data '
+                      'can be accessed.'
                   : null,
           totpFactors: result.value,
           totpEnrollment: null,

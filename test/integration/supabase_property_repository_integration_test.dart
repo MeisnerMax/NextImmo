@@ -47,19 +47,24 @@ void main() {
         email: 'p1-007@example.test',
         password: 'NexImmo-Test-2026!',
       );
-      // SECURITY-AAL-ENFORCEMENT-01 / DEC-025: the boundary now covers reads,
-      // not just mutations. A password-only session is a first factor and
-      // nothing more -- it reaches no workspace at all. This is the same
-      // property 027 proves in pgTAP, asserted here through a real HTTP client
-      // so the PostgREST path is covered too.
+      // SECURITY-AAL-ENFORCEMENT-01 / DEC-025: the boundary covers reads, not
+      // just mutations. A password-only session is a first factor and nothing
+      // more, and reaches no workspace at all.
+      //
+      // SECURITY-AAL-CLIENT-02 tightened what that looks like from the client:
+      // the adapter used to forward the request and hand back the server's
+      // empty result, which is indistinguishable from "this member has no
+      // workspaces". It now refuses below aal2 and says so, so the caller can
+      // tell an unelevated session from an empty account without guessing.
       final aal1AccessResult = await identityRepository.listWorkspaceAccesses(
         userId: actorId,
       );
       expect(
-        (aal1AccessResult as IdentityAccessSuccess<List<WorkspaceAccess>>)
-            .value,
-        isEmpty,
-        reason: 'A password-only session must not see any workspace access.',
+        (aal1AccessResult as IdentityAccessFailure<List<WorkspaceAccess>>).kind,
+        IdentityAccessFailureKind.unauthenticated,
+        reason:
+            'A password-only session must be refused, not answered with an '
+            'empty workspace list.',
       );
 
       final repository = SupabasePropertyRepositoryAdapter(client: client);

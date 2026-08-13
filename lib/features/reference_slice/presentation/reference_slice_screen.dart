@@ -417,6 +417,55 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
         child: CircularProgressIndicator(),
       );
     }
+    // Enrolment now also runs below aal2, so the setup screen has to be
+    // reachable from here and not only from the authenticated shell.
+    if (state.totpEnrollment != null) {
+      return _buildTotpEnrollment();
+    }
+    // No verified factor yet: there is nothing to challenge, so ask for setup
+    // instead of a code. Deliberately never phrased as missing workspace
+    // access -- the account has access, the session is simply not elevated.
+    if (state.authActionPhase == ReferenceAuthActionPhase.enrollmentRequired) {
+      return _AuthFormShell(
+        key: const Key('reference-mfa-enrollment-required'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.phonelink_lock_outlined,
+              size: 32,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: AppSpacing.component),
+            Text(
+              'Set up multi-factor authentication',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'NexImmo requires an authenticator before workspace data can be '
+              'accessed.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.component),
+            FilledButton.icon(
+              key: const Key('reference-mfa-begin-enrollment'),
+              onPressed: _authActionBusy ? null : widget.onBeginTotpEnrollment,
+              icon: const Icon(Icons.phonelink_lock_outlined),
+              label: const Text('Set up authenticator'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              key: const Key('reference-mfa-enrollment-sign-out'),
+              onPressed: _authActionBusy ? null : widget.onSignOut,
+              child: const Text('Sign out'),
+            ),
+          ],
+        ),
+      );
+    }
     final factors = state.totpFactors;
     final selected =
         factors.any((factor) => factor.id == _selectedFactorId)
