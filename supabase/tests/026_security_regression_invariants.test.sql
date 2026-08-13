@@ -22,7 +22,7 @@ create extension if not exists pgtap with schema extensions;
 -- whole schema, so a regression has to be introduced visibly rather than
 -- silently.
 
-select plan(27);
+select plan(33);
 
 -- === Function grant surface, across the entire public schema ============
 
@@ -443,6 +443,119 @@ select is(
    where namespace.nspname in ('public', 'storage', 'realtime')),
   41,
   'SR-22: the client-reachable policy inventory is still 41 -- update this expectation deliberately'
+);
+
+-- === SR-23: the document storage surface ================================
+--
+-- SECURITY-STORAGE-AAL-03. The behavioural proof runs through the real Storage
+-- HTTP API in supabase_storage_aal_integration_test.dart; these are the
+-- structural pins that make a silent widening of the surface impossible.
+--
+-- The bucket's policy family is identified through pg_depend rather than by
+-- searching the expression text for 'documents': every policy for this bucket
+-- reaches private.document_storage_workspace to derive the owning workspace, so
+-- the dependency *is* the membership test, and reformatting cannot evade it.
+
+select is(
+  (select count(*)::integer
+   from storage.buckets
+   where id = 'documents' and public = false),
+  1,
+  'SR-23: the documents bucket exists and is private'
+);
+
+-- Exactly one SELECT and one INSERT, and nothing else. The absence of UPDATE
+-- and DELETE is what makes DOM-006 immutability structural rather than
+-- conventional, so it is asserted as an exact set, not as "at least".
+select is(
+  (select coalesce(string_agg(distinct policy.polcmd::text, ',' order by policy.polcmd::text), '(none)')
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname = 'storage'
+     and class.relname = 'objects'
+     and exists (
+       select 1
+       from pg_depend as dependency
+       join pg_proc as parser on parser.oid = dependency.refobjid
+       where dependency.classid = 'pg_policy'::regclass
+         and dependency.objid = policy.oid
+         and dependency.refclassid = 'pg_proc'::regclass
+         and parser.proname = 'document_storage_workspace'
+     )),
+  'a,r',
+  'SR-23: the documents bucket has exactly one INSERT and one SELECT policy, no UPDATE and no DELETE'
+);
+
+-- Both of them must reach the central permission helper, which is where the
+-- AAL2 predicate lives since SECURITY-AAL-ENFORCEMENT-01. A policy that kept
+-- the parser but dropped the helper would still scope by workspace while
+-- silently losing the assurance boundary.
+select is(
+  (select count(*)::integer
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname = 'storage'
+     and class.relname = 'objects'
+     and exists (
+       select 1
+       from pg_depend as dependency
+       join pg_proc as parser on parser.oid = dependency.refobjid
+       where dependency.classid = 'pg_policy'::regclass
+         and dependency.objid = policy.oid
+         and dependency.refclassid = 'pg_proc'::regclass
+         and parser.proname = 'document_storage_workspace'
+     )
+     and not exists (
+       select 1
+       from pg_depend as dependency
+       join pg_proc as guard on guard.oid = dependency.refobjid
+       where dependency.classid = 'pg_policy'::regclass
+         and dependency.objid = policy.oid
+         and dependency.refclassid = 'pg_proc'::regclass
+         and guard.proname = 'has_workspace_permission'
+     )),
+  0,
+  'SR-23: every documents bucket policy reaches the AAL2-inheriting permission helper'
+);
+
+-- A new policy on storage.objects has to be acknowledged in the pull request
+-- that adds it, exactly like SR-20 for functions and SR-22 for public policies.
+select is(
+  (select count(*)::integer
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname = 'storage' and class.relname = 'objects'),
+  2,
+  'SR-23: the storage.objects policy inventory is still 2 -- update this expectation deliberately'
+);
+
+-- The workspace prefix parser is the whole isolation story for this bucket: it
+-- returns null for anything that is not workspace-prefixed, and
+-- has_workspace_permission(null, ...) is false. A permissive parser would hand
+-- every policy a workspace the caller does not own.
+select is(
+  (select count(*)::integer
+   from (values
+     ('not-a-uuid/doc/1/file.pdf'),
+     ('file.pdf'),
+     ('../51000000-0000-0000-0000-000000000001/doc/1/file.pdf'),
+     ('51000000-0000-0000-0000-000000000001-suffix/doc/1/file.pdf'),
+     ('')
+   ) as candidate(name)
+   where private.document_storage_workspace(candidate.name) is not null),
+  0,
+  'SR-23: the storage workspace parser fails closed for every malformed name'
+);
+
+select is(
+  private.document_storage_workspace(
+    '51000000-0000-0000-0000-000000000001/doc/1/file.pdf'
+  ),
+  '51000000-0000-0000-0000-000000000001'::uuid,
+  'SR-23: and still parses a well-formed workspace prefix'
 );
 
 select * from finish();

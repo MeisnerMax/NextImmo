@@ -174,3 +174,125 @@ select 'MUT-6b ' || case when (
   where n.nspname in ('public', 'storage', 'realtime')
 ) = 41 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-22 inventory count)';
 rollback;
+
+-- === SECURITY-STORAGE-AAL-03: the document storage surface ==============
+--
+-- SR-23 identifies the bucket's policy family through its dependency on
+-- private.document_storage_workspace, so each mutation below keeps the parser
+-- dependency and breaks exactly one other property.
+
+\echo '--- MUT-7: the documents SELECT policy loses the permission helper'
+begin;
+drop policy documents_bucket_select_document_read on storage.objects;
+create policy documents_bucket_select_document_read
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'documents'
+    and private.document_storage_workspace(name) is not null
+  );
+select 'MUT-7 ' || case when (
+  select count(*) from pg_policy p
+  join pg_class c on c.oid = p.polrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage' and c.relname = 'objects'
+    and exists (select 1 from pg_depend d join pg_proc f on f.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and f.proname='document_storage_workspace')
+    and not exists (select 1 from pg_depend d join pg_proc g on g.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and g.proname='has_workspace_permission')
+) = 0 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 helper binding)';
+rollback;
+
+\echo '--- MUT-8: the documents INSERT policy loses the permission helper'
+begin;
+drop policy documents_bucket_insert_document_manage on storage.objects;
+create policy documents_bucket_insert_document_manage
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'documents'
+    and private.document_storage_workspace(name) is not null
+  );
+select 'MUT-8 ' || case when (
+  select count(*) from pg_policy p
+  join pg_class c on c.oid = p.polrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage' and c.relname = 'objects'
+    and exists (select 1 from pg_depend d join pg_proc f on f.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and f.proname='document_storage_workspace')
+    and not exists (select 1 from pg_depend d join pg_proc g on g.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and g.proname='has_workspace_permission')
+) = 0 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 helper binding)';
+rollback;
+
+\echo '--- MUT-9: an UPDATE policy is added to the bucket'
+begin;
+create policy documents_bucket_update_probe
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'documents'
+    and private.has_workspace_permission(
+      private.document_storage_workspace(name), 'document.manage'
+    )
+  );
+select 'MUT-9 ' || case when (
+  select coalesce(string_agg(distinct p.polcmd::text, ',' order by p.polcmd::text), '(none)')
+  from pg_policy p
+  join pg_class c on c.oid = p.polrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage' and c.relname = 'objects'
+    and exists (select 1 from pg_depend d join pg_proc f on f.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and f.proname='document_storage_workspace')
+) = 'a,r' then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 command set)';
+rollback;
+
+\echo '--- MUT-10: a DELETE policy is added to the bucket'
+begin;
+create policy documents_bucket_delete_probe
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'documents'
+    and private.has_workspace_permission(
+      private.document_storage_workspace(name), 'document.manage'
+    )
+  );
+select 'MUT-10a ' || case when (
+  select coalesce(string_agg(distinct p.polcmd::text, ',' order by p.polcmd::text), '(none)')
+  from pg_policy p
+  join pg_class c on c.oid = p.polrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage' and c.relname = 'objects'
+    and exists (select 1 from pg_depend d join pg_proc f on f.oid = d.refobjid
+      where d.classid='pg_policy'::regclass and d.objid=p.oid
+        and d.refclassid='pg_proc'::regclass and f.proname='document_storage_workspace')
+) = 'a,r' then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 command set)';
+select 'MUT-10b ' || case when (
+  select count(*) from pg_policy p
+  join pg_class c on c.oid = p.polrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage' and c.relname = 'objects'
+) = 2 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 inventory count)';
+rollback;
+
+\echo '--- MUT-11: the workspace prefix parser becomes permissive'
+begin;
+create or replace function private.document_storage_workspace(object_name text)
+returns uuid
+language sql
+immutable
+set search_path = ''
+as $$
+  select '51000000-0000-0000-0000-000000000001'::uuid;
+$$;
+select 'MUT-11 ' || case when (
+  select count(*) from (values
+    ('not-a-uuid/doc/1/file.pdf'), ('file.pdf'),
+    ('../51000000-0000-0000-0000-000000000001/doc/1/file.pdf'),
+    ('51000000-0000-0000-0000-000000000001-suffix/doc/1/file.pdf'), ('')
+  ) as candidate(name)
+  where private.document_storage_workspace(candidate.name) is not null
+) = 0 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 parser fail-closed)';
+rollback;
