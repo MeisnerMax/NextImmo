@@ -249,6 +249,12 @@ jobs:
           supabase test db --local supabase/tests_rollback/003_p1_004_down.test.sql
           supabase migration up --local
           supabase test db --local
+      # Runs here, on the freshly replayed schema, because it asserts inventory
+      # counts and must not see integration fixtures. It rolls every mutation
+      # back and leaves the stack as it found it.
+      - name: Test SECURITY-AAL mutation matrix
+        shell: pwsh
+        run: ./tool/test_security_aal_mutation_matrix.ps1
       - name: Test P1-004 concurrency
         shell: pwsh
         run: ./tool/verify_p1_004_concurrency.ps1
@@ -285,6 +291,12 @@ jobs:
       - name: Test P2-D06 maintenance_capex integration
         shell: pwsh
         run: ./tool/verify_p2_d06_integration.ps1
+      # The only coverage that travels auth -> JWT -> Storage HTTP API ->
+      # storage.objects RLS. pgTAP can assert what a policy does with a claim,
+      # but not that storage-api delivers the same claim in the first place.
+      - name: Test SECURITY-STORAGE-AAL-03 storage boundary
+        shell: pwsh
+        run: ./tool/verify_storage_aal_03.ps1
       - name: Test P1-014 restore target guards
         shell: pwsh
         run: ./tool/test_p1_014_backup_restore_guard.ps1

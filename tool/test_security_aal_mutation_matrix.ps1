@@ -33,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $results = $output | Where-Object { $_ -match '^MUT-' }
-$expected = 7
+$expected = 13
 if ($results.Count -ne $expected) {
   $output | ForEach-Object { Write-Host $_ }
   throw "Expected $expected mutation results, got $($results.Count)."
