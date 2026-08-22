@@ -369,14 +369,18 @@ void main() {
       ];
 
       final enrollment = await repository.enrollTotp();
-      final factors = await repository.listTotpFactors();
+      final factors = await repository.listTotpFactorInventory();
 
       expect(
         (enrollment as IdentityAccessSuccess<TotpEnrollment>).value.factorId,
         'factor-new',
       );
       expect(
-        (factors as IdentityAccessSuccess<List<TotpFactor>>).value.single.id,
+        (factors as IdentityAccessSuccess<TotpFactorInventory>)
+            .value
+            .challengeable
+            .single
+            .id,
         'factor-a',
       );
 
@@ -386,6 +390,97 @@ void main() {
             .kind,
         IdentityAccessFailureKind.unauthenticated,
       );
+    });
+
+    // SECURITY-AAL-CLIENT-03: the repository has to expose the unverified
+    // residue of an interrupted enrolment, and has to be able to remove it
+    // through the user's own session -- no elevated key is involved anywhere.
+    test(
+      'lists unverified factors as recoverable and unenrolls via the session',
+      () async {
+        gateway.factors = const <TotpFactor>[
+          TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+          TotpFactor(
+            id: 'factor-b',
+            friendlyName: 'NexImmo',
+            status: TotpFactorStatus.unverified,
+          ),
+        ];
+
+        final inventory =
+            (await repository.listTotpFactorInventory()
+                    as IdentityAccessSuccess<TotpFactorInventory>)
+                .value;
+        expect(
+          inventory.challengeable.map((factor) => factor.id),
+          <String>['factor-a'],
+        );
+        expect(
+          inventory.recoverable.map((factor) => factor.id),
+          <String>['factor-b'],
+        );
+        expect(
+          inventory.interruptedEnrollment,
+          isNull,
+          reason: 'a verified factor takes precedence over recovery',
+        );
+
+        expect(
+          await repository.unenrollTotpFactor(factorId: ' factor-b '),
+          isA<IdentityAccessSuccess<void>>(),
+        );
+        expect(gateway.unenrolledFactorIds, <String>['factor-b']);
+
+        expect(
+          (await repository.unenrollTotpFactor(factorId: '   ')
+                  as IdentityAccessFailure<void>)
+              .kind,
+          IdentityAccessFailureKind.invalidInput,
+        );
+
+        gateway.currentSession = null;
+        expect(
+          (await repository.unenrollTotpFactor(factorId: 'factor-b')
+                  as IdentityAccessFailure<void>)
+              .kind,
+          IdentityAccessFailureKind.unauthenticated,
+        );
+        expect(
+          (await repository.listTotpFactorInventory()
+                  as IdentityAccessFailure<TotpFactorInventory>)
+              .kind,
+          IdentityAccessFailureKind.unauthenticated,
+        );
+        expect(
+          gateway.unenrolledFactorIds,
+          <String>['factor-b'],
+          reason: 'nothing reaches the gateway without a session',
+        );
+      },
+    );
+
+    test('maps enrolment rejections to recoverable kinds', () async {
+      gateway.enrollError = const AuthException(
+        'A factor with the friendly name "NexImmo" for this user already exists',
+        statusCode: '422',
+        code: 'mfa_factor_name_conflict',
+      );
+      var failure =
+          await repository.enrollTotp() as IdentityAccessFailure<TotpEnrollment>;
+      expect(failure.kind, IdentityAccessFailureKind.factorNameConflict);
+      expect(failure.message, isNot(contains('friendly name')));
+      expect(failure.message, isNot(contains('temporarily unavailable')));
+
+      gateway.enrollError = const AuthException(
+        'Enrolled factors exceed allowed limit, unenroll to continue',
+        statusCode: '422',
+        code: 'too_many_enrolled_mfa_factors',
+      );
+      failure =
+          await repository.enrollTotp() as IdentityAccessFailure<TotpEnrollment>;
+      expect(failure.kind, IdentityAccessFailureKind.tooManyFactors);
+      expect(failure.message, isNot(contains('exceed')));
+      expect(failure.message, isNot(contains('temporarily unavailable')));
     });
 
     test('challenges and verifies TOTP with an exact AAL2 result', () async {
@@ -501,7 +596,9 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
     secret: 'secret',
     uri: 'otpauth://totp',
   );
+  Object? enrollError;
   List<TotpFactor> factors = const <TotpFactor>[];
+  final List<String> unenrolledFactorIds = <String>[];
   TotpChallenge challenge = TotpChallenge(
     factorId: 'factor-a',
     challengeId: 'challenge-a',
@@ -538,10 +635,22 @@ class _FakeIdentityGateway implements IdentityAccessSupabaseGateway {
   }
 
   @override
-  Future<TotpEnrollment> enrollTotp() async => enrollment;
+  Future<TotpEnrollment> enrollTotp() async {
+    final error = enrollError;
+    if (error != null) {
+      throw error;
+    }
+    return enrollment;
+  }
 
   @override
-  Future<List<TotpFactor>> listTotpFactors() async => factors;
+  Future<TotpFactorInventory> listTotpFactorInventory() async =>
+      TotpFactorInventory(factors: factors);
+
+  @override
+  Future<void> unenrollTotpFactor(String factorId) async {
+    unenrolledFactorIds.add(factorId);
+  }
 
   @override
   Future<TotpChallenge> challengeTotp(String factorId) async {
