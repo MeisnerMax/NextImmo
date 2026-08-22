@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/desktop_auth_callback.dart';
@@ -92,12 +92,25 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
 
   @override
   Future<TotpFactorInventory> listTotpFactorInventory() async {
-    // `.all`, not `.totp`: gotrue filters `.totp` down to verified factors, so
-    // an interrupted enrolment is invisible there. The TOTP filter is applied
-    // here instead, and the verified/unverified split is carried in the model
-    // rather than being decided by which list the SDK handed back.
-    final factors =
-        (await _client.auth.mfa.listFactors()).all
+    // GET /user rather than mfa.listFactors(). The latter refreshes the
+    // session and then reads the factor list off the cached user -- and when
+    // the refresh token was rotated elsewhere in the meantime (another tab,
+    // the SDK's own timer) gotrue keeps the existing session, and with it the
+    // previous factor snapshot. Every caller of this method is about to decide
+    // something on the result, one of them destructively, so it has to be
+    // what the server holds at this moment, not what it held last time.
+    final user = (await _client.auth.getUser()).user;
+    return inventoryFromFactors(user?.factors ?? const <Factor>[]);
+  }
+
+  /// The whole factor list, not the SDK's `.totp` view: gotrue filters that
+  /// one down to verified factors, so an interrupted enrolment is invisible
+  /// there. The TOTP filter is applied here instead, and the status is carried
+  /// in the model rather than decided by which list the SDK handed back.
+  @visibleForTesting
+  static TotpFactorInventory inventoryFromFactors(Iterable<Factor> factors) {
+    final mapped =
+        factors
             .where((factor) => factor.factorType == FactorType.totp)
             .map(
               (factor) => TotpFactor(
@@ -114,13 +127,13 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
               ),
             )
             .toList();
-    factors.sort((left, right) {
+    mapped.sort((left, right) {
       final byName = (left.friendlyName ?? '').compareTo(
         right.friendlyName ?? '',
       );
       return byName != 0 ? byName : left.id.compareTo(right.id);
     });
-    return TotpFactorInventory(factors: factors);
+    return TotpFactorInventory(factors: mapped);
   }
 
   @override

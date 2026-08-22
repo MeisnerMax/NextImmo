@@ -338,6 +338,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     final current = inventory.findById(target.id);
     final stillResumable =
         current != null &&
+        !inventory.isAmbiguous &&
         (current.isVerified ||
             inventory.interruptedEnrollment?.id == target.id);
     if (!stillResumable) {
@@ -382,6 +383,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     final current = before.findById(target.id);
     if (current == null ||
         !current.isUnverified ||
+        before.isAmbiguous ||
         before.interruptedEnrollment?.id != target.id) {
       _applyInventory(before);
       return;
@@ -393,13 +395,11 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         state.authPhase != ReferenceAuthPhase.mfaRequired) {
       return;
     }
-    if (removal case IdentityAccessFailure<void>()) {
-      state = state.copyWith(
-        authActionPhase: ReferenceAuthActionPhase.failed,
-        authMessage: removal.message,
-      );
-      return;
-    }
+    // Whatever the removal reported, the account is re-read before anything
+    // else happens: a refused removal is no reason to trust the old picture
+    // either (the factor may be gone already, or verified after all), and a
+    // confirmed removal still has to show in the listing before an enrolment
+    // may follow.
     final after = await _reloadInventory(generation);
     if (after == null) {
       return;
@@ -408,15 +408,16 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       state = state.copyWith(
         authActionPhase: ReferenceAuthActionPhase.failed,
         authMessage:
-            'The previous authenticator setup is still on this account. '
+            'The previous authenticator setup could not be removed. '
             'Try again in a moment.',
       );
       return;
     }
-    if (!after.isEmpty) {
-      // The old factor is gone, but the account is not bare either: a verified
-      // factor or another leftover appeared meanwhile. Whatever it is, it is
-      // not something to enrol blindly over.
+    if (removal is IdentityAccessFailure<void> || !after.isEmpty) {
+      // Either the removal was refused and the factor is simply gone, or it
+      // worked but the account is not bare: a verified factor or another
+      // leftover appeared meanwhile. Neither is something to enrol blindly
+      // over; the state is recomputed and the user chooses again.
       _applyInventory(after);
       return;
     }
@@ -434,11 +435,13 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         _identityActionBusy) {
       return;
     }
-    // Below aal2 a plain enrolment is only for a bare account. A verified
-    // factor wants a challenge, and an interrupted one has its own two
-    // actions -- enrolling over it is exactly the call that collides.
+    // Below aal2 a plain enrolment is only for an account the inventory has
+    // positively shown to be bare. A verified factor wants a challenge, an
+    // interrupted one has its own two actions -- enrolling over it is exactly
+    // the call that collides -- and a state the client could not determine
+    // (ambiguous inventory, failed read) is not a licence to try anyway.
     if (state.authPhase == ReferenceAuthPhase.mfaRequired &&
-        (state.recoveryFactor != null || state.totpFactors.isNotEmpty)) {
+        state.authActionPhase != ReferenceAuthActionPhase.enrollmentRequired) {
       return;
     }
     final enrollmentPhase = state.authPhase;

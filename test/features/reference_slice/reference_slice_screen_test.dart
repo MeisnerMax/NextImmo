@@ -125,6 +125,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the code field does not carry over across auth phases', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          factors: const <TotpFactor>[
+            TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+          ],
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const Key('reference-mfa-code')),
+        '123456',
+      );
+
+      // Verified: the view moves to the authenticated shell and back to a
+      // code form later (a second enrolment, or another user after sign-out).
+      await _pumpView(tester, state: _readyState());
+      await _pumpView(
+        tester,
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          factors: const <TotpFactor>[
+            TotpFactor(id: 'factor-a', friendlyName: 'Primary'),
+          ],
+        ),
+      );
+
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('reference-mfa-code')),
+      );
+      expect(field.controller?.text, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('submits email and password and TOTP step-up actions', (
       tester,
     ) async {

@@ -176,6 +176,19 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
   bool _passwordObscured = true;
 
   @override
+  void didUpdateWidget(covariant ReferenceSliceView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // One code field serves the challenge, enrolment and recovery forms. A
+    // code is single-use and short-lived, but it must not carry over into the
+    // next form, let alone the next user: cleared whenever the authentication
+    // phase or the signed-in user changes.
+    if (oldWidget.state.authPhase != widget.state.authPhase ||
+        oldWidget.state.userId != widget.state.userId) {
+      _totpCodeController.clear();
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _emailController.dispose();
