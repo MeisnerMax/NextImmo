@@ -69,6 +69,8 @@ class _ReferenceSliceScreenState extends ConsumerState<ReferenceSliceScreen> {
       onRetryUpdate: controller.retryUpdate,
       onSignInWithPassword: controller.signInWithPassword,
       onBeginTotpEnrollment: controller.beginTotpEnrollment,
+      onResumeTotpEnrollment: controller.resumeTotpEnrollment,
+      onRestartTotpEnrollment: controller.restartTotpEnrollment,
       onVerifyTotp: controller.verifyTotp,
       onSignOut: controller.signOut,
       onOpenMembers:
@@ -130,6 +132,8 @@ class ReferenceSliceView extends StatefulWidget {
     required this.onRetryUpdate,
     required this.onSignInWithPassword,
     required this.onBeginTotpEnrollment,
+    required this.onResumeTotpEnrollment,
+    required this.onRestartTotpEnrollment,
     required this.onVerifyTotp,
     required this.onSignOut,
     this.onOpenMembers,
@@ -150,6 +154,8 @@ class ReferenceSliceView extends StatefulWidget {
   final Future<void> Function(String email, String password)
   onSignInWithPassword;
   final Future<void> Function() onBeginTotpEnrollment;
+  final Future<void> Function({required String code}) onResumeTotpEnrollment;
+  final Future<void> Function() onRestartTotpEnrollment;
   final Future<void> Function({required String factorId, required String code})
   onVerifyTotp;
   final Future<void> Function() onSignOut;
@@ -168,6 +174,19 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
   String _query = '';
   String? _selectedFactorId;
   bool _passwordObscured = true;
+
+  @override
+  void didUpdateWidget(covariant ReferenceSliceView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // One code field serves the challenge, enrolment and recovery forms. A
+    // code is single-use and short-lived, but it must not carry over into the
+    // next form, let alone the next user: cleared whenever the authentication
+    // phase or the signed-in user changes.
+    if (oldWidget.state.authPhase != widget.state.authPhase ||
+        oldWidget.state.userId != widget.state.userId) {
+      _totpCodeController.clear();
+    }
+  }
 
   @override
   void dispose() {
@@ -422,6 +441,9 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     if (state.totpEnrollment != null) {
       return _buildTotpEnrollment();
     }
+    if (state.recoveryFactor != null) {
+      return _buildInterruptedEnrollmentRecovery();
+    }
     // No verified factor yet: there is nothing to challenge, so ask for setup
     // instead of a code. Deliberately never phrased as missing workspace
     // access -- the account has access, the session is simply not elevated.
@@ -533,6 +555,74 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
           ),
           TextButton(
             key: const Key('reference-mfa-sign-out'),
+            onPressed: _authActionBusy ? null : widget.onSignOut,
+            child: const Text('Sign out'),
+          ),
+          if (state.authMessage != null)
+            Text(
+              state.authMessage!,
+              key: const Key('reference-auth-message'),
+              textAlign: TextAlign.center,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // SECURITY-AAL-CLIENT-03. An enrolment that was started but never verified
+  // leaves a factor that can neither be challenged nor re-created. The user is
+  // told what happened and chooses: finish with the key already in their app,
+  // or start over. No factor id, no secret and no provider text is rendered --
+  // the controller has already reduced the situation to this choice.
+  Widget _buildInterruptedEnrollmentRecovery() {
+    final state = widget.state;
+    return _AuthFormShell(
+      key: const Key('reference-mfa-recovery'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            Icons.phonelink_lock_outlined,
+            size: 32,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: AppSpacing.component),
+          Text(
+            'Authenticator setup incomplete',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Your authenticator setup was interrupted before it was verified. '
+            'If NexImmo is already in your authenticator app, enter its '
+            'current code to continue. Otherwise restart the setup.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.component),
+          _buildTotpCodeField(),
+          const SizedBox(height: AppSpacing.component),
+          FilledButton.icon(
+            key: const Key('reference-mfa-recovery-continue'),
+            onPressed:
+                _authActionBusy
+                    ? null
+                    : () => widget.onResumeTotpEnrollment(
+                      code: _totpCodeController.text,
+                    ),
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Continue existing setup'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            key: const Key('reference-mfa-recovery-restart'),
+            onPressed: _authActionBusy ? null : widget.onRestartTotpEnrollment,
+            icon: const Icon(Icons.restart_alt_outlined),
+            label: const Text('Restart authenticator setup'),
+          ),
+          TextButton(
+            key: const Key('reference-mfa-recovery-sign-out'),
             onPressed: _authActionBusy ? null : widget.onSignOut,
             child: const Text('Sign out'),
           ),

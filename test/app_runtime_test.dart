@@ -139,8 +139,16 @@ class _IdentityRepository implements IdentityAccessRepository {
       throw UnimplementedError();
 
   @override
-  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async =>
-      const IdentityAccessSuccess<List<TotpFactor>>(<TotpFactor>[]);
+  Future<IdentityAccessResult<TotpFactorInventory>>
+  listTotpFactorInventory() async =>
+      const IdentityAccessSuccess<TotpFactorInventory>(
+        TotpFactorInventory.empty(),
+      );
+
+  @override
+  Future<IdentityAccessResult<void>> unenrollTotpFactor({
+    required String factorId,
+  }) async => throw UnimplementedError();
 
   @override
   Future<IdentityAccessResult<List<WorkspaceAccess>>> listWorkspaceAccesses({

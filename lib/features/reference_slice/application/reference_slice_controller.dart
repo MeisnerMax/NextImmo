@@ -28,6 +28,13 @@ enum ReferenceAuthActionPhase {
   /// from [failed]: nothing went wrong, this is the expected state for an
   /// administratively created account on its first sign-in.
   enrollmentRequired,
+
+  /// An earlier enrolment was started but never verified, so the account holds
+  /// an unverified factor and no verified one. Neither a challenge nor a fresh
+  /// enrolment works from here -- the first has nothing to challenge, the
+  /// second collides with the abandoned factor -- so the user is offered a
+  /// choice between resuming and restarting.
+  interruptedEnrollmentRecovery,
   enrolling,
   enrollmentReady,
   verifying,
@@ -72,6 +79,7 @@ class ReferenceSliceState {
     this.authMessage,
     this.totpFactors = const <TotpFactor>[],
     this.totpEnrollment,
+    this.recoveryFactor,
   });
 
   const ReferenceSliceState.loading()
@@ -102,6 +110,12 @@ class ReferenceSliceState {
   final String? authMessage;
   final List<TotpFactor> totpFactors;
   final TotpEnrollment? totpEnrollment;
+
+  /// The unverified factor an interrupted enrolment left on the account, while
+  /// the user is being offered to resume or restart it. Held only so the two
+  /// recovery actions know which factor they are about, and never shown: the
+  /// UI renders the situation, not the id. Null outside recovery.
+  final TotpFactor? recoveryFactor;
 
   WorkspaceAccess? get selectedWorkspace {
     final selectedId = selectedWorkspaceId;
@@ -136,6 +150,7 @@ class ReferenceSliceState {
     Object? authMessage = _unchanged,
     List<TotpFactor>? totpFactors,
     Object? totpEnrollment = _unchanged,
+    Object? recoveryFactor = _unchanged,
   }) {
     return ReferenceSliceState(
       authPhase: authPhase ?? this.authPhase,
@@ -179,6 +194,10 @@ class ReferenceSliceState {
           identical(totpEnrollment, _unchanged)
               ? this.totpEnrollment
               : totpEnrollment as TotpEnrollment?,
+      recoveryFactor:
+          identical(recoveryFactor, _unchanged)
+              ? this.recoveryFactor
+              : recoveryFactor as TotpFactor?,
     );
   }
 }
@@ -259,6 +278,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       authMessage: null,
       totpFactors: const <TotpFactor>[],
       totpEnrollment: null,
+      recoveryFactor: null,
     );
     final result = await _identityRepository.signInWithPassword(
       email: email,
@@ -283,6 +303,127 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
   }
 
+  // SECURITY-AAL-CLIENT-03. GoTrue keeps an enrolled-but-unverified factor
+  // when a setup is abandoned before its first code is accepted. Such an
+  // account is neither factorless (a fresh enrolment under the same name is
+  // refused) nor challengeable (there is no verified factor). The two methods
+  // below are the only ways out, and the controller offers them only when the
+  // inventory shows exactly that shape: see [_applyInventory].
+
+  /// Recovery option A: finish the interrupted enrolment with the factor that
+  /// is already on the account, for a user who still has it in their
+  /// authenticator app. Nothing is deleted.
+  ///
+  /// The inventory is re-read first. A code is sent only if the factor the
+  /// user was shown is still the one the account holds -- still the lone
+  /// unverified factor, or verified in the meantime, which the same challenge
+  /// completes just as well. Anything else means the picture changed
+  /// underneath, and the state is recomputed from what was actually found.
+  Future<void> resumeTotpEnrollment({required String code}) async {
+    final target = state.recoveryFactor;
+    if (state.authPhase != ReferenceAuthPhase.mfaRequired ||
+        target == null ||
+        _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.verifying,
+      authMessage: null,
+    );
+    final inventory = await _reloadInventory(generation);
+    if (inventory == null) {
+      return;
+    }
+    final current = inventory.findById(target.id);
+    final stillResumable =
+        current != null &&
+        !inventory.isAmbiguous &&
+        (current.isVerified ||
+            inventory.interruptedEnrollment?.id == target.id);
+    if (!stillResumable) {
+      _applyInventory(inventory);
+      return;
+    }
+    await _challengeAndVerify(
+      factorId: target.id,
+      code: code,
+      generation: generation,
+    );
+  }
+
+  /// Recovery option B: the user no longer has the original secret, so the
+  /// abandoned factor is replaced.
+  ///
+  /// The removal is the one destructive call on the whole MFA surface and is
+  /// guarded accordingly. It targets exactly the factor the user was shown,
+  /// only after a fresh read confirms that factor is still there, still
+  /// unverified and still the only story the inventory tells; a factor that
+  /// got verified, vanished or gained a verified sibling in the meantime is
+  /// left alone and the state recomputed instead. The enrolment that follows
+  /// waits for a second read to confirm the old factor is gone, because
+  /// enrolling on top of it is exactly the collision this recovers from.
+  Future<void> restartTotpEnrollment() async {
+    final target = state.recoveryFactor;
+    if (state.authPhase != ReferenceAuthPhase.mfaRequired ||
+        target == null ||
+        _identityActionBusy) {
+      return;
+    }
+    final generation = ++_identityActionGeneration;
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.enrolling,
+      authMessage: null,
+      totpEnrollment: null,
+    );
+    final before = await _reloadInventory(generation);
+    if (before == null) {
+      return;
+    }
+    final current = before.findById(target.id);
+    if (current == null ||
+        !current.isUnverified ||
+        before.isAmbiguous ||
+        before.interruptedEnrollment?.id != target.id) {
+      _applyInventory(before);
+      return;
+    }
+    final removal = await _identityRepository.unenrollTotpFactor(
+      factorId: current.id,
+    );
+    if (generation != _identityActionGeneration ||
+        state.authPhase != ReferenceAuthPhase.mfaRequired) {
+      return;
+    }
+    // Whatever the removal reported, the account is re-read before anything
+    // else happens: a refused removal is no reason to trust the old picture
+    // either (the factor may be gone already, or verified after all), and a
+    // confirmed removal still has to show in the listing before an enrolment
+    // may follow.
+    final after = await _reloadInventory(generation);
+    if (after == null) {
+      return;
+    }
+    if (after.findById(target.id) != null) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.failed,
+        authMessage:
+            'The previous authenticator setup could not be removed. '
+            'Try again in a moment.',
+      );
+      return;
+    }
+    if (removal is IdentityAccessFailure<void> || !after.isEmpty) {
+      // Either the removal was refused and the factor is simply gone, or it
+      // worked but the account is not bare: a verified factor or another
+      // leftover appeared meanwhile. Neither is something to enrol blindly
+      // over; the state is recomputed and the user chooses again.
+      _applyInventory(after);
+      return;
+    }
+    await _enroll(generation, from: ReferenceAuthPhase.mfaRequired);
+  }
+
   Future<void> beginTotpEnrollment() async {
     // Reachable from mfaRequired, which is the only state a factorless account
     // can be in, and still from authenticated so an elevated user can add a
@@ -294,6 +435,15 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         _identityActionBusy) {
       return;
     }
+    // Below aal2 a plain enrolment is only for an account the inventory has
+    // positively shown to be bare. A verified factor wants a challenge, an
+    // interrupted one has its own two actions -- enrolling over it is exactly
+    // the call that collides -- and a state the client could not determine
+    // (ambiguous inventory, failed read) is not a licence to try anyway.
+    if (state.authPhase == ReferenceAuthPhase.mfaRequired &&
+        state.authActionPhase != ReferenceAuthActionPhase.enrollmentRequired) {
+      return;
+    }
     final enrollmentPhase = state.authPhase;
     final generation = ++_identityActionGeneration;
     state = state.copyWith(
@@ -301,9 +451,15 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       authMessage: null,
       totpEnrollment: null,
     );
+    await _enroll(generation, from: enrollmentPhase);
+  }
+
+  Future<void> _enroll(
+    int generation, {
+    required ReferenceAuthPhase from,
+  }) async {
     final result = await _identityRepository.enrollTotp();
-    if (generation != _identityActionGeneration ||
-        state.authPhase != enrollmentPhase) {
+    if (generation != _identityActionGeneration || state.authPhase != from) {
       return;
     }
     switch (result) {
@@ -313,8 +469,26 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           authMessage:
               'Add the setup key to an authenticator, then enter its code.',
           totpEnrollment: result.value,
+          recoveryFactor: null,
         );
       case IdentityAccessFailure<TotpEnrollment>():
+        // A name conflict or a full factor list is the server describing the
+        // account, not an outage. Below aal2 the inventory is re-read and the
+        // state re-derived from it: an abandoned factor becomes recovery, a
+        // verified one the ordinary challenge, and anything else fails closed.
+        // Never a retry, never a renamed second attempt, never a deletion.
+        if (from == ReferenceAuthPhase.mfaRequired &&
+            (result.kind == IdentityAccessFailureKind.factorNameConflict ||
+                result.kind == IdentityAccessFailureKind.tooManyFactors)) {
+          final inventory = await _reloadInventory(
+            generation,
+            failureMessage: result.message,
+          );
+          if (inventory != null) {
+            _applyInventory(inventory, rejection: result.message);
+          }
+          return;
+        }
         state = state.copyWith(
           authActionPhase: ReferenceAuthActionPhase.failed,
           authMessage: result.message,
@@ -338,6 +512,18 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       authActionPhase: ReferenceAuthActionPhase.verifying,
       authMessage: null,
     );
+    await _challengeAndVerify(
+      factorId: factorId,
+      code: code,
+      generation: generation,
+    );
+  }
+
+  Future<void> _challengeAndVerify({
+    required String factorId,
+    required String code,
+    required int generation,
+  }) async {
     final challengeResult = await _identityRepository.challengeTotp(
       factorId: factorId,
     );
@@ -362,6 +548,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
     switch (verification) {
       case IdentityAccessSuccess<AuthenticatedSession>():
+        // Rebuilds the state from the elevated session, which also drops the
+        // enrolment secret and any recovery target.
         await _handleSession(verification.value, force: true);
       case IdentityAccessFailure<AuthenticatedSession>():
         state = state.copyWith(
@@ -679,7 +867,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         mutationPhase: PropertyMutationPhase.idle,
         userId: userId,
       );
-      await _loadTotpFactors(userId, identityGeneration);
+      await _loadTotpFactors(identityGeneration);
       return;
     }
     state = ReferenceSliceState(
@@ -698,42 +886,116 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
   }
 
-  Future<void> _loadTotpFactors(String userId, int generation) async {
-    final result = await _identityRepository.listTotpFactors();
+  Future<void> _loadTotpFactors(int generation) async {
+    final inventory = await _reloadInventory(generation);
+    if (inventory != null) {
+      _applyInventory(inventory);
+    }
+  }
+
+  /// Reads the factor inventory for the current mfaRequired session. Returns
+  /// it when the caller is still the current identity action and the session
+  /// is unchanged; otherwise the state has been set (fail closed on a read
+  /// failure) or superseded, and null tells the caller to stop.
+  ///
+  /// A read failure keeps [ReferenceSliceState.recoveryFactor], so the user
+  /// can retry the action once the service answers again. What it never does
+  /// is let a stale inventory stand in for a fresh one.
+  Future<TotpFactorInventory?> _reloadInventory(
+    int generation, {
+    String? failureMessage,
+  }) async {
+    final userId = state.userId;
+    final result = await _identityRepository.listTotpFactorInventory();
     if (generation != _identityActionGeneration ||
         state.authPhase != ReferenceAuthPhase.mfaRequired ||
         state.userId != userId) {
-      return;
+      return null;
     }
     switch (result) {
-      case IdentityAccessSuccess<List<TotpFactor>>():
-        // listTotpFactors reports verified factors only -- gotrue filters
-        // listFactors().totp on FactorStatus.verified -- so an empty list means
-        // the account has no second factor yet. That is the expected state for
-        // an administratively created user on first sign-in, not a failure, and
-        // the way out of it is enrolment rather than a challenge.
-        final needsEnrollment = result.value.isEmpty;
-        state = state.copyWith(
-          authActionPhase:
-              needsEnrollment
-                  ? ReferenceAuthActionPhase.enrollmentRequired
-                  : ReferenceAuthActionPhase.idle,
-          authMessage:
-              needsEnrollment
-                  ? 'NexImmo requires an authenticator before workspace data '
-                      'can be accessed.'
-                  : null,
-          totpFactors: result.value,
-          totpEnrollment: null,
-        );
-      case IdentityAccessFailure<List<TotpFactor>>():
+      case IdentityAccessSuccess<TotpFactorInventory>():
+        return result.value;
+      case IdentityAccessFailure<TotpFactorInventory>():
         state = state.copyWith(
           authActionPhase: ReferenceAuthActionPhase.failed,
-          authMessage: result.message,
+          authMessage: failureMessage ?? result.message,
           totpFactors: const <TotpFactor>[],
           totpEnrollment: null,
         );
+        return null;
     }
+  }
+
+  /// Derives the mfaRequired sub-state from a freshly read inventory. This is
+  /// the only place that chooses between challenge, enrolment, recovery and
+  /// fail-closed, so the initial load, a rejected enrolment and a recovery
+  /// action that found the world changed all land on the same decision:
+  ///
+  /// - a verified factor exists: the ordinary challenge, whatever else is on
+  ///   the account. A stale unverified sibling is left where it is -- the
+  ///   point is reaching aal2 safely, not tidying the factor list;
+  /// - the inventory is ambiguous (a status the SDK could not map, or more
+  ///   than one abandoned factor under this app's name): fail closed;
+  /// - exactly one abandoned factor under this app's name: recovery;
+  /// - nothing at all: enrolment -- unless the server has just refused one
+  ///   ([rejection]), in which case the account is not bare whatever the
+  ///   listing says, and offering the same enrolment again would only loop.
+  void _applyInventory(TotpFactorInventory inventory, {String? rejection}) {
+    final challengeable = inventory.challengeable;
+    if (challengeable.isNotEmpty) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.idle,
+        authMessage: rejection,
+        totpFactors: challengeable,
+        totpEnrollment: null,
+        recoveryFactor: null,
+      );
+      return;
+    }
+    if (inventory.isAmbiguous) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.failed,
+        authMessage:
+            rejection ??
+            'The authenticator setup on this account could not be '
+                'determined. Sign out and try again, or contact an '
+                'administrator.',
+        totpFactors: const <TotpFactor>[],
+        totpEnrollment: null,
+        recoveryFactor: null,
+      );
+      return;
+    }
+    final interrupted = inventory.interruptedEnrollment;
+    if (interrupted != null) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+        authMessage: rejection,
+        totpFactors: const <TotpFactor>[],
+        totpEnrollment: null,
+        recoveryFactor: interrupted,
+      );
+      return;
+    }
+    if (rejection != null) {
+      state = state.copyWith(
+        authActionPhase: ReferenceAuthActionPhase.failed,
+        authMessage: rejection,
+        totpFactors: const <TotpFactor>[],
+        totpEnrollment: null,
+        recoveryFactor: null,
+      );
+      return;
+    }
+    state = state.copyWith(
+      authActionPhase: ReferenceAuthActionPhase.enrollmentRequired,
+      authMessage:
+          'NexImmo requires an authenticator before workspace data can be '
+          'accessed.',
+      totpFactors: const <TotpFactor>[],
+      totpEnrollment: null,
+      recoveryFactor: null,
+    );
   }
 
   Future<void> _loadWorkspaces(
