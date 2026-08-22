@@ -16,7 +16,9 @@ abstract interface class IdentityAccessSupabaseGateway {
 
   Future<TotpEnrollment> enrollTotp();
 
-  Future<List<TotpFactor>> listTotpFactors();
+  Future<TotpFactorInventory> listTotpFactorInventory();
+
+  Future<void> unenrollTotpFactor(String factorId);
 
   Future<TotpChallenge> challengeTotp(String factorId);
 
@@ -75,7 +77,7 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
   Future<TotpEnrollment> enrollTotp() async {
     final enrollment = await _client.auth.mfa.enroll(
       factorType: FactorType.totp,
-      friendlyName: 'NexImmo',
+      friendlyName: totpEnrollmentFriendlyName,
     );
     final totp = enrollment.totp;
     if (totp == null || totp.secret.isEmpty || totp.uri.isEmpty) {
@@ -89,20 +91,42 @@ class SupabaseIdentityAccessGateway implements IdentityAccessSupabaseGateway {
   }
 
   @override
-  Future<List<TotpFactor>> listTotpFactors() async {
-    final factors = (await _client.auth.mfa.listFactors()).totp
-        .map(
-          (factor) =>
-              TotpFactor(id: factor.id, friendlyName: factor.friendlyName),
-        )
-        .toList(growable: false);
+  Future<TotpFactorInventory> listTotpFactorInventory() async {
+    // `.all`, not `.totp`: gotrue filters `.totp` down to verified factors, so
+    // an interrupted enrolment is invisible there. The TOTP filter is applied
+    // here instead, and the verified/unverified split is carried in the model
+    // rather than being decided by which list the SDK handed back.
+    final factors =
+        (await _client.auth.mfa.listFactors()).all
+            .where((factor) => factor.factorType == FactorType.totp)
+            .map(
+              (factor) => TotpFactor(
+                id: factor.id,
+                friendlyName: factor.friendlyName,
+                // Exhaustive on purpose. gotrue carries a forward-compatible
+                // `unknown` status, and a factor in that state must not be
+                // mistaken for an abandoned one the user may delete.
+                status: switch (factor.status) {
+                  FactorStatus.verified => TotpFactorStatus.verified,
+                  FactorStatus.unverified => TotpFactorStatus.unverified,
+                  FactorStatus.unknown => TotpFactorStatus.unknown,
+                },
+              ),
+            )
+            .toList();
     factors.sort((left, right) {
       final byName = (left.friendlyName ?? '').compareTo(
         right.friendlyName ?? '',
       );
       return byName != 0 ? byName : left.id.compareTo(right.id);
     });
-    return factors;
+    return TotpFactorInventory(factors: factors);
+  }
+
+  @override
+  Future<void> unenrollTotpFactor(String factorId) async {
+    // The user's own session is sufficient; this never needs elevated keys.
+    await _client.auth.mfa.unenroll(factorId);
   }
 
   @override
@@ -305,19 +329,44 @@ class SupabaseIdentityAccessRepositoryAdapter
   }
 
   @override
-  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async {
+  Future<IdentityAccessResult<TotpFactorInventory>>
+  listTotpFactorInventory() async {
     if (_gateway.currentSession == null) {
-      return const IdentityAccessFailure<List<TotpFactor>>(
+      return const IdentityAccessFailure<TotpFactorInventory>(
         kind: IdentityAccessFailureKind.unauthenticated,
         message: 'Sign in before loading multi-factor authentication.',
       );
     }
     try {
-      return IdentityAccessSuccess<List<TotpFactor>>(
-        await _gateway.listTotpFactors(),
+      return IdentityAccessSuccess<TotpFactorInventory>(
+        await _gateway.listTotpFactorInventory(),
       );
     } catch (error) {
-      return _authFailure<List<TotpFactor>>(error);
+      return _authFailure<TotpFactorInventory>(error);
+    }
+  }
+
+  @override
+  Future<IdentityAccessResult<void>> unenrollTotpFactor({
+    required String factorId,
+  }) async {
+    if (_gateway.currentSession == null) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.unauthenticated,
+        message: 'Sign in before changing multi-factor authentication.',
+      );
+    }
+    if (factorId.trim().isEmpty) {
+      return const IdentityAccessFailure<void>(
+        kind: IdentityAccessFailureKind.invalidInput,
+        message: 'A factor id is required.',
+      );
+    }
+    try {
+      await _gateway.unenrollTotpFactor(factorId.trim());
+      return const IdentityAccessSuccess<void>(null);
+    } catch (error) {
+      return _authFailure<void>(error);
     }
   }
 
@@ -583,6 +632,13 @@ IdentityAccessFailure<T> _authFailure<T>(Object error) {
       IdentityAccessFailureKind.unauthenticated,
     AuthException(code: final code) when _forbiddenCodes.contains(code) =>
       IdentityAccessFailureKind.forbidden,
+    // Both are recoverable states of the account's own factor list, not
+    // outages. Left in the infrastructure bucket they surfaced as
+    // "temporarily unavailable", which is both wrong and permanent.
+    AuthException(code: 'mfa_factor_name_conflict') =>
+      IdentityAccessFailureKind.factorNameConflict,
+    AuthException(code: 'too_many_enrolled_mfa_factors') =>
+      IdentityAccessFailureKind.tooManyFactors,
     _ => IdentityAccessFailureKind.infrastructureFailure,
   };
   final message = switch (kind) {
@@ -597,6 +653,10 @@ IdentityAccessFailure<T> _authFailure<T>(Object error) {
     IdentityAccessFailureKind.unauthenticated => 'The session has expired.',
     IdentityAccessFailureKind.forbidden =>
       'This authentication action is not permitted.',
+    IdentityAccessFailureKind.factorNameConflict =>
+      'An unfinished authenticator setup is already on this account.',
+    IdentityAccessFailureKind.tooManyFactors =>
+      'This account already has the maximum number of authenticators.',
     _ => 'Authentication is temporarily unavailable.',
   };
   return IdentityAccessFailure<T>(kind: kind, message: message);

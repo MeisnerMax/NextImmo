@@ -78,11 +78,101 @@ class AuthenticatedSession {
           nextAssuranceLevel == AuthenticationAssuranceLevel.aal2);
 }
 
+/// The friendly name this application enrols every TOTP factor under.
+///
+/// GoTrue rejects a second enrolment under a name that is already taken --
+/// by a verified factor or by the unverified residue of an abandoned one. The
+/// recovery path therefore looks for exactly this name, and never invents
+/// another to slip past the conflict.
+const totpEnrollmentFriendlyName = 'NexImmo';
+
+/// Whether a TOTP factor has completed its enrolment.
+///
+/// GoTrue leaves an enrolled-but-unverified factor on the account when a setup
+/// is abandoned before the first code is accepted. `listFactors().totp` filters
+/// those out, so a client reading only that list sees an account with a
+/// half-finished enrolment as an account with no factor at all.
+///
+/// [unknown] is a status the SDK could not map. Such a factor is neither
+/// challengeable nor removable: the only safe reading of "I do not know what
+/// this is" is to touch nothing.
+enum TotpFactorStatus { verified, unverified, unknown }
+
 class TotpFactor {
-  const TotpFactor({required this.id, this.friendlyName});
+  const TotpFactor({
+    required this.id,
+    this.friendlyName,
+    this.status = TotpFactorStatus.verified,
+  });
 
   final String id;
   final String? friendlyName;
+  final TotpFactorStatus status;
+
+  bool get isVerified => status == TotpFactorStatus.verified;
+
+  bool get isUnverified => status == TotpFactorStatus.unverified;
+}
+
+/// The complete TOTP factor inventory for the current user, unverified factors
+/// included.
+///
+/// One object rather than two loose lists, so no caller can reason about "the
+/// factors" without saying which kind it means: only [challengeable] can answer
+/// a challenge, and only [recoverable] may ever be considered for removal.
+class TotpFactorInventory {
+  TotpFactorInventory({required List<TotpFactor> factors})
+    : factors = List<TotpFactor>.unmodifiable(factors);
+
+  const TotpFactorInventory.empty() : factors = const <TotpFactor>[];
+
+  final List<TotpFactor> factors;
+
+  /// Verified factors. These, and only these, can answer a challenge.
+  List<TotpFactor> get challengeable =>
+      factors.where((factor) => factor.isVerified).toList(growable: false);
+
+  /// Unverified factors -- the residue of an interrupted enrolment, and the
+  /// only factors this application may ever unenroll. A factor of unknown
+  /// status is deliberately not in here.
+  List<TotpFactor> get recoverable =>
+      factors.where((factor) => factor.isUnverified).toList(growable: false);
+
+  bool get isEmpty => factors.isEmpty;
+
+  TotpFactor? findById(String id) {
+    for (final factor in factors) {
+      if (factor.id == id) {
+        return factor;
+      }
+    }
+    return null;
+  }
+
+  /// The factor an interrupted enrolment left behind, when that is the whole
+  /// story the inventory tells: no verified factor, and exactly one unverified
+  /// factor under this application's own name. A verified factor takes
+  /// precedence -- the account can reach aal2 through it, and nothing needs
+  /// recovering -- so this is null whenever [challengeable] is not empty.
+  TotpFactor? get interruptedEnrollment {
+    if (challengeable.isNotEmpty) {
+      return null;
+    }
+    final candidates = _ownUnverified;
+    return candidates.length == 1 ? candidates.single : null;
+  }
+
+  /// True when the inventory cannot be reduced to one of the states the client
+  /// knows how to leave safely: a factor of unknown status, or more than one
+  /// unverified factor under this application's name. Neither a challenge, an
+  /// enrolment nor a removal is a sound move from here.
+  bool get isAmbiguous =>
+      factors.any((factor) => factor.status == TotpFactorStatus.unknown) ||
+      (challengeable.isEmpty && _ownUnverified.length > 1);
+
+  List<TotpFactor> get _ownUnverified => recoverable
+      .where((factor) => factor.friendlyName == totpEnrollmentFriendlyName)
+      .toList(growable: false);
 }
 
 class TotpEnrollment {
@@ -121,6 +211,16 @@ enum IdentityAccessFailureKind {
   /// for "no such user" and "wrong password": distinguishing them would let an
   /// unauthenticated caller enumerate accounts.
   invalidCredentials,
+
+  /// A factor with the requested friendly name already exists. Almost always
+  /// the residue of an interrupted enrolment rather than a real conflict, and
+  /// recoverable -- which is why it must not land in the generic
+  /// infrastructure bucket that reads "temporarily unavailable".
+  factorNameConflict,
+
+  /// The account already holds the maximum number of enrolled factors. Also
+  /// recoverable, but never by deleting a verified factor.
+  tooManyFactors,
 }
 
 sealed class IdentityAccessResult<T> {
@@ -164,7 +264,19 @@ abstract interface class IdentityAccessRepository {
 
   Future<IdentityAccessResult<TotpEnrollment>> enrollTotp();
 
-  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors();
+  /// The full factor inventory, unverified factors included. Replaces the older
+  /// verified-only listing: an interrupted enrolment is invisible in that view,
+  /// and a client cannot recover from a state it cannot see.
+  Future<IdentityAccessResult<TotpFactorInventory>> listTotpFactorInventory();
+
+  /// Removes a factor through the caller's own session.
+  ///
+  /// Only ever called for a factor the caller has just re-read from the
+  /// inventory and found unverified. No `service_role`, no admin API: a user
+  /// clearing their own abandoned setup needs neither.
+  Future<IdentityAccessResult<void>> unenrollTotpFactor({
+    required String factorId,
+  });
 
   Future<IdentityAccessResult<TotpChallenge>> challengeTotp({
     required String factorId,

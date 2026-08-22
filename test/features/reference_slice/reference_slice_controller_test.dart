@@ -104,9 +104,7 @@ void main() {
         currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
         nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
       );
-      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
-        <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
-      );
+      identity.factorsResult = _inventory(const <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')]);
 
       await controller.start();
 
@@ -125,9 +123,7 @@ void main() {
           currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
           nextAssuranceLevel: AuthenticationAssuranceLevel.aal2,
         );
-        identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
-          <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
-        );
+        identity.factorsResult = _inventory(const <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')]);
         identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
           <WorkspaceAccess>[
             _access(permissions: <String>{'property.read'}),
@@ -145,7 +141,10 @@ void main() {
         expect(controller.state.totpFactors, isEmpty);
         expect(identity.challengedFactorIds, <String>['factor-a']);
         expect(identity.verifiedCodes, <String>['123456']);
+        expect(identity.enrollmentCalls, 0, reason: 'nothing to enrol');
+        expect(identity.unenrolledFactorIds, isEmpty);
         expect(controller.state.selectedWorkspaceId, 'workspace-a');
+        expect(identity.listCalls, 1, reason: 'business load only after aal2');
       },
     );
 
@@ -191,9 +190,7 @@ void main() {
       // enrolled a factor yet. There is no challenge to answer, only an
       // enrolment to complete.
       identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
-      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
-        <TotpFactor>[],
-      );
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
 
       await controller.start();
 
@@ -209,9 +206,7 @@ void main() {
 
     test('a factorless aal1 session can enrol its first factor', () async {
       identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
-      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
-        <TotpFactor>[],
-      );
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
         <WorkspaceAccess>[
           _access(permissions: <String>{'property.read'}),
@@ -251,9 +246,7 @@ void main() {
       expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
       expect(controller.state.selectedWorkspaceId, 'workspace-a');
 
-      identity.factorsResult = const IdentityAccessSuccess<List<TotpFactor>>(
-        <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')],
-      );
+      identity.factorsResult = _inventory(const <TotpFactor>[TotpFactor(id: 'factor-a', friendlyName: 'Primary')]);
       identity.emit(
         const AuthenticatedSession(
           userId: 'user-a',
@@ -272,7 +265,7 @@ void main() {
 
     test('a factor lookup failure is an MFA error, not an empty workspace', () async {
       identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
-      identity.factorsResult = const IdentityAccessFailure<List<TotpFactor>>(
+      identity.factorsResult = const IdentityAccessFailure<TotpFactorInventory>(
         kind: IdentityAccessFailureKind.infrastructureFailure,
         message: 'Factor lookup failed.',
       );
@@ -286,6 +279,654 @@ void main() {
       );
       expect(controller.state.workspacePhase, WorkspacePhase.idle);
       expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
+      expect(identity.enrollmentCalls, 0, reason: 'unknown state: no enrol');
+    });
+
+    // === SECURITY-AAL-CLIENT-03: interrupted enrolment ==================
+    //
+    // GoTrue keeps an enrolled-but-unverified factor when a setup is abandoned
+    // before the first code is accepted. The client read only the verified
+    // list, so it saw such an account as factorless and offered a fresh
+    // enrolment -- which GoTrue then refused, because the abandoned factor
+    // already holds the friendly name. The user was locked out of enrolling
+    // for good, and told it was temporary.
+
+    test('an unverified factor is recovery, not a fresh enrolment', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+        reason: 'an unverified factor must not read as factorless',
+      );
+      expect(
+        identity.enrollmentCalls,
+        0,
+        reason: 'enrolling again is exactly what collides',
+      );
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
+    });
+
+    test('recovery can resume the existing unverified factor', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+
+      await controller.start();
+      // The user still has the authenticator key: the abandoned factor is
+      // finished rather than replaced, so nothing is deleted.
+      await controller.resumeTotpEnrollment(code: '123456');
+
+      expect(identity.challengedFactorIds, <String>['factor-stale']);
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(
+        controller.state.assuranceLevel,
+        AuthenticationAssuranceLevel.aal2,
+      );
+      expect(identity.listCalls, 1);
+    });
+
+    test('recovery can restart, removing only the unverified factor', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      await controller.restartTotpEnrollment();
+
+      expect(identity.unenrolledFactorIds, <String>['factor-stale']);
+      expect(identity.enrollmentCalls, 1);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentReady,
+      );
+      expect(controller.state.totpEnrollment?.secret, 'sensitive-secret');
+      // Still below the boundary until a code is verified.
+      expect(identity.listCalls, 0);
+    });
+
+    test('restart never removes a verified factor', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(id: 'factor-good', friendlyName: 'Primary'),
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+
+      // A verified factor exists, so the safe way to aal2 is a challenge and
+      // the state is the ordinary one -- no recovery, no deletion offered.
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.idle,
+      );
+      expect(controller.state.totpFactors.single.id, 'factor-good');
+      expect(controller.state.recoveryFactor, isNull);
+
+      await controller.restartTotpEnrollment();
+      await controller.resumeTotpEnrollment(code: '123456');
+      // The stale factor is not offered for a challenge either: it cannot
+      // answer one, and routing a code at it would only confuse the user.
+      await controller.verifyTotp(factorId: 'factor-stale', code: '123456');
+      expect(
+        identity.unenrolledFactorIds,
+        isEmpty,
+        reason: 'a verified factor must never reach the unenroll path',
+      );
+      expect(identity.enrollmentCalls, 0);
+      expect(identity.challengedFactorIds, isEmpty);
+
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      await controller.verifyTotp(factorId: 'factor-good', code: '123456');
+
+      expect(identity.challengedFactorIds, <String>['factor-good']);
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(
+        controller.state.assuranceLevel,
+        AuthenticationAssuranceLevel.aal2,
+      );
+      expect(
+        identity.unenrolledFactorIds,
+        isEmpty,
+        reason: 'reaching aal2 does not clean up the stale factor either',
+      );
+    });
+
+    test('restart re-reads the inventory before deleting anything', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      final callsAfterLoad = identity.factorCalls;
+
+      // Between the listing and the action the factor got verified elsewhere.
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(id: 'factor-stale', friendlyName: 'NexImmo'),
+      ]);
+      await controller.restartTotpEnrollment();
+
+      expect(
+        identity.factorCalls,
+        greaterThan(callsAfterLoad),
+        reason: 'the inventory must be re-read immediately before unenrolling',
+      );
+      expect(
+        identity.unenrolledFactorIds,
+        isEmpty,
+        reason: 'the factor is verified now and must be left alone',
+      );
+      expect(identity.enrollmentCalls, 0);
+      // The state is recomputed from what was actually found: a verified
+      // factor, so the ordinary challenge path.
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.idle);
+      expect(controller.state.totpFactors.single.id, 'factor-stale');
+      expect(controller.state.recoveryFactor, isNull);
+      expect(controller.state.totpEnrollment, isNull);
+      expect(identity.listCalls, 0);
+    });
+
+    test('a factor that vanished mid-recovery fails closed', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+      await controller.restartTotpEnrollment();
+
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(
+        identity.enrollmentCalls,
+        0,
+        reason: 'a vanished target is a reason to look again, not to act',
+      );
+      // Recomputed from the fresh inventory: the account is factorless now,
+      // and gets the ordinary first-enrolment offer.
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentRequired,
+      );
+      expect(controller.state.recoveryFactor, isNull);
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0);
+    });
+
+    test('a name conflict resolves to recovery, not a generic error', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      // The client believed the account was factorless -- the inventory says
+      // so -- but the server knows better.
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+      identity.enrollmentResult =
+          const IdentityAccessFailure<TotpEnrollment>(
+            kind: IdentityAccessFailureKind.factorNameConflict,
+            message: 'An unfinished authenticator setup is already on this '
+                'account.',
+          );
+
+      await controller.start();
+      // The inventory refresh now reveals the abandoned factor.
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+      await controller.beginTotpEnrollment();
+
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+        reason: 'the conflict is recoverable, not an outage',
+      );
+      expect(
+        controller.state.authMessage,
+        isNot(contains('temporarily unavailable')),
+      );
+      expect(controller.state.recoveryFactor?.id, 'factor-stale');
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(
+        identity.enrollmentCalls,
+        1,
+        reason: 'one attempt, then a look at the inventory -- no retry loop '
+            'and no renamed second attempt',
+      );
+      expect(identity.factorCalls, 2, reason: 'the conflict triggers a refresh');
+      expect(identity.listCalls, 0);
+    });
+
+    test('too many factors never triggers an automatic deletion', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+      identity.enrollmentResult = const IdentityAccessFailure<TotpEnrollment>(
+        kind: IdentityAccessFailureKind.tooManyFactors,
+        message: 'This account already has the maximum number of '
+            'authenticators.',
+      );
+
+      await controller.start();
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(id: 'factor-good', friendlyName: 'Primary'),
+      ]);
+      await controller.beginTotpEnrollment();
+
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(
+        controller.state.authMessage,
+        isNot(contains('temporarily unavailable')),
+      );
+      expect(identity.enrollmentCalls, 1);
+      expect(identity.factorCalls, 2, reason: 'the rejection triggers a refresh');
+      // The refreshed inventory holds a verified factor, so the safe way
+      // forward is the ordinary challenge -- offered, not a deletion.
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.idle);
+      expect(controller.state.totpFactors.single.id, 'factor-good');
+      expect(controller.state.recoveryFactor, isNull);
+      expect(identity.listCalls, 0);
+    });
+
+    test('too many factors without a safe way out fails closed', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+      identity.enrollmentResult = const IdentityAccessFailure<TotpEnrollment>(
+        kind: IdentityAccessFailureKind.tooManyFactors,
+        message: 'This account already has the maximum number of '
+            'authenticators.',
+      );
+
+      await controller.start();
+      // The refresh still shows nothing this client can act on.
+      await controller.beginTotpEnrollment();
+
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.failed);
+      expect(controller.state.authMessage, isNotNull);
+      expect(
+        controller.state.authMessage,
+        isNot(contains('temporarily unavailable')),
+      );
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(identity.enrollmentCalls, 1, reason: 'no blind retry');
+      expect(controller.state.recoveryFactor, isNull);
+      expect(identity.listCalls, 0);
+    });
+
+    test('sign-out clears recovery state and deletes nothing remote', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      await controller.restartTotpEnrollment();
+      expect(controller.state.totpEnrollment?.secret, 'sensitive-secret');
+
+      await controller.signOut();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.unauthenticated);
+      expect(controller.state.totpEnrollment, isNull);
+      expect(controller.state.totpFactors, isEmpty);
+      expect(controller.state.recoveryFactor, isNull);
+      expect(controller.state.authMessage, isNull);
+      expect(
+        identity.unenrolledFactorIds,
+        <String>['factor-stale'],
+        reason: 'only the deliberate restart removed it; sign-out removes '
+            'nothing remote',
+      );
+    });
+
+    test('a recreated controller recovers the remote factor, never re-enrols', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+
+      await controller.start();
+      await controller.beginTotpEnrollment();
+      expect(controller.state.totpEnrollment?.secret, 'sensitive-secret');
+      expect(identity.enrollmentCalls, 1);
+
+      // The app is closed before a code is entered. The secret lived only in
+      // the controller and goes with it; the factor stays on the server,
+      // unverified.
+      controller.dispose();
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-new',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+      controller = ReferenceSliceController(
+        identityRepository: identity,
+        propertyRepository: properties,
+        propertyInvalidationSource: invalidations,
+        entitlementInvalidationSource: entitlementInvalidations,
+        entitlementRevalidationInterval: const Duration(hours: 1),
+        idFactory: () => ids.removeFirst(),
+      );
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+      );
+      expect(
+        controller.state.totpEnrollment,
+        isNull,
+        reason: 'no secret survives a restart',
+      );
+      expect(controller.state.recoveryFactor?.id, 'factor-new');
+      expect(
+        identity.enrollmentCalls,
+        1,
+        reason: 'the reload must not issue a second blind enrolment',
+      );
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
+    });
+
+    test('restart confirms the old factor is gone before enrolling', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+      // The unenroll call returns fine, but the next listing still shows the
+      // factor -- a replica lag, a retried request, whatever. Enrolling on top
+      // of it is exactly the collision this package exists to avoid.
+      identity.unenrollRemovesFactor = false;
+
+      await controller.start();
+      await controller.restartTotpEnrollment();
+
+      expect(identity.unenrolledFactorIds, <String>['factor-stale']);
+      expect(
+        identity.factorCalls,
+        3,
+        reason: 'initial load, pre-unenroll check, post-unenroll confirmation',
+      );
+      expect(
+        identity.enrollmentCalls,
+        0,
+        reason: 'the factor is still on the account; enrolling would collide',
+      );
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.failed);
+      expect(controller.state.totpEnrollment, isNull);
+      expect(
+        controller.state.recoveryFactor?.id,
+        'factor-stale',
+        reason: 'the user can try again once the account has caught up',
+      );
+      expect(identity.listCalls, 0);
+    });
+
+    test('restart reads the inventory three times on the happy path', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      await controller.restartTotpEnrollment();
+
+      expect(
+        identity.factorCalls,
+        3,
+        reason: 'initial load, pre-unenroll check, post-unenroll confirmation',
+      );
+      expect(identity.unenrolledFactorIds, <String>['factor-stale']);
+      expect(identity.enrollmentCalls, 1);
+      expect(controller.state.recoveryFactor, isNull);
+      expect(controller.state.totpEnrollment?.factorId, 'factor-new');
+    });
+
+    test('restart and resume are refused outside recovery', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(id: 'factor-good', friendlyName: 'Primary'),
+      ]);
+
+      await controller.start();
+      await controller.restartTotpEnrollment();
+      await controller.resumeTotpEnrollment(code: '123456');
+
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(identity.enrollmentCalls, 0);
+      expect(
+        identity.challengedFactorIds,
+        isEmpty,
+        reason: 'the ordinary challenge goes through verifyTotp, not resume',
+      );
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.idle);
+      expect(controller.state.totpFactors.single.id, 'factor-good');
+      expect(identity.factorCalls, 1, reason: 'refused before any re-read');
+    });
+
+    test('resume re-validates the factor and recomputes when it vanished', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      identity.factorsResult = _inventory(const <TotpFactor>[]);
+      await controller.resumeTotpEnrollment(code: '123456');
+
+      expect(identity.challengedFactorIds, isEmpty);
+      expect(identity.verifiedCodes, isEmpty);
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(identity.enrollmentCalls, 0);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentRequired,
+      );
+      expect(controller.state.recoveryFactor, isNull);
+      expect(identity.listCalls, 0);
+    });
+
+    test('restart aborts when the inventory re-read fails', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      identity.factorsResult = const IdentityAccessFailure<TotpFactorInventory>(
+        kind: IdentityAccessFailureKind.infrastructureFailure,
+        message: 'Factor lookup failed.',
+      );
+      await controller.restartTotpEnrollment();
+      await controller.resumeTotpEnrollment(code: '123456');
+
+      expect(
+        identity.unenrolledFactorIds,
+        isEmpty,
+        reason: 'no fresh state, no destructive action',
+      );
+      expect(identity.enrollmentCalls, 0);
+      expect(identity.challengedFactorIds, isEmpty);
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.failed);
+      expect(controller.state.workspacePhase, WorkspacePhase.idle);
+      expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
+    });
+
+    test('repeated retries and reloads never issue a blind enrolment', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      // The plain "set up" action is not available from recovery: it is the
+      // call that collides.
+      await controller.beginTotpEnrollment();
+      await controller.beginTotpEnrollment();
+      expect(identity.enrollmentCalls, 0);
+
+      // Reload: the session goes away and comes back, the factor is still
+      // there. Recovery again, still no enrolment.
+      identity.emit(null);
+      await _flushEvents();
+      expect(controller.state.recoveryFactor, isNull);
+      identity.emit(
+        const AuthenticatedSession(
+          userId: 'user-a',
+          currentAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+          nextAssuranceLevel: AuthenticationAssuranceLevel.aal1,
+        ),
+      );
+      await _flushEvents();
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+      );
+      expect(identity.enrollmentCalls, 0);
+
+      // Two restarts racing: the second must fall to the busy guard.
+      await Future.wait<void>(<Future<void>>[
+        controller.restartTotpEnrollment(),
+        controller.restartTotpEnrollment(),
+      ]);
+      expect(identity.unenrolledFactorIds, <String>['factor-stale']);
+      expect(identity.enrollmentCalls, 1);
+      expect(
+        controller.state.authActionPhase,
+        ReferenceAuthActionPhase.enrollmentReady,
+      );
+      expect(identity.listCalls, 0);
+    });
+
+    test('session loss drops the enrolment secret and recovery target', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-stale',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unverified,
+        ),
+      ]);
+
+      await controller.start();
+      expect(controller.state.recoveryFactor?.id, 'factor-stale');
+      await controller.restartTotpEnrollment();
+      expect(controller.state.totpEnrollment?.secret, 'sensitive-secret');
+
+      identity.emit(null);
+      await _flushEvents();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.unauthenticated);
+      expect(controller.state.totpEnrollment, isNull);
+      expect(controller.state.recoveryFactor, isNull);
+      expect(controller.state.totpFactors, isEmpty);
+      expect(controller.state.authMessage, isNull);
+      expect(
+        identity.unenrolledFactorIds,
+        <String>['factor-stale'],
+        reason: 'session loss removes nothing remote',
+      );
+    });
+
+    test('a factor of unknown status is neither challenged nor removed', () async {
+      identity.authenticate(level: AuthenticationAssuranceLevel.aal1);
+      identity.factorsResult = _inventory(const <TotpFactor>[
+        TotpFactor(
+          id: 'factor-odd',
+          friendlyName: 'NexImmo',
+          status: TotpFactorStatus.unknown,
+        ),
+      ]);
+
+      await controller.start();
+
+      expect(controller.state.authPhase, ReferenceAuthPhase.mfaRequired);
+      expect(controller.state.authActionPhase, ReferenceAuthActionPhase.failed);
+      expect(controller.state.totpFactors, isEmpty);
+      expect(controller.state.recoveryFactor, isNull);
+
+      await controller.restartTotpEnrollment();
+      await controller.resumeTotpEnrollment(code: '123456');
+      await controller.verifyTotp(factorId: 'factor-odd', code: '123456');
+
+      expect(identity.unenrolledFactorIds, isEmpty);
+      expect(identity.challengedFactorIds, isEmpty);
+      expect(identity.enrollmentCalls, 0);
+      expect(identity.listCalls, 0);
+      expect(properties.listCalls, 0);
     });
 
     test('loads the only active workspace and explicit empty list', () async {
@@ -1197,6 +1838,14 @@ void main() {
 
 Future<void> _flushEvents() => Future<void>.delayed(Duration.zero);
 
+/// A successful factor inventory. Factors default to verified, so a test only
+/// states a status when the unverified case is what it is about.
+IdentityAccessResult<TotpFactorInventory> _inventory(
+  List<TotpFactor> factors,
+) => IdentityAccessSuccess<TotpFactorInventory>(
+  TotpFactorInventory(factors: factors),
+);
+
 WorkspaceAccess _access({
   String workspaceId = 'workspace-a',
   required Set<String> permissions,
@@ -1276,8 +1925,18 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
           uri: 'otpauth://sensitive',
         ),
       );
-  IdentityAccessResult<List<TotpFactor>> factorsResult =
-      const IdentityAccessSuccess<List<TotpFactor>>(<TotpFactor>[]);
+  IdentityAccessResult<TotpFactorInventory> factorsResult =
+      const IdentityAccessSuccess<TotpFactorInventory>(
+        TotpFactorInventory.empty(),
+      );
+  IdentityAccessResult<void> unenrollResult =
+      const IdentityAccessSuccess<void>(null);
+  final List<String> unenrolledFactorIds = <String>[];
+
+  /// Whether a successful unenroll also drops the factor from the next
+  /// inventory read, as the real server does. Off to simulate an account that
+  /// still lists the factor afterwards.
+  bool unenrollRemovesFactor = true;
   IdentityAccessResult<TotpChallenge> challengeResult =
       IdentityAccessSuccess<TotpChallenge>(
         TotpChallenge(
@@ -1339,9 +1998,28 @@ class _FakeIdentityRepository implements IdentityAccessRepository {
   }
 
   @override
-  Future<IdentityAccessResult<List<TotpFactor>>> listTotpFactors() async {
+  Future<IdentityAccessResult<TotpFactorInventory>>
+  listTotpFactorInventory() async {
     factorCalls++;
     return factorsResult;
+  }
+
+  @override
+  Future<IdentityAccessResult<void>> unenrollTotpFactor({
+    required String factorId,
+  }) async {
+    unenrolledFactorIds.add(factorId);
+    final inventory = factorsResult;
+    if (unenrollRemovesFactor &&
+        unenrollResult is IdentityAccessSuccess<void> &&
+        inventory is IdentityAccessSuccess<TotpFactorInventory>) {
+      factorsResult = _inventory(
+        inventory.value.factors
+            .where((factor) => factor.id != factorId)
+            .toList(growable: false),
+      );
+    }
+    return unenrollResult;
   }
 
   @override

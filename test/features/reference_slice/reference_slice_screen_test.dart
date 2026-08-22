@@ -71,6 +71,60 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // SECURITY-AAL-CLIENT-03: an enrolment that was started but never
+    // verified is neither factorless nor challengeable. The user is told what
+    // happened and offered the two ways out; nothing about the remote factor
+    // itself -- no id, no secret -- is rendered.
+    testWidgets('offers resume and restart for an interrupted enrolment', (
+      tester,
+    ) async {
+      String? resumedCode;
+      var restarted = false;
+      await _pumpView(
+        tester,
+        state: _state(
+          authPhase: ReferenceAuthPhase.mfaRequired,
+          authActionPhase:
+              ReferenceAuthActionPhase.interruptedEnrollmentRecovery,
+          recoveryFactor: const TotpFactor(
+            id: 'factor-stale',
+            friendlyName: 'NexImmo',
+            status: TotpFactorStatus.unverified,
+          ),
+        ),
+        onResumeTotpEnrollment: ({required code}) async {
+          resumedCode = code;
+        },
+        onRestartTotpEnrollment: () async {
+          restarted = true;
+        },
+      );
+
+      expect(find.byKey(const Key('reference-mfa-recovery')), findsOneWidget);
+      expect(find.textContaining('interrupted'), findsOneWidget);
+      expect(find.textContaining('factor-stale'), findsNothing);
+      expect(
+        find.byKey(const Key('reference-mfa-enrollment-secret')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('reference-mfa-begin-enrollment')), findsNothing);
+      expect(find.textContaining('No workspace access'), findsNothing);
+      expect(find.byKey(const Key('reference-list-pane')), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('reference-mfa-code')),
+        '123456',
+      );
+      await tester.tap(find.byKey(const Key('reference-mfa-recovery-continue')));
+      await tester.pump();
+      expect(resumedCode, '123456');
+
+      await tester.tap(find.byKey(const Key('reference-mfa-recovery-restart')));
+      await tester.pump();
+      expect(restarted, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('submits email and password and TOTP step-up actions', (
       tester,
     ) async {
@@ -229,6 +283,8 @@ void main() {
                   onRetryUpdate: _noop,
                   onSignInWithPassword: _noopSignIn,
                   onBeginTotpEnrollment: _noop,
+                  onResumeTotpEnrollment: _noopResume,
+                  onRestartTotpEnrollment: _noop,
                   onVerifyTotp: _noopVerify,
                   onSignOut: _noop,
                 ),
@@ -374,6 +430,8 @@ Future<void> _pumpView(
   bool dark = false,
   Future<void> Function(String email, String password)? onSignInWithPassword,
   Future<void> Function()? onBeginTotpEnrollment,
+  Future<void> Function({required String code})? onResumeTotpEnrollment,
+  Future<void> Function()? onRestartTotpEnrollment,
   Future<void> Function({
     required String selectedFactorId,
     required String selectedCode,
@@ -396,6 +454,8 @@ Future<void> _pumpView(
         onRetryUpdate: _noop,
         onSignInWithPassword: onSignInWithPassword ?? _noopSignIn,
         onBeginTotpEnrollment: onBeginTotpEnrollment ?? _noop,
+        onResumeTotpEnrollment: onResumeTotpEnrollment ?? _noopResume,
+        onRestartTotpEnrollment: onRestartTotpEnrollment ?? _noop,
         onVerifyTotp:
             ({required factorId, required code}) =>
                 onVerifyTotp == null
@@ -438,10 +498,14 @@ Future<void> _noopVerify({
   required String code,
 }) async {}
 
+Future<void> _noopResume({required String code}) async {}
+
 ReferenceSliceState _state({
   required ReferenceAuthPhase authPhase,
   List<TotpFactor> factors = const <TotpFactor>[],
   ReferenceAuthActionPhase authActionPhase = ReferenceAuthActionPhase.idle,
+  TotpFactor? recoveryFactor,
+  String? authMessage,
 }) {
   return ReferenceSliceState(
     authPhase: authPhase,
@@ -451,6 +515,8 @@ ReferenceSliceState _state({
     propertyDetailPhase: PropertyDetailPhase.idle,
     mutationPhase: PropertyMutationPhase.idle,
     totpFactors: factors,
+    recoveryFactor: recoveryFactor,
+    authMessage: authMessage,
   );
 }
 
