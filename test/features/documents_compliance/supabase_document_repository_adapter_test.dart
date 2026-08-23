@@ -940,6 +940,45 @@ void main() {
       );
     });
 
+    test('raises a sub-second ttl to the floor and passes the floor through',
+        () async {
+      final gateway = _FakeGateway(
+        rpcResponses: <String, Object?>{
+          'resolve_document_content_ref': _ok(_contentRef()),
+        },
+        signedUrl: 'https://local/storage/signed',
+      );
+      final adapter = SupabaseDocumentRepositoryAdapter.withGateway(gateway);
+
+      final raised = await adapter.createSignedUrl(
+        workspaceId: _workspaceId,
+        documentId: _documentId,
+        ttl: Duration.zero,
+      );
+      expect(
+        (raised as DocumentRepositorySuccess<SignedDocumentUrl>).value
+            .appliedTtl,
+        SignedUrlPort.minTtl,
+      );
+      expect(gateway.signedUrlTtlSeconds, SignedUrlPort.minTtl.inSeconds);
+
+      // Exactly the floor is a valid request and is applied as asked -- the
+      // clamp only ever narrows, it never widens a window.
+      final atFloor = await adapter.createSignedUrl(
+        workspaceId: _workspaceId,
+        documentId: _documentId,
+        ttl: const Duration(seconds: 1),
+      );
+      expect(
+        (atFloor as DocumentRepositorySuccess<SignedDocumentUrl>).value
+            .appliedTtl,
+        const Duration(seconds: 1),
+      );
+      expect(gateway.signedUrlTtlSeconds, 1);
+      expect(SignedUrlPort.minTtl, const Duration(seconds: 1));
+      expect(SignedUrlPort.maxTtl, const Duration(hours: 1));
+    });
+
     test('uses the five-minute default when no ttl is requested', () async {
       final gateway = _FakeGateway(
         rpcResponses: <String, Object?>{
