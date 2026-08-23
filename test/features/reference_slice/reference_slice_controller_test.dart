@@ -1655,6 +1655,90 @@ void main() {
       expect(controller.state.selectedProperty?.version, 2);
     });
 
+    // === REALTIME-STAGING-FIX-01 ==========================================
+    //
+    // Measured on staging: a mobile client's socket dropped and reconnected
+    // seven times in four minutes. Realtime replays nothing across a gap, so
+    // the rejoin's reconciliation is the only thing that can recover a change
+    // the client was disconnected for. If it never arrives, the list stays
+    // stale until the user reloads by hand -- which is exactly what was
+    // observed.
+
+    test('a reconnect reconciliation reloads the list exactly once', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+
+      await controller.start();
+      expect(properties.listCalls, 1, reason: 'initial load');
+
+      // The change the client missed while its socket was down.
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(
+          items: <PropertyDto>[_property(version: 2, name: 'Changed While Offline')],
+        ),
+      );
+      invalidations.emit(
+        const PropertyQueryInvalidation.reconcile(workspaceId: 'workspace-a'),
+      );
+      await _flushEvents();
+      await _flushEvents();
+
+      expect(
+        properties.listCalls,
+        2,
+        reason: 'the rejoin catches up exactly once, no burst',
+      );
+      expect(controller.state.properties.single.name, 'Changed While Offline');
+      expect(controller.state.propertyListPhase, PropertyListPhase.ready);
+    });
+
+    test('a subscription failure is visible, not silently swallowed', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(items: <PropertyDto>[_property()]),
+      );
+
+      await controller.start();
+      expect(controller.state.liveUpdatesDegraded, isFalse);
+
+      invalidations.emitError(
+        'workspace-a',
+        StateError('Property Realtime subscription failed.'),
+      );
+      await _flushEvents();
+
+      expect(
+        controller.state.liveUpdatesDegraded,
+        isTrue,
+        reason: 'a dead subscription must not look like a quiet workspace',
+      );
+      // Non-fatal: REST stays canonical and the authorized surfaces stand.
+      expect(controller.state.authPhase, ReferenceAuthPhase.authenticated);
+      expect(controller.state.propertyListPhase, PropertyListPhase.ready);
+      expect(controller.state.properties, hasLength(1));
+      expect(controller.state.workspacePhase, WorkspacePhase.selected);
+
+      // A later successful (re)subscription clears the flag again.
+      invalidations.emit(
+        const PropertyQueryInvalidation.reconcile(workspaceId: 'workspace-a'),
+      );
+      await _flushEvents();
+      await _flushEvents();
+      expect(controller.state.liveUpdatesDegraded, isFalse);
+    });
+
     test('Realtime refresh preserves already loaded property pages', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
@@ -2546,6 +2630,10 @@ class _FakePropertyInvalidationSource
 
   void emit(PropertyQueryInvalidation invalidation) {
     _controllers[invalidation.workspaceId]?.add(invalidation);
+  }
+
+  void emitError(String workspaceId, Object error) {
+    _controllers[workspaceId]?.addError(error);
   }
 
   Future<void> close() async {

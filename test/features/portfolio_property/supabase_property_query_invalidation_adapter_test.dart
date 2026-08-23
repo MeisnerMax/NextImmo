@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_query_invalidation_source.dart';
 import 'package:neximmo_app/features/portfolio_property/data/supabase_property_query_invalidation_adapter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('SupabasePropertyQueryInvalidationAdapter', () {
@@ -51,6 +52,93 @@ void main() {
       await subscription.cancel();
     });
   });
+
+  // REALTIME-STAGING-FIX-01. The reconciliation latch lives in the real
+  // gateway, not in the adapter, so a fake gateway cannot see this defect --
+  // these drive the actual channel callbacks instead. A socket that drops and
+  // reconnects rejoins and gets a second `postgres_changes` ok; Realtime
+  // replays nothing across the gap, so that rejoin's reconciliation is the
+  // only thing that can recover a change the client was disconnected for.
+  // Measured on staging: seven reconnects in four minutes on a mobile client.
+  group('SupabasePropertyRealtimeGateway', () {
+    test('reconciles on every postgres_changes ok, rejoins included', () async {
+      final client = SupabaseClient(_deadUrl, _anyKey);
+      final gateway = SupabasePropertyRealtimeGateway(client);
+      final records = <Map<String, dynamic>>[];
+      // The socket never reaches the dead URL; its failures are irrelevant
+      // here and must not fail the test.
+      final subscription = gateway
+          .watchWorkspaceUpdates(workspaceId: 'workspace-a')
+          .listen(records.add, onError: (Object _) {});
+      addTearDown(() => unawaited(subscription.cancel()));
+
+      final channel = await _awaitChannel(client);
+      channel.trigger('system', _postgresChangesOk); // first join
+      channel.trigger('system', _postgresChangesOk); // rejoin after reconnect
+      await _flushEvents();
+
+      expect(
+        records.where((record) => record.isEmpty),
+        hasLength(2),
+        reason: 'a rejoin must reconcile again, not stay latched on the first',
+      );
+    });
+
+    test('surfaces a failed replication as a stream error', () async {
+      final client = SupabaseClient(_deadUrl, _anyKey);
+      final gateway = SupabasePropertyRealtimeGateway(client);
+      final errors = <Object>[];
+      final records = <Map<String, dynamic>>[];
+      final subscription = gateway
+          .watchWorkspaceUpdates(workspaceId: 'workspace-a')
+          .listen(records.add, onError: errors.add);
+      addTearDown(() => unawaited(subscription.cancel()));
+
+      final channel = await _awaitChannel(client);
+      channel.trigger('system', <String, dynamic>{
+        'extension': 'postgres_changes',
+        'status': 'error',
+        'message': 'replication down',
+      });
+      // A system event of another extension is none of this stream's business.
+      channel.trigger('system', <String, dynamic>{
+        'extension': 'presence',
+        'status': 'ok',
+      });
+      await _flushEvents();
+
+      // The SDK also reports the failed extension through the subscribe
+      // callback, so more than one error is expected; what matters is that the
+      // replication failure surfaces and that no reconciliation is faked.
+      expect(errors, isNotEmpty);
+      expect(
+        errors.first.toString(),
+        contains('replication down'),
+      );
+      expect(records, isEmpty);
+    });
+  });
+}
+
+const _deadUrl = 'http://127.0.0.1:1';
+const _anyKey = 'test-publishable-key';
+const _postgresChangesOk = <String, dynamic>{
+  'extension': 'postgres_changes',
+  'status': 'ok',
+};
+
+/// The gateway creates its channel after an awaited `setAuth`, so the channel
+/// exists a turn or two after `listen`. Polling keeps this deterministic
+/// without pinning a sleep.
+Future<RealtimeChannel> _awaitChannel(SupabaseClient client) async {
+  for (var attempt = 0; attempt < 200; attempt++) {
+    final channels = client.realtime.getChannels();
+    if (channels.isNotEmpty) {
+      return channels.first;
+    }
+    await _flushEvents();
+  }
+  throw StateError('The gateway never created a channel.');
 }
 
 Future<void> _flushEvents() => Future<void>.delayed(Duration.zero);

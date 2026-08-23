@@ -80,6 +80,7 @@ class ReferenceSliceState {
     this.totpFactors = const <TotpFactor>[],
     this.totpEnrollment,
     this.recoveryFactor,
+    this.liveUpdatesDegraded = false,
   });
 
   const ReferenceSliceState.loading()
@@ -117,6 +118,14 @@ class ReferenceSliceState {
   /// UI renders the situation, not the id. Null outside recovery.
   final TotpFactor? recoveryFactor;
 
+  /// The Realtime subscription for the selected workspace is not delivering.
+  ///
+  /// Deliberately non-fatal: the repository stays canonical, so every
+  /// authorized surface keeps working — only the *live* part is degraded, and
+  /// the UI may say so instead of presenting a stale list as current. Cleared
+  /// as soon as a subscription reports ready again.
+  final bool liveUpdatesDegraded;
+
   WorkspaceAccess? get selectedWorkspace {
     final selectedId = selectedWorkspaceId;
     if (selectedId == null) {
@@ -151,6 +160,7 @@ class ReferenceSliceState {
     List<TotpFactor>? totpFactors,
     Object? totpEnrollment = _unchanged,
     Object? recoveryFactor = _unchanged,
+    bool? liveUpdatesDegraded,
   }) {
     return ReferenceSliceState(
       authPhase: authPhase ?? this.authPhase,
@@ -198,6 +208,7 @@ class ReferenceSliceState {
           identical(recoveryFactor, _unchanged)
               ? this.recoveryFactor
               : recoveryFactor as TotpFactor?,
+      liveUpdatesDegraded: liveUpdatesDegraded ?? this.liveUpdatesDegraded,
     );
   }
 }
@@ -1126,8 +1137,28 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
             invalidation,
             subscriptionGeneration: subscriptionGeneration,
           ),
-          onError: (_, __) {},
+          // A dead subscription is not nothing: without a marker the list just
+          // stops updating and looks like a quiet workspace. Non-fatal by
+          // design -- the repository stays canonical and every authorized
+          // surface keeps working -- so this only records that live updates
+          // are degraded and leaves the business state untouched.
+          onError:
+              (_, __) => _markLiveUpdates(
+                degraded: true,
+                subscriptionGeneration: subscriptionGeneration,
+              ),
         );
+  }
+
+  void _markLiveUpdates({
+    required bool degraded,
+    required int subscriptionGeneration,
+  }) {
+    if (subscriptionGeneration != _propertySubscriptionGeneration ||
+        state.liveUpdatesDegraded == degraded) {
+      return;
+    }
+    state = state.copyWith(liveUpdatesDegraded: degraded);
   }
 
   Future<void> _stopPropertyInvalidations() async {
@@ -1362,6 +1393,14 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         !access.allows(propertyReadPermission) ||
         invalidation.workspaceId != access.workspace.id) {
       return;
+    }
+    if (invalidation.isReconciliation) {
+      // The subscription is delivering again (first join or rejoin), so the
+      // degraded marker is stale; the readback queued below is the catch-up.
+      _markLiveUpdates(
+        degraded: false,
+        subscriptionGeneration: subscriptionGeneration,
+      );
     }
     final selectedPropertyId = state.selectedProperty?.id;
     final refreshDetail =
