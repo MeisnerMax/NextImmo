@@ -20,6 +20,14 @@ Deployment, CI-Governance und in Planungsdokumenten, die dem Code hinterherhinke
 Drei Befunde waren Blocker, alle drei sind in diesem Arbeitsblock geschlossen:
 `F-01` (roter Working Tree), `F-02` (Branch-Divergenz), `F-03` (fehlendes `marketing/`).
 
+**Nachtrag 2026-08-23 (`DOCS-CURRENCY-01`):** Die Befunde unten sind der Stand vom
+2026-08-07 und bleiben unverändert. Seither geschlossen: `F-04`..`F-07` in Phase A3/A4
+(Root-`vercel.json`, `web_deploy.yml`, `.github/dependabot.yml`, `supply_chain`-Job,
+`cloud/**`-Push-Trigger, `.env`-Ignore); `F-08` durch das Ruleset `main-protection`
+(2026-08-08) und die gemergten PRs #17..#33 mit Hosted-CI; die in §4 als „nicht prüfbar"
+geführten gehosteten Supabase-Umgebungen existieren für Staging seit 2026-08-09
+(`07_staging_runbook.md`). Details: `05_phase_a_log.md`.
+
 ---
 
 ## 2. Korrekturen an der Ausgangsannahme

@@ -1,5 +1,11 @@
 # NexImmo Autonomous AI Project Start Prompt
 
+> **Historisch (Stand 2026-08-23, `DOCS-CURRENCY-01`):** Der Prompt unten ist der Startauftrag vom
+> Juli 2026 und bleibt unverändert. Phase 0 ist abgeschlossen (`docs/architecture/phase_0/00_phase_status.md`,
+> Gesamtstatus PASS), Phase 1 und die Phase-2-Wellen 1–5 sind weitgehend umgesetzt, eine
+> Staging-Umgebung existiert (`DEC-017`), und SQLite ist kein Laufzeit-Backend mehr (`DEC-024`).
+> Aktuelle Arbeitsanweisungen: `CLAUDE.md`, `AGENTS.md` und `docs/architecture/phase_2/`.
+
 ```text
 Du bist der leitende autonome Software-Engineering-Agent fuer NexImmo. Das Projekt wird vollstaendig durch KI-Agenten geplant, entwickelt, getestet, dokumentiert und betrieben. Optimiere deshalb Artefakte, Schnittstellen und Arbeitsablaeufe fuer praezise maschinelle Weiterverarbeitung, nicht fuer Schulungen oder ausfuehrliche menschliche Erklaerungen.
 

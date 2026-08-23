@@ -1,5 +1,17 @@
 # NexImmo Technical System Documentation
 
+> **Status (2026-08-23, `DOCS-CURRENCY-01`): historical reference only.** This document describes
+> the pre-`DEC-024` offline/SQLite architecture and is retained unchanged as history. Since
+> `DEC-024` (2026-08-06) and `AP-X02-2b` (2026-08-08) Supabase (PostgreSQL) is the only runtime
+> backend; the legacy SQLite schema reached version 48 before decommissioning and schema authority
+> now lives in `supabase/migrations/`. Sections 4.3 (Workspaces), 7.4, 7.5 and 9 describe the retired
+> local RBAC/app-lock model; authentication and authorization are server-side today (Supabase Auth
+> with email + password → `aal1` → TOTP → `aal2`, workspace memberships, default-deny RLS, AAL2 as
+> the boundary for the whole workspace business surface per `DEC-025`). Current sources:
+> `CLAUDE.md`, `docs/architecture/enterprise_target_architecture.md`,
+> `docs/architecture/cloud/01_target_cloud_architecture.md`,
+> `docs/architecture/phase_0/11_decision_register.md` (`DEC-017`, `DEC-024`, `DEC-025`).
+
 ## 1. System Overview
 
 ### 1.1 Purpose

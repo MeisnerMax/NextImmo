@@ -1,6 +1,6 @@
 # Phase 1 Execution Backlog
 
-Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013`, `P1-016` bis `P1-020` sowie `P1-021A` sind complete; `P1-021` wartet auf freigegebene Performancebudgets und Datenmengen.
+Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013`, `P1-016` bis `P1-020` sowie `P1-021A` sind complete; `P1-006` ist mit `DEC-024`/`AP-X02-2b` (2026-08-08) retired; `P1-021` wartet auf freigegebene Performancebudgets und Datenmengen.
 
 ## Dependency Order
 
@@ -11,7 +11,7 @@ Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013`, `P1-016` bi
 | P1-003 | Implement default-deny RLS and helper functions. | P1-002, DEC-SEC-001 | policies and SQL tests | two-workspace isolation passes | done |
 | P1-004 | Create property cloud schema with version, mutation and audit contract. | P1-002 | migration and RPC/function | atomic concurrency tests pass | done |
 | P1-005 | Define Dart repository contracts independent of SQLite/Supabase. | Phase 0 | feature-scoped interfaces and DTOs | analyzer and contract tests pass | done |
-| P1-006 | Wrap existing SQLite property access behind local adapter. | P1-005 | adapter with unchanged behavior | existing property tests pass | partial (read-only done; safe mutations blocked) |
+| P1-006 | Wrap existing SQLite property access behind local adapter. | P1-005 | adapter with unchanged behavior | existing property tests pass | retired (read-only adapter done 2026-07; superseded by `DEC-024` / `AP-X02-2b` 2026-08-08, adapter removed) |
 | P1-007 | Add Supabase property adapter behind explicit environment selection. | P1-001, P1-003, P1-004, P1-005 | remote adapter | integration tests pass | done |
 | P1-008 | Replace admin fallback with unauthenticated/no-permission state. | DEC-007 | security state change and tests | no privileged loading state | done |
 | P1-009 | Implement auth/workspace/property reference-slice application state. | P1-007, P1-008, DEC-016 | controllers/use cases | state tests pass | done |
@@ -31,7 +31,7 @@ Status: `in_progress`; `P1-001` bis `P1-005`, `P1-007` bis `P1-013`, `P1-016` bi
 
 ## First Safe Local Increment
 
-Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitlement-Revalidation, Raw-PostgREST-Paritaet, parallele Identity-Reads, schlanke Property-Listenprojektion, Performance-Indizes/InitPlans und der budgetfreie lokale Profiling-Vertrag sind abgeschlossen. `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen. Der echte Sandbox-/Staging-Drill bleibt bis `DEC-015` und `DEC-017` offen; allgemeine verpflichtende privilegierte MFA benoetigt weiterhin `DEC-016`. Kein Remote-Supabase-Projekt, bis diese Entscheidungen getroffen sind.
+Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitlement-Revalidation, Raw-PostgREST-Paritaet, parallele Identity-Reads, schlanke Property-Listenprojektion, Performance-Indizes/InitPlans und der budgetfreie lokale Profiling-Vertrag sind abgeschlossen. `P1-021` benoetigt freigegebene Performancebudgets und Datenmengen. `DEC-015`..`DEC-017` sind seit 2026-08-08/09 accepted und das Staging-Projekt existiert (`../cloud/07_staging_runbook.md`); der Staging-Backup-/Restore-Drill (`P1-014`) ist weiterhin nicht ausgefuehrt. Die allgemeine AAL-Matrix ist mit `DEC-025` (2026-08-12) geschlossen. Production bleibt nicht autorisiert.
 
 ## P1-001 Validation
 
@@ -57,7 +57,7 @@ Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitleme
 - Der Supabase-Adapter implementiert workspace-gescopte Keyset-Pagination, Detailzugriff und ausschliessliche RPC-Mutationen.
 - Actor-Abgleich, strukturierte Konflikte, DTO-Mapping und fail-closed Fehlerbehandlung sind mit 9 Adaptertests abgedeckt.
 - Ein echter Clienttest prueft Passwort-Login, RLS-Liste, RPC-Update, identischen Retry, Versionskonflikt und Readback gegen den lokalen Stack.
-- Die Backendauswahl `sqlite|supabase` und alle erforderlichen Public-Defines werden fail-closed validiert.
+- Die Backendauswahl (seit `DEC-024` nur `supabase`; `sqlite` faellt fail-closed durch) und alle erforderlichen Public-Defines werden fail-closed validiert.
 
 ## P1-009 Validation
 
@@ -65,7 +65,7 @@ Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitleme
 - `aal1` mit ausstehendem `aal2` fuehrt zu `mfaRequired`; Workspace- und Property-Zugriffe bleiben dabei clientseitig gesperrt.
 - 15 gezielte Adapter-/Controller-Tests fuer Actor-Scope, Rechte, MFA, Workspace-Auswahl, Konflikt, Retry und Sessionverlust bestehen.
 - Lokale Supabase-Integration 1/1, vollstaendige Flutter-Suite mit 202 bestandenen Tests und 5 Skips, Analyzer ohne Findings und Web-Build bestehen.
-- DEC-016 bleibt fuer eine verpflichtende MFA-Regel privilegierter Rollen offen, bis Rollenmatrix und restriktive RLS/AAL-Policy definiert und serverseitig getestet sind.
+- DEC-016 bleibt fuer eine verpflichtende MFA-Regel privilegierter Rollen offen, bis Rollenmatrix und restriktive RLS/AAL-Policy definiert und serverseitig getestet sind. (`DEC-016` accepted 2026-08-08; Matrix mit `DEC-025` am 2026-08-12 serverseitig geschlossen.)
 
 ## P1-010 Validation
 
@@ -97,7 +97,7 @@ Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitleme
 - Der lokale Drill akzeptiert nur ein neues Ziel mit Prefix `neximmo_p1_014_` im exakt gelabelten lokalen Datenbankcontainer; sieben Guard-Faelle bestehen.
 - Ein Schema-gebundener Custom-Dump wird ohne Owner/ACL exportiert, nach Host-/Container-Ruecktransport per SHA-256 geprueft und mit `--single-transaction --exit-on-error` restauriert.
 - Der Manipulationstest bricht vor der Zielerstellung ab. Ein nichtleerer synthetischer Lauf reconciliert 18 Auth-, Migrations- und Referenzzeilen sowie RLS-, Constraint- und Realtime-Invarianten; keine Wegwerf-Datenbank oder Tempdatei bleibt zurueck.
-- `docs/architecture/phase_1/02_backup_restore_runbook.md` trennt den lokalen Nachweis von Remote-, Storage-, Verschluesselungs-, Signatur-, Crash-Recovery- und RPO/RTO-Gates.
+- `docs/architecture/phase_1/02_backup_restore_runbook.md` trennt den lokalen Nachweis (inkl. Journal-basiertem Crash-Recovery-Drill in CI, `tool/test_p1_014_crash_recovery.ps1`) von den offenen Remote-/Storage-/Verschluesselungs- und RPO/RTO-Gates (`BR-008`).
 - 160 pgTAP-Pruefungen, Gesamtsuite 228 bestanden/6 Skips, Analyzer ohne Findings und Web-Build bestehen. P1-014 bleibt bis zum autorisierten Sandbox-/Staging-Drill `partial`.
 
 ## P1-015 Local Validation
@@ -167,5 +167,5 @@ Runtime/Deep Links, bedienbare passwordless-/TOTP-Auth, Property-AAL2, Entitleme
 - server authorization and negative tests included where applicable
 - migration dry run and rollback path documented
 - audit and concurrency behavior verified
-- no regression in local SQLite mode until migration gate approves removal
+- no regression in the Supabase runtime path (the local SQLite mode was retired by `DEC-024` / `AP-X02-2b`)
 - changed architecture artefacts updated

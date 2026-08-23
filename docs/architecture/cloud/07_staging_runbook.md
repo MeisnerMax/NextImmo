@@ -1,6 +1,6 @@
 # Staging-Runbook
 
-Stand: 2026-08-09 · Basis `a371d22` · Vorbereitet in `STAGING-PREP-01`
+Stand: 2026-08-23 (`DOCS-CURRENCY-01`) · Basis `4a1e5ef` · Vorbereitet in `STAGING-PREP-01` (2026-08-09, `a371d22`)
 
 `DEC-017` ist seit dem **2026-08-09 `accepted`** — für genau eine isolierte Umgebung mit
 ausschließlich synthetischen Daten.
@@ -11,10 +11,14 @@ ausschließlich synthetischen Daten.
 Migrationen angewandt und verifiziert — 35/35 remote, 0 pending, kein Seed, keine Daten,
 Lint/Advisors/pgTAP grün.
 
-**Weiterhin nicht ausgeführt:** Schritt **14** (Integration-Gates — keines der 19 Skripte ist
-remote ausführbar, siehe unten), Schritt 16 (Auth) und Schritt 17 (synthetische Daten) sowie
-die Abschnitte 3, 6, 7, 8, 9 und 10 vollständig. Jede weitere Phase braucht eine gesonderte
-Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
+**Ausführungsstand (2026-08-23):** Remote stehen **36/36** Migrationen (neueste
+`20260812100000_security_aal_enforcement`). Die Abschnitte 3, 6, 7 und 10 sowie die Schritte
+16 (Auth, 2026-08-10) und 17 (synthetische Basisdaten) sind ausgeführt; Staging deployt seit
+2026-08-10 automatisch auf `neximmo-staging.vercel.app`. **Weiterhin offen:** Schritt **14**
+(Integration-Gates — keines der Skripte ist remote ausführbar, siehe unten), die
+Realtime-Zustellung an einen echten Staging-Client (Schritt 15), Site URL / Redirect-Allowlist
+(Abschnitt 8) und SMTP (Abschnitt 9). Jede weitere Phase braucht eine gesonderte Freigabe.
+Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
 
 Zusätzlich gilt die **Kostenregel** aus `DEC-017`: was ohne Zusatzkosten in bestehende
 Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt hält
@@ -56,8 +60,8 @@ zusätzlich `git.deploymentEnabled=false`.
 
 Der Workflow ist trotz Automatik **fail-closed** über zwei voneinander unabhängige Sperren:
 
-1. Die Repository-Variable `STAGING_DEPLOY_ENABLED` muss `true` sein. Sie ist kein Secret,
-   und sie ist **nicht gesetzt**.
+1. Die Repository-Variable `STAGING_DEPLOY_ENABLED` muss `true` sein. Sie ist kein Secret
+   und steht seit dem 2026-08-10 auf `true`.
 2. Innerhalb des Environments `staging` müssen **alle fünf** Werte vorhanden sein.
 
 Die erste Sperre existiert nicht nur zur Bequemlichkeit. GitHub legt ein referenziertes
@@ -81,14 +85,14 @@ Diese Reihenfolge ist bewusst: erst die Umgebung, dann die Secrets, dann der Sch
 Wer den Schalter zuerst setzt, riskiert genau das ungeschützte Auto-Environment.
 
 1. ~~`DEC-017` entscheiden.~~ **erledigt am 2026-08-09, `accepted`.**
-2. Supabase-Staging-Projekt anlegen (Abschnitt 4).
-3. GitHub-Environment `staging` **manuell** anlegen und konfigurieren (Abschnitt 3).
-4. Die fünf Werte als **Environment**-Secrets hinterlegen, nicht repositoryweit.
-5. Vercel Deployment Protection klären (Abschnitt 6).
-6. `STAGING_DEPLOY_ENABLED=true` setzen.
-7. Deploy auslösen, stabile URL feststellen (Abschnitt 7).
-8. Erst jetzt Supabase Site URL und Redirects setzen (Abschnitt 8).
-9. Golden Paths fahren.
+2. ~~Supabase-Staging-Projekt anlegen (Abschnitt 4).~~ **erledigt am 2026-08-09.**
+3. ~~GitHub-Environment `staging` **manuell** anlegen und konfigurieren (Abschnitt 3).~~ **erledigt am 2026-08-10** (ohne Required Reviewer, siehe Abschnitt 1).
+4. ~~Die fünf Werte als **Environment**-Secrets hinterlegen, nicht repositoryweit.~~ **erledigt am 2026-08-10** (5/5).
+5. ~~Vercel Deployment Protection klären (Abschnitt 6).~~ **erledigt am 2026-08-10** (SSO-Protection deaktiviert).
+6. ~~`STAGING_DEPLOY_ENABLED=true` setzen.~~ **erledigt am 2026-08-10.**
+7. ~~Deploy auslösen, stabile URL feststellen (Abschnitt 7).~~ **erledigt am 2026-08-10** (`neximmo-staging.vercel.app`).
+8. Erst jetzt Supabase Site URL und Redirects setzen (Abschnitt 8). — **offen** (Site URL weiterhin `http://localhost:3000`; der Passwort-Login braucht keinen Redirect).
+9. Golden Paths fahren. — **teilweise**: Auth-/MFA-Closeouts gegen Staging am 2026-08-23 gefahren (`05_phase_a_log.md`); der fachliche Web-/Windows-Golden-Path (`GP-STAGING-WEB`/`-WINDOWS`) steht aus.
 
 ---
 
@@ -102,7 +106,7 @@ nötig.)
 |---|---|---|
 | Name | `staging` | exakt so referenziert der Workflow |
 | Environment-Secrets | die fünf Deploy-Werte | so eng wie möglich gescopet |
-| Required reviewers | **ja**, du selbst | ein Remote-Deploy soll eine bewusste Handlung bleiben |
+| Required reviewers | **nein** (am 2026-08-10 für den Auto-Deploy entfernt; ursprüngliche Empfehlung: ja) | Automatik nach grünem protected-main-Lauf, siehe Abschnitt 1 |
 | Prevent self-review | **nein** | bei einem Ein-Personen-Repo würde es jeden Deploy blockieren |
 | Deployment branch restriction | nur `main` | ein Staging-Deploy soll nur geprüfte Commits sehen |
 | Admin bypass | erlauben | Notausstieg; die Sperre ist ohnehin die Variable |
@@ -156,7 +160,7 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
 13. ~~pgTAP-Suite.~~ **erledigt**: 26 Dateien, 1274 Prüfungen, 0 Failures — vorher als
     remote-sicher auditiert (alle Dateien `begin;`/`rollback;`, kein `commit;`), danach
     empirisch bestätigt, dass nichts zurückblieb.
-14. **OFFEN — Relevante Integration-Gates.** Von den 19 Skripten des `database`-Jobs sind
+14. **OFFEN — Relevante Integration-Gates.** Von den 19 Skripten des `database`-Jobs (Stand 2026-08-09; am 2026-08-23 sind es 21, alle weiterhin lokal) sind
     **0 remote ausführbar**: 17 lösen den lokalen Container über
     `label=com.supabase.cli.project=neximmo-local` auf bzw. rufen `db reset --local`, 2 sind
     reine Parameterguards ohne DB. Keines kennt `--linked`. Ein Remote-Lauf setzt einen Umbau
@@ -171,12 +175,15 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     **`Realtime delivery remains UNPROVEN until a real connected staging client exercises the
     broadcast path.`** Vor `GP-STAGING` zu beweisen. Keine Partition von Hand erzeugt, kein
     Eingriff in das Plattformschema.
-16. **Erst danach** Auth konfigurieren (Abschnitt 8). — **nicht ausgeführt.** Die
-    Security-Sperre ist seit `REMOTE-SECURITY-GATE-01` (PASS) aufgehoben; das Paket darf
-    vorbereitet werden und braucht weiterhin eine eigene Owner-Freigabe. Dabei ist auch zu
-    zeigen, dass GoTrue auf Staging `aal2` tatsächlich korrekt ausstellt — die
-    DB-Erzwingung ist geprüft, der Auth-Betrieb nicht.
-17. **Erst danach** synthetische Golden-Path-Daten erzeugen. — **nicht ausgeführt.**
+16. ~~**Erst danach** Auth konfigurieren (Abschnitt 8).~~ **erledigt am 2026-08-10**
+    (`STAGING-PASSWORD-AUTH-01`: E-Mail/Passwort als primärer Login, Signup aus, TOTP
+    enroll/verify an). Dass GoTrue auf Staging `aal2` korrekt ausstellt, ist am 2026-08-23
+    remote bewiesen (`SECURITY-AAL-CLIENT-03`-Closeout: Session `aal2` nach TOTP-Verify und
+    nach Re-Login). **Offen bleibt** nur Site URL / URI-Allowlist (Abschnitt 8).
+17. ~~**Erst danach** synthetische Golden-Path-Daten erzeugen.~~ **erledigt** — Basisbestand
+    auf Staging (read-only erhoben am 2026-08-23, `05_phase_a_log.md`): 3 `auth.users`
+    (2 Basisnutzer mit verifiziertem TOTP + 1 Repro-Nutzer), 1 Workspace, 1 Rolle,
+    3 Permissions, 2 Memberships, Golden Property v11, 10 `audit_events`, 0 Storage-Objekte.
 
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
@@ -239,6 +246,11 @@ offen lässt und es keine Production-Domain gibt.
 
 **In `STAGING-PREP-01` wurde nichts verändert.**
 
+**Ausgeführt am 2026-08-10 in `STAGING-DEPLOY-ACTIVATION-01`:** SSO-Protection auf dem
+App-Projekt deaktiviert (`ssoProtection: null`, `gitForkProtection` unverändert). Die
+Magic-Link-Begründung oben ist historisch; primärer Login ist seit
+`STAGING-PASSWORD-AUTH-01` E-Mail + Passwort.
+
 ---
 
 ## 7. Stabile Staging-Adresse
@@ -253,10 +265,12 @@ zeigt, und das Projekt **hat** historische Production-Deployments aus der Zeit v
 
 Daraus folgt: **die URL wird nicht vorab festgeschrieben.** Ablauf stattdessen:
 
-1. Ersten Staging-Deploy fahren.
-2. Prüfen, welche stabile Adresse tatsächlich auf dieses Deployment zeigt.
-3. Zeigt keine stabil darauf, einen expliziten Alias setzen.
-4. Erst die so **bewiesene** Adresse wird Site URL.
+1. ~~Ersten Staging-Deploy fahren.~~ **erledigt 2026-08-10.**
+2. ~~Prüfen, welche stabile Adresse tatsächlich auf dieses Deployment zeigt.~~ **erledigt.**
+3. ~~Zeigt keine stabil darauf, einen expliziten Alias setzen.~~ **erledigt 2026-08-10:**
+   `neximmo-staging.vercel.app`, als Repository-Variable `VERCEL_STAGING_ALIAS` persistiert;
+   jeder Auto-Deploy verschiebt den Alias.
+4. Erst die so **bewiesene** Adresse wird Site URL. — **offen.**
 
 Keine eigene Domain, kein DNS, nicht `app.neximmo.de`. Ein dediziertes Vercel Custom
 Environment mit angehängter Domain wäre die komfortablere Lösung, setzt aber den Pro-Plan
@@ -265,6 +279,11 @@ voraus (Pro: 1 Custom Environment pro Projekt) — für den ersten Aufbau nicht 
 ---
 
 ## 8. Auth und Redirects
+
+**Stand 2026-08-10 (`STAGING-PASSWORD-AUTH-01`):** primärer Login ist E-Mail + Passwort →
+`aal1` → TOTP → `aal2`; MFA/TOTP aktiv und Signup aus sind remote **gesetzt**. Site URL und
+`neximmo://auth/callback` sind weiterhin **offen** und folgen mit dem Recovery-Paket. Der
+folgende Befund beschreibt den Magic-Link-Pfad, der nur noch für Recovery relevant ist.
 
 **Der bestimmende Codebefund:** `_platformPasswordlessRedirectTo()` liefert auf Web `null`.
 Web sendet also **kein** `emailRedirectTo`; der Magic Link landet ausschließlich auf der
@@ -283,7 +302,8 @@ Redirect und der Windows-Login gegen Staging bricht.
 Von Redirect-Wildcards wird abgeraten. Sie weiten die Allowlist und bringen für unseren
 Flow nichts, weil Web gar keinen Redirect mitschickt.
 
-**Signup-Policy:** Die App ruft `signInWithOtp(shouldCreateUser: false)` — sie legt also
+**Signup-Policy:** Die App ruft für den primären Login `signInWithPassword`; der OTP-Pfad
+`signInWithOtp(shouldCreateUser: false)` bleibt nur für Recovery — sie legt also
 selbst nie Nutzer an. Offene Registrierung bleibt deshalb aus; die Testnutzer werden
 administrativ erzeugt, ausschließlich synthetisch. Dafür ist **keine** Produktcodeänderung
 nötig.
@@ -296,11 +316,13 @@ Der eingebaute Supabase-Mailversand ist für diesen Zweck unbrauchbar. Die Dokum
 eindeutig: „Supabase Auth will refuse to deliver messages to addresses that are not part of
 the project's team", und das Limit liegt bei **2 Nachrichten pro Stunde**.
 
-Der Staging-Golden-Path braucht zwei Benutzer und mehrere Auth-Vorgänge — Anmeldung,
-Wiederanmeldung, MFA. Mit eingebautem Versand ist er weder durchführbar noch wiederholbar.
-Custom SMTP hebt das Limit laut Doku zunächst auf 30 Nachrichten pro Stunde.
+Seit `STAGING-PASSWORD-AUTH-01` (2026-08-10) hängt der normale Login nicht mehr an SMTP:
+Anmeldung, Wiederanmeldung und MFA laufen über Passwort + TOTP, und die Auth-/MFA-Closeouts
+vom 2026-08-23 liefen mit SMTP `NOT CONFIGURED`. Custom SMTP wird erst für
+Passwort-Recovery-/Magic-Link-Flows gebraucht; es hebt das Limit laut Doku zunächst auf
+30 Nachrichten pro Stunde.
 
-`STAGING-PROVISION-01` braucht dafür: Host, Port, Username, Password, Absenderadresse,
+Custom SMTP braucht dafür: Host, Port, Username, Password, Absenderadresse,
 Absendername. Diese Werte leben **ausschließlich** in der Supabase-Auth-Konfiguration bzw.
 einem sicheren Admin-Kontext — niemals im Flutter-Client, niemals in einem `--dart-define`.
 
@@ -311,9 +333,9 @@ einem sicheren Admin-Kontext — niemals im Flutter-Client, niemals in einem `--
 ## 10. Deploy-Ablauf, wenn alles steht
 
 ```text
-workflow_dispatch(sha)
+workflow_run(Flutter, push auf main, success)   → SHA = head_sha, Stale-Main-Guard
   → Gate 1: STAGING_DEPLOY_ENABLED == true      (außerhalb des Environments, kein Secret)
-  → Environment staging                          (Schutzregeln greifen)
+  → Environment staging                          (Branch-Policy main, kein Reviewer)
   → Checkout genau dieses SHA, verifiziert
   → vier Required Checks auf diesem SHA == success
   → 5/5 Werte vorhanden                          (nur Presence, keine Werte im Log)
@@ -321,7 +343,11 @@ workflow_dispatch(sha)
   → Artefakt-Prüfung: index.html, vercel.json, Rewrite → /index.html,
     keine Server-Credential-Marker, keine git-Policy im Artefakt
   → vercel@58.9.0 deploy build/web               (kein --prod, kein --target)
+  → vercel alias set <preview-url> neximmo-staging.vercel.app
 ```
+
+(Seit `STAGING-DEPLOY-ACTIVATION-01` am 2026-08-10; der ursprünglich vorbereitete
+`workflow_dispatch(sha)`-Einstieg ist durch `workflow_run` ersetzt.)
 
 **Vor** jedem Deploy zusätzlich manuell prüfen: richtige App-Project-ID, richtige Team-ID,
 Supabase-Host ist die Staging-Instanz, Root-Git-Autodeploy weiterhin deaktiviert.
@@ -334,7 +360,10 @@ mit der Staging-Supabase-Instanz.
 
 ## 11. Was dieses Paket nicht beweisen kann
 
-Vorbereitet und lokal geprüft ist der SPA-Fallback im Artefakt. **Nicht** bewiesen sind:
-das Rewrite-Verhalten auf Vercel selbst, die Behebung der Deployment Protection, die
-Stabilität der Alias-Adresse, SMTP und die Remote-Migration. Diese Nachweise entstehen erst
-in `STAGING-PROVISION-01`, gegen eine reale Umgebung.
+Vorbereitet und lokal geprüft war in `STAGING-PREP-01` der SPA-Fallback im Artefakt.
+**Seither bewiesen** (2026-08-09/10/23, `05_phase_a_log.md`): die Remote-Migration (36/36),
+das Rewrite-Verhalten auf Vercel (`/`, `/properties`, Reload, `/properties/abc123` → `200`),
+die Behebung der Deployment Protection, die Stabilität der Alias-Adresse (bei jedem
+Auto-Deploy neu gesetzt) und die `aal2`-Ausstellung durch GoTrue. **Weiterhin nicht
+bewiesen:** SMTP (nicht konfiguriert), die Realtime-Zustellung an einen echten
+Staging-Client und die Remote-Integration-Gates (Schritt 14).
