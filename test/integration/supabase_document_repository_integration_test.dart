@@ -289,6 +289,23 @@ void main() {
           reason: 'A caller must not be able to widen the window.',
         );
 
+        // The floor is one second: a shorter request is raised to it, and
+        // exactly one second is applied as asked, not widened. Neither url is
+        // fetched while it is fresh -- a one-second window is a correct policy
+        // boundary, not a scheduling budget a mint-then-GET round trip can be
+        // expected to fit on a slow runner (TEST-STABILITY-P2D03-01).
+        final belowFloor =
+            (await adminRepo.createSignedUrl(
+                  workspaceId: workspaceId,
+                  documentId: document.id,
+                  ttl: Duration.zero,
+                ))
+                as DocumentRepositorySuccess<SignedDocumentUrl>;
+        expect(
+          belowFloor.value.appliedTtl,
+          SignedUrlPort.minTtl,
+          reason: 'A caller cannot ask for a window shorter than the floor.',
+        );
         final shortLived =
             (await adminRepo.createSignedUrl(
                   workspaceId: workspaceId,
@@ -298,14 +315,42 @@ void main() {
                 as DocumentRepositorySuccess<SignedDocumentUrl>;
         expect(shortLived.value.appliedTtl, const Duration(seconds: 1));
         expect(shortLived.value.contentRef.storageObjectPath, objectPath);
-        expect(await statusOf(shortLived.value.url), 200);
 
-        // The URL really stops working; this is why it cannot live in pgTAP.
-        await Future<void>.delayed(const Duration(seconds: 4));
+        // One url that really serves the object and then really stops -- this
+        // is why it cannot live in pgTAP. The window is wide enough that the
+        // first GET cannot lose a race against the runner, and short enough to
+        // wait out.
+        const servedTtl = Duration(seconds: 5);
+        final served =
+            (await adminRepo.createSignedUrl(
+                  workspaceId: workspaceId,
+                  documentId: document.id,
+                  ttl: servedTtl,
+                ))
+                as DocumentRepositorySuccess<SignedDocumentUrl>;
+        expect(served.value.appliedTtl, servedTtl);
+        expect(served.value.contentRef.storageObjectPath, objectPath);
+        expect(await statusOf(served.value.url), 200);
+
+        // Anchored to expiresAt rather than to a fixed sleep, so the time the
+        // GET above took counts toward it. expiresAt is stamped client-side
+        // after the mint returned, so it is never earlier than the token's
+        // own exp; the margin covers that claim's one-second granularity.
+        final remaining = served.value.expiresAt
+            .add(const Duration(seconds: 2))
+            .difference(DateTime.now());
+        if (remaining > Duration.zero) {
+          await Future<void>.delayed(remaining);
+        }
+        expect(
+          await statusOf(served.value.url),
+          isNot(200),
+          reason: 'An expired signed url must no longer serve the object.',
+        );
         expect(
           await statusOf(shortLived.value.url),
           isNot(200),
-          reason: 'An expired signed url must no longer serve the object.',
+          reason: 'The one-second url has long expired as well.',
         );
 
         // --- supersede -> archive ---------------------------------------------
