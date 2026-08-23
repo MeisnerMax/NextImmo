@@ -2127,3 +2127,152 @@ MFA-Enrollment, kein Golden Path. Added cost €0.
 | `auth.users` | **0** — Testnutzer folgt erst in `STAGING-TEST-USER-01` |
 | Golden Path | **NOT RUN** (`GP-STAGING-WEB` folgt später) |
 | Production | **NOT AUTHORIZED** |
+
+---
+
+## 2026-08-23 · `SECURITY-AAL-CLIENT-03` — Interrupted-TOTP-Recovery remote bewiesen (Closeout)
+
+**`SECURITY-AAL-CLIENT-03 PASS — an account left with an unverified TOTP factor by an interrupted
+enrolment is recognised as such, can be resumed or restarted through the user's own session, and
+reaches aal2; a verified factor is never removed by the client. SECURITY-STORAGE-AAL-03 closeout is
+no longer blocked. Golden staging baseline unchanged; no production resource touched.`**
+
+Letzter Blocker des `SECURITY-STORAGE-AAL-03`-Closeouts. Das Storage-Paket selbst (PR #30,
+Merge `87c3436` am 2026-08-13) hatte die AAL2-Grenze durch die echte Storage-HTTP-API bewiesen —
+`aal1` Upload `403` / Sign `404`, `aal2` beides erlaubt, `SR-23` pinnt die Policy-Familie, Mutations-
+matrix 7 → 13, keine Migration nötig — und war danach nur noch `BLOCKED`, weil der für den Remote-
+Nachweis angelegte Nutzer nach einem abgebrochenen TOTP-Enrollment nicht mehr auf `aal2` kam.
+
+### Ursache
+
+GoTrue lässt beim Abbruch eines Enrollments vor dem ersten akzeptierten Code einen Factor mit
+`status = unverified` auf dem Konto. Der Client las `listFactors().totp`, das gotrue auf
+**verifizierte** Factors filtert; ein Konto mit nur diesem Rest sah damit faktorlos aus, bekam ein
+neues `enroll(friendlyName: 'NexImmo')` angeboten, und das kollidierte serverseitig mit dem Rest:
+`422 mfa_factor_name_conflict`. Weder dieser Code noch `too_many_enrolled_mfa_factors` war
+gemappt — der Nutzer sah „temporarily unavailable", dauerhaft.
+
+### Client-Änderung (PR #31, Merge `77ec85f` am 2026-08-22)
+
+Zwei Commits, rot-zuerst auf `87c3436` (15 Controller-/Widget-Fälle rot, Sicherheitswächter grün):
+`c145043` Implementierung, `9787842` Ergebnisse eines unabhängigen fünf-Linsen-Reviews mit
+adversarialer Gegenprüfung.
+
+- `TotpFactorInventory` trägt den vollständigen TOTP-Bestand: `challengeable` (verified),
+  `recoverable` (nur `unverified`), `interruptedEnrollment` (genau ein unverifizierter Factor unter
+  dem App-Namen und kein verifizierter), `isAmbiguous` (gotrue-`unknown`-Status oder Duplikate).
+  `FactorStatus.unknown` ist weder challengebar noch löschbar.
+- Gateway liest `GET /user` statt `listFactors()` — letzteres liefert nach
+  `refresh_token_already_used` den alten Snapshot —, filtert auf TOTP und unenrolled ausschließlich
+  über die Nutzersession. Kein `service_role`, keine Admin-API.
+- Controller leitet jeden `mfaRequired`-Unterzustand an **einer** Stelle ab (`_applyInventory`):
+  verifiziert → Challenge (ein stehen gebliebener Rest wird nicht aufgeräumt), nur ein eigener
+  unverifizierter → `interruptedEnrollmentRecovery`, mehrdeutig → fail-closed, leer → Enrollment.
+  **Continue existing setup** liest neu, challengt und verifiziert exakt den gezeigten Factor, löscht
+  nichts. **Restart authenticator setup** liest neu, unenrolled nur, wenn der exakte Factor noch
+  existiert, noch `unverified`, nicht mehrdeutig und weiterhin der einzige Befund ist, liest erneut
+  und enrolled erst, wenn der alte Factor nachweislich fehlt. Jede Änderung dazwischen — verifiziert,
+  verschwunden, verifizierter Nachbar, unbekannter Status, Lesefehler, Sessionwechsel — bricht den
+  destruktiven Pfad ab und berechnet den Zustand neu. Namenskonflikt / zu viele Factors: Inventar
+  neu lesen und dieselbe Ableitung; nie ein Retry, kein anderer Name, keine Löschung.
+- AAL2-Grenze unverändert: unter `aal2` null Workspace-/Property-Reads; Business-State nur über
+  `_handleSession` mit `aal2`-Session, was zugleich Secret und Recovery-Ziel verwirft. Sign-out und
+  Sessionverlust löschen lokal alles und remote nichts. Recovery-Screen zeigt weder Factor-ID noch
+  Secret noch Provider-Text; das Code-Feld wird bei Phasen-/Nutzerwechsel geleert.
+- Nachweise: `flutter analyze` sauber, **1468** Tests bestanden (25 skipped, 0 Fehler), Web-Build
+  grün, PR-CI 4/4, `Flutter`-Push-Run 32593864749 auf `77ec85f` 4/4 → `Web App Deploy` 32594658309
+  via `workflow_run`: `Deploying 77ec85f…`, Preview
+  `appneximmo-lgff6wbjh-meisners-projects.vercel.app`, Alias `neximmo-staging.vercel.app` darauf
+  gesetzt. Ausgelieferte `main.dart.js` enthält die Recovery-Texte und keinen Server-Credential-Marker.
+
+### Remote-Evidence (Staging `vhxdgchhgyzbjnogjicb`, 2026-08-23)
+
+Der Owner fuhr den Flow im Browser gegen `neximmo-staging.vercel.app`; Passwort und Codes wurden
+ausschließlich von ihm eingegeben. Alle Prüfungen davor und danach liefen read-only per
+`SELECT` über den Query-Endpoint der Management API (Access Token nur als Environment-Variable und
+`Authorization`-Header; der Helfer weist alles außer `SELECT`/`WITH` ab). Keine Admin-Auth-API, kein
+`service_role`, kein manueller DB-/RBAC-/Storage-Schreibzugriff.
+
+| | Preflight | Postflight |
+|---|---|---|
+| Nutzer `5b5c2bcb…` (`storage-aal-closeout-20260813@neximmo.invalid`) | vorhanden, bestätigt | vorhanden, `last_sign_in_at` 11:10:32 UTC |
+| Factors des Nutzers | **1** — `2b246c4d…` `totp` **`unverified`** `NexImmo`, nie gechallengt | **1** — `b444acd7…` `totp` **`verified`** `NexImmo`; `2b246c4d…` nirgends mehr (0 Zeilen) |
+| Challenges des Nutzers | 0 | 2, beide verifiziert (11:07:18 Enrollment, 11:10:45 Re-Login) |
+| Sessions des Nutzers | 0 | 1, `aal2`, angelegt 11:10:32 (Erstsession durch Sign-out widerrufen) |
+| Memberships Nutzer / gesamt | 0 / 2 | 0 / 2 |
+| Workspaces / Rollen / Permissions / Role-Permissions | 1 / 1 / 3 / 3 | 1 / 1 / 3 / 3 |
+| Golden Property `GP Staging Property` | **v11** | **v11** |
+| `audit_events` | **10** | **10** (keine neue) |
+| `storage.objects` / Bucket `documents` | **0** / privat | **0** / privat |
+| Migrationen | 36, neueste `20260812100000` | 36, neueste `20260812100000` |
+| RLS-Tabellen / Storage-Policies / SECURITY DEFINER (`public`) | 38/38 / 2 / 65 | 38/38 / 2 / 65 |
+
+Ablauf, aus den Daten: Passwort-Login 11:04:09 → Session `aal1`, kein Business-Read; der Client
+erkannte den unverifizierten Rest und zeigte Recovery (Owner-Beobachtung, auch nach Reload). Pfad
+**Restart**: `2b246c4d…` entfernt, genau ein neuer Factor `b444acd7…` 11:04:45 angelegt, 11:07:18
+verifiziert → `aal2`. Genau ein Unenroll, genau ein Enroll — kein Duplikat, kein zweites blindes
+`enroll()`, kein `mfa_factor_name_conflict`. Sign-out, erneuter Passwort-Login 11:10:32 → normale
+Code-Abfrage ohne Recovery-/Setup-Screen, verifizierte Challenge 11:10:45 → `aal2`. Mit 0
+Memberships zeigt die Shell erwartungsgemäß „No workspace access"; kein temporärer RBAC-Zugang.
+
+### Negative Verifikation
+
+Seit dem Preflight **0** geänderte Zeilen in `properties`, `memberships`, `workspaces`,
+`domain_events`, `mutation_receipts`, `audit_events`; keine Einladung, kein Profil, keine Membership
+für den Nutzer; die beiden Baseline-Nutzer unverändert (je ein verifizierter Factor). Kein Deploy
+außer der automatischen Kette, keine Migration, keine Config-Mutation, Production unangetastet.
+`auth.audit_log_entries` ist auf Staging leer und lieferte keine zusätzliche Evidenz.
+
+### Abweichung
+
+Der `SUPABASE_ACCESS_TOKEN` stand in dieser Sitzung als exportierte Shell-Variable bereit und wurde
+durch einen fehlerhaften Präsenz-Check (`${VAR:-unset}` expandiert den Wert) einmal in die
+Sitzungsausgabe geschrieben. Er wurde nicht weiterverwendet, nicht abgelegt und nicht berichtet;
+Empfehlung: Token rotieren und nicht im Profil exportieren.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| `SECURITY-AAL-CLIENT-03` | **PASS — geschlossen** (Client gemerged, deployt, remote bewiesen) |
+| `SECURITY-STORAGE-AAL-03` Closeout | **PASS — nicht mehr blockiert** |
+| Repro-Nutzer | bleibt; jetzt regulärer verifizierter Testnutzer mit 0 Memberships |
+| Golden Staging Baseline | **unverändert** (v11 / 10 / 0) |
+| Production | **NOT AUTHORIZED / untouched** |
+
+---
+
+## 2026-08-23 · `SECURITY-STORAGE-AAL-03` — Final Closeout
+
+**`SECURITY-STORAGE-AAL-03 PASS — the storage aal2 boundary is proven through the real Storage
+API, the client recovers an interrupted TOTP enrolment and reaches aal2 on staging, the one known
+CI timing flake in the document integration test is fixed, and current main is green and deployed
+to staging. Production untouched.`**
+
+Der Status dieses Pakets war seit dem Merge von PR #30 (`87c3436`, 2026-08-13) `BLOCKED` — nicht
+`FAIL` —, weil der Remote-Nachweis am abgebrochenen TOTP-Enrollment des Repro-Nutzers hing. Mit dem
+vorigen Eintrag ist dieser Blocker geschlossen; dieser Eintrag hält den finalen Ist-Stand fest und
+ändert keine frühere Evidence.
+
+### Finale Evidence
+
+| Punkt | Stand |
+|---|---|
+| Storage-AAL-Paket | abgeschlossen — PR #30 `87c3436`: `aal1` Upload `403` / Sign `404`, `aal2` beides erlaubt, `SR-23`, Mutationsmatrix 13, keine Migration |
+| Client Interrupted-TOTP-Recovery | abgeschlossen — PR #31 `77ec85f` inkl. Review-Fixes (`c145043`, `9787842`) |
+| Remote Staging Closeout | **PASS** (2026-08-23, voriger Eintrag) — Restart-Pfad, genau ein neuer verifizierter Factor, `aal2`, Re-Login `aal2`, Golden Baseline v11 / 10 / 0 unverändert |
+| `TEST-STABILITY-P2D03-01` | abgeschlossen — PR #32, Merge `ca85011`: der sofortige GET auf eine Signed URL mit 1-s-Floor-TTL im P2-D03-Integrationstest war ein Scheduling-Rennen auf langsamen Runnern, kein Security-Defekt. Floor und Ceiling werden weiterhin explizit bewiesen (`0 → 1 s`, `1 s → 1 s`, `10 h → 1 h`); der „liefert 200 und läuft dann wirklich ab"-Nachweis nutzt eine 5-s-URL, deren Ablauf an ihrem `expiresAt` gewartet wird; `minTtl`/`maxTtl`/`clampTtl` und Resolve-before-Mint unverändert; 5/5 CI-identische Läufe grün, davon 2 unter Volllast |
+| `main` | `ca850112031ae2541fdf66aa0c676ee2da9637c2` |
+| main CI | `Flutter`-Run 32642158479: verify / database / marketing / supply_chain 4/4 grün, „Test P2-D03 document integration: success" |
+| Staging | `Web App Deploy` 32643000788 via `workflow_run`: `Deploying ca85011…`, Alias `neximmo-staging.vercel.app` auf dieses Deployment, `/` und `main.dart.js` `200` |
+| Production | untouched — keine Supabase-, Vercel-, Auth-, DNS- oder Datenmutation |
+
+### Statusgrenze
+
+| | |
+|---|---|
+| `SECURITY-STORAGE-AAL-03` | **PASS — geschlossen** (zuvor BLOCKED) |
+| `SECURITY-AAL-CLIENT-03` | **PASS — geschlossen** |
+| `TEST-STABILITY-P2D03-01` | **DONE** (auf `main`) |
+| Offen | `DOCS-CURRENCY-01` (separates Paket); Rotation des exportierten `SUPABASE_ACCESS_TOKEN` (Empfehlung aus dem vorigen Eintrag) |
+| Production | **NOT AUTHORIZED / untouched** |
