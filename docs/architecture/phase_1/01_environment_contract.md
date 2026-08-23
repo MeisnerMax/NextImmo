@@ -1,17 +1,17 @@
 # Phase 1 Environment Contract
 
-Status: `local_foundation`
+Status: `local_and_staging`
 
 ## Environments
 
-`local`, `staging` and `production` are isolated environments. Remote Supabase projects are not part of P1-001 and require an explicit decision and authorization under `DEC-015` to `DEC-017`.
+`local`, `staging` and `production` are isolated environments. Remote Supabase projects were not part of P1-001. One isolated staging project is authorized and provisioned under `DEC-017` (accepted 2026-08-09, synthetic data only; project `vhxdgchhgyzbjnogjicb`, `eu-central-1`, see `docs/architecture/cloud/07_staging_runbook.md`) and receives the web client automatically through `.github/workflows/web_deploy.yml`. Production remains unauthorized in every form (`DEC-017`).
 
 ## Client configuration
 
 | Name | Required | Contract |
 |---|---|---|
 | `NEXIMMO_ENV` | yes | Exact value `local`, `staging` or `production`; unknown values fail closed. |
-| `NEXIMMO_DATA_BACKEND` | yes | Exact value `sqlite` or `supabase`; unknown values fail closed and never select a remote backend implicitly. |
+| `NEXIMMO_DATA_BACKEND` | yes | Exact value `supabase` — the only runtime backend since `DEC-024` / `AP-X02-2b`; a missing, unknown or the retired `sqlite` value fails closed. The define is kept as a deployment safety guard so every build states which backend it was configured for. |
 | `SUPABASE_URL` | yes | API URL for the selected environment. |
 | `SUPABASE_PUBLISHABLE_KEY` | yes | Public client key for the selected environment; it grants no authority without RLS. |
 

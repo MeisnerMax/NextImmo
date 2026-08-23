@@ -82,11 +82,20 @@ reset, so they are destructive to local dev data and mirror what CI runs — see
 ./tool/test_p1_014_crash_recovery.ps1
 ./tool/test_p1_021_performance_profile_guard.ps1
 ./tool/verify_p1_021_performance_profile.ps1 -PropertyCount 250 -WarmupRuns 1 -MeasuredRuns 5
+./tool/test_security_aal_mutation_matrix.ps1
+./tool/verify_debt_012_tombstone.ps1
+./tool/verify_p2_d01_integration.ps1 … ./tool/verify_p2_d06_integration.ps1, ./tool/verify_p2_d05a_integration.ps1
+./tool/verify_storage_aal_03.ps1
+./tool/verify_p2_x01_property_cutover.ps1 / ./tool/verify_p2_x01_domain_cutover.ps1
 ```
+All of these are local-only; none runs against staging (21 scripts in the `database` job today).
 
-CI (`.github/workflows/flutter.yml`) has two jobs: `verify` (pub get, analyze, test, build web) and
+CI (`.github/workflows/flutter.yml`) has four jobs: `verify` (pub get, analyze, test, build web),
+`marketing` (marketing site build), `supply_chain` (gitleaks secret scan, `npm audit`) and
 `database` (local Supabase reset, lint, security/performance advisors, pgTAP tests, targeted
-migration-rollback replays, then the `tool/verify_*`/`test_*` scripts above). Match this locally
+migration-rollback replays, then the `tool/verify_*`/`test_*` scripts above). Sibling workflows:
+`goldens.yml` (golden regeneration on `goldens/**` branches) and `web_deploy.yml` (automatic staging
+deploy after a green `Flutter` run on `main`, see Environment contract below). Match this locally
 before considering Supabase-related work done.
 
 ## Environment contract
@@ -105,10 +114,14 @@ See [docs/architecture/phase_1/01_environment_contract.md](docs/architecture/pha
 - `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`,
   `SUPABASE_ACCESS_TOKEN` are server-only and must never be committed, dart-defined, put in
   `supabase/config.toml`, logged, or exported.
-- Remote (non-local) Supabase provisioning is **not authorized** yet — pending decisions
-  `DEC-017` in `docs/architecture/phase_0/11_decision_register.md` (`DEC-015` region and
-  `DEC-016` privileged AAL2 were accepted 2026-08-08; neither authorizes provisioning). Don't wire up or
-  suggest staging/production Supabase provisioning without checking that register first.
+- Remote Supabase: exactly **one staging project exists** (`DEC-017` accepted 2026-08-09, synthetic
+  data only — see `docs/architecture/cloud/07_staging_runbook.md`) and is deployed automatically by
+  `.github/workflows/web_deploy.yml` to `neximmo-staging.vercel.app` after every green `Flutter` run
+  on `main`. Staging auth is email + password → `aal1` → TOTP → `aal2` with signup disabled, and
+  `DEC-025` makes `aal2` the server-side boundary for the whole workspace business surface.
+  **Production provisioning remains not authorized** in every form — don't wire up or suggest it
+  without a new decision in `docs/architecture/phase_0/11_decision_register.md`. Never mutate
+  staging auth/DB/storage by hand; the only sanctioned path is the automatic deploy.
 
 ## Architecture
 
@@ -133,8 +146,9 @@ forbids SQLite wiring in those three files, not SQLite code as such.
     leak into this layer.
   - `data/` — concrete adapters implementing the application contracts, e.g.
     `supabase_property_repository_adapter.dart` or
-    `supabase_identity_access_repository_adapter.dart`. `main.dart` selects which adapter to wire
-    into Riverpod providers based on `AppEnvironment.dataBackend` (see `lib/main.dart`).
+    `supabase_identity_access_repository_adapter.dart`. `lib/main.dart` and
+    `lib/app_backend_wiring.dart` (`featureBackendOverrides`) bind the Supabase adapters into the
+    Riverpod providers unconditionally — there is no backend switch.
     **Write one adapter per domain, the Supabase one.** The `legacy_sqlite_*_adapter` counterparts
     still in the tree are leftovers of the superseded two-adapter rule and are removed in
     `AP-X02-2`; adding another one means writing code that is already scheduled for deletion.
@@ -163,10 +177,12 @@ forbids SQLite wiring in those three files, not SQLite code as such.
 
 ### Supabase/Postgres layer
 
-- `supabase/migrations/` — forward SQL migrations, currently implementing `P1-001`..`P1-018`
+- `supabase/migrations/` — forward SQL migrations (36 today): the `P1-001`..`P1-018` baseline
   (workspace/role/permission/audit baseline, default-deny RLS, property contract with optimistic
-  versioning, realtime invalidation, AAL2/MFA hardening, entitlement revalidation). Every migration
-  needs default-deny RLS and a corresponding rollback test.
+  versioning, realtime invalidation, AAL2/MFA hardening, entitlement revalidation) plus the Phase 2
+  domain migrations (`P2-D01`..`P2-D07`, `P2-D05a/b`, `P2-X01`, `DEBT-012`), `PH01` entity-scope
+  enforcement and `20260812100000_security_aal_enforcement` (`DEC-025`). Every migration needs
+  default-deny RLS and a corresponding rollback test.
 - `supabase/tests/*.test.sql` — pgTAP schema/RLS/behavior tests, run via `supabase test db`.
 - `supabase/tests_rollback/*_down.test.sql` — verifies each migration's down-path; CI replays these
   by running `supabase migration down --last N` then the matching rollback test, then migrating

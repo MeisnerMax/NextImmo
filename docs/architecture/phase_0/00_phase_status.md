@@ -1,9 +1,9 @@
 # Phase 0 Gate Status
 
-Stand: 2026-07-18
+Stand: 2026-08-23 (Gate-Pruefung vom 2026-07-18; Freigabe- und Paketstand fortgeschrieben)
 Owner: `integration-agent`  
 Gesamtstatus: `PASS`  
-Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente`
+Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente_und_eine_isolierte_staging_umgebung` (Production weiterhin nicht freigegeben)
 
 ## Gate-Pruefung
 
@@ -18,8 +18,8 @@ Phase-1-Freigabe: `freigegeben_fuer_lokale_inkremente`
 | Konfliktklassen vollstaendig | PASS | 94/94 Tabellen in `08_sync_conflict_matrix.md`; jede Tabelle genau einer Primaerklasse zugeordnet | DEC-SYN-001..DEC-SYN-005 |
 | Kritische Rechenkerne abgesichert oder geplant | PASS | GM-VAL/FIN/IRR/XIRR/SEN/COV/REN/BVA/ACQ/RNV/DSP/BKP in `09_test_baseline.md` | RISK-QA-001 |
 | Referenzschnitt spezifiziert | PASS | REF-001..REF-007 und AC-RLS/AC-REF in `10_reference_slice_spec.md` | RISK-QA-005 |
-| Offene Decisions erfasst | PASS | zentraler Index in `11_decision_register.md`; Details in den referenzierten Artefakten | DEC-014..DEC-017 |
-| Phase-1-Backlog priorisiert | PASS | P1-001..P1-021 mit Abhaengigkeiten und Status in `12_phase_1_execution_backlog.md` | externe Freigaben fuer Remote-Provisionierung |
+| Offene Decisions erfasst | PASS | zentraler Index in `11_decision_register.md`; Details in den referenzierten Artefakten | DEC-014 (DEC-015/016 am 2026-08-08, DEC-017 am 2026-08-09 accepted) |
+| Phase-1-Backlog priorisiert | PASS | P1-001..P1-021 mit Abhaengigkeiten und Status in `12_phase_1_execution_backlog.md` | externe Freigabe fuer Production-Provisionierung (DEC-017: nicht freigegeben); Staging ist provisioniert |
 | Integrationspruefung erfolgt | PASS | Tabellen-/ID-/Testzaehlung, Besitz- und Widerspruchsharmonisierung, Arbeitsbaum-Diff | RISK-QA-006 |
 
 ## P1-008 Sicherheitsinkrement
@@ -37,7 +37,7 @@ Status: `done`.
 
 - Authentifizierte Session, Workspace-Zugriffe und Property-Application-State sind als getrennte Vertraege und Controller modelliert.
 - Eine Supabase-Session mit `aal1` und ausstehendem `aal2` bleibt ohne Workspace- und Property-Zugriff (`mfaRequired`).
-- Eine verpflichtende MFA-Regel fuer privilegierte Rollen ist noch nicht produktionssicher definiert; Rollenmatrix und restriktive RLS/AAL-Policy bleiben offen.
+- Eine verpflichtende MFA-Regel fuer privilegierte Rollen ist noch nicht produktionssicher definiert; Rollenmatrix und restriktive RLS/AAL-Policy bleiben offen. (Seit `DEC-016` (2026-08-08) und `DEC-025` (2026-08-12) ist die AAL2-Grenze fuer die gesamte Workspace-Geschaeftsflaeche serverseitig erzwungen: Migration `20260812100000_security_aal_enforcement.sql`, Tests `027`.)
 - Abschluss: gezielter und vollstaendiger Analyzer ohne Findings, 15 gezielte Tests sowie 202 Gesamttests mit 5 Skips bestanden, lokale Supabase-Clientintegration 1/1 bestanden und Web-Build erfolgreich.
 
 ## P1-010 Adaptive Referenzschnitt-UI
@@ -47,7 +47,7 @@ Status: `done`.
 - Feature-lokale Property-Liste, Detailansicht und Mutation verwenden bestehende Breakpoints, Theme-Tokens und UI-Komponenten.
 - Phone wechselt explizit zwischen Liste und Detail; Desktop zeigt beide Bereiche nebeneinander. Tablet bleibt kompakt navigierbar.
 - 14 Widgettests decken Auth/MFA, Suche, Detailwechsel, Konflikt/Retry und sieben Breakpoint-Breiten ab; drei Golden-Baselines fuer Phone, Tablet und Desktop bestehen.
-- Explizite SQLite-/Supabase-Runtimeauswahl, Provider-Overrides sowie stabile `/properties`- und `/properties/:id`-Routen sind verdrahtet.
+- Explizite SQLite-/Supabase-Runtimeauswahl, Provider-Overrides sowie stabile `/properties`- und `/properties/:id`-Routen sind verdrahtet. (Die SQLite-Runtimeauswahl ist seit `DEC-024`/`AP-X02-2b` am 2026-08-08 entfernt; Supabase ist der einzige Laufzeitpfad.)
 - Ein Kaltstart-Deep-Link oeffnet genau eine Route und das Detail unabhaengig von der Listenladung; der Supabase-Screen besitzt einen Material-/Scaffold-Kontext.
 - Abschluss: Analyzer ohne Findings, 43 gezielte Tests, Gesamtsuite 234 bestanden/6 Skips und Web-Build erfolgreich. Bedienbare Auth/MFA-Aktionen wurden anschliessend mit `P1-016` geschlossen.
 
@@ -57,7 +57,7 @@ Status: `done`.
 
 - Der IdentityAccess-Vertrag und Supabase-Adapter bieten passwordless E-Mail-Anforderung, TOTP-Enrollment, Faktorwahl, Challenge/Verify und lokalen Logout ohne SDK-Typen im Application-Vertrag.
 - Der adaptive Referenzschnitt stellt Login, MFA-Step-up, Enrollment und Logout bedienbar dar; Secrets werden nur waehrend des Enrollments gehalten und bei Sessionwechsel/Logout geleert.
-- Property-Mutation bleibt client- und serverseitig an AAL2 gebunden. Eine allgemeine privilegierte Rollen-/AAL-Matrix bleibt separat offen.
+- Property-Mutation bleibt client- und serverseitig an AAL2 gebunden. Die allgemeine AAL-Matrix ist seit `DEC-025` (2026-08-12) geschlossen: AAL2 fuer die gesamte Workspace-Geschaeftsflaeche.
 - Abschluss: 54 gezielte Tests, echte lokale PKCE/passwordless- und TOTP-AAL2-Clientgates, Gesamtsuite 245 bestanden/6 Skips, Analyzer ohne Findings und Web-Build erfolgreich.
 
 ## P1-017 Entitlement-Revalidation
@@ -126,7 +126,7 @@ Status: `partial`; lokaler Vertrag verifiziert, Sandbox-/Staging-Drill offen.
 - Ein fail-closed PowerShell-Drill sichert die expliziten lokalen PostgreSQL-Schemas, prueft den Export per SHA-256 und restauriert atomar in eine neue, eindeutig geschuetzte Wegwerf-Datenbank.
 - Quell-/Ziel-Counts, kanonische Datenhashes, Migration-Head, RLS, Constraints und Realtime-Publikation werden ohne Rohdaten oder Secrets abgeglichen.
 - Zielschutz, manipuliertes Archiv, nichtleerer synthetischer Restore und rueckstandsfreies Cleanup bestehen; das Gate ist in CI aufgenommen.
-- Nicht nachgewiesen sind Remote-/Offsite-Backup, Storage-Export, Verschluesselung/Authentizitaet, Crash-Recovery, RPO/RTO oder ein autorisierter Sandbox-/Staging-Drill.
+- Nicht nachgewiesen sind Remote-/Offsite-Backup, Storage-Export, Verschluesselung/Authentizitaet, RPO/RTO oder ein autorisierter Sandbox-/Staging-Drill. (Ein lokaler Journal-basierter Crash-Recovery-Drill laeuft seither in CI: `tool/test_p1_014_crash_recovery.ps1`.)
 
 ## P1-015 Referenzschnitt-Gate-Review
 
@@ -135,7 +135,7 @@ Status: `partial`; lokale Review abgeschlossen, Phase-1-Gate abgelehnt.
 - Unbekannte Supabase-AAL-Werte sperren Workspace- und Property-Zugriffe fail-closed; Realtime-Bursts werden zusammengefasst und erhalten bereits geladene Seiten.
 - 196 pgTAP-Pruefungen decken zusaetzlich suspendierte Memberships, Audit-Korrelation, Performance-Indizes/InitPlans und serverseitiges Property-AAL2 ab; lokale Security-/Performance-Advisors blockieren CI bei Error-Befunden.
 - Der Gate-Report `../phase_1/03_reference_slice_gate_review.md` dokumentiert die lokalen Nachweise und offenen Security-, Performance- und Betriebsbefunde.
-- Runtime-Wiring, Property-AAL2, Entitlement-Revalidation sowie notwendige Index-/InitPlan-Migrationen sind lokal geschlossen. Offen bleiben allgemeine privilegierte MFA/Rollenpolicy, Entity-Scopes/Archivierung, Performancebudgets und ein autorisierter Remote-/Staging-Nachweis.
+- Runtime-Wiring, Property-AAL2, Entitlement-Revalidation sowie notwendige Index-/InitPlan-Migrationen sind lokal geschlossen. Seither geschlossen: MFA/AAL-Matrix (`DEC-025`, 2026-08-12), Entity-Scopes (`PH-01`, Migration `20260808120000`), Remote-/Staging-Nachweis (Staging seit 2026-08-09, Closeouts am 2026-08-23 in `../cloud/05_phase_a_log.md`). Offen bleiben Performancebudgets (`P1-021`/`GATE-PERF-005`) und die formale Neubewertung des Phase-1-Gates in `../phase_1/03_reference_slice_gate_review.md`.
 
 ## P1-001 bis P1-004 Datenbankinkrement
 
@@ -173,8 +173,8 @@ Status: `done`.
 | ID | Risiko | Behandlung |
 |---|---|---|
 | RISK-QA-001 | Golden-Master-Fixtures fehlen teilweise | vor Adapter-/Migrationswechsel einfrieren |
-| RISK-QA-004 | Crash-Recovery und kryptografische Backup-Authentizitaet fehlen | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore und Cleanup; Journal, AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
-| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 212 pgTAP-, 18 Rollback-, Concurrency- und reale Clientpruefungen laufen lokal und in CI |
+| RISK-QA-004 | Kryptografische Backup-Authentizitaet fehlt | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore, Journal-basierte Crash-Recovery (`tool/test_p1_014_crash_recovery.ps1`) und Cleanup; AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
+| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 28 pgTAP-Dateien (>1296 Pruefungen), 33 Rollback-Pruefungen (30 in CI replayed), Concurrency- und reale Clientpruefungen laufen lokal und in CI |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
 | RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
 | RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets oder repraesentativen Lastprofile | vor Gate-Abnahme Budgets und Datenmengen definieren und reproduzierbare Query-/Clientprofile messen |

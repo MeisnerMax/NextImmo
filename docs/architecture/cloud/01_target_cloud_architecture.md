@@ -1,6 +1,6 @@
 # NexImmo — Autoritative Cloud-Zielarchitektur
 
-Stand: 2026-08-07 · Status: `accepted` für alles, was auf entschiedenen `DEC-*` beruht;
+Stand: 2026-08-23 (Ist-Stand-Abgleich `DOCS-CURRENCY-01`; Zielbild vom 2026-08-07) · Status: `accepted` für alles, was auf entschiedenen `DEC-*` beruht;
 `proposed` nur dort, wo eine offene Entscheidung ausdrücklich benannt ist.
 
 Dieses Dokument ist ab sofort **die** Quelle für das Cloud-Zielbild. Wo ältere Dokumente
@@ -34,9 +34,9 @@ Testdaten und wurden am 2026-08-04 bewusst entfernt (`app_data.db`: 0 Properties
 0 Scenarios, 0 Users). Reconciliation-, Paritäts- und Rollback-Verpflichtungen für
 Nutzdaten entfallen; es bleibt reine Code-Entfernung.
 
-Zwei Dokumente hinken diesem Beschluss noch hinterher und werden in `AP-X02-1`
-nachgezogen: `phase_2/00_phase_2_charter.md` Z. 21 und der `offline-first`-/
-Adapter-Pattern-Abschnitt in `CLAUDE.md`.
+Beide Dokumente, die diesem Beschluss zunächst hinterherhinkten (`phase_2/00_phase_2_charter.md`
+Z. 21 und der `offline-first`-/Adapter-Pattern-Abschnitt in `CLAUDE.md`), sind in `AP-X02-1`
+nachgezogen.
 
 ---
 
@@ -80,8 +80,10 @@ reale Supabase-Session und Workspace-Auswahl führen fail-closed in den kanonisc
 `AppScaffold`, mit gemeinsamem Navigationsbaum, expliziter Cloud-Readiness und
 Capability-Prüfung je Ziel.
 
-Mit dem Wegfall von `DataBackend.sqlite` (`AP-X02-2`) verschwindet auch diese letzte
-Verzweigung: `NEXIMMO_DATA_BACKEND` und `CloudDestinationReadiness` entfallen ersatzlos.
+Seit `AP-X02-2b` ist `DataBackend.sqlite` entfernt. `NEXIMMO_DATA_BACKEND` bleibt bewusst als
+fail-closed Deployment-Guard mit `supabase` als einzigem Wert (Abschnitt 2);
+`CloudDestinationReadiness` bleibt für die noch nicht migrierten Ziele bestehen, bis
+`AP-X02-9` sie entfernt.
 
 ---
 
@@ -89,7 +91,7 @@ Verzweigung: `NEXIMMO_DATA_BACKEND` und `CloudDestinationReadiness` entfallen er
 
 | Schicht | Umsetzung |
 |---|---|
-| Identität | Supabase Auth, passwordless E-Mail-Login (`DEC-016`) |
+| Identität | Supabase Auth, E-Mail + Passwort als primärer Login → `aal1` → TOTP → `aal2` (`STAGING-PASSWORD-AUTH-01`, 2026-08-10); Signup deaktiviert; Magic Link/PKCE nur noch für Recovery |
 | Faktoren | TOTP über Supabase AAL; ausstehendes `aal2` blockiert clientseitigen Zugriff |
 | Mandantentrennung | Workspace-/Membership-Modell, `auth.uid()`-gebunden |
 | Autorisierung | Postgres RLS, **default deny**, serverseitig erzwungen (`DEC-006`) |
@@ -104,8 +106,13 @@ gewöhnliche Aktion verlangt AAL2. Verpflichtend mindestens für Capabilities mi
 Access Control, Memberships, Rollen/Berechtigungen und sicherheitskritische
 Workspace-Administration; die Capability-Matrix darf fachlich erweitert werden.
 
-Property-Mutationen erfüllen das bereits. Der Rest ist **Umsetzungsarbeit je Capability**,
-keine offene Entscheidung mehr. Die vollständige Rollen-zu-Permission-Matrix und die
+**Erweitert durch `DEC-025` (accepted 2026-08-12):** AAL2 ist die Grenze der **gesamten**
+Workspace-Geschäftsoberfläche — jeder Workspace-Read und jedes Command verlangt `aal2`,
+serverseitig und fail-closed in `private.is_aal2()` über den zentralen Permission-Helper,
+die Command-Gates und die RLS-Policies (`20260812100000_security_aal_enforcement.sql`,
+`supabase/tests/027`). Nur der GoTrue-Auth-/MFA-Bootstrap und `public.user_profiles`
+bleiben auf `aal1` erreichbar. Die Capability-Matrix je Aktion ist damit keine offene
+Umsetzungsarbeit mehr. Die vollständige Rollen-zu-Permission-Matrix und die
 Vier-Augen-Freigaben bleiben offen (`DEC-SEC-001`, `partial`).
 
 ---
@@ -166,7 +173,7 @@ Auth-Redirects, eigenem SMTP:
 | Umgebung | Zweck | Zustand |
 |---|---|---|
 | `local` | Entwicklung gegen den Docker-Stack | **existiert** |
-| `staging` | Integration, E2E, Abnahme | **freigegeben, aber noch nicht angelegt** — `DEC-017` ist am 2026-08-09 `accepted` für genau eine isolierte Umgebung mit ausschließlich synthetischen Daten; die Provisionierung ist ein eigenes Arbeitspaket und hat nicht begonnen. Region `eu-central-1` (`DEC-015`) |
+| `staging` | Integration, E2E, Abnahme | **existiert** — Supabase-Projekt `vhxdgchhgyzbjnogjicb` (`eu-central-1`, `DEC-015`/`DEC-017`, ausschließlich synthetische Daten), seit 2026-08-09 provisioniert, 36/36 Migrationen, Auth konfiguriert (2026-08-10), Auto-Deploy auf `neximmo-staging.vercel.app` (`07_staging_runbook.md`) |
 | `production` | Echtdaten, EU-Region mit Zielregion Frankfurt (`DEC-015`, **accepted**) | **existiert nicht** |
 
 Client-Konfiguration ausschließlich über vier `--dart-define`:
@@ -191,8 +198,8 @@ Repository, aber weder Build noch Domain noch Freigabe.
 | Root | `marketing/` | Repo-Root, Artefakt `build/web` |
 | Build | Vercel baut selbst | **GitHub Actions baut**, Vercel deployt prebuilt |
 | Konfiguration | `marketing/vercel.json` | `.github/workflows/web_deploy.yml` |
-| Preview | Vercel-Standard | PR-Preview, sobald Secrets existieren |
-| Production | Vercel-Standard | manuelle, geprüfte Promotion eines freigegebenen Commits |
+| Preview | Vercel-Standard | Auto-Deploy jedes grünen `main`-Pushs als Vercel Preview, Alias `neximmo-staging.vercel.app`; kein PR-Preview |
+| Production | Vercel-Standard | nicht vorhanden — kein Pfad im Workflow, nicht autorisiert (`DEC-017`); später eine manuelle, geprüfte Promotion |
 | Domain | öffentliche Marketing-Domain | eigene App-Subdomain (z. B. `app.*`) |
 
 **Warum die App nicht in Vercel gebaut wird:** das Vercel-Build-Image hat keine
@@ -203,8 +210,9 @@ dorthin, wo die Version gepinnt ist.
 `marketing/vercel.json` überspringt Builds für Commits, die `marketing/` nicht berühren —
 sonst würde jeder Flutter-Commit ein Marketing-Deployment auslösen.
 
-Der Deploy-Workflow ist **inert**, bis Vercel-Projekt, Repository-Secrets und eine
-provisionierte Supabase-Umgebung existieren. Er hat bewusst **keinen** Production-Pfad.
+Der Deploy-Workflow ist seit `STAGING-DEPLOY-ACTIVATION-01` (2026-08-10) **aktiv**:
+`workflow_run` nach grünem `Flutter`-Lauf auf `main` → Vercel Preview → Alias
+`neximmo-staging.vercel.app`. Er hat weiterhin bewusst **keinen** Production-Pfad.
 
 ### Git-Autodeployments der App sind abgeschaltet (DEPLOY-DRIFT-01, 2026-08-09)
 
@@ -247,6 +255,10 @@ Annahme.
 `app.neximmo.de` ist nicht verbunden — es existieren nur `vercel.app`-Aliases. `deploy_preview`
 bleibt übersprungen, bis die Staging-Secrets vollständig sind. Production bleibt gesperrt.
 
+**Nachtrag 2026-08-10:** Secrets 5/5 vorhanden, der Job heißt `deploy_staging` und läuft
+automatisch (`STAGING-DEPLOY-ACTIVATION-01`, `DEPLOY-DRIFT-02`); `app.neximmo.de` bleibt
+unverbunden, Production bleibt gesperrt.
+
 ---
 
 ## 10. CI-Gates
@@ -258,13 +270,14 @@ bleibt übersprungen, bis die Staging-Secrets vollständig sind. Production blei
 | `verify` | Lockfile-Restore, `flutter analyze`, volle Testsuite (inkl. Golden-/Responsive-Tests), Web-Build, Web-Build mit gesetzten Cloud-Dart-Defines |
 | `marketing` | `npm ci` + `next build` aus demselben Root, aus dem Vercel baut |
 | `supply_chain` | gitleaks über die volle History, `npm audit --audit-level=high` |
-| `database` | Supabase-Reset, `db lint`, Security- und Performance-Advisor, pgTAP, 27 Migrations-Rollback-Replays, reale Integrationsskripte (Concurrency, PostgREST, Realtime, je Domäne), Backup/Restore- und Crash-Recovery-Drills, Performance-Profil |
+| `database` | Supabase-Reset, `db lint`, Security- und Performance-Advisor, pgTAP, die Migrations-Rollback-Replays aus `supabase/tests_rollback/` (30 am 2026-08-23), reale Integrationsskripte (Concurrency, PostgREST, Realtime, je Domäne), Backup/Restore- und Crash-Recovery-Drills, Performance-Profil |
 
 `pull_request` greift ungefiltert; `push` deckt `main` und `cloud/**` ab.
 Dependabot deckt `pub`, `npm` und `github-actions` ab.
 
-**Nutzeraktion erforderlich, außerhalb des Repositories:** Branch Protection auf `main`
-mit `verify`, `marketing`, `supply_chain` und `database` als Required Checks.
+**Erledigt 2026-08-08:** `main` ist über das Repository-Ruleset `main-protection` geschützt
+(PR-Pflicht, Required Checks `verify`, `marketing`, `supply_chain`, `database`; siehe
+`05_phase_a_log.md`). `web_deploy.yml` prüft dieselben vier Checks vor jedem Deploy erneut.
 Hinweis: `gitleaks-action@v2` ist für persönliche Accounts und öffentliche Repositories
 lizenzfrei; für Organisationen verlangt es `GITLEAKS_LICENSE`.
 
@@ -331,9 +344,9 @@ synthetischen Daten, mit einer harten Kostenregel: was in bestehende Kontingente
 entstehen; alles mit einem von null verschiedenen Kostenpunkt hält an und braucht eine
 gesonderte Freigabe.
 
-Damit endet die Plattform **faktisch** weiterhin beim lokalen Stack: freigegeben ist nicht
-angelegt, und zum Zeitpunkt dieser Zeile existiert keine Remote-Umgebung. Alles in diesem
-Dokument, was Staging oder Production betrifft, bleibt Zielbild, nicht Ist-Zustand.
+Staging ist seit 2026-08-09/10 angelegt, konfiguriert und deployt automatisch
+(`07_staging_runbook.md`); die Auth-/MFA-Closeouts liefen am 2026-08-23 dagegen. **Nur
+Production bleibt Zielbild, nicht Ist-Zustand.**
 
 **Production ist unverändert nicht autorisiert** — kein Production-Projekt, keine
 Production-Secrets, kein Production-SMTP, keine Echtdaten, keine Datenmigration, keine

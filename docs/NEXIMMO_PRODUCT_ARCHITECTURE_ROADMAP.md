@@ -1,6 +1,6 @@
 # NexImmo Produkt-, Architektur- und Umsetzungsplan
 
-Stand: 12. Juli 2026
+Stand: 12. Juli 2026 (Planungsdokument; Ist-Stand-Hinweise vom 2026-08-23 sind als „Stand 2026-08" markiert — der tatsächliche Fortschritt steht in `docs/architecture/phase_0/00_phase_status.md` und `docs/architecture/phase_2/00_phase_2_status.md`)
 
 ## 1. Entscheidung in Kurzform
 
@@ -8,7 +8,7 @@ Stand: 12. Juli 2026
 - **Produkte nach Formfaktor:** Desktop/Web als vollstaendige Arbeitsoberflaeche, Tablet fuer operative Arbeit und Freigaben, Smartphone als fokussierte Begleit-App fuer Aufgaben, Tickets, Fotos, Dokumente und Kennzahlen.
 - **Backend:** Supabase Pro in der Region Frankfurt als Startpunkt: PostgreSQL, Auth, Storage, Realtime, Edge Functions und taegliche Backups.
 - **Architektur:** Modularer Monolith mit klaren Domaenengrenzen. Keine Microservices in der ersten Produktphase.
-- **Datenhaltung:** PostgreSQL ist die zentrale Wahrheit. SQLite ist nur noch optionaler lokaler Cache, nicht mehr die alleinige Datenbank.
+- **Datenhaltung:** PostgreSQL ist die zentrale Wahrheit. *Stand 2026-08:* SQLite wurde per `DEC-024` (2026-08-06) vollstaendig als Laufzeit-Backend entfernt — auch nicht als lokaler Cache; Supabase/PostgreSQL ist die einzige Datenschicht.
 - **Synchronisation:** Zuerst online-first mit sauberer Konflikt- und Versionslogik. Offline-faehige Teilbereiche spaeter gezielt ueber PowerSync oder eine eigene Outbox, nicht durch eine pauschale Spiegelung aller Tabellen.
 - **Produktstrategie:** Erst belastbare Bestandsverwaltung und operative Prozesse, danach Finanzsteuerung, Bewertung/Underwriting und externe Integrationen.
 
@@ -22,6 +22,8 @@ Stand: 12. Juli 2026
 - Riverpod und wiederverwendbare UI-Komponenten sind eine tragfaehige Basis.
 
 ### Kritische Strukturprobleme
+
+*Befund zum Stand 12. Juli 2026 (vor Phase 0). Stand 2026-08: `lib/main.dart` initialisiert kein SQLite/FFI mehr, die Laufzeit ist Supabase-only mit Supabase Auth, Default-deny-RLS und AAL2-Grenze (`DEC-024`, `DEC-025`); der aktuelle Zustand steht in `docs/architecture/phase_0/00_phase_status.md` und `docs/architecture/phase_2/`.*
 
 - Die Anwendung ist technisch Windows-first: Der Startpfad initialisiert SQLite-FFI direkt. Die vorhandene Persistenz funktioniert so nicht als gemeinsame Web-/Mobile-/Mehrbenutzerbasis.
 - Die 94 Tabellen sind in einer mehr als 4.200 Zeilen grossen Migrationsdatei gebuendelt. Schema, Domaenen und Migrationen sind dadurch schwer unabhaengig zu pruefen.
@@ -70,7 +72,7 @@ Empfohlene Startkonfiguration:
 - Pro-Tarif, Region `eu-central-1` Frankfurt
 - ein Produktionsprojekt, getrennte Entwicklungs- und Staging-Projekte
 - PostgreSQL mit Row Level Security auf jeder mandantenbezogenen Tabelle
-- Supabase Auth mit E-Mail/Magic Link; MFA fuer Administratoren und Freigeber
+- Supabase Auth mit E-Mail/Magic Link; MFA fuer Administratoren und Freigeber — *Stand 2026-08 (Staging, 2026-08-10): E-Mail/Passwort als Erstfaktor, TOTP-MFA fuer alle Workspace-Zugriffe (`DEC-025`)*
 - private Storage-Buckets mit signierten, kurzlebigen URLs
 - Edge Functions fuer privilegierte Transaktionen, Importe, Exporte und Webhooks
 - `pg_cron` oder Queue-basierte Jobs fuer Erinnerungen, Indexierungen und periodische Berechnungen
@@ -252,7 +254,7 @@ PowerSync kann PostgreSQL/Supabase mit einer lokalen SQLite-Datenbank synchronis
 - Portfolio, Objekt, Gebaeude, Einheit, Kontakte und Dienstleister
 - adaptive Desktop-/Tablet-/Phone-Shell und ein verbindliches Designsystem
 - Dokumente, Aufgaben, Kommentare, Suche und Benachrichtigungen
-- SQLite-Importassistent mit Dry Run, Mapping, Fehlerbericht und Wiederholbarkeit
+- SQLite-Importassistent mit Dry Run, Mapping, Fehlerbericht und Wiederholbarkeit — *entfallen per `DEC-024` (2026-08-06): kein Datencutover aus SQLite mehr erforderlich*
 - Gate: ein reales Portfolio kann vollstaendig importiert und im Mehrbenutzerbetrieb verwaltet werden
 
 ### Phase 3 - Vermietung und Betrieb (5-7 Wochen)
@@ -332,6 +334,8 @@ Definition of Done fuer jede produktive Funktion:
 - Telemetrie ohne personenbezogene oder vertrauliche Inhalte
 
 ## 11. Naechste konkrete Schritte
+
+*Stand 2026-08: Schritte 2–5 sind abgeschlossen (Phase 0/1: `03_data_dictionary.md`, Referenzschnitt `lib/features/reference_slice`, Golden-Master-Tests; Staging-Projekt per `DEC-017`); der aktuelle Backlog steht in `docs/architecture/phase_2/`.*
 
 1. Drei Produktrollen interviewen: Asset Manager, Vermietung/Operations und Buchhaltung/Controlling.
 2. Aus dem bestehenden Schema ein Datenwoerterbuch erstellen und jede Tabelle einer Domaene, einem Besitzer und einer Aufbewahrungsregel zuordnen.

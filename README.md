@@ -1,13 +1,16 @@
 # Deal Analyzer Desktop
 
 Ziel
-Eine offlinefähige Desktop App zur Deal Analyse von Immobilien, funktional nahe an bekannten Deal Analyse Tools, aber eigenständig umgesetzt.
+Cloud-first Flutter App (Desktop und Web) für Deal-Analyse, Portfolio- und Property-Management von Immobilien, funktional nahe an bekannten Deal Analyse Tools, aber eigenständig umgesetzt.
 
-Technik
-Flutter Desktop (Windows zuerst, später macOS Linux möglich)
-Lokale SQLite Datenbank
+Technik (Stand 2026-08-23)
+Flutter Desktop (Windows) und Web; der Web-Build ist CI-Gate (`.github/workflows/flutter.yml`) und wird automatisch nach Staging deployt (`web_deploy.yml`)
+Supabase (PostgreSQL) als einziges Runtime-Backend (`DEC-024`); `lib/data/sqlite/` ist nur noch Migrations-/Testunterstützung, keine Laufzeitdatenbank
+Supabase Auth: E-Mail + Passwort → `aal1` → TOTP → `aal2`; AAL2 ist die Grenze der gesamten Workspace-Geschäftsfläche (`DEC-025`)
+`SUPABASE_URL` und `SUPABASE_PUBLISHABLE_KEY` per `--dart-define` erforderlich (siehe `CLAUDE.md`)
 Lokale PDF Report Generierung
-Keine externen APIs erforderlich
+
+Die folgenden Abschnitte beschreiben den ursprünglichen Funktionsumfang und die Versionsstände der Desktop-App (V1.x) und bleiben als Historie unverändert; die aktuelle Architektur steht in `CLAUDE.md` und `docs/architecture/`.
 
 Umfang
 Globale Navigation
