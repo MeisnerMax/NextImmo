@@ -2239,3 +2239,40 @@ Empfehlung: Token rotieren und nicht im Profil exportieren.
 | Repro-Nutzer | bleibt; jetzt regulärer verifizierter Testnutzer mit 0 Memberships |
 | Golden Staging Baseline | **unverändert** (v11 / 10 / 0) |
 | Production | **NOT AUTHORIZED / untouched** |
+
+---
+
+## 2026-08-23 · `SECURITY-STORAGE-AAL-03` — Final Closeout
+
+**`SECURITY-STORAGE-AAL-03 PASS — the storage aal2 boundary is proven through the real Storage
+API, the client recovers an interrupted TOTP enrolment and reaches aal2 on staging, the one known
+CI timing flake in the document integration test is fixed, and current main is green and deployed
+to staging. Production untouched.`**
+
+Der Status dieses Pakets war seit dem Merge von PR #30 (`87c3436`, 2026-08-13) `BLOCKED` — nicht
+`FAIL` —, weil der Remote-Nachweis am abgebrochenen TOTP-Enrollment des Repro-Nutzers hing. Mit dem
+vorigen Eintrag ist dieser Blocker geschlossen; dieser Eintrag hält den finalen Ist-Stand fest und
+ändert keine frühere Evidence.
+
+### Finale Evidence
+
+| Punkt | Stand |
+|---|---|
+| Storage-AAL-Paket | abgeschlossen — PR #30 `87c3436`: `aal1` Upload `403` / Sign `404`, `aal2` beides erlaubt, `SR-23`, Mutationsmatrix 13, keine Migration |
+| Client Interrupted-TOTP-Recovery | abgeschlossen — PR #31 `77ec85f` inkl. Review-Fixes (`c145043`, `9787842`) |
+| Remote Staging Closeout | **PASS** (2026-08-23, voriger Eintrag) — Restart-Pfad, genau ein neuer verifizierter Factor, `aal2`, Re-Login `aal2`, Golden Baseline v11 / 10 / 0 unverändert |
+| `TEST-STABILITY-P2D03-01` | abgeschlossen — PR #32, Merge `ca85011`: der sofortige GET auf eine Signed URL mit 1-s-Floor-TTL im P2-D03-Integrationstest war ein Scheduling-Rennen auf langsamen Runnern, kein Security-Defekt. Floor und Ceiling werden weiterhin explizit bewiesen (`0 → 1 s`, `1 s → 1 s`, `10 h → 1 h`); der „liefert 200 und läuft dann wirklich ab"-Nachweis nutzt eine 5-s-URL, deren Ablauf an ihrem `expiresAt` gewartet wird; `minTtl`/`maxTtl`/`clampTtl` und Resolve-before-Mint unverändert; 5/5 CI-identische Läufe grün, davon 2 unter Volllast |
+| `main` | `ca850112031ae2541fdf66aa0c676ee2da9637c2` |
+| main CI | `Flutter`-Run 32642158479: verify / database / marketing / supply_chain 4/4 grün, „Test P2-D03 document integration: success" |
+| Staging | `Web App Deploy` 32643000788 via `workflow_run`: `Deploying ca85011…`, Alias `neximmo-staging.vercel.app` auf dieses Deployment, `/` und `main.dart.js` `200` |
+| Production | untouched — keine Supabase-, Vercel-, Auth-, DNS- oder Datenmutation |
+
+### Statusgrenze
+
+| | |
+|---|---|
+| `SECURITY-STORAGE-AAL-03` | **PASS — geschlossen** (zuvor BLOCKED) |
+| `SECURITY-AAL-CLIENT-03` | **PASS — geschlossen** |
+| `TEST-STABILITY-P2D03-01` | **DONE** (auf `main`) |
+| Offen | `DOCS-CURRENCY-01` (separates Paket); Rotation des exportierten `SUPABASE_ACCESS_TOKEN` (Empfehlung aus dem vorigen Eintrag) |
+| Production | **NOT AUTHORIZED / untouched** |
