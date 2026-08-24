@@ -53,7 +53,6 @@ class SupabaseMaintenanceCapexRealtimeGateway
     late final StreamController<MaintenanceCapexRealtimeEvent> controller;
     RealtimeChannel? channel;
     var removed = false;
-    var ready = false;
 
     Future<void> subscribe() async {
       try {
@@ -109,12 +108,16 @@ class SupabaseMaintenanceCapexRealtimeGateway
                 return;
               }
               if (payload['status'] == 'ok') {
-                // Both bindings share one channel, so this arrives once per
-                // accepted binding; only the first becomes a reconcile.
-                if (!ready) {
-                  ready = true;
-                  controller.add(const MaintenanceCapexRealtimeEvent.ready());
-                }
+                // Every successful replication start reconciles, not just the
+                // first: a dropped socket rejoins this channel and lands here
+                // again, and Realtime replays nothing across the gap, so this
+                // is the only signal that recovers a change the client was
+                // disconnected for (REALTIME-STAGING-FIX-01). The bindings
+                // share this channel, so one join can raise this more than
+                // once; both consumers of this source coalesce through
+                // `_scheduleInvalidationReload`, so that collapses into a
+                // single reload instead of a burst of reads.
+                controller.add(const MaintenanceCapexRealtimeEvent.ready());
                 return;
               }
               controller.addError(
