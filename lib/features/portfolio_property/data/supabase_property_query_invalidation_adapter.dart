@@ -24,7 +24,6 @@ class SupabasePropertyRealtimeGateway
     late final StreamController<Map<String, dynamic>> controller;
     RealtimeChannel? channel;
     var removed = false;
-    var ready = false;
 
     Future<void> subscribe() async {
       try {
@@ -61,10 +60,13 @@ class SupabasePropertyRealtimeGateway
                 return;
               }
               if (payload['status'] == 'ok') {
-                if (!ready) {
-                  ready = true;
-                  controller.add(const <String, dynamic>{});
-                }
+                // Every successful replication start reconciles, not just the
+                // first. A dropped socket rejoins this channel and lands here
+                // again, and Realtime replays nothing across the gap -- so
+                // this is the only signal that can recover a change the
+                // client was disconnected for. Latching it to the first join
+                // left the list silently stale after every reconnect.
+                controller.add(const <String, dynamic>{});
                 return;
               }
               controller.addError(
