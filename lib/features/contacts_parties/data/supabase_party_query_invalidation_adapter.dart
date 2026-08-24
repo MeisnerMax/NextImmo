@@ -23,7 +23,6 @@ class SupabasePartyRealtimeGateway implements PartyRealtimeSupabaseGateway {
     late final StreamController<Map<String, dynamic>> controller;
     RealtimeChannel? channel;
     var removed = false;
-    var ready = false;
 
     Future<void> subscribe() async {
       try {
@@ -58,10 +57,12 @@ class SupabasePartyRealtimeGateway implements PartyRealtimeSupabaseGateway {
                 return;
               }
               if (payload['status'] == 'ok') {
-                if (!ready) {
-                  ready = true;
-                  controller.add(const <String, dynamic>{});
-                }
+                // Every successful replication start reconciles, not just the
+                // first: a dropped socket rejoins this channel and lands here
+                // again, and Realtime replays nothing across the gap, so this
+                // is the only signal that recovers a change the client was
+                // disconnected for (REALTIME-STAGING-FIX-01).
+                controller.add(const <String, dynamic>{});
                 return;
               }
               controller.addError(

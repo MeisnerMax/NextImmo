@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_query_invalidation_source.dart';
 import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_query_invalidation_adapter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('SupabaseLeasingQueryInvalidationAdapter', () {
@@ -130,6 +131,52 @@ void main() {
       );
     });
   });
+
+  // REALTIME-RECONNECT-CONSISTENCY-01. Same defect as the property adapter,
+  // proven remotely there (REALTIME-STAGING-FIX-01). This gateway binds nine
+  // postgres_changes filters on one channel, so a join can raise several oks;
+  // the old latch used that to emit one reconciliation *ever* rather than one
+  // per join, which is why a rejoin recovered nothing. Every consumer of this
+  // source debounces through `_scheduleInvalidationReload`, so a few extra
+  // reconciliations per join collapse into a single reload.
+  group('SupabaseLeasingRealtimeGateway', () {
+    test('reconciles on every postgres_changes ok, rejoins included', () async {
+      final client = SupabaseClient('http://127.0.0.1:1', 'test-key');
+      final gateway = SupabaseLeasingRealtimeGateway(client);
+      final events = <LeasingRealtimeEvent>[];
+      final subscription = gateway
+          .watchWorkspaceUpdates(workspaceId: 'workspace-a')
+          .listen(events.add, onError: (Object _) {});
+      addTearDown(() => unawaited(subscription.cancel()));
+
+      final channel = await _awaitLeasingChannel(client);
+      channel.trigger('system', _okPayload); // first join
+      channel.trigger('system', _okPayload); // rejoin after a reconnect
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        events.where((event) => event.aggregate == null),
+        hasLength(2),
+        reason: 'a rejoin must reconcile again, not stay latched on the first',
+      );
+    });
+  });
+}
+
+const _okPayload = <String, dynamic>{
+  'extension': 'postgres_changes',
+  'status': 'ok',
+};
+
+Future<RealtimeChannel> _awaitLeasingChannel(SupabaseClient client) async {
+  for (var attempt = 0; attempt < 200; attempt++) {
+    final channels = client.realtime.getChannels();
+    if (channels.isNotEmpty) {
+      return channels.first;
+    }
+    await Future<void>.delayed(Duration.zero);
+  }
+  throw StateError('The gateway never created a channel.');
 }
 
 LeasingRealtimeEvent _event(LeasingAggregate aggregate, String id) {
