@@ -323,7 +323,7 @@ As of the creation of this plan:
 - `DOCS-CURRENCY-01` is DONE.
 - Property realtime live delivery and reconnect recovery have remote Staging proof.
 - The same reconnect latch was fixed in party, document, leasing, maintenance and valuation adapters and is locally tested; representative remote closeout is blocked because Staging currently lacks those domain fixtures/permissions, not because of a known defect.
-- `liveUpdatesDegraded` exists in controller state but UI presentation is still open and may be handled as part of the shared UX foundation.
+- `liveUpdatesDegraded` is rendered as a passive, non-blocking notice in the reference slice (`REALTIME-DEGRADED-UI-01`, merged 2026-08-26 as `b14c879`); the shared UX foundation should generalize that pattern, not invent it. The realtime docs closeout (`REALTIME-DOCS-CLOSEOUT-01`, `0af08e2`) records the whole proven state.
 - Production remains locked until the explicit Production phases above.
 - Rotation of the locally exported `SUPABASE_ACCESS_TOKEN` is intentionally not part of this plan unless explicitly reopened by the user.
 
