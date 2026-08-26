@@ -2276,3 +2276,82 @@ vorigen Eintrag ist dieser Blocker geschlossen; dieser Eintrag hält den finalen
 | `TEST-STABILITY-P2D03-01` | **DONE** (auf `main`) |
 | Offen | `DOCS-CURRENCY-01` (separates Paket); Rotation des exportierten `SUPABASE_ACCESS_TOKEN` (Empfehlung aus dem vorigen Eintrag) |
 | Production | **NOT AUTHORIZED / untouched** |
+
+---
+
+## 2026-08-26 · `REALTIME-STAGING` — Zustellung, Reconnect-Recovery und Degraded-UI (Closeout)
+
+**`Realtime delivery on staging is PROVEN: a real authenticated aal2 client receives a committed
+change live without reload, the anonymous auth/RLS boundary refuses both the private channel and
+postgres_changes, and a change missed during a real network gap is recovered by exactly one
+catch-up readback after the rejoin. The one defect found on the way — a first-join reconciliation
+latch plus swallowed subscription errors — is fixed in all six invalidation adapters and made
+visible in the UI.`**
+
+Dieser Eintrag schließt den seit dem 2026-08-09 offenen Punkt „Realtime delivery remains
+UNPROVEN" (`07_staging_runbook.md` Schritt 15). Alle Prüfungen liefen gegen das Staging-Projekt
+`vhxdgchhgyzbjnogjicb`; der Owner fuhr die Browser-Schritte, alle serverseitigen Messungen waren
+read-only (`SELECT` über den Management-API-Query-Endpoint, `realtime_logs`/`edge_logs` über den
+Analytics-Endpoint). Die einzige Mutation je Durchlauf war ein `name`-only-UPDATE der Golden
+Property mit anschließendem Revert; `version` 11, `audit_events` 10, `updated_at` und alle
+übrigen Baseline-Werte blieben nach jedem Lauf exakt unverändert.
+
+### 2026-08-23 — `REALTIME-STAGING-PROOF-01` / `-DIAG-01`
+
+- **Negativgrenze (zweimal reproduziert):** ein anonymer Dart-Client mit dem publishable Key aus
+  dem ausgelieferten Bundle erreicht den Socket, wird aber am privaten Kanal
+  `entitlements:<user>` abgewiesen („Unauthorized … Channel topic") und kann `postgres_changes`
+  auf `public.properties` nicht registrieren (`invalid column for filter workspace_id` —
+  `realtime.subscription_check_filters()` prüft `has_column_privilege` der Subscriber-Rolle,
+  und `anon` hat keine). Null Zeilenereignisse.
+- **Live-Zustellung:** mit nachweislich lebender Subscription (`realtime.subscription`:
+  `entity=properties`, `claims_role=authenticated`, `claims_aal=aal2`,
+  Filter `workspace_id eq 6228bf87…`) kam das Update sofort ohne Reload an.
+- **Defekt gefunden statt wegerklärt:** der erste Proof-Versuch scheiterte, weil die Mutation
+  blind in eine Reconnect-Lücke fiel (Edge-Logs: sieben `101 /realtime/v1/websocket` in vier
+  Minuten auf dem Mobilclient; `realtime.subscription` kumulativ ins=7/del=7 — Registrierung
+  funktionierte immer). Realtime liefert über eine Lücke nichts nach, und der Client konnte das
+  nicht heilen: die Reconciliation hing am **ersten** `postgres_changes`-Ok (`var ready`), ein
+  Rejoin emittierte nichts, und `onError: (_, __) {}` im Controller machte tote Subscriptions
+  unsichtbar. Root Cause PROVEN, kein Auth-/Filter-/Policy-Problem.
+
+### 2026-08-24 — `REALTIME-STAGING-FIX-01` (PR #35 → `620467e`) + Remote-Closeout PASS
+
+Latch entfernt (Reconcile bei jedem erfolgreichen Ok), Subscription-Fehler als nicht-fatales
+`liveUpdatesDegraded` sichtbar. Remote-Closeout mit echter Netz-Lücke: Subscription serverseitig
+weg (`subs` 1→0, 10:21:59Z), Mutation exakt in der Lücke, Netz wieder an → Rejoin 10:22:22Z →
+**genau ein** Catch-up-Readback 10:22:32Z (`/rest/v1/properties`) ohne Interaktion und ohne
+Reload; der Owner sah den Namen von selbst umspringen. Kontrollgruppe im selben Setup: der erste
+Durchlauf lief per Service-Worker-Cache noch auf dem Vor-Fix-Bundle und zeigte exakt das alte
+Verhalten (Reconnect ohne Readback). **Betriebsregel daraus: nach jedem Deploy im privaten Tab
+testen, sonst misst man den Vorgängerstand.**
+
+### 2026-08-24/25 — Konsistenz und Sichtbarkeit
+
+- `REALTIME-RECONNECT-CONSISTENCY-01` (PR #36 → `2473c9e`): derselbe Latch rot-zuerst gegen die
+  echten Channel-Callbacks nachgewiesen und entfernt in `party`, `document`, `valuation`
+  (Single-Binding) sowie `leasing` (9 Bindings) und `maintenance_capex` (4) — dort trug der
+  Latch zusätzlich ein Per-Binding-Dedup, dessen Wegfall unschädlich ist, weil alle zehn
+  Consumer dieser Quellen über `_scheduleInvalidationReload` entprellen.
+  **Remote-E2E dieser fünf Domänen: BLOCKED — ausschließlich wegen fehlender
+  Staging-Testvoraussetzungen, nicht wegen eines bekannten Defekts.** Alle Domänentabellen sind
+  leer (parties/documents/units/leases/leasing_cases/maintenance_tickets/capex_projects/… = 0)
+  und der Staging-Permission-Katalog kennt nur `property.read`, `property.update`,
+  `workspace.read` — ohne Daten und Leserechte abonniert der Client dort nichts. Freischaltung
+  wäre ein eigenes, explizit zu autorisierendes Fixture-/RBAC-Paket.
+- `REALTIME-DEGRADED-UI-01` (PR #37 → `b14c879`): `liveUpdatesDegraded` wird im
+  authentifizierten Shell als passiver Hinweis gerendert (Badge „Paused" + ein Satz, keine
+  Provider-Details, nicht blockierend) und verschwindet mit dem nächsten Reconcile.
+
+### Statusgrenze
+
+| | |
+|---|---|
+| Live-Zustellung auf Staging | **PASS** (echter `aal2`-Client, ohne Reload) |
+| Auth-/RLS-Negativgrenze | **PASS** (anonym: privater Kanal und `postgres_changes` abgewiesen) |
+| Reconnect-Recovery (Property) | **PASS** remote (genau ein Catch-up-Readback nach echter Lücke) |
+| Reconnect-Fix in allen 6 Adaptern | auf `main` (`620467e`, `2473c9e`) |
+| Degraded-UI | **DONE** (`b14c879`) |
+| Remote-E2E der 5 Schwester-Adapter | **BLOCKED** — nur fehlende Staging-Daten/Permissions, kein bekannter Defekt |
+| Golden Staging Baseline | **unverändert** (v11 / 10 / 0) |
+| Production | **NOT AUTHORIZED / untouched** |
