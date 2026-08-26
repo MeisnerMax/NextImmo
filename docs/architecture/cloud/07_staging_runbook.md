@@ -11,14 +11,17 @@ ausschließlich synthetischen Daten.
 Migrationen angewandt und verifiziert — 35/35 remote, 0 pending, kein Seed, keine Daten,
 Lint/Advisors/pgTAP grün.
 
-**Ausführungsstand (2026-08-23):** Remote stehen **36/36** Migrationen (neueste
+**Ausführungsstand (2026-08-26):** Remote stehen **36/36** Migrationen (neueste
 `20260812100000_security_aal_enforcement`). Die Abschnitte 3, 6, 7 und 10 sowie die Schritte
 16 (Auth, 2026-08-10) und 17 (synthetische Basisdaten) sind ausgeführt; Staging deployt seit
-2026-08-10 automatisch auf `neximmo-staging.vercel.app`. **Weiterhin offen:** Schritt **14**
-(Integration-Gates — keines der Skripte ist remote ausführbar, siehe unten), die
-Realtime-Zustellung an einen echten Staging-Client (Schritt 15), Site URL / Redirect-Allowlist
-(Abschnitt 8) und SMTP (Abschnitt 9). Jede weitere Phase braucht eine gesonderte Freigabe.
-Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
+2026-08-10 automatisch auf `neximmo-staging.vercel.app`. Die **Realtime-Zustellung an einen
+echten Staging-Client ist seit 2026-08-23/24 bewiesen** (Schritt 15; Live-Zustellung,
+Auth-/RLS-Negativgrenze und Reconnect-Recovery, `REALTIME-STAGING-FIX-01` Remote-Closeout PASS).
+**Weiterhin offen:** Schritt **14** (Integration-Gates — keines der Skripte ist remote
+ausführbar, siehe unten), das Remote-E2E der fünf Schwester-Invalidation-Adapter (blockiert
+ausschließlich durch fehlende Staging-Daten/Permissions dieser Domänen, kein bekannter Defekt),
+Site URL / Redirect-Allowlist (Abschnitt 8) und SMTP (Abschnitt 9). Jede weitere Phase braucht
+eine gesonderte Freigabe. Protokoll: [05_phase_a_log.md](05_phase_a_log.md).
 
 Zusätzlich gilt die **Kostenregel** aus `DEC-017`: was ohne Zusatzkosten in bestehende
 Kontingente passt, darf entstehen; alles mit einem von null verschiedenen Kostenpunkt hält
@@ -175,6 +178,12 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     **`Realtime delivery remains UNPROVEN until a real connected staging client exercises the
     broadcast path.`** Vor `GP-STAGING` zu beweisen. Keine Partition von Hand erzeugt, kein
     Eingriff in das Plattformschema.
+    **Erledigt am 2026-08-23/24:** Zustellung mit einem echten authentifizierten `aal2`-Client
+    live bewiesen (Property-Update ohne Reload empfangen), Auth-/RLS-Negativgrenze anonym
+    dicht (privater Kanal „Unauthorized", `postgres_changes` ohne Grant abgewiesen), und die
+    Reconnect-Recovery über eine echte Netz-Lücke nachgewiesen (genau ein Catch-up-Readback
+    nach Rejoin, ohne Interaktion). Die Tagespartitionen von `realtime.messages` existieren
+    inzwischen plattformseitig. Details: `05_phase_a_log.md`.
 16. ~~**Erst danach** Auth konfigurieren (Abschnitt 8).~~ **erledigt am 2026-08-10**
     (`STAGING-PASSWORD-AUTH-01`: E-Mail/Passwort als primärer Login, Signup aus, TOTP
     enroll/verify an). Dass GoTrue auf Staging `aal2` korrekt ausstellt, ist am 2026-08-23
@@ -361,9 +370,11 @@ mit der Staging-Supabase-Instanz.
 ## 11. Was dieses Paket nicht beweisen kann
 
 Vorbereitet und lokal geprüft war in `STAGING-PREP-01` der SPA-Fallback im Artefakt.
-**Seither bewiesen** (2026-08-09/10/23, `05_phase_a_log.md`): die Remote-Migration (36/36),
+**Seither bewiesen** (2026-08-09/10/23/24, `05_phase_a_log.md`): die Remote-Migration (36/36),
 das Rewrite-Verhalten auf Vercel (`/`, `/properties`, Reload, `/properties/abc123` → `200`),
 die Behebung der Deployment Protection, die Stabilität der Alias-Adresse (bei jedem
-Auto-Deploy neu gesetzt) und die `aal2`-Ausstellung durch GoTrue. **Weiterhin nicht
-bewiesen:** SMTP (nicht konfiguriert), die Realtime-Zustellung an einen echten
-Staging-Client und die Remote-Integration-Gates (Schritt 14).
+Auto-Deploy neu gesetzt), die `aal2`-Ausstellung durch GoTrue sowie die Realtime-Zustellung
+an einen echten Staging-Client inklusive Reconnect-Recovery und anonym dichter
+Auth-/RLS-Grenze. **Weiterhin nicht bewiesen:** SMTP (nicht konfiguriert), die
+Remote-Integration-Gates (Schritt 14) und das Remote-E2E der fünf
+Schwester-Invalidation-Adapter (blockiert nur durch fehlende Staging-Daten/Permissions).
