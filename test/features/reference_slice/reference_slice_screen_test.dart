@@ -271,6 +271,102 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // REALTIME-DEGRADED-UI-01. A subscription that stops delivering used to be
+    // invisible: the list simply went quiet and looked current. The controller
+    // records that as `liveUpdatesDegraded` (REALTIME-STAGING-FIX-01); this is
+    // the one place it becomes visible. Deliberately a passive notice -- the
+    // repository stays canonical, so everything on the page keeps working.
+    testWidgets('shows a passive notice while live updates are degraded', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        state: _readyState(liveUpdatesDegraded: true),
+      );
+
+      final notice = find.byKey(const Key('reference-live-updates-degraded'));
+      expect(notice, findsOneWidget);
+      expect(find.textContaining('Live updates'), findsOneWidget);
+
+      // Passive: it informs, it does not interrupt.
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(Dialog), findsNothing);
+
+      // The business surface stays fully usable underneath.
+      expect(find.byKey(const Key('reference-list-pane')), findsOneWidget);
+      expect(
+        find.byKey(const Key('reference-property-property-a')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('reference-detail-pane')), findsOneWidget);
+      expect(find.byKey(const Key('reference-sign-out')), findsOneWidget);
+
+      // No provider, channel or error internals leak into the copy.
+      expect(find.textContaining('Realtime'), findsNothing);
+      expect(find.textContaining('subscription'), findsNothing);
+      expect(find.textContaining('postgres'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the notice disappears once live updates recover', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        state: _readyState(liveUpdatesDegraded: true),
+      );
+      expect(
+        find.byKey(const Key('reference-live-updates-degraded')),
+        findsOneWidget,
+      );
+
+      // A successful reconciliation clears the flag in the controller; the
+      // view must follow it back to the ordinary, unadorned state.
+      await _pumpView(tester, state: _readyState());
+
+      expect(
+        find.byKey(const Key('reference-live-updates-degraded')),
+        findsNothing,
+      );
+      expect(find.textContaining('Live updates'), findsNothing);
+      expect(find.byKey(const Key('reference-list-pane')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the healthy state shows no notice at any breakpoint', (
+      tester,
+    ) async {
+      for (final viewport in const <Size>[
+        Size(390, 844),
+        Size(1024, 768),
+        Size(1440, 900),
+      ]) {
+        await _pumpView(tester, state: _readyState(), viewport: viewport);
+        expect(
+          find.byKey(const Key('reference-live-updates-degraded')),
+          findsNothing,
+          reason: 'nothing extra may appear at $viewport when all is well',
+        );
+        expect(tester.takeException(), isNull);
+      }
+    });
+
+    testWidgets('the degraded notice does not overflow on a phone', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        state: _readyState(liveUpdatesDegraded: true),
+        viewport: const Size(320, 568),
+      );
+
+      expect(
+        find.byKey(const Key('reference-live-updates-degraded')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('filters the property list without losing workspace scope', (
       tester,
     ) async {
@@ -566,6 +662,7 @@ ReferenceSliceState _readyState({
   AuthenticationAssuranceLevel assuranceLevel =
       AuthenticationAssuranceLevel.aal2,
   TotpEnrollment? totpEnrollment,
+  bool liveUpdatesDegraded = false,
 }) {
   final property = _property();
   return ReferenceSliceState(
@@ -592,6 +689,7 @@ ReferenceSliceState _readyState({
     versionConflict: versionConflict,
     message: message,
     totpEnrollment: totpEnrollment,
+    liveUpdatesDegraded: liveUpdatesDegraded,
   );
 }
 

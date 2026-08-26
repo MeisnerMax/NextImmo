@@ -308,11 +308,51 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
                 ],
               ),
               const SizedBox(height: AppSpacing.component),
+              if (state.liveUpdatesDegraded) ...[
+                _buildLiveUpdatesNotice(),
+                const SizedBox(height: AppSpacing.component),
+              ],
               Expanded(child: content),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// Passive marker for a subscription that stopped delivering.
+  ///
+  /// It informs and nothing more: no dialog, no barrier, no sign-out. The
+  /// repository stays canonical, so everything on the page keeps working --
+  /// only the *live* part is degraded, and saying so is better than showing a
+  /// list that quietly stopped moving. Disappears as soon as the controller
+  /// sees a subscription reconcile again.
+  Widget _buildLiveUpdatesNotice() {
+    return Container(
+      key: const Key('reference-live-updates-degraded'),
+      padding: const EdgeInsets.all(AppSpacing.component),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
+      ),
+      child: Row(
+        children: [
+          const NxStatusBadge(label: 'Paused', kind: NxBadgeKind.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Live updates are temporarily interrupted. This page stays '
+              'usable and catches up automatically.',
+              // Bounded on purpose: the notice sits above a flexible content
+              // area, and an unbounded sentence pushes that area past the
+              // viewport on a narrow phone.
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
