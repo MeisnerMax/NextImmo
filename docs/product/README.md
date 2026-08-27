@@ -5,11 +5,12 @@ This directory is the persistent source of truth for the planned NexImmo screen 
 ## Mandatory reading order for a new chat
 
 1. `docs/product/PRODUCT_RESTORE_MASTER_PLAN.md`
-2. `docs/product/SCREEN_SPEC_TEMPLATE.md`
-3. `docs/product/CHAT_START_PROMPTS.md`
-4. When available: `docs/product/PRODUCT_SCREEN_MAP.md`
-5. When available: `docs/product/PRODUCT_RESTORE_TRACKER.md`
-6. For a specific screen: `docs/product/screens/<screen>.md`
+2. `docs/product/PRODUCT_UX_FOUNDATION.md` — binding UX/system spine for every screen
+3. `docs/product/SCREEN_SPEC_TEMPLATE.md`
+4. `docs/product/CHAT_START_PROMPTS.md`
+5. When available: `docs/product/PRODUCT_SCREEN_MAP.md`
+6. When available: `docs/product/PRODUCT_RESTORE_TRACKER.md`
+7. For a specific screen: `docs/product/screens/<screen>.md`
 
 A new ChatGPT or Claude chat must assume it has **no prior conversational context**. It must read the relevant repo documents and current code before making product, architecture, or implementation decisions.
 
