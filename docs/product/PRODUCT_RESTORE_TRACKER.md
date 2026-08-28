@@ -24,7 +24,7 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 | TASKS-NOTIFICATIONS-01 | Tasks + Property-Tasks (eine UI) + Notifications auf platform_audit_jobs; Templates als Tab; Generierung serverseitig (DEBT-009) | REBUILD/MERGE | todo | todo | todo |
 | MAINTENANCE-PARITY-01 | Ticket-Edit/Delete/Doc-/Task-Links/Filter/Benachrichtigungen in Contract+Panels; Legacy-Boards danach löschen (vorher Bauteilzustand/Gewährleistung diffen) | KEEP+MERGE | todo | todo | todo |
 | DOCUMENTS-COMPLETE-01 | Registry-Flächen (Typen/Pflichtregeln) contract-basiert, Tab-Host + toter Palette-Jump weg, Media-Gap benannt | KEEP+MERGE+REBUILD | todo | todo | todo |
-| ADMIN-AREA-01 | Admin-Workspace um ReferenceMembersScreen; UsersScreen-Harvest+REMOVE; Umzug aus reference_slice/ | KEEP+REMOVE | todo | todo | todo |
+| ADMIN-AREA-01 | Admin-Workspace um ReferenceMembersScreen; UsersScreen-Harvest+REMOVE; Umzug aus reference_slice/ | KEEP+REMOVE | spec_approved (2026-08-28, `docs/product/screens/admin_members.md`; inkl. Foundation-AMD-001 „Mitglieder"; Paket B Invite-Accept → Core/Auth/Gate) | todo | todo |
 
 ## Wave 3 — abhängige Module
 
