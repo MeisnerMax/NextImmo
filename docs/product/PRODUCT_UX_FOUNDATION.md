@@ -165,6 +165,10 @@ Separate follow-up packages (own approval): `SHELL-ROUTING-01` (URL sync/back/fo
 - Whether `adminUsers`’ members surface stays a reference-slice screen or gets a rebuilt admin area — Phase B screen map decides.
 - Tenants’ URL-only reachability (`/tenants` without sidebar entry) — Phase B decides sidebar placement.
 
+## 20. Amendments
+
+- **AMD-001 (2026-08-28, beschlossen mit `ADMIN-MEMBERS-V2`):** Sidebar-Destination `GlobalPage.adminUsers` wird von „Benutzer" auf **„Mitglieder"** umbenannt (Label + Titel in `appNavigationGroups`; `routeKey` `setup_administration.users`, Route `/members`, Permission-Mapping und Gruppenzuordnung unverändert). Implementierung reitet auf Paket A1 von `ADMIN-AREA-01` (`docs/product/screens/admin_members.md`).
+
 ---
 
 *Screen specs cite sections of this document by number (e.g. “states per Foundation §11”). If a screen genuinely cannot follow a rule, the spec says so explicitly under Open decisions and the deviation is approved before implementation.*
