@@ -11,6 +11,14 @@ abstract interface class MembershipAdminSupabaseGateway {
 
   Future<List<Map<String, dynamic>>> listRoles({required String workspaceId});
 
+  Future<List<Map<String, dynamic>>> listRolePermissions({
+    required String workspaceId,
+  });
+
+  Future<List<Map<String, dynamic>>> listPermissions({
+    required List<String> permissionIds,
+  });
+
   Future<List<Map<String, dynamic>>> listInvitations({
     required String workspaceId,
     required bool includeResolved,
@@ -51,6 +59,32 @@ class SupabaseMembershipAdminGateway implements MembershipAdminSupabaseGateway {
         .select('id, workspace_id, key, name')
         .eq('workspace_id', workspaceId)
         .order('key', ascending: true);
+    return rows.map(Map<String, dynamic>.from).toList(growable: false);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listRolePermissions({
+    required String workspaceId,
+  }) async {
+    final rows = await _client
+        .from('role_permissions')
+        .select('workspace_id, role_id, permission_id')
+        .eq('workspace_id', workspaceId)
+        .order('role_id', ascending: true);
+    return rows.map(Map<String, dynamic>.from).toList(growable: false);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listPermissions({
+    required List<String> permissionIds,
+  }) async {
+    if (permissionIds.isEmpty) {
+      return const <Map<String, dynamic>>[];
+    }
+    final rows = await _client
+        .from('permissions')
+        .select('id, key, name')
+        .inFilter('id', permissionIds);
     return rows.map(Map<String, dynamic>.from).toList(growable: false);
   }
 
@@ -164,6 +198,62 @@ class SupabaseMembershipAdminRepositoryAdapter
       return const MembershipAdminFailure<List<WorkspaceRole>>(
         kind: MembershipAdminFailureKind.infrastructureFailure,
         message: 'Supabase workspace roles could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<MembershipAdminResult<List<WorkspaceRoleCapability>>>
+  listRolePermissions({required String workspaceId}) async {
+    try {
+      final assignments = await _gateway.listRolePermissions(
+        workspaceId: workspaceId,
+      );
+      if (assignments.isEmpty) {
+        return const MembershipAdminSuccess<List<WorkspaceRoleCapability>>(
+          <WorkspaceRoleCapability>[],
+        );
+      }
+      final permissionIds = <String>{};
+      for (final assignment in assignments) {
+        if (_requiredString(assignment, 'workspace_id') != workspaceId) {
+          throw const FormatException('Role permission workspace mismatch.');
+        }
+        permissionIds.add(_requiredString(assignment, 'permission_id'));
+      }
+      final permissionRows = await _gateway.listPermissions(
+        permissionIds: permissionIds.toList(growable: false),
+      );
+      final permissionsById = <String, ({String key, String name})>{
+        for (final row in permissionRows)
+          _requiredString(row, 'id'): (
+            key: _requiredString(row, 'key'),
+            name: _requiredString(row, 'name'),
+          ),
+      };
+      final capabilities = <WorkspaceRoleCapability>[];
+      for (final assignment in assignments) {
+        final permission =
+            permissionsById[_requiredString(assignment, 'permission_id')];
+        if (permission == null) {
+          throw const FormatException('Unknown permission reference.');
+        }
+        capabilities.add(
+          WorkspaceRoleCapability(
+            roleId: _requiredString(assignment, 'role_id'),
+            permissionKey: permission.key,
+            permissionName: permission.name,
+          ),
+        );
+      }
+      capabilities.sort((a, b) => a.permissionKey.compareTo(b.permissionKey));
+      return MembershipAdminSuccess<List<WorkspaceRoleCapability>>(
+        List<WorkspaceRoleCapability>.unmodifiable(capabilities),
+      );
+    } catch (_) {
+      return const MembershipAdminFailure<List<WorkspaceRoleCapability>>(
+        kind: MembershipAdminFailureKind.infrastructureFailure,
+        message: 'Supabase role permissions could not be loaded.',
       );
     }
   }

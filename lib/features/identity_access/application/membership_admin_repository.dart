@@ -109,6 +109,22 @@ class WorkspaceRole {
   final String name;
 }
 
+/// One role→capability assignment of the workspace's permission catalog
+/// (`role_permissions` joined with `permissions`). Read-only: roles and their
+/// capabilities are maintained centrally (PERMISSION-CATALOG-02), never
+/// through this contract.
+class WorkspaceRoleCapability {
+  const WorkspaceRoleCapability({
+    required this.roleId,
+    required this.permissionKey,
+    required this.permissionName,
+  });
+
+  final String roleId;
+  final String permissionKey;
+  final String permissionName;
+}
+
 /// One entry of the signed-in user's own pending-invitation list. Carries the
 /// workspace/role names the invitee's row-level security could not otherwise
 /// read yet.
@@ -293,6 +309,12 @@ abstract interface class MembershipAdminRepository {
   Future<MembershipAdminResult<List<WorkspaceRole>>> listRoles({
     required String workspaceId,
   });
+
+  /// The workspace's role→capability assignments. Row-level security gates
+  /// the read on `workspace.read` (at AAL2); a caller below that sees an
+  /// empty list, matching the RLS filter semantics of the underlying tables.
+  Future<MembershipAdminResult<List<WorkspaceRoleCapability>>>
+  listRolePermissions({required String workspaceId});
 
   Future<MembershipAdminResult<List<MembershipInvitation>>> listInvitations({
     required String workspaceId,

@@ -12,7 +12,7 @@ import 'features/identity_access/data/supabase_identity_access_repository_adapte
 import 'features/identity_access/data/supabase_membership_admin_repository_adapter.dart';
 import 'features/portfolio_property/data/supabase_property_query_invalidation_adapter.dart';
 import 'features/portfolio_property/data/supabase_property_repository_adapter.dart';
-import 'features/reference_slice/application/members_admin_controller.dart';
+import 'features/identity_access/application/members_admin_controller.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
 
 /// Supabase is the only application runtime backend (`DEC-024`, AP-X02-2b).

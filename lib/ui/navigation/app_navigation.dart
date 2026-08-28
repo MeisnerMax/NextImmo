@@ -566,8 +566,10 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
     items: <GlobalNavigationDestination>[
       GlobalNavigationDestination(
         page: GlobalPage.adminUsers,
-        label: 'Benutzer',
-        title: 'Benutzer',
+        // AMD-001: renamed from "Benutzer"; routeKey and permission mapping
+        // stay stable.
+        label: 'Mitglieder',
+        title: 'Mitglieder',
         routeKey: 'setup_administration.users',
         icon: Icons.manage_accounts_outlined,
       ),
