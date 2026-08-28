@@ -55,7 +55,12 @@ void main() {
   });
 
   test('cloud routes resolve to canonical shell targets', () {
-    expect(cloudRouteTargetFromName('/')?.page, GlobalPage.dashboard);
+    // UX-FOUNDATION-IMPL-01 (Foundation §2): until the dashboard is
+    // cloud-ready, the post-login landing target is properties — landing on
+    // the migrationRequired dashboard empty state helps nobody.
+    expect(cloudRouteTargetFromName('/')?.page, GlobalPage.properties);
+    expect(cloudRouteTargetFromName(null)?.page, GlobalPage.properties);
+    expect(cloudRouteTargetFromName('')?.page, GlobalPage.properties);
     expect(
       cloudRouteTargetFromName(referencePropertyRoute('property-a'))?.surface,
       CloudRouteSurface.propertyDetail,

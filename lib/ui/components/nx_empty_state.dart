@@ -12,6 +12,32 @@ class NxEmptyState extends StatelessWidget {
     this.primaryAction,
   });
 
+  /// The one error/retry state (Foundation §11): `cloud_off` plus a filled
+  /// refresh action. Screens use this instead of hand-picking icons and
+  /// button styles — the four divergent retry styles converge here.
+  factory NxEmptyState.error({
+    Key? key,
+    String title = 'Daten konnten nicht geladen werden',
+    required String description,
+    VoidCallback? onRetry,
+    String retryLabel = 'Erneut versuchen',
+  }) {
+    return NxEmptyState(
+      key: key,
+      title: title,
+      description: description,
+      icon: Icons.cloud_off_outlined,
+      primaryAction:
+          onRetry == null
+              ? null
+              : FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: Text(retryLabel),
+              ),
+    );
+  }
+
   final String title;
   final String description;
   final IconData icon;

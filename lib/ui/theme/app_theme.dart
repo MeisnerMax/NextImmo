@@ -385,6 +385,11 @@ class AppLayout {
   static const double desktopLargeMinWidth = 1440;
   static const double desktopMediumMinWidth = 1100;
 
+  /// Master-detail panes split side by side from this width on — i.e. when
+  /// the width *exceeds* [AppBreakpoints.tabletMax] (Foundation §4). The one
+  /// constant behind `NxSplitView`, replacing the per-screen 1200 literals.
+  static const double splitViewMinWidth = AppBreakpoints.tabletMax + 1;
+
   const AppLayout._();
 
   static AppViewport viewportForWidth(double width) {

@@ -49,7 +49,9 @@ class NexImmoApp extends ConsumerWidget {
         settings: const RouteSettings(name: '/'),
         builder:
             (_) => const SupabaseSecurityGate(
-              routeTarget: CloudRouteTarget.dashboard,
+              // Foundation §2: land on the working properties page until the
+              // dashboard is cloud-ready (P2-D09).
+              routeTarget: CloudRouteTarget.landing,
             ),
       ),
     ];
