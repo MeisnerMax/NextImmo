@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../ui/components/nx_card.dart';
+import '../../../ui/components/nx_live_updates_notice.dart';
 import '../../../ui/components/nx_empty_state.dart';
 import '../../../ui/components/nx_page_header.dart';
 import '../../../ui/components/nx_status_badge.dart';
@@ -320,39 +321,15 @@ class _ReferenceSliceViewState extends State<ReferenceSliceView> {
     );
   }
 
-  /// Passive marker for a subscription that stopped delivering.
-  ///
-  /// It informs and nothing more: no dialog, no barrier, no sign-out. The
-  /// repository stays canonical, so everything on the page keeps working --
-  /// only the *live* part is degraded, and saying so is better than showing a
-  /// list that quietly stopped moving. Disappears as soon as the controller
-  /// sees a subscription reconcile again.
+  /// The shared degraded notice (Foundation §13), keeping this surface's
+  /// established English copy until the properties rebuild converges the
+  /// slice on German product copy (Foundation §19).
   Widget _buildLiveUpdatesNotice() {
-    return Container(
-      key: const Key('reference-live-updates-degraded'),
-      padding: const EdgeInsets.all(AppSpacing.component),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppRadiusTokens.md),
-      ),
-      child: Row(
-        children: [
-          const NxStatusBadge(label: 'Paused', kind: NxBadgeKind.warning),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              'Live updates are temporarily interrupted. This page stays '
-              'usable and catches up automatically.',
-              // Bounded on purpose: the notice sits above a flexible content
-              // area, and an unbounded sentence pushes that area past the
-              // viewport on a narrow phone.
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
+    return const NxLiveUpdatesNotice(
+      key: Key('reference-live-updates-degraded'),
+      message:
+          'Live updates are temporarily interrupted. This page stays '
+          'usable and catches up automatically.',
     );
   }
 

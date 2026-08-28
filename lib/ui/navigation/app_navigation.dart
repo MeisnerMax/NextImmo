@@ -109,6 +109,10 @@ class CloudRouteTarget {
 
   static const dashboard = CloudRouteTarget(page: GlobalPage.dashboard);
 
+  /// The post-login landing target (Foundation §2): the working properties
+  /// page, not the dashboard, until the dashboard is cloud-ready (P2-D09).
+  static const landing = CloudRouteTarget(page: GlobalPage.properties);
+
   final GlobalPage page;
   final CloudRouteSurface surface;
   final String? propertyId;
@@ -116,7 +120,9 @@ class CloudRouteTarget {
 
 CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
   if (routeName == null || routeName == '/' || routeName.isEmpty) {
-    return CloudRouteTarget.dashboard;
+    // Foundation §2: the dashboard is not cloud-ready yet, so landing there
+    // would greet every sign-in with a migrationRequired empty state.
+    return CloudRouteTarget.landing;
   }
   if (routeName == referencePropertiesRoute) {
     return const CloudRouteTarget(page: GlobalPage.properties);

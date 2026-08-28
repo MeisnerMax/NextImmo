@@ -68,10 +68,13 @@ void main() {
 
     expect(find.byType(AppScaffold), findsOneWidget);
     expect(find.byType(Sidebar), findsOneWidget);
+    // UX-FOUNDATION-IMPL-01 (Foundation §2): the root landing is the working
+    // properties page, not the dashboard's migrationRequired empty state.
     expect(
       find.byKey(const Key('cloud-destination-migration-dashboard')),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.byKey(const Key('reference-list-pane')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
