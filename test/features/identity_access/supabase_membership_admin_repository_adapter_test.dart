@@ -76,7 +76,9 @@ void main() {
       });
       final entries =
           (result
-                  as MembershipAdminSuccess<List<WorkspaceMemberDirectoryEntry>>)
+                  as MembershipAdminSuccess<
+                    List<WorkspaceMemberDirectoryEntry>
+                  >)
               .value;
       expect(entries.first.displayName, 'Directory Admin');
       expect(entries.first.email, 'admin@example.com');
@@ -88,26 +90,31 @@ void main() {
       expect(entries.last.version, 2);
     });
 
-    test('maps a forbidden directory envelope to a forbidden failure', () async {
-      gateway.rpcResult = <String, Object?>{
-        'ok': false,
-        'error': <String, Object?>{
-          'code': 'forbidden',
-          'message': 'Member directory access is not permitted',
-        },
-      };
+    test(
+      'maps a forbidden directory envelope to a forbidden failure',
+      () async {
+        gateway.rpcResult = <String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': 'forbidden',
+            'message': 'Member directory access is not permitted',
+          },
+        };
 
-      final result = await repository.listMemberDirectory(
-        workspaceId: 'workspace-a',
-      );
+        final result = await repository.listMemberDirectory(
+          workspaceId: 'workspace-a',
+        );
 
-      expect(
-        (result
-                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
-            .kind,
-        MembershipAdminFailureKind.forbidden,
-      );
-    });
+        expect(
+          (result
+                  as MembershipAdminFailure<
+                    List<WorkspaceMemberDirectoryEntry>
+                  >)
+              .kind,
+          MembershipAdminFailureKind.forbidden,
+        );
+      },
+    );
 
     test('rejects a directory entry from a foreign workspace', () async {
       gateway.rpcResult = <String, Object?>{
@@ -120,8 +127,7 @@ void main() {
       );
 
       expect(
-        (result
-                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+        (result as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
             .kind,
         MembershipAdminFailureKind.infrastructureFailure,
       );
@@ -135,8 +141,7 @@ void main() {
       );
 
       expect(
-        (result
-                as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
+        (result as MembershipAdminFailure<List<WorkspaceMemberDirectoryEntry>>)
             .kind,
         MembershipAdminFailureKind.infrastructureFailure,
       );
@@ -513,6 +518,119 @@ void main() {
         expect(failure.message, isNot(contains('Postgrest')));
       }
     });
+
+    group('listRolePermissions (ADMIN-AREA-01 A1)', () {
+      test('joins role assignments with the permission catalog', () async {
+        gateway.rolePermissionsResult = <Map<String, dynamic>>[
+          _rolePermissionJson(roleId: 'role-a', permissionId: 'perm-1'),
+          _rolePermissionJson(roleId: 'role-a', permissionId: 'perm-2'),
+          _rolePermissionJson(roleId: 'role-b', permissionId: 'perm-2'),
+        ];
+        gateway.permissionsResult = <Map<String, dynamic>>[
+          _permissionJson(
+            id: 'perm-1',
+            key: 'security.manage',
+            name: 'Sicherheitsverwaltung',
+          ),
+          _permissionJson(
+            id: 'perm-2',
+            key: 'property.read',
+            name: 'Objekte lesen',
+          ),
+        ];
+
+        final result = await repository.listRolePermissions(
+          workspaceId: 'workspace-a',
+        );
+
+        expect(gateway.rolePermissionsWorkspaceId, 'workspace-a');
+        expect(
+          gateway.permissionsRequestedIds,
+          unorderedEquals(<String>['perm-1', 'perm-2']),
+        );
+        final capabilities =
+            (result as MembershipAdminSuccess<List<WorkspaceRoleCapability>>)
+                .value;
+        expect(capabilities, hasLength(3));
+        final adminKeys = capabilities
+            .where((capability) => capability.roleId == 'role-a')
+            .map((capability) => capability.permissionKey);
+        expect(
+          adminKeys,
+          unorderedEquals(<String>['security.manage', 'property.read']),
+        );
+        expect(
+          capabilities
+              .firstWhere(
+                (capability) => capability.permissionKey == 'security.manage',
+              )
+              .permissionName,
+          'Sicherheitsverwaltung',
+        );
+      });
+
+      test('returns an empty set without querying the catalog', () async {
+        final result = await repository.listRolePermissions(
+          workspaceId: 'workspace-a',
+        );
+
+        final capabilities =
+            (result as MembershipAdminSuccess<List<WorkspaceRoleCapability>>)
+                .value;
+        expect(capabilities, isEmpty);
+        expect(gateway.permissionsCalls, 0);
+      });
+
+      test('rejects assignments from a foreign workspace', () async {
+        gateway.rolePermissionsResult = <Map<String, dynamic>>[
+          _rolePermissionJson(workspaceId: 'workspace-b'),
+        ];
+
+        final result = await repository.listRolePermissions(
+          workspaceId: 'workspace-a',
+        );
+
+        expect(
+          (result as MembershipAdminFailure<List<WorkspaceRoleCapability>>)
+              .kind,
+          MembershipAdminFailureKind.infrastructureFailure,
+        );
+      });
+
+      test(
+        'fails closed when a referenced permission row is missing',
+        () async {
+          gateway.rolePermissionsResult = <Map<String, dynamic>>[
+            _rolePermissionJson(permissionId: 'perm-unknown'),
+          ];
+          gateway.permissionsResult = <Map<String, dynamic>>[];
+
+          final result = await repository.listRolePermissions(
+            workspaceId: 'workspace-a',
+          );
+
+          expect(
+            (result as MembershipAdminFailure<List<WorkspaceRoleCapability>>)
+                .kind,
+            MembershipAdminFailureKind.infrastructureFailure,
+          );
+        },
+      );
+
+      test('hides infrastructure details on gateway failures', () async {
+        gateway.rolePermissionsError = StateError('sensitive Postgrest detail');
+
+        final result = await repository.listRolePermissions(
+          workspaceId: 'workspace-a',
+        );
+
+        final failure =
+            result as MembershipAdminFailure<List<WorkspaceRoleCapability>>;
+        expect(failure.kind, MembershipAdminFailureKind.infrastructureFailure);
+        expect(failure.message, isNot(contains('sensitive')));
+        expect(failure.message, isNot(contains('Postgrest')));
+      });
+    });
   });
 }
 
@@ -690,4 +808,55 @@ class _FakeMembershipAdminSupabaseGateway
     }
     return rpcResult;
   }
+
+  List<Map<String, dynamic>> rolePermissionsResult = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> permissionsResult = <Map<String, dynamic>>[];
+  Object? rolePermissionsError;
+  Object? permissionsError;
+  String? rolePermissionsWorkspaceId;
+  List<String>? permissionsRequestedIds;
+  int permissionsCalls = 0;
+
+  @override
+  Future<List<Map<String, dynamic>>> listRolePermissions({
+    required String workspaceId,
+  }) async {
+    if (rolePermissionsError != null) {
+      throw rolePermissionsError!;
+    }
+    rolePermissionsWorkspaceId = workspaceId;
+    return rolePermissionsResult;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listPermissions({
+    required List<String> permissionIds,
+  }) async {
+    permissionsCalls++;
+    if (permissionsError != null) {
+      throw permissionsError!;
+    }
+    permissionsRequestedIds = permissionIds;
+    return permissionsResult;
+  }
+}
+
+Map<String, dynamic> _rolePermissionJson({
+  String workspaceId = 'workspace-a',
+  String roleId = 'role-a',
+  String permissionId = 'perm-1',
+}) {
+  return <String, dynamic>{
+    'workspace_id': workspaceId,
+    'role_id': roleId,
+    'permission_id': permissionId,
+  };
+}
+
+Map<String, dynamic> _permissionJson({
+  required String id,
+  required String key,
+  required String name,
+}) {
+  return <String, dynamic>{'id': id, 'key': key, 'name': name};
 }

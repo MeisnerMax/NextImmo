@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
+import '../../features/identity_access/presentation/admin_members_screen.dart';
 import '../../features/reference_slice/application/reference_slice_controller.dart';
-import '../../features/reference_slice/presentation/reference_members_screen.dart';
 import '../../features/reference_slice/presentation/reference_slice_screen.dart';
 import '../components/command_palette.dart';
 import '../components/nx_content_frame.dart';
@@ -44,7 +44,6 @@ import '../screens/properties_screen.dart';
 import '../screens/valuations/valuations_screen.dart';
 import '../screens/report_templates_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/admin/users_screen.dart';
 import '../screens/tasks/task_templates_screen.dart';
 import '../screens/tasks/tasks_screen.dart';
 import '../state/app_state.dart';
@@ -281,7 +280,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case GlobalPage.reportTemplates:
         return const ReportTemplatesScreen();
       case GlobalPage.adminUsers:
-        return const UsersScreen();
+        // Membership administration is cloud-only; the SQLite-era UsersScreen
+        // is gone (ADMIN-AREA-01 A1) and this legacy shell branch is dead
+        // under DEC-024.
+        return const _CloudDestinationState(
+          title: 'Mitglieder nur in der Cloud-Shell',
+          description:
+              'Die Mitgliederverwaltung ist ausschließlich über die '
+              'Cloud-Anmeldung verfügbar.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.settings:
         return const SettingsScreen();
       case GlobalPage.help:
@@ -366,7 +374,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case GlobalPage.valuations:
         return const ValuationsScreen();
       case GlobalPage.adminUsers:
-        return const ReferenceMembersScreen(embeddedInShell: true);
+        return const AdminMembersScreen();
       case GlobalPage.help:
         return const HelpScreen();
       default:
