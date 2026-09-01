@@ -26,7 +26,7 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 | TASKS-NOTIFICATIONS-01 | Tasks + Property-Tasks (eine UI) + Notifications auf platform_audit_jobs; Templates als Tab; Generierung serverseitig (DEBT-009) | REBUILD/MERGE | Property-Task-Teil spec_approved (`screens/PROPERTY_OPERATIONS_V2.md`); Gesamtpaket todo | todo | todo |
 | MAINTENANCE-PARITY-01 | DTO-/RPC-Parität für Ticket/CapEx Create/Read/Update/Transition; Currency aus Daten; kein Delete/Document-Link/Notification im ersten Inkrement | KEEP+MERGE | spec_approved (`screens/PROPERTY_OPERATIONS_V2.md`, 2026-08-28) | todo | todo |
 | DOCUMENTS-COMPLETE-01 | Property-Register/Requirements rehosten; Registry-Flächen workspace-weit separat; Media-Gap bleibt | KEEP+MERGE+REBUILD | Property-Teil spec_approved (`screens/PROPERTY_DOCUMENTS_V2.md`); Registry-Teil todo | todo | todo |
-| ADMIN-AREA-01 | Admin-Workspace um ReferenceMembersScreen; UsersScreen-Harvest+REMOVE; Umzug aus reference_slice/ | KEEP+REMOVE | spec_approved (2026-08-28, `docs/product/screens/admin_members.md`; inkl. Foundation-AMD-001 „Mitglieder"; Paket B Invite-Accept → Core/Auth/Gate) | A1 implemented (2026-08-28, PR #44 `feature/admin-members-v2-a1`; A2 Aktivität + Paket B offen) | todo |
+| ADMIN-AREA-01 | Admin-Workspace um ReferenceMembersScreen; UsersScreen-Harvest+REMOVE; Umzug aus reference_slice/ | KEEP+REMOVE | spec_approved (2026-08-28, `docs/product/screens/admin_members.md`; inkl. Foundation-AMD-001 „Mitglieder"; Paket B Invite-Accept → Core/Auth/Gate) | A1+A2 implemented (2026-08-28; A1 PR #44 merged `bf0693c`, A2 PR #47 `feature/admin-members-v2-a2`; Paket B Invite-Accept offen) | todo |
 
 ## Wave 3 — abhängige Module
 
