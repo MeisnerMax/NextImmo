@@ -7,7 +7,7 @@
 - Route: `GlobalPage.tasks`, Sidebar „Tagesgeschaeft → Aufgaben" (`app_navigation.dart:456-461`); neue Deep-Link-Routen `/tasks` und `/tasks/:taskId` (Inkrement A15 in `TASKS-NOTIFICATIONS-CORE-01`)
 - Current implementation file(s) — alle Legacy, zur Laufzeit unerreichbar:
   - `lib/ui/screens/tasks/tasks_screen.dart` (1887) — fachliche Hauptquelle
-  - `lib/ui/screens/tasks/task_templates_screen.dart` (1197) — wird Tab
+  - `lib/ui/screens/tasks/task_templates_screen.dart` (1197) — Harvest-Quelle; der Vorlagen-Tab entsteht erst mit `TASK-SCHEDULER-01` (B9)
   - `lib/ui/screens/property_detail/property_tasks_screen.dart` (1415) — wird ersetzt
   - `lib/data/repositories/tasks_repo.dart` (800), `lib/core/models/task.dart` (267), `lib/core/services/task_generation_service.dart` (304)
   - Zielvertrag: `lib/features/platform_audit_jobs/**`, `supabase/migrations/20260723130000_p2_d04_tasks_notifications.sql`
@@ -15,7 +15,7 @@
 - Dependencies: **Shared §** (`tasks_notifications_shared.md`, normativ) · `UX-FOUNDATION-IMPL-01` (**auf main, `791849f`**) · Inkrement A15 aus `TASKS-NOTIFICATIONS-CORE-01`
 - Related screens: `notification_inbox.md`, `admin_members.md`, Property-Workspace, Maintenance-Tickets, Operations-Alerts
 
-**Basis der Analyse:** `origin/main` `bf0693c` (2026-08-28), neu gefetcht und verifiziert.
+**Basis der Analyse:** `origin/main` `bf0693c` (Commit 2026-08-29; final verifiziert 2026-09-01), neu gefetcht und verifiziert.
 
 Abschnittsnummern folgen `SCREEN_SPEC_TEMPLATE.md`. „Shared §n" verweist auf `docs/product/screens/tasks_notifications_shared.md`.
 
@@ -25,9 +25,11 @@ Abschnittsnummern folgen `SCREEN_SPEC_TEMPLATE.md`. „Shared §n" verweist auf 
 
 Vollständige Matrix mit Blockern und Dependency-Matrix: Shared §0.2/§0.3.
 
-**APPROVED (V1)** — A1 Grundfläche · A2 Liste mit contract-gedeckten Filtern · A3 Anlegen · A4 Bearbeiten · A5 Statuswechsel inkl. Archivieren · A6 „Mir zuweisen"/„Zuweisung entfernen" · A7 Kontextbindung auf die neun Registry-Werte · A8 Bulk auf A5/A6 · A9 Board als vier status-gebundene Keysets · A10 Vorlagen-Tab als ehrliche Leerfläche.
+**APPROVED (V1)** — A1 Grundfläche · A2 Liste mit contract-gedeckten Filtern · A3 Anlegen · A4 Bearbeiten · A5 Statuswechsel inkl. Archivieren · A6 „Mir zuweisen"/„Zuweisung entfernen" · A7 Kontextbindung auf die neun Registry-Werte · A8 Bulk auf A5/A6 · A9 Board als vier status-gebundene Keysets.
 
-**BLOCKED** — B1 Systemsichten (Meine Aufgaben, Heute, Diese Woche, Überfällig, Nicht zugewiesen) · B2 Termine-Ansicht · B3 Fälligkeitssortierung, Prioritätsfilter, Mehrfachstatus, Titelsuche · B4 Objekt-Rollup · B5 serverseitige Zähler → **alle gegen `TASK-QUERY-01`**. B6 Zuweisung an andere → `TASK-ASSIGNEE-DIRECTORY-01`. B7/B8 Document- und Valuation-Case-Bezug → `TASK-ENTITY-REGISTRY-01`. B9 wiederkehrende Aufgaben und „Jetzt erzeugen" → `TASK-SCHEDULER-01 (DEBT-009)`. B17 Nicht-Admin-Staging-E2E → `PERMISSION-CATALOG-02`.
+(Die frühere Fassung führte hier ein Inkrement `A10 Vorlagen-Tab als Leerfläche`. Es ist in der QC-Runde am 2026-09-01 **gestrichen** — siehe §6.10 und Shared §0.2.)
+
+**BLOCKED** — B1 Systemsichten (Meine Aufgaben, Heute, Diese Woche, Überfällig, Nicht zugewiesen) · B2 Termine-Ansicht · B3 Fälligkeitssortierung, Prioritätsfilter, Mehrfachstatus, Titelsuche · B4 Objekt-Rollup · B5 serverseitige Zähler → **alle gegen `TASK-QUERY-01`**. B6 Zuweisung an andere → `TASK-ASSIGNEE-DIRECTORY-01`. B7/B8 Document- und Valuation-Case-Bezug → `TASK-ENTITY-REGISTRY-01`. B9 **Vorlagen insgesamt** — Katalog, Tab, manuelles Instanziieren, „Jetzt erzeugen", wiederkehrende Aufgaben → `TASK-SCHEDULER-01 (DEBT-009)`. B17 Nicht-Admin-Staging-E2E → `PERMISSION-CATALOG-02`.
 
 **FUTURE** — F1 Subtasks · F2 Checkliste · F3 Kommentare · F4 Anhänge · F5 Abhängigkeiten · F6 gespeicherte Nutzersichten · F8 Dashboards · F9 Automations-Editor · F10 `estimated_cost` · F12 Teams als Zuweisungsziel.
 
@@ -56,7 +58,7 @@ Es löst drei Probleme des Ist-Stands:
 | Vermietung | „Welche Fristen laufen an meinen Vorgängen?" | Termin setzen, abhaken | Kontextfilter ✅ A7, Fristensicht **BLOCKED** |
 | Buchhaltung | „Was hängt an mir?" | Erledigen | ✅ über Zuständig-Filter (A2) |
 | Bauleitung | „Was steht an meinen Projekten an?" | Zuweisen an Dienstleister | Kontext ✅ A7, Zuweisen **BLOCKED (B6)** |
-| Admin | „Welche Vorlagen erzeugen was?" | Vorlage pflegen | **BLOCKED (B9)**, Tab als Leerfläche ✅ A10 |
+| Admin | „Welche Vorlagen erzeugen was?" | Vorlage pflegen | **BLOCKED (B9)** — in V1 gibt es keinen Vorlagen-Tab |
 
 **Standardzustand V1:** Die Seite öffnet auf **„Alle offenen Aufgaben"** — `status = open`, `includeArchived = false`, Sortierung `created_at DESC`. Das ist die einzige Voreinstellung, die der Contract vollständig deckt. Der Legacy öffnete auf `status = todo` über alle Nutzer; die eigentlich richtige Voreinstellung („meine, nach Fälligkeit") ist B1.
 
@@ -70,9 +72,9 @@ Es löst drei Probleme des Ist-Stands:
 4. Aus Domänenpanels: „Aufgabe erstellen" (Shared §5.2) — bleibt im Panel, öffnet nur den Dialog.
 5. Aus `OperationsAlertsPanel` — heute der einzige produktive Task-Write (`operations_alerts_controller.dart:272-308`); bleibt erhalten und wird auf den geteilten Dialog umgestellt.
 
-**Ausstiege:** Kontext-Chip → zugehörige Fläche über die vorhandenen `*RouteFor`-Builder. Vorlagen-Tab bleibt in der Seite.
+**Ausstiege:** Kontext-Chip → zugehörige Fläche über die vorhandenen `*RouteFor`-Builder.
 
-**Kontexterhalt:** Filter- und Sichtzustand ist bildschirmlokal, überlebt einen Tabwechsel, wird beim Workspace-Wechsel zurückgesetzt (Foundation §7). URL-Persistenz erst mit `SHELL-ROUTING-01`. Kein eigener Navigator-Stack (Foundation §2); das Detail ist ein Split-Pane.
+**Kontexterhalt:** Filter- und Sichtzustand ist bildschirmlokal und wird beim Workspace-Wechsel zurückgesetzt (Foundation §7). URL-Persistenz erst mit `SHELL-ROUTING-01`. Kein eigener Navigator-Stack (Foundation §2); das Detail ist ein Split-Pane.
 
 ---
 
@@ -83,8 +85,6 @@ NxPageHeader   „Aufgaben"  ['Tagesgeschaeft','Aufgaben']
                [Sekundär: Aktualisieren] [Primär: Neue Aufgabe]
 ──────────────────────────────────────────────────────────
 (optional) NxLiveUpdatesNotice                          ← Foundation §13
-──────────────────────────────────────────────────────────
-Tabs:  Aufgaben | Vorlagen                              ← Foundation §9
 ──────────────────────────────────────────────────────────
 contextBar:  Kontext-Chip, wenn objektbezogen geöffnet
              (Systemsichten erscheinen erst mit TASK-QUERY-01)
@@ -103,10 +103,11 @@ ListFilterBar: Status · Zuständig · Kontext · Archivierte
 
 Lesereihenfolge: **welcher Ausschnitt → was genau → welches Stück Arbeit.**
 
-**Drei bewusste Streichungen gegenüber dem Legacy:**
+**Vier bewusste Streichungen gegenüber dem Legacy:**
 
 - **Keine KPI-Zeile.** Jede clientseitig gerechnete Zahl über einem Keyset ist eine Untergrenze; eine Kachel „7 überfällig", die in Wahrheit „mindestens 7 unter den geladenen 50" heißt, ist genau die Vortäuschung, die OD-2 verbietet. Zähler kommen mit `TASK-QUERY-01` (B5).
 - **Kein `Statusverteilung`-Balkendiagramm** (`tasks_screen.dart:1575-1642`) — Analytikfrage, gehört ins Dashboard-Paket (F8).
+- **Kein Vorlagen-Tab.** Die Seite hat in V1 überhaupt keine Tab-Leiste — es gibt nur die Aufgabenfläche. Begründung in §6.10 (B9).
 - **Keine `Kostenrahmen`-Kachel und kein Kostenfeld.** `estimated_cost` existiert im Cloud-Schema nicht und wird nach **OD-T5** aus Modell und UI entfernt statt simuliert (F10). Der Legacy-Wert (`double`, ohne Währung) wandert nicht mit; falls die Zahl fachlich gebraucht wird, gehört sie in CapEx/Budget und braucht ein eigenes Contract-Paket.
 
 ---
@@ -209,12 +210,24 @@ Der Umfang von `TASK-QUERY-01` ist damit fachlich exakt definiert (aus OD-T1 wö
 - Ohne `task.manage` **ausgeblendet** (Foundation §3).
 - Der Legacy hatte keine Bulk-Aktionen; dies ist die einzige Neuerung ohne Legacy-Beleg. Begründung: „12 Aufgaben eines abgeschlossenen Sanierungsprojekts archivieren" ist ein realer Vorgang, der sonst 12 Dialoge kostet.
 
-### 6.10 Vorlagen-Tab — **APPROVED als Leerfläche (A10), Inhalt BLOCKED (B9)**
-- **Lesen** mit `task.read`; **alle Mutationen** bräuchten `task.manage` — es gibt in V1 keine.
-- Serverseitig existiert **kein Vorlagen-Aggregat**, kein Rhythmus-Feld, kein Scheduler. Der Tab zeigt deshalb `NxEmptyState` mit ehrlicher Begründung: „Wiederkehrende Aufgaben werden serverseitig erzeugt. Der dafür nötige Server-Job (DEBT-009) fehlt noch."
-- Alternative „Tab weglassen" wurde verworfen: Der Tracker führt „Templates als Tab" als Paketinhalt, und die Fläche müsste sonst beim Nachziehen erneut in die Navigation eingebaut werden.
-- **„Jetzt erzeugen" wird niemals als Client-Schleife gebaut.** Der Legacy-Pfad (`task_templates_screen.dart:734-756` → `task_generation_service.dart:32-134`) ist O(N·(4+M)) sequenzielle Roundtrips ohne Transaktion. Zielbild: ein Serverkommando (Shared §10.3 Regel 3).
-- **Vor dem Löschen des Legacy-Screens** werden die zehn Standardvorlagen samt Checklisten als Fixture extrahiert (Shared §7.6) — Aufgabe von `TASK-SCHEDULER-01`.
+### 6.10 Vorlagen — **BLOCKED (B9), kein Tab in V1**
+
+**Entscheidung QC 2026-09-01:** V1 hat **keinen sichtbaren Vorlagen-Tab**, keinen Platzhalter und keinen Leerzustand, der eine verfügbare Funktion suggeriert. Die frühere Fassung führte das als APPROVED-Inkrement `A10`; das ist zurückgenommen.
+
+Begründung: Serverseitig existiert **kein Vorlagen-Aggregat, kein Template-Read-Contract, kein Template-Write-Contract und kein Scheduler**. „Keine Schreiboperation nötig" macht eine leere Fläche nicht contract-getragen — es ist genau die Vortäuschung, die **OD-2** verbietet: der Nutzer sähe eine Navigationsebene für eine Funktion, die es nicht gibt.
+
+Damit sind BLOCKED und gehören vollständig zu `TASK-SCHEDULER-01 (DEBT-009)`:
+
+- Vorlagenkatalog und Vorlagen-Aggregat (Read- und Write-Contract)
+- der Vorlagen-Tab als UI-Fläche
+- manuelles Instanziieren einer Vorlage
+- „Jetzt erzeugen" / Massenerzeugung je Objekt
+- wiederkehrende Aufgaben und fristbasierte Erzeugung
+
+Zwei Festlegungen, die über die Sperre hinaus gelten:
+
+- **„Jetzt erzeugen" wird niemals als Client-Schleife gebaut.** Der Legacy-Pfad (`task_templates_screen.dart:734-756` → `task_generation_service.dart:32-134`) ist O(N·(4+M)) sequenzielle Roundtrips ohne Transaktion. Zielbild ist ein Serverkommando (Shared §10.3 Regel 3).
+- **Das Domänenwissen bleibt erhalten.** Die zehn geharvesteten Standardvorlagen samt Checklisten stehen vollständig in Shared §7.6 und sind dort mit einer Bewahrungspflicht versehen: `TASK-SCHEDULER-01` übernimmt sie in das Vorlagen-Aggregat, **bevor** `UI-HYGIENE-02` `task_templates_screen.dart` löscht. Diese Reihenfolge ist im Tracker als Blocker abgebildet.
 
 ### 6.11 Checkliste, Kommentare, Dokumentverweise — **FUTURE / BLOCKED**
 
@@ -267,13 +280,12 @@ Vollständig in Shared §8.
 | „Neue Aufgabe" | `task.manage` — deaktiviert mit Tooltip „Benötigt task.manage" |
 | Bearbeiten / Status / Zuweisen | `task.manage` + `task.read` — deaktiviert |
 | Bulk | `task.manage` — ausgeblendet |
-| Vorlagen-Tab | `task.read` (V1 schreibt nichts) |
 | Aktivitäts-Abschnitt | `audit.read` — **ausgeblendet** ohne Recht |
 | Alles | **AAL2** (DEC-025); aal1 ⇒ 0 Zeilen beim Lesen, `forbidden` beim Schreiben ⇒ eigener Zustand (§10) |
 
 Client-Gating liest ausschließlich das Server-Permission-Set, **niemals** `lib/core/security/rbac.dart`. **`PERMISSION-CATALOG-02` wird nicht still hier gelöst** — kein Katalogeintrag, kein Seed, kein Mapping wird in diesem Paket angefasst.
 
-Eingefrorene Mapping-Grobheit: `taskTemplates` teilt sich `task.read` mit `tasks` (`app_navigation.dart:281`). Da der Vorlagen-Screen zum Tab wird, verschwindet das Problem faktisch. `test/ui/navigation/app_navigation_test.dart` sichert die konkreten Schlüssel **nicht** ab (Shared §8.2); ein ergänzender Mapping-Test gehört in A15.
+Eingefrorene Mapping-Grobheit: `taskTemplates` teilt sich `task.read` mit `tasks` (`app_navigation.dart:281`). Da V1 keinen Vorlagen-Tab hat und die Sidebar-Destination entfällt, ist das Mapping in V1 folgenlos; es wird erst mit `TASK-SCHEDULER-01` wieder relevant. `test/ui/navigation/app_navigation_test.dart` sichert die konkreten Schlüssel **nicht** ab (Shared §8.2); ein ergänzender Mapping-Test gehört in A15.
 
 ---
 
@@ -333,7 +345,7 @@ Prioritätsfilter · Fälligkeitsbereich · Mehrfachstatus · „Nicht zugewiese
 **Zur Suche im Besonderen:** Eine clientseitige Suche über die geladenen Seiten wäre technisch trivial und wird trotzdem **nicht** gebaut. Ein Suchfeld erzeugt beim Nutzer die Erwartung, alles zu durchsuchen; „In geladenen Aufgaben suchen" als Platzhaltertext ändert daran nichts, sobald die Liste mehr als eine Seite hat. Das fällt unter OD-2 („keine Funktionalität vortäuschen") und wandert vollständig in `TASK-QUERY-01`.
 
 ### Persistenz
-Filterzustand lebt im Screen-State, überlebt Tabwechsel, wird beim Workspace-Wechsel geleert. Keine URL-Persistenz bis `SHELL-ROUTING-01`. Nutzerdefinierte gespeicherte Sichten sind F6.
+Filterzustand lebt im Screen-State und wird beim Workspace-Wechsel geleert. Keine URL-Persistenz bis `SHELL-ROUTING-01`. Nutzerdefinierte gespeicherte Sichten sind F6.
 
 ---
 
@@ -388,7 +400,7 @@ Vollständig mit Belegen in Shared §14. Für diesen Screen:
 | **TASK-QUERY-01** | **schwerwiegend** | keine Systemsichten, keine Termine-Ansicht, keine Suche, keine Zähler, kein Objekt-Rollup, keine Namensauflösung |
 | **TASK-ASSIGNEE-DIRECTORY-01** | Arbeit lässt sich nicht verteilen | nur „mir zuweisen" |
 | **TASK-ENTITY-REGISTRY-01** | Kontextauswahl unvollständig | kein Dokument-, kein Bewertungsbezug |
-| **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen-Tab bleibt leer | keine wiederkehrenden Aufgaben |
+| **TASK-SCHEDULER-01 (DEBT-009)** | liefert Vorlagen-Aggregat **und** Vorlagen-Tab | in V1 gibt es Vorlagen überhaupt nicht — kein Tab, kein Katalog, keine Erzeugung |
 | **PERMISSION-CATALOG-02** | Test- und Staging-Nachweis | Negativtests „ohne `task.manage`" nicht fahrbar |
 | A15 (Core) | Routen, Provider, Fehlerklassifizierung | kein Deep Link, keine stabile `mutationId` |
 
@@ -432,6 +444,7 @@ Kein Gap wird in diesem Screen-PR implementiert (Master Plan §8).
 - Alle Zustände aus §10 an den dort genannten Keys, hell und dunkel.
 - Drei Viewports (390/1024/1440) plus 320-px-Boden ohne Overflow.
 - Board erscheint auf Mobil nicht; Termine-Ansicht erscheint nirgends.
+- **Es gibt keine Tab-Leiste und keinen Vorlagen-Einstieg** — weder sichtbar noch deaktiviert (B9).
 - „Erledigt" fehlt bei `open`; „Bearbeiten" ist bei `archived` deaktiviert.
 - Ohne `task.manage`: Primäraktion deaktiviert mit Tooltip, Bulk ausgeblendet.
 - Archivierungsdialog nennt Titel und — bei `generated_key ≠ null` — den Vorlagenhinweis.
@@ -459,7 +472,8 @@ Kein Gap wird in diesem Screen-PR implementiert (Master Plan §8).
 9. Gegeben ein Realtime-Reconnect (bis zu drei Reconcile-Signale), dann führt die Fläche **genau einen** entprellten Reload aus.
 10. **Die UI zeigt keine Gesamtzahl, keine Fälligkeitssortierung, keinen Fälligkeitsfilter, keinen Prioritätsfilter und kein Suchfeld**, solange `TASK-QUERY-01` nicht gelandet ist — und der Vortäuschungs-Regressionstest (§17) beweist das.
 11. Es gibt kein Feld, keine Kachel und keine Summe für `estimated_cost`.
-12. Nach dem Paket gibt es keinen erreichbaren Einstieg mehr in `tasks_screen.dart` oder `property_tasks_screen.dart`.
+12. **Es gibt keinen Vorlagen-Tab, keinen Vorlagen-Platzhalter und keinen Vorlagen-Leerzustand** — die Fläche kennt in V1 keine Tab-Ebene (B9).
+13. Nach dem Paket gibt es keinen erreichbaren Einstieg mehr in `tasks_screen.dart` oder `property_tasks_screen.dart`.
 
 ---
 
@@ -470,7 +484,7 @@ Kein Gap wird in diesem Screen-PR implementiert (Master Plan §8).
 - Systemsichten, Termine-Ansicht, Suche, Zähler (B1–B5) — erst nach `TASK-QUERY-01`, dann als eigener PR.
 - Zuweisung an andere Personen (B6).
 - Checkliste, Kommentare, Anhänge, Abhängigkeiten (F2–F5).
-- Vorlagen-Engine und Serverjob (B9).
+- Vorlagen vollständig: Aggregat, Tab, Katalog, manuelles Instanziieren, Serverjob (B9).
 - Export (F-Kandidat), Aufgabenkennzahlen im Dashboard (F8).
 - Löschen der Legacy-Dateien und Entfernen von `GlobalPage.taskTemplates` — Hygiene-Folgepaket (`UI-HYGIENE-02`) nach nachgewiesenem Harvest.
 - Änderungen an Schema, RLS, RPCs, Permission-Katalog oder Seiten-Mapping.
@@ -500,10 +514,9 @@ Die sechs Entscheidungen sind in Shared §20 verbindlich geschlossen. Wirkung au
 1. Präsentationsschicht für die Task-Fläche; Controller auf `TaskRepository` (bereits über `taskRepositoryProvider` verdrahtet).
 2. Liste + `NxSplitView`-Detail + Board (vier status-gebundene Keysets), Filterleiste im gedeckten Umfang, Zustände nach §10.
 3. `TaskCreateDialog` als exportierter geteilter Dialog; Umstellung von `OperationsAlertsPanel` darauf.
-4. Vorlagen-Tab als Fläche mit ehrlichem Leerzustand.
-5. Bulk-Aktionen mit Teilerfolgsbericht.
-6. Property-Workspace-Tab bindet dieselbe Fläche mit vorbelegtem Kontext.
-7. Vortäuschungs-Regressionstest (§17).
+4. Bulk-Aktionen mit Teilerfolgsbericht.
+5. Property-Workspace-Tab bindet dieselbe Fläche mit vorbelegtem Kontext.
+6. Vortäuschungs-Regressionstest (§17), inkl. Nachweis, dass keine Tab-Ebene und kein Vorlagen-Einstieg existiert.
 
 ### Muss vorher auf `main` sein
 - `UX-FOUNDATION-IMPL-01` — **erledigt, `791849f`**.

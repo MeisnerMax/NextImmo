@@ -13,7 +13,7 @@
 - Dependencies: **Shared §** (normativ) · `UX-FOUNDATION-IMPL-01` (**auf main, `791849f`**) · Inkrement A15 aus `TASKS-NOTIFICATIONS-CORE-01`
 - Related screens: `task_center.md`, Maintenance-Tickets, Operations-Alerts, Compliance-Dashboard, Property-Workspace
 
-**Basis der Analyse:** `origin/main` `bf0693c` (2026-08-28), neu gefetcht und verifiziert.
+**Basis der Analyse:** `origin/main` `bf0693c` (Commit 2026-08-29; final verifiziert 2026-09-01), neu gefetcht und verifiziert.
 
 Abschnittsnummern folgen `SCREEN_SPEC_TEMPLATE.md`. „Shared §n" verweist auf `docs/product/screens/tasks_notifications_shared.md`.
 

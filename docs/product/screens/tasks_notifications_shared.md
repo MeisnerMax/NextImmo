@@ -15,7 +15,7 @@
 - Dependencies: `UX-FOUNDATION-IMPL-01` (**auf main, `791849f`**) · `TASK-QUERY-01`, `TASK-ENTITY-REGISTRY-01`, `TASK-SCHEDULER-01`, `PERMISSION-CATALOG-02` (Backend, separat) · `SHELL-ROUTING-01` (Minimalrouten reiten hier mit)
 - Related screens: `task_center.md`, `notification_inbox.md`, `admin_members.md` (Mitgliederverzeichnis), Maintenance-Tickets, Operations-Alerts, Documents-Workspace, Property-Workspace
 
-**Basis der Analyse:** `origin/main` `bf0693c` (2026-08-28), neu gefetcht und verifiziert. Alle Aussagen zu Contracts, RPCs, RLS, Policies und Tests sind gegen Code und Migrationen geprüft, nicht aus Dokumenten übernommen. Die Vorgängerfassung stand auf `46effaba`; seither sind `UX-FOUNDATION-IMPL-01` (`791849f`), die `ADMIN-MEMBERS-V2`-Spec (`de8e979`) und deren Paket A1 (`53c9eb9`, PR #44) gelandet und in dieser Fassung berücksichtigt.
+**Basis der Analyse:** `origin/main` `bf0693c` (Commit 2026-08-29; final verifiziert 2026-09-01), neu gefetcht und verifiziert. Alle Aussagen zu Contracts, RPCs, RLS, Policies und Tests sind gegen Code und Migrationen geprüft, nicht aus Dokumenten übernommen. Die Vorgängerfassung stand auf `46effaba`; seither sind `UX-FOUNDATION-IMPL-01` (`791849f`, PR #43), die `ADMIN-MEMBERS-V2`-Spec (`de8e979`) und deren Paket A1 (`53c9eb9`, PR #44, gemergt 2026-08-29) gelandet und in dieser Fassung berücksichtigt.
 
 **Sprachkonvention:** Abschnittsüberschriften englisch (die beiden Screen-Specs bleiben so gegen `SCREEN_SPEC_TEMPLATE.md` diffbar), Fließtext deutsch wie Screen Map, Tracker und `admin_members.md`; Bezeichner, Wire-Namen, Permission-Keys und UI-Copy wörtlich.
 
@@ -46,7 +46,7 @@ Maßstab ist ausschließlich: **trägt der heute existierende Contract das Inkre
 | **A7** | Kontextbindung auf die neun Registry-Werte; Objekt-Scope über das Entity-Paar | `tasks.entity_type`/`entity_id`, `document_link_entity_type` |
 | **A8** | Bulk-Aktionen auf A5/A6, max. 50 Zeilen, Teilerfolgsbericht | N Einzel-RPCs mit je eigener `mutationId`/`expectedVersion` |
 | **A9** | Board-Ansicht als **vier status-gebundene Keysets** (`open`/`in_progress`/`blocked`/`done`), je Spalte eigenes „Weitere laden" | vier `status.eq`-Abfragen; keine erfundenen Spaltensummen |
-| **A10** | Vorlagen-Tab als ehrliche Fläche mit Leerzustand (nur lesen, nichts schreiben) | keine Schreiboperation nötig |
+| ~~A10~~ | **gestrichen (QC 2026-09-01).** War „Vorlagen-Tab als Fläche mit Leerzustand". Eine leere UI-Fläche ist nicht contract-getragen: „keine Schreiboperation nötig" ersetzt kein Aggregat. Vorlagen sind vollständig **BLOCKED (B9)**. Die Nummer bleibt bewusst unbesetzt, damit A11–A15 stabil bleiben. | — |
 | **A11** | Notification-Inbox Grundfläche: Feed, `unreadOnly`, Zeitgruppierung, Split-Detail, Zustände | `notificationFeed` / `NotificationFeedQuery` |
 | **A12** | Read-Semantik: einzeln als gelesen markieren, idempotent, `not_found`-Behandlung | `mark_notification_read` |
 | **A13** | Echte Deep Links für die auflösbaren Ziele + Route `/tasks/:taskId` | `entity_type`/`entity_id`; Routen reiten auf A14 |
@@ -65,7 +65,7 @@ Maßstab ist ausschließlich: **trägt der heute existierende Contract das Inkre
 | **B6** | Aufgabe **an andere Personen** zuweisen | **TASK-ASSIGNEE-DIRECTORY-01** — das einzige Mitgliederverzeichnis (`list_workspace_members`, `20260722210000_p2_d01_member_directory.sql:37`) ist auf `security.manage` gegated; ein `task.manage`-Inhaber ohne Adminrecht bekommt `forbidden`. Serverseitig ist `assigned_to` schreibbar, aber es gibt keine für ihn lesbare Auswahlquelle. |
 | **B7** | Task ↔ Document (in beide Richtungen) | **TASK-ENTITY-REGISTRY-01** — `document_link_entity_type` (`20260723100000:73-83`) hat weder den Wert `document` noch `task` |
 | **B8** | Task ↔ Valuation Case | **TASK-ENTITY-REGISTRY-01** — kein Wert `valuation_case`; `scenario` ist ein anderes Aggregat |
-| **B9** | Wiederkehrende Aufgaben, Vorlagenerzeugung, „Jetzt erzeugen" | **TASK-SCHEDULER-01 / DEBT-009** — kein `supabase/functions`, kein `pg_cron`, kein `pg_net`, kein Vorlagen-Aggregat |
+| **B9** | **Vorlagen insgesamt**: Vorlagenkatalog, Vorlagen-Tab als sichtbare Fläche, manuelles Instanziieren, „Jetzt erzeugen", wiederkehrende Aufgaben | **TASK-SCHEDULER-01 / DEBT-009** — es gibt **kein Vorlagen-Aggregat, keinen Template-Read-Contract, keinen Template-Write-Contract und keinen Scheduler**; kein `supabase/functions`, kein `pg_cron`, kein `pg_net`. In V1 gibt es deshalb **keinen sichtbaren Vorlagen-Tab**, keinen Platzhalter und keinen Leerzustand, der eine verfügbare Funktion suggeriert |
 | **B10** | Fristereignisse `task.due_soon`, `task.overdue`, `task.digest.due`, `document.expiring` | **TASK-SCHEDULER-01** — kein Emitter existiert |
 | **B11** | **Alle** Notification-Emitter aus diesem Paket (`task.assigned`, `task.unassigned`, `task.blocked`, `task.done`) | **NOTIFICATION-EMITTER-01** + **PERMISSION-CATALOG-02** — `create_notification` verlangt `notification.manage` **beim Auslöser** (`20260723130000:1326-1331`). Entweder bekäme jeder Aufgaben-Bearbeiter das Recht, beliebige Personen anzuschreiben, oder der Fan-Out gehört serverseitig in `create_task`/`transition_task_status`. Letzteres ist die richtige Lösung und ein Backend-Paket. |
 | **B12** | `maintenance.ticket_assigned` | **MAINTENANCE-PARITY-01** (fremdes Paket) |
@@ -97,14 +97,14 @@ Maßstab ist ausschließlich: **trägt der heute existierende Contract das Inkre
 
 | Inkrement | braucht auf `main` | braucht Backend-Paket | blockiert |
 |---|---|---|---|
-| A15 (Core) | `UX-FOUNDATION-IMPL-01` ✅ `791849f` | — | A1–A14 |
-| A1–A10 (Task Center) | A15 | — | — |
+| A15 (Core) | `UX-FOUNDATION-IMPL-01` ✅ `791849f` | — | A1–A9, A11–A14 |
+| A1–A9 (Task Center) | A15 | — | — |
 | A11–A14 (Inbox) | A15 | — | — |
 | A13 Deep Links | A15 (Routen) | — | — |
 | B1–B5 | A1, A2 | **TASK-QUERY-01** | „My Work"-Produktwert |
 | B6 | A3/A4 | **TASK-ASSIGNEE-DIRECTORY-01** | echte Arbeitsverteilung |
 | B7, B8 | A7 | **TASK-ENTITY-REGISTRY-01** | Dokument-/Bewertungsbezug |
-| B9, B10 | A10 | **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen, Fristen |
+| B9, B10 | A1 (Fläche existiert) | **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen komplett (Katalog, Tab, Erzeugung), Fristereignisse |
 | B11 | A11 | **NOTIFICATION-EMITTER-01** (+ PERMISSION-CATALOG-02) | Inbox mit Inhalt |
 | B14, B15, B16 | A11 | NOTIFICATION-READ-02 / -QUERY-01 / -REALTIME-01 | Komfort, Live-Frische |
 | B17 | alle | **PERMISSION-CATALOG-02** | Staging-Abnahme |
@@ -141,7 +141,7 @@ Die kursiven Verweise zeigen, wie stark die Rollenjobs an `TASK-QUERY-01` und `T
 
 - Sidebar „Tagesgeschaeft → Aufgaben" (`GlobalPage.tasks`, `routeKey daily_business.tasks`, `app_navigation.dart:456-461`) — unverändert.
 - Sidebar „Start → Mitteilungen" (`GlobalPage.notifications`, `routeKey start.notifications`, `:402-408`) — unverändert.
-- `GlobalPage.taskTemplates` verliert seine eigene Sidebar-Destination und wird Tab im Task Center (Screen Map: `MERGE(tasks)`). Der Enum-Wert bleibt, damit `app_navigation.dart` exhaustiv bleibt; seine Entfernung ist ein Hygiene-Folgepaket (§19).
+- `GlobalPage.taskTemplates` verliert seine eigene Sidebar-Destination (Screen Map: `MERGE(tasks)`). **Der Zielort ist ein Tab im Task Center — der aber erst mit `TASK-SCHEDULER-01` entsteht (B9); V1 hat keinen Vorlagen-Tab.** Der Enum-Wert bleibt bis dahin bestehen, damit `app_navigation.dart` exhaustiv bleibt; seine Entfernung ist ein Hygiene-Folgepaket (§19).
 - Aus Domänenpanels wird über **einen** geteilten Dialog eine Aufgabe erzeugt (§5.2).
 - Aus der Inbox springt jede Mitteilung auf ihr Ziel (Auflösung in `notification_inbox.md` §9).
 
@@ -362,7 +362,9 @@ Die zehn Standardvorlagen (`task_templates_screen.dart:831-1002`) sind echtes Do
 | Sanierung – Beauftragung | asset_property | renovation | bauleitung | project | high | none | +7 |
 | Sanierung – Abnahme | asset_property | renovation | bauleitung | project | high | none | +3 |
 
-Je 3–4 Checklistenpunkte in deutscher Fachsprache. **Extraktion als Fixture ist Aufgabe von `TASK-SCHEDULER-01`, bevor der Legacy-Screen gelöscht wird.** Sieben haben `recurrence_rule = 'none'` und konnten vom Legacy-Generator nie erzeugt werden (`task_generation_service.dart:33-35`) — sie sind faktisch ein Katalog zum manuellen Instanziieren.
+Je 3–4 Checklistenpunkte in deutscher Fachsprache. Sieben haben `recurrence_rule = 'none'` und konnten vom Legacy-Generator nie erzeugt werden (`task_generation_service.dart:33-35`) — sie sind faktisch ein Katalog zum manuellen Instanziieren.
+
+**Bewahrungspflicht (QC 2026-09-01, verbindlich):** Diese Tabelle samt Checklisteninhalten ist der einzige verbleibende Ort dieses Domänenwissens, seit der Vorlagen-Tab aus V1 gestrichen wurde (B9). Sie **darf nicht verloren gehen**. `TASK-SCHEDULER-01` übernimmt sie in das Vorlagen-Aggregat, **bevor** `UI-HYGIENE-02` `task_templates_screen.dart` löscht; die Reihenfolge ist im Tracker als Blocker abgebildet. Kein anderes Paket darf den Legacy-Screen vorher entfernen.
 
 ---
 
@@ -400,7 +402,7 @@ Hinweis zur Testlage: `test/ui/navigation/app_navigation_test.dart` prüft nur, 
 | „Neue Aufgabe" | **deaktiviert** mit Tooltip „Benötigt task.manage" |
 | Zeilenaktionen Status/Bearbeiten | **deaktiviert** |
 | Bulk-Aktionen | **ausgeblendet** |
-| Vorlagen-Tab | lesbar mit `task.read` (V1 schreibt ohnehin nichts) |
+| Vorlagen-Tab | existiert in V1 nicht (B9); mit `TASK-SCHEDULER-01` gilt: lesen `task.read`, mutieren `task.manage` |
 | „Als gelesen markieren" | immer erlaubt |
 | Fremde Mitteilung | erscheint nicht; RPC darauf → `not_found` |
 
@@ -433,7 +435,7 @@ Referenz: monday **Work Management**, öffentliche Produktdokumentation (Stand A
 | 15 | **Bell notifications** (Tabs, Häkchen, Badge, Sprung ins Item) | **ADOPT (Struktur)** | A11–A14 | Sprungziel-Pflicht ist genau das, was heute fehlt. Tabs in V1 auf „Alle/Ungelesen" reduziert (B15) |
 | 16 | **Notification settings** (persönlich × Board) | **ADAPT** | **F7** | zweistufig richtig, zweite Achse bei uns Ereignisart × Objekt. Kein Contract. V1 kompensiert durch einen sehr schmalen Katalog statt Stummschalter |
 | 17 | **Automations** (Trigger → Bedingung → Aktion) | **ADAPT (konzeptionell)** | §10 | Grammatik übernommen, Ausführung ist Backend. Ein Client-Runner wäre der Legacy-Fehler in neu |
-| 18 | **Recurring items** | **ADOPT (Konzept)** | **B9** | `generated_key` + partieller Unique-Index ist die Idempotenz-Hälfte davon und existiert; der Scheduler fehlt |
+| 18 | **Recurring items** + Vorlagenkatalog | **ADOPT (Konzept)** | **B9** | `generated_key` + partieller Unique-Index ist die Idempotenz-Hälfte davon und existiert; der Scheduler fehlt |
 | 19 | **Board views** (12 Ansichten) | **ADAPT auf 2 in V1** | A2/A9 | V1: **Liste** + **Board**. **Termine** ist B2. Kein Gantt, Workload, Map, Form, Pivot — jedes bräuchte Daten, die es nicht gibt |
 | 20 | **Saved views** | **ADAPT → Systemsichten** | **B1/F6** | feste Systemsichten statt nutzerdefinierter; beide brauchen TASK-QUERY-01 bzw. einen Preferences-Contract |
 | 21 | **Dashboards** | **REJECT hier** | **F8** | Aufgaben-Kennzahlen gehören ins Dashboard-Paket (P2-D09) |
@@ -543,7 +545,7 @@ Fünf getrennt geführte Pakete. Jedes ist gegen Code/Migrationen belegt; keins 
 |---|---|---|---|
 | **TASK-QUERY-01** | `due_at`-Filter und -Sortierung, Mehrfachstatus (oder passende serverseitige Semantik), Priorität, `assigned_to is null`, Entity-Scope inkl. Objekt-Rollup (denormalisierte `property_id`), Titelsuche, Zähl-RPC, `search_index`-Befüllung für Tasks | `platform_repository.dart:120-136`, `supabase_platform_repository_adapter.dart:71-104`, `tasks_entity_idx` | B1–B5 |
 | **TASK-ENTITY-REGISTRY-01** | Registry-Werte `document` und `valuation_case`; `task` als Link-Ziel für `link_document` | `20260723100000:73-83`, `platform_entity_type.dart:19-28`, Parity-Test `platform_entity_type_parity_test.dart` | B7, B8 |
-| **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen-Aggregat + serverseitiger Scheduler für wiederkehrende Aufgaben, Fristereignisse und geplante Mitteilungen; vorher Harvest der zehn Standardvorlagen | kein `supabase/functions`, kein `pg_cron`, kein `pg_net`; `docs/architecture/phase_0/04_duplicate_and_debt_register.md:83` | B9, B10 |
+| **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen-Aggregat (Read- **und** Write-Contract) + Vorlagen-Tab als UI-Fläche + manuelles Instanziieren + serverseitiger Scheduler für wiederkehrende Aufgaben, Fristereignisse und geplante Mitteilungen; **Voraussetzung: Übernahme der zehn geharvesteten Standardvorlagen aus §7.6, bevor der Legacy-Screen gelöscht wird** | kein Vorlagen-Aggregat, kein Template-Contract, kein `supabase/functions`, kein `pg_cron`, kein `pg_net`; `docs/architecture/phase_0/04_duplicate_and_debt_register.md:83` | B9, B10 |
 | **PERMISSION-CATALOG-02** | Client-/Server-Vokabular zusammenführen (`rbac.dart` kennt `task.manage`/`notification.*` nicht, der Server kennt `task.create/assign/resolve` nicht) **und** Rollen jenseits `admin` seeden | `supabase/seed.sql:120-160`, `lib/core/security/rbac.dart:17-133` | B11 (mit), B17 |
 | **NOTIFICATION-EMITTER-01** | serverseitiger Fan-Out in `create_task`/`transition_task_status` samt Empfängerableitung, AS-1-Filter und Dedupe-Fenster; Voraussetzung: Objektverantwortlichkeit als Datum für spätere Ereignisse | `create_notification` verlangt `notification.manage` beim Auslöser (`20260723130000:1326-1331`); keine Zuständigkeitsspalte in `properties`/`workspace_memberships` | B11 |
 
@@ -662,7 +664,7 @@ Alle sechs Entscheidungen sind am 2026-08-28 verbindlich geschlossen. Sie sind a
 5. Geteilte Bausteine: `task_badges.dart`, `TaskCategory`, Fehler-Mapping (§12), Mapping-Test für `cloudReadPermissionForPage`.
 6. **`cloudReadinessForPage` bleibt zunächst auf `migrationRequired`** — der Flip auf `ready` gehört an das Ende von T-2/T-3, sonst wird eine leere Fläche erreichbar.
 
-**Welle T-2 — Task Center (A1–A10)** und **Welle T-3 — Inbox (A11–A14)** dürfen nach T-1 parallel laufen (OD-2), in getrennten Branches/Worktrees (Master Plan §6).
+**Welle T-2 — Task Center (A1–A9)** und **Welle T-3 — Inbox (A11–A14)** dürfen nach T-1 parallel laufen (OD-2), in getrennten Branches/Worktrees (Master Plan §6).
 
 **Parallel und unabhängig, Backend-first (OD-2):** `TASK-QUERY-01`, danach `NOTIFICATION-EMITTER-01`. Beide sind Voraussetzung dafür, dass die Flächen aus T-2/T-3 ihren eigentlichen Produktwert bekommen.
 
