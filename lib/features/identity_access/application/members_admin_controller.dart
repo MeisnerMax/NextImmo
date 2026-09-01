@@ -106,12 +106,17 @@ class MembersAdminState {
     required this.invitationsPhase,
     required this.rolesPhase,
     required this.pendingPhase,
+    this.activityPhase = MembersTabPhase.loading,
     this.actionPhase = MembersActionPhase.idle,
     this.directory = const <WorkspaceMemberDirectoryEntry>[],
     this.roles = const <WorkspaceRole>[],
     this.roleCapabilities = const <WorkspaceRoleCapability>[],
     this.invitations = const <MembershipInvitation>[],
     this.pending = const <PendingInvitationEntry>[],
+    this.activity = const <MembershipAuditEvent>[],
+    this.activityHasMore = false,
+    this.activityLoadingMore = false,
+    this.activityCursor,
     this.refreshing = false,
     this.actionMessage,
     this.actionConflict,
@@ -129,12 +134,19 @@ class MembersAdminState {
   final MembersTabPhase invitationsPhase;
   final MembersTabPhase rolesPhase;
   final MembersPendingPhase pendingPhase;
+
+  /// Aktivität tab (A2): membership audit feed, read via `audit.read`.
+  final MembersTabPhase activityPhase;
   final MembersActionPhase actionPhase;
   final List<WorkspaceMemberDirectoryEntry> directory;
   final List<WorkspaceRole> roles;
   final List<WorkspaceRoleCapability> roleCapabilities;
   final List<MembershipInvitation> invitations;
   final List<PendingInvitationEntry> pending;
+  final List<MembershipAuditEvent> activity;
+  final bool activityHasMore;
+  final bool activityLoadingMore;
+  final MembershipAuditCursor? activityCursor;
 
   /// True while a background "Aktualisieren" pass runs; visible data stays.
   final bool refreshing;
@@ -146,12 +158,17 @@ class MembersAdminState {
     MembersTabPhase? invitationsPhase,
     MembersTabPhase? rolesPhase,
     MembersPendingPhase? pendingPhase,
+    MembersTabPhase? activityPhase,
     MembersActionPhase? actionPhase,
     List<WorkspaceMemberDirectoryEntry>? directory,
     List<WorkspaceRole>? roles,
     List<WorkspaceRoleCapability>? roleCapabilities,
     List<MembershipInvitation>? invitations,
     List<PendingInvitationEntry>? pending,
+    List<MembershipAuditEvent>? activity,
+    bool? activityHasMore,
+    bool? activityLoadingMore,
+    Object? activityCursor = _unchanged,
     bool? refreshing,
     Object? actionMessage = _unchanged,
     Object? actionConflict = _unchanged,
@@ -161,12 +178,20 @@ class MembersAdminState {
       invitationsPhase: invitationsPhase ?? this.invitationsPhase,
       rolesPhase: rolesPhase ?? this.rolesPhase,
       pendingPhase: pendingPhase ?? this.pendingPhase,
+      activityPhase: activityPhase ?? this.activityPhase,
       actionPhase: actionPhase ?? this.actionPhase,
       directory: directory ?? this.directory,
       roles: roles ?? this.roles,
       roleCapabilities: roleCapabilities ?? this.roleCapabilities,
       invitations: invitations ?? this.invitations,
       pending: pending ?? this.pending,
+      activity: activity ?? this.activity,
+      activityHasMore: activityHasMore ?? this.activityHasMore,
+      activityLoadingMore: activityLoadingMore ?? this.activityLoadingMore,
+      activityCursor:
+          identical(activityCursor, _unchanged)
+              ? this.activityCursor
+              : activityCursor as MembershipAuditCursor?,
       refreshing: refreshing ?? this.refreshing,
       actionMessage:
           identical(actionMessage, _unchanged)
@@ -200,6 +225,8 @@ class MembersAdminController extends StateNotifier<MembersAdminState> {
 
   static const manageMembersPermission = 'security.manage';
   static const readRolesPermission = 'workspace.read';
+  static const readAuditPermission = 'audit.read';
+  static const activityPageSize = 50;
 
   static const _aal2Message =
       'Für Mitglieder-Änderungen ist Multi-Faktor-Authentifizierung (AAL2) '
@@ -224,12 +251,16 @@ class MembersAdminController extends StateNotifier<MembersAdminState> {
   int _invitationsGeneration = 0;
   int _rolesGeneration = 0;
   int _pendingGeneration = 0;
+  int _activityGeneration = 0;
 
   bool get canManageMembers =>
       _workspaceId != null && _authorization.can(manageMembersPermission);
 
   bool get canReadRoles =>
       _workspaceId != null && _authorization.can(readRolesPermission);
+
+  bool get canReadAudit =>
+      _workspaceId != null && _authorization.can(readAuditPermission);
 
   bool get canMutate => _canMutate;
 
@@ -239,6 +270,7 @@ class MembersAdminController extends StateNotifier<MembersAdminState> {
       reloadDirectory(),
       reloadInvitations(),
       reloadRoles(),
+      reloadActivity(),
     ]);
   }
 
@@ -252,6 +284,7 @@ class MembersAdminController extends StateNotifier<MembersAdminState> {
       reloadDirectory(background: true),
       reloadInvitations(background: true),
       reloadRoles(background: true),
+      reloadActivity(background: true),
     ]);
     if (!mounted) {
       return;
@@ -450,6 +483,114 @@ class MembersAdminController extends StateNotifier<MembersAdminState> {
           pendingPhase: MembersPendingPhase.error,
           pending: const <PendingInvitationEntry>[],
         );
+    }
+  }
+
+  /// First page of the Aktivität feed (A2). Fails closed client-side without
+  /// `audit.read` — the RLS gate of `audit_events` filters to empty below it,
+  /// and an empty list must never impersonate a permission boundary.
+  Future<void> reloadActivity({bool background = false}) async {
+    final generation = ++_activityGeneration;
+    final workspaceId = _workspaceId;
+    if (workspaceId == null) {
+      state = state.copyWith(
+        activityPhase: MembersTabPhase.idle,
+        activity: const <MembershipAuditEvent>[],
+        activityHasMore: false,
+        activityLoadingMore: false,
+        activityCursor: null,
+      );
+      return;
+    }
+    if (!canReadAudit) {
+      state = state.copyWith(
+        activityPhase: MembersTabPhase.forbidden,
+        activity: const <MembershipAuditEvent>[],
+        activityHasMore: false,
+        activityLoadingMore: false,
+        activityCursor: null,
+      );
+      return;
+    }
+    final keepVisible =
+        background && state.activityPhase == MembersTabPhase.ready;
+    if (!keepVisible) {
+      state = state.copyWith(activityPhase: MembersTabPhase.loading);
+    }
+    final result = await _repository.listMembershipAuditEvents(
+      workspaceId: workspaceId,
+      limit: activityPageSize,
+    );
+    if (!mounted || generation != _activityGeneration) {
+      return;
+    }
+    switch (result) {
+      case MembershipAdminSuccess<MembershipAuditPage>():
+        final page = result.value;
+        state = state.copyWith(
+          activityPhase:
+              page.events.isEmpty
+                  ? MembersTabPhase.empty
+                  : MembersTabPhase.ready,
+          activity: page.events,
+          activityHasMore: page.nextCursor != null,
+          activityLoadingMore: false,
+          activityCursor: page.nextCursor,
+        );
+      case MembershipAdminFailure<MembershipAuditPage>():
+        if (keepVisible) {
+          return;
+        }
+        state = state.copyWith(
+          activityPhase: MembersTabPhase.error,
+          activity: const <MembershipAuditEvent>[],
+          activityHasMore: false,
+          activityLoadingMore: false,
+          activityCursor: null,
+        );
+    }
+  }
+
+  /// Next keyset page of the Aktivität feed ("Weitere laden"). Appends
+  /// id-deduplicated so a page boundary can never repeat an event.
+  Future<void> loadMoreActivity() async {
+    final workspaceId = _workspaceId;
+    final cursor = state.activityCursor;
+    if (workspaceId == null ||
+        cursor == null ||
+        !canReadAudit ||
+        state.activityLoadingMore ||
+        state.activityPhase != MembersTabPhase.ready) {
+      return;
+    }
+    final generation = _activityGeneration;
+    state = state.copyWith(activityLoadingMore: true);
+    final result = await _repository.listMembershipAuditEvents(
+      workspaceId: workspaceId,
+      limit: activityPageSize,
+      before: cursor,
+    );
+    if (!mounted || generation != _activityGeneration) {
+      return;
+    }
+    switch (result) {
+      case MembershipAdminSuccess<MembershipAuditPage>():
+        final page = result.value;
+        final knownIds = state.activity.map((event) => event.id).toSet();
+        final appended = <MembershipAuditEvent>[
+          ...state.activity,
+          ...page.events.where((event) => !knownIds.contains(event.id)),
+        ];
+        state = state.copyWith(
+          activity: appended,
+          activityHasMore: page.nextCursor != null,
+          activityLoadingMore: false,
+          activityCursor: page.nextCursor,
+        );
+      case MembershipAdminFailure<MembershipAuditPage>():
+        // The visible feed stays; the affordance simply becomes tappable
+        // again for a retry.
+        state = state.copyWith(activityLoadingMore: false);
     }
   }
 

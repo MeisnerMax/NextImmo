@@ -17,6 +17,7 @@ import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/identity_access_repository.dart';
 import '../application/members_admin_controller.dart';
 import '../application/membership_admin_repository.dart';
+import 'membership_audit_labels.dart';
 import 'membership_badges.dart';
 import 'widgets/member_dialogs.dart';
 import 'widgets/role_capability_list.dart';
@@ -28,10 +29,10 @@ export 'widgets/member_dialogs.dart'
         AdminMembersRevokeInvitationSubmit,
         AdminMembersUpdateStatusSubmit;
 
-/// ADMIN-AREA-01 A1: the product V2 members administration surface
+/// ADMIN-AREA-01: the product V2 members administration surface
 /// ("Mitglieder", `GlobalPage.adminUsers`, route `/members`), replacing the
-/// reference-slice presentation. Tabs Mitglieder / Einladungen / Rollen;
-/// the Aktivität tab is increment A2, the invite-accept relocation is
+/// reference-slice presentation. Tabs Mitglieder / Einladungen / Rollen /
+/// Aktivität (A2, read-only membership audit); the invite-accept relocation is
 /// package B — until B lands, the own-invitations zone stays functional here.
 class AdminMembersScreen extends ConsumerWidget {
   const AdminMembersScreen({super.key});
@@ -109,6 +110,8 @@ class AdminMembersScreen extends ConsumerWidget {
       onReloadInvitations: controller.reloadInvitations,
       onReloadRoles: controller.reloadRoles,
       onReloadPending: controller.reloadPending,
+      onReloadActivity: controller.reloadActivity,
+      onLoadMoreActivity: controller.loadMoreActivity,
       onInvite: controller.invite,
       onChangeRole: controller.changeRole,
       onUpdateStatus: controller.updateStatus,
@@ -130,6 +133,8 @@ class AdminMembersView extends StatefulWidget {
     required this.onReloadInvitations,
     required this.onReloadRoles,
     required this.onReloadPending,
+    required this.onReloadActivity,
+    required this.onLoadMoreActivity,
     required this.onInvite,
     required this.onChangeRole,
     required this.onUpdateStatus,
@@ -146,6 +151,8 @@ class AdminMembersView extends StatefulWidget {
   final Future<void> Function() onReloadInvitations;
   final Future<void> Function() onReloadRoles;
   final Future<void> Function() onReloadPending;
+  final Future<void> Function() onReloadActivity;
+  final Future<void> Function() onLoadMoreActivity;
   final AdminMembersInviteSubmit onInvite;
   final AdminMembersChangeRoleSubmit onChangeRole;
   final AdminMembersUpdateStatusSubmit onUpdateStatus;
@@ -163,7 +170,7 @@ class _AdminMembersViewState extends State<AdminMembersView>
       'Erfordert Multi-Faktor-Authentifizierung (AAL2). Siehe Hinweis oben.';
 
   late final TabController _tabController = TabController(
-    length: 3,
+    length: 4,
     vsync: this,
   );
 
@@ -253,6 +260,10 @@ class _AdminMembersViewState extends State<AdminMembersView>
                           : 'Einladungen (${_state.invitations.length})',
                 ),
                 const Tab(key: Key('admin-members-tab-roles'), text: 'Rollen'),
+                const Tab(
+                  key: Key('admin-members-tab-activity'),
+                  text: 'Aktivität',
+                ),
               ],
             ),
           ),
@@ -287,6 +298,15 @@ class _AdminMembersViewState extends State<AdminMembersView>
                   padding,
                 ),
                 child: _rolesTab(context),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  padding,
+                  AppSpacing.component,
+                  padding,
+                  padding,
+                ),
+                child: _activityTab(context),
               ),
             ],
           ),
@@ -1350,6 +1370,178 @@ class _AdminMembersViewState extends State<AdminMembersView>
     );
   }
 
+  // --- Aktivität tab (A2, read-only) ---------------------------------------
+
+  Widget _activityTab(BuildContext context) {
+    switch (_state.activityPhase) {
+      case MembersTabPhase.idle:
+        return const NxEmptyState(
+          key: Key('admin-members-activity-idle'),
+          title: 'Kein Arbeitsbereich aktiv',
+          description:
+              'Wähle einen Workspace, um dessen Mitgliederaktivitäten '
+              'einzusehen.',
+          icon: Icons.workspaces_outline,
+        );
+      case MembersTabPhase.loading:
+        return const NxListSkeleton(
+          key: Key('admin-members-activity-skeleton'),
+          rows: 5,
+          rowHeight: 64,
+        );
+      case MembersTabPhase.forbidden:
+        return const NxEmptyState(
+          key: Key('admin-members-activity-forbidden'),
+          title: 'Kein Zugriff auf Aktivitäten',
+          description:
+              'Die Mitgliederaktivitäten benötigen die Berechtigung '
+              '(audit.read).',
+          icon: Icons.lock_outline,
+        );
+      case MembersTabPhase.error:
+        return NxEmptyState.error(
+          key: const Key('admin-members-activity-error'),
+          description:
+              'Die Mitgliederaktivitäten konnten nicht geladen werden.',
+          onRetry: widget.onReloadActivity,
+        );
+      case MembersTabPhase.empty:
+        return const NxEmptyState(
+          key: Key('admin-members-activity-empty'),
+          title: 'Noch keine Mitgliederaktivitäten',
+          description:
+              'Einladungen, Rollenwechsel und Statusänderungen erscheinen '
+              'hier, sobald sie stattfinden.',
+          icon: Icons.history_outlined,
+        );
+      case MembersTabPhase.ready:
+        final actorNames = <String, String>{
+          for (final entry in _state.directory)
+            entry.userId: _displayName(entry),
+        };
+        final roleNames = <String, String>{
+          for (final role in _state.roles) role.id: role.name,
+        };
+        return ListView(
+          key: const Key('admin-members-activity-list'),
+          children: [
+            for (final event in _state.activity)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _activityCard(context, event, actorNames, roleNames),
+              ),
+            if (_state.activityHasMore)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('admin-members-activity-load-more'),
+                  onPressed:
+                      _state.activityLoadingMore
+                          ? null
+                          : widget.onLoadMoreActivity,
+                  icon: const Icon(Icons.expand_more),
+                  label: Text(
+                    _state.activityLoadingMore
+                        ? 'Lädt …'
+                        : 'Weitere Ereignisse laden',
+                  ),
+                ),
+              ),
+          ],
+        );
+    }
+  }
+
+  Widget _activityCard(
+    BuildContext context,
+    MembershipAuditEvent event,
+    Map<String, String> actorNames,
+    Map<String, String> roleNames,
+  ) {
+    final theme = Theme.of(context);
+    final knownLabel = membershipAuditActionLabel(event.action);
+    final target =
+        event.entityType == 'membership_invitation'
+            ? (event.targetEmail ?? '—')
+            : (event.targetUserId == null
+                ? '—'
+                : actorNames[event.targetUserId] ?? event.targetUserId!);
+    final actor =
+        event.actorUserId == null
+            ? 'System'
+            : actorNames[event.actorUserId] ?? event.actorUserId!;
+    final roleChangeDetail =
+        event.action == 'membership.role_change' &&
+                (event.oldRoleId != null || event.newRoleId != null)
+            ? '${_resolveRole(roleNames, event.oldRoleId)} → '
+                '${_resolveRole(roleNames, event.newRoleId)}'
+            : null;
+    return NxCard(
+      key: Key('admin-members-activity-event-${event.id}'),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(membershipAuditActionIcon(event.action)),
+          const SizedBox(width: AppSpacing.component),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xxs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      knownLabel ?? membershipAuditUnknownLabel,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    if (knownLabel == null)
+                      Text(event.action, style: context.dataMonoStyle),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  event.entityType == 'membership_invitation'
+                      ? 'Einladung: $target'
+                      : 'Mitglied: $target',
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (roleChangeDetail != null)
+                  Text(
+                    roleChangeDetail,
+                    style: theme.textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Von $actor · ${_formatDateTime(event.createdAt)}',
+                  style: theme.textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (event.reason != null && event.reason!.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                    child: Text(
+                      'Grund: ${event.reason}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _resolveRole(Map<String, String> roleNames, String? roleId) {
+    if (roleId == null) {
+      return '—';
+    }
+    return roleNames[roleId] ?? roleId;
+  }
+
   // --- Shared helpers -------------------------------------------------------
 
   String _displayName(WorkspaceMemberDirectoryEntry entry) {
@@ -1371,4 +1563,11 @@ String _formatDate(DateTime timestamp) {
   final day = local.day.toString().padLeft(2, '0');
   final month = local.month.toString().padLeft(2, '0');
   return '$day.$month.${local.year}';
+}
+
+String _formatDateTime(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${_formatDate(timestamp)} $hour:$minute';
 }
