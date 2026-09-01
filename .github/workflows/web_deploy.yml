@@ -280,19 +280,17 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Preview deployment: $url"
 
-      # A stable staging address, updated to point at each newest preview. This
-      # step is inert until an owner sets the repository variable
-      # VERCEL_STAGING_ALIAS to a proven, free *.vercel.app host -- so the first
-      # ever deploy cannot fail here for lack of a stable address. No custom
-      # domain, no DNS.
+      # Keep one stable staging URL that always follows the newest green main
+      # preview. The existing Vercel main-branch alias is safe for this purpose:
+      # it is not the production alias and it already belongs to this project.
+      # A repository variable may override it later without changing this file.
       - name: Point the stable staging alias at this preview
-        if: vars.VERCEL_STAGING_ALIAS != ''
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_APP }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-          STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS }}
+          STAGING_ALIAS: ${{ vars.VERCEL_STAGING_ALIAS || 'appneximmode-git-main-meisners-projects.vercel.app' }}
         run: |
           # Same as the deploy step: authentication via the VERCEL_TOKEN
           # environment variable only, never as an argument. --scope carries the
@@ -301,8 +299,3 @@ jobs:
           npx --yes "vercel@${VERCEL_CLI_VERSION}" alias set "$DEPLOYMENT_URL" "$STAGING_ALIAS" \
             --scope="$VERCEL_ORG_ID"
           echo "Stable staging alias $STAGING_ALIAS -> $DEPLOYMENT_URL"
-
-      - name: Note when no stable alias is configured yet
-        if: vars.VERCEL_STAGING_ALIAS == ''
-        run: |
-          echo "::notice::No stable staging alias configured; set the repository variable VERCEL_STAGING_ALIAS to a proven *.vercel.app host to enable it. Preview URL: ${{ steps.deploy.outputs.url }}"
