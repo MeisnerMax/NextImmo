@@ -11,6 +11,7 @@ This directory is the persistent source of truth for the planned NexImmo screen 
 5. When available: `docs/product/PRODUCT_SCREEN_MAP.md`
 6. When available: `docs/product/PRODUCT_RESTORE_TRACKER.md`
 7. For a specific screen: `docs/product/screens/<screen>.md`
+8. For Valuation work: `docs/product/VALUATION_METHOD_GOVERNANCE.md` is the binding method and terminology decision.
 
 A new ChatGPT or Claude chat must assume it has **no prior conversational context**. It must read the relevant repo documents and current code before making product, architecture, or implementation decisions.
 
