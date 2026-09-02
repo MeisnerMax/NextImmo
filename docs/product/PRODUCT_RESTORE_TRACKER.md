@@ -8,7 +8,7 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 
 | Paket | Inhalt | Planung | Implementierung | Staging E2E |
 |---|---|---|---|---|
-| UX-FOUNDATION-IMPL-01 | Foundation §18: NxLiveUpdatesNotice, NxListSkeleton, splitViewMinWidth/NxSplitView, NxNotice, Retry-Sweep, Landing→properties | spec_approved | merged (`3a11b09`, 2026-08-28) | todo |
+| UX-FOUNDATION-IMPL-01 | Foundation §18: NxLiveUpdatesNotice, NxListSkeleton, splitViewMinWidth/NxSplitView, NxNotice, Retry-Sweep, Landing→properties | spec_approved | merged (2026-08-28, `791849f`, PR #43, Merge `3a11b09`) | todo |
 | UI-HYGIENE-01 | 12 Orphans + toter Legacy-Shell-Ast entfernen (Liste: Screen Map §2 Orphans); Helper-Umzüge (propertyTypeOptions, operations_detail_support prüfen) | todo | todo | n/a (Test-/Analyze-Beweis) |
 | REALTIME-DEGRADED-WIRING-01 | Degraded-Flag je Domäne (party, document, leasing, maintenance, valuation) bis in die Panels + NxLiveUpdatesNotice | todo | todo | todo |
 | HELP-LINKS-01 | Help-Ziele nach cloudReadinessForPage filtern | n/a (trivial) | todo | n/a |
@@ -23,10 +23,33 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 | PROPERTY-MEDIA-DATA-01 (Backend-Gap) | privates Property-Media-/Titelbild-Contract; Documents nicht zweckentfremden | — | blocked(product/contract/security decisions) | blocked(contract/security decision) | todo |
 | PROPERTY-CREATE-01 | 12-Schritt-Wizard rehosten | REDESIGN | blocked(PROPERTY-DATA-02) | blocked | todo |
 | VALUATION-REHOST-01 | Property-Queue → Case-Detail; vorhandene Engine/Factors/Reports/Variants/Lifecycle, kein Overview-„aktuell“-Heuristik | MERGE | spec_approved (`screens/PROPERTY_VALUATION_V2.md`, 2026-08-28) | todo | todo |
-| TASKS-NOTIFICATIONS-01 | Tasks + Property-Tasks (eine UI) + Notifications auf platform_audit_jobs; Templates als Tab; Generierung serverseitig (DEBT-009) | REBUILD/MERGE | Property-Task-Teil spec_approved (`screens/PROPERTY_OPERATIONS_V2.md`); Gesamtpaket todo | todo | todo |
+| TASKS-NOTIFICATIONS-01 | Klammerpaket: Tasks + Property-Tasks (eine UI) + Notifications auf platform_audit_jobs. Vorlagen (Tab, Katalog, Generierung) sind **nicht** Teil von V1, sondern vollständig `TASK-SCHEDULER-01` (DEBT-009). Aufgeteilt in die drei Unterpakete darunter; **nicht pauschal freigegeben** — Teilumfänge sind blockiert, siehe `screens/tasks_notifications_shared.md` §0.2 | REBUILD/MERGE | teil-approved (2026-08-28; 6 Entscheidungen geschlossen; Property-Task-Teil zusätzlich spec_approved in `screens/PROPERTY_OPERATIONS_V2.md`) | todo | blocked(PERMISSION-CATALOG-02) |
+| ├ TASKS-NOTIFICATIONS-CORE-01 | Inkrement A15: Provider `NotificationPort`/`PlatformQueryInvalidationSource`, Routen `/tasks`, `/tasks/:id`, `/notifications`, Fehlerklassifizierung `forbidden` vs. `infrastructureFailure`, stabile `mutationId` (+ Nachziehen `operations_alerts_controller`), Mapping-Test `cloudReadPermissionForPage` → Spec `screens/tasks_notifications_shared.md` | — | spec_approved (2026-08-28) | todo | n/a (Testbeweis) |
+| ├ TASK-CENTER-01 | Eine Task-UI (Workspace + Objektkontext), Liste, Board (4 status-gebundene Keysets), CRUD/Status/„mir zuweisen", Bulk → Spec `screens/task_center.md`. **Ohne** Systemsichten/Termine/Suche/Zähler **und ohne Vorlagen-Tab** (alles blocked) | REBUILD/MERGE | spec_approved (2026-08-28, inkrementweise) | blocked(TASKS-NOTIFICATIONS-CORE-01) | blocked(PERMISSION-CATALOG-02) |
+| └ NOTIFICATION-INBOX-01 | Adressierte Inbox, echte Deep Links, Read-Semantik, Glocken-Badge → Spec `screens/notification_inbox.md`. **Emitter sind blockiert** — die Fläche bleibt ohne `NOTIFICATION-EMITTER-01` leer | REBUILD | spec_approved (2026-08-28, inkrementweise) | blocked(TASKS-NOTIFICATIONS-CORE-01) | blocked(NOTIFICATION-EMITTER-01, PERMISSION-CATALOG-02) |
 | MAINTENANCE-PARITY-01 | DTO-/RPC-Parität für Ticket/CapEx Create/Read/Update/Transition; Currency aus Daten; kein Delete/Document-Link/Notification im ersten Inkrement | KEEP+MERGE | spec_approved (`screens/PROPERTY_OPERATIONS_V2.md`, 2026-08-28) | todo | todo |
 | DOCUMENTS-COMPLETE-01 | Property-Register/Requirements rehosten; Registry-Flächen workspace-weit separat; Media-Gap bleibt | KEEP+MERGE+REBUILD | Property-Teil spec_approved (`screens/PROPERTY_DOCUMENTS_V2.md`); Registry-Teil todo | todo | todo |
 | ADMIN-AREA-01 | Admin-Workspace um ReferenceMembersScreen; UsersScreen-Harvest+REMOVE; Umzug aus reference_slice/ | KEEP+REMOVE | spec_approved (2026-08-28, `docs/product/screens/admin_members.md`; inkl. Foundation-AMD-001 „Mitglieder"; Paket B Invite-Accept → Core/Auth/Gate) | A1 implemented (2026-08-28, PR #44 `feature/admin-members-v2-a1`; A2 Aktivität + Paket B offen) | todo |
+
+### Backend-Gaps aus TASKS-NOTIFICATIONS-01 (eigene Pakete, Master Plan §8)
+
+Jeder Eintrag ist gegen Code/Migrationen belegt; Definitionen und Belege in `screens/tasks_notifications_shared.md` §14. Diese Pakete werden **nicht** in Screen-PRs gelöst.
+
+| Paket | Inhalt | Blockiert | Planung | Implementierung |
+|---|---|---|---|---|
+| **TASK-QUERY-01** | serverseitige Due-/Status-/Sortier-Semantik für My Work: `due_at`-Range/Filter, mehrere Statuswerte bzw. passende serverseitige Semantik, `assigned_to`, Entity-Scope (denormalisierte `property_id`), definierte Sortierung nach Fälligkeit; dazu Titelsuche, Zähl-RPC, `search_index`-Befüllung für Tasks | Systemsichten, Termine-Ansicht, Suche, Zähler, Objekt-Rollup, Namensauflösung (auch 4 Deep-Link-Ziele der Inbox) | todo | todo |
+| **TASK-ENTITY-REGISTRY-01** | `document` und `valuation_case` als erlaubte Entity-Targets in `public.document_link_entity_type`; `task` als Link-Ziel für `link_document`; Parity-Test nachziehen | Task ↔ Document, Task ↔ Valuation Case | todo | todo |
+| **TASK-SCHEDULER-01 (DEBT-009)** | Vorlagen-Aggregat (Read- **und** Write-Contract) + Vorlagen-Tab als UI-Fläche + manuelles Instanziieren + serverseitiger Scheduler: recurring tasks, deadline events, scheduled notifications. Heute existiert weder ein Template-Contract noch `supabase/functions`/`pg_cron`/`pg_net`. **Muss die zehn Standardvorlagen aus `screens/tasks_notifications_shared.md` §7.6 übernehmen, bevor `UI-HYGIENE-02` den Legacy-Screen löscht.** | Vorlagenkatalog, Vorlagen-Tab, „Jetzt erzeugen", wiederkehrende Aufgaben, Frist-/Sammelereignisse | todo | todo |
+| **PERMISSION-CATALOG-02** | Client-/Server-Permission-Vokabular zusammenführen (`rbac.dart` kennt `task.manage`/`notification.*` nicht; Server kennt `task.create/assign/resolve` nicht) **und** Rollen jenseits `admin` seeden | Nicht-Admin-Staging-E2E; Empfängerrechte `notification.read`; mittelbar die Notification-Emitter | todo | todo |
+| **NOTIFICATION-EMITTER-01** | serverseitiger Fan-Out in `create_task`/`transition_task_status` inkl. Empfängerableitung, Self-Notify-Filter und Dedupe-Fenster. Grund: `create_notification` verlangt `notification.manage` **beim Auslöser** — ein Client-Emitter wäre entweder zu mächtig oder am falschen Ort | alle V1-Ereignisse; ohne dieses Paket bleibt die Inbox leer | todo | todo |
+| TASK-ASSIGNEE-DIRECTORY-01 | für `task.manage`-Inhaber lesbares Mitgliederverzeichnis; heute nur `list_workspace_members` unter `security.manage` | Zuweisung an andere Personen | todo | todo |
+| NOTIFICATION-READ-02 | Sammel-Lesen („Alle als gelesen markieren") | Aufräumen eines vollen Posteingangs | todo | todo |
+| NOTIFICATION-QUERY-01 | Feed-Filter nach `kind`, `entity`, Zeitraum, Suche | Inbox-Filterleiste | todo | todo |
+| NOTIFICATION-REALTIME-01 | empfängergenaues Wake (`notification.fanned_out` trägt weder `aggregate_id` noch Empfänger; ohne `notification.read` gar kein Signal) | Live-Frische der Inbox | todo | todo |
+| NOTIFICATION-RETENTION-01 | `expires_at`, Dedupe-Fenster, Retention-Job — Backend/Governance. Nach Entscheidung OD-1 **kein Blocker** für Task Center und Inbox | Verfall als Produktverhalten | todo | todo |
+| UI-HYGIENE-02 | Löschung der Legacy-Task-/Notification-Dateien (`tasks_screen`, `task_templates_screen`, `property_tasks_screen`, `tasks_repo`, `notifications_screen`, `notifications_repo`, `task_generation_service`, `startup_task_service`) **nach** nachgewiesenem Harvest; Entfernen des Enum-Werts `GlobalPage.taskTemplates` | — | todo | blocked(TASK-CENTER-01, TASK-SCHEDULER-01) |
+
+Bereits geführte Pakete, die diese Flächen zusätzlich berühren: `SHELL-ROUTING-01` (die drei Minimalrouten reiten auf `TASKS-NOTIFICATIONS-CORE-01`), `SETTINGS-01` (Preferences für gespeicherte Sichten und Benachrichtigungseinstellungen), `MAINTENANCE-PARITY-01` (Ticket-Zuweisungsereignis).
 
 ## Wave 3 — abhängige Module
 
