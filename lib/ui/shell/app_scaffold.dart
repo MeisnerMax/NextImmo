@@ -5,8 +5,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../features/identity_access/presentation/admin_members_screen.dart';
+import '../../features/portfolio_property/presentation/property_workspace_screen.dart';
 import '../../features/reference_slice/application/reference_slice_controller.dart';
-import '../../features/reference_slice/presentation/reference_slice_screen.dart';
 import '../components/command_palette.dart';
 import '../components/nx_content_frame.dart';
 import '../components/nx_empty_state.dart';
@@ -335,7 +335,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     switch (page) {
       case GlobalPage.properties when target.surface == CloudRouteSurface.units:
         return UnitsPanel(propertyId: target.propertyId!);
-      case GlobalPage.properties when target.surface == CloudRouteSurface.leases:
+      case GlobalPage.properties
+          when target.surface == CloudRouteSurface.leases:
         return LeasesPanel(propertyId: target.propertyId!);
       case GlobalPage.properties
           when target.surface == CloudRouteSurface.leasingPipeline:
@@ -353,10 +354,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           when target.surface == CloudRouteSurface.maintenance:
         return PropertyMaintenanceCapexPanel(propertyId: target.propertyId!);
       case GlobalPage.properties:
-        return ReferenceSliceScreen(
-          embeddedInShell: true,
-          initialPropertyId: target.propertyId,
-        );
+        // PROPERTY-WORKSPACE-01 A1: the properties destination is the
+        // Property Workspace host (list → property context → `Objekt`). The
+        // property-scoped Welle-3/4 surfaces above stay separate deep-link
+        // targets until the host rehosts them.
+        return PropertyWorkspaceScreen(initialPropertyId: target.propertyId);
       case GlobalPage.parties:
         // Welle 3: the tenant list is the same directory scoped to a role, so
         // it rides the same page with its own surface.

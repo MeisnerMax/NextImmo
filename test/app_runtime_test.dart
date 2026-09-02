@@ -74,7 +74,9 @@ void main() {
       find.byKey(const Key('cloud-destination-migration-dashboard')),
       findsNothing,
     );
-    expect(find.byKey(const Key('reference-list-pane')), findsOneWidget);
+    // PROPERTY-WORKSPACE-01 A1: the properties destination is the Property
+    // List V2 in front of the workspace host.
+    expect(find.byKey(const Key('property-list')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -113,7 +115,10 @@ void main() {
     expect(find.byType(AppScaffold), findsOneWidget);
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.text('Atlas House'), findsWidgets);
-    expect(find.byKey(const Key('reference-detail-pane')), findsOneWidget);
+    // The deep link lands in the Property Workspace (host + `Objekt`) after
+    // the canonical getById, without any Navigator push.
+    expect(find.byKey(const Key('property-workspace')), findsOneWidget);
+    expect(find.byKey(const Key('property-asset')), findsOneWidget);
     expect(navigator.canPop(), isFalse);
   });
 }
