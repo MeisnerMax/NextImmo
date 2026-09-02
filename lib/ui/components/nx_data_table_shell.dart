@@ -20,10 +20,16 @@ class NxDataTableShell extends StatefulWidget {
     this.emptyIcon = Icons.inbox_outlined,
     this.emptyAction,
     this.padding,
+    this.verticalController,
   });
 
   final Widget child;
   final Widget? mobileChild;
+
+  /// Optional owner-provided vertical controller, for screens that need to
+  /// restore the table's scroll position (e.g. after a detail round trip).
+  /// Defaults to a controller owned by the shell.
+  final ScrollController? verticalController;
   final double minTableWidth;
   final double mobileBreakpoint;
   final bool loading;
@@ -75,9 +81,11 @@ class _NxDataTableShellState extends State<NxDataTableShell> {
       );
     }
 
+    final verticalController = widget.verticalController ?? _verticalController;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final showMobileLayout = widget.mobileChild != null &&
+        final showMobileLayout =
+            widget.mobileChild != null &&
             constraints.maxWidth < widget.mobileBreakpoint;
         return NxCard(
           padding: widget.padding ?? EdgeInsets.zero,
@@ -85,16 +93,17 @@ class _NxDataTableShellState extends State<NxDataTableShell> {
               showMobileLayout
                   ? widget.mobileChild!
                   : Scrollbar(
-                    controller: _verticalController,
+                    controller: verticalController,
                     thumbVisibility: true,
                     child: SingleChildScrollView(
-                      controller: _verticalController,
+                      controller: verticalController,
                       child: SingleChildScrollView(
                         controller: _horizontalController,
                         scrollDirection: Axis.horizontal,
                         child: ConstrainedBox(
-                          constraints:
-                              BoxConstraints(minWidth: widget.minTableWidth),
+                          constraints: BoxConstraints(
+                            minWidth: widget.minTableWidth,
+                          ),
                           child: widget.child,
                         ),
                       ),

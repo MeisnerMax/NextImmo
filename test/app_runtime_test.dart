@@ -74,7 +74,9 @@ void main() {
       find.byKey(const Key('cloud-destination-migration-dashboard')),
       findsNothing,
     );
-    expect(find.byKey(const Key('reference-list-pane')), findsOneWidget);
+    // PROPERTY-WORKSPACE-01 A1: the properties destination is the Property
+    // List V2 in front of the workspace host.
+    expect(find.byKey(const Key('property-list')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -113,8 +115,68 @@ void main() {
     expect(find.byType(AppScaffold), findsOneWidget);
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.text('Atlas House'), findsWidgets);
-    expect(find.byKey(const Key('reference-detail-pane')), findsOneWidget);
+    // The deep link lands in the Property Workspace (host + `Objekt`) after
+    // the canonical getById, without any Navigator push.
+    expect(find.byKey(const Key('property-workspace')), findsOneWidget);
+    expect(find.byKey(const Key('property-asset')), findsOneWidget);
     expect(navigator.canPop(), isFalse);
+  });
+
+  // PROPERTY-WORKSPACE-01 A1 QC: the real list → workspace handoff through
+  // the connected provider graph. `openProperty` settles the Riverpod state
+  // to `ready` and completes before the consumer rebuild has delivered that
+  // state to the host's widget snapshot, so the host must not decide from
+  // `widget.state` after the await. Harness tests cannot reproduce this;
+  // only the provider-backed path does.
+  testWidgets('Supabase list click opens the workspace after the canonical '
+      'read', (tester) async {
+    final identity = _IdentityRepository();
+    final properties = _PropertyRepository();
+    const environment = AppEnvironment(
+      environment: NexImmoEnvironment.local,
+      dataBackend: DataBackend.supabase,
+      supabaseUrl: 'http://127.0.0.1:54321',
+      supabasePublishableKey: 'public-test-key',
+    );
+    // Desktop width: the table (with its explicit open action) renders above
+    // the table shell's mobile fallback.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          identityAccessRepositoryProvider.overrideWithValue(identity),
+          referencePropertyRepositoryProvider.overrideWithValue(properties),
+        ],
+        child: const NexImmoApp(environment: environment),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('property-list')), findsOneWidget);
+    expect(find.byKey(const Key('property-workspace')), findsNothing);
+    expect(properties.detailPropertyIds, isEmpty, reason: 'list read only');
+
+    await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+    await tester.pumpAndSettle();
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    expect(
+      properties.detailPropertyIds,
+      <String>['property-a'],
+      reason: 'exactly one canonical getById before the workspace shows',
+    );
+    expect(find.byKey(const Key('property-workspace')), findsOneWidget);
+    expect(find.byKey(const Key('property-asset')), findsOneWidget);
+    expect(find.byKey(const Key('property-list')), findsNothing);
+    expect(find.text('Atlas House'), findsWidgets);
+    expect(find.byType(AppScaffold), findsOneWidget);
+    expect(find.byType(Sidebar), findsOneWidget);
+    expect(navigator.canPop(), isFalse, reason: 'state-first, no push');
+    expect(tester.takeException(), isNull);
   });
 }
 

@@ -23,6 +23,7 @@ enum ReferenceAuthActionPhase {
   idle,
   signingIn,
   loadingFactors,
+
   /// The session is below aal2 and the account has no verified factor yet, so
   /// there is nothing to challenge -- the user has to enrol one first. Distinct
   /// from [failed]: nothing went wrong, this is the expected state for an
@@ -81,6 +82,8 @@ class ReferenceSliceState {
     this.totpEnrollment,
     this.recoveryFactor,
     this.liveUpdatesDegraded = false,
+    this.includeArchived = false,
+    this.loadMoreFailureMessage,
   });
 
   const ReferenceSliceState.loading()
@@ -126,6 +129,17 @@ class ReferenceSliceState {
   /// as soon as a subscription reports ready again.
   final bool liveUpdatesDegraded;
 
+  /// Whether the property list query surfaces tombstoned (archived) rows.
+  /// The single server-side list filter the contract offers; reset on every
+  /// workspace switch so a new scope always starts from the active view.
+  final bool includeArchived;
+
+  /// A failed *additional* page load. Unlike a first-page failure this keeps
+  /// the already loaded pages visible ([propertyListPhase] stays `ready`) and
+  /// only the load-more affordance reports the error. Forbidden stays the
+  /// exception: revoked read access clears the list fail-closed instead.
+  final String? loadMoreFailureMessage;
+
   WorkspaceAccess? get selectedWorkspace {
     final selectedId = selectedWorkspaceId;
     if (selectedId == null) {
@@ -161,6 +175,8 @@ class ReferenceSliceState {
     Object? totpEnrollment = _unchanged,
     Object? recoveryFactor = _unchanged,
     bool? liveUpdatesDegraded,
+    bool? includeArchived,
+    Object? loadMoreFailureMessage = _unchanged,
   }) {
     return ReferenceSliceState(
       authPhase: authPhase ?? this.authPhase,
@@ -209,6 +225,11 @@ class ReferenceSliceState {
               ? this.recoveryFactor
               : recoveryFactor as TotpFactor?,
       liveUpdatesDegraded: liveUpdatesDegraded ?? this.liveUpdatesDegraded,
+      includeArchived: includeArchived ?? this.includeArchived,
+      loadMoreFailureMessage:
+          identical(loadMoreFailureMessage, _unchanged)
+              ? this.loadMoreFailureMessage
+              : loadMoreFailureMessage as String?,
     );
   }
 }
@@ -638,6 +659,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         failureKind: PropertyRepositoryFailureKind.forbidden,
         versionConflict: null,
         message: 'Workspace access is not available.',
+        includeArchived: false,
+        loadMoreFailureMessage: null,
       );
       return;
     }
@@ -656,6 +679,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       failureKind: null,
       versionConflict: null,
       message: null,
+      includeArchived: false,
+      loadMoreFailureMessage: null,
     );
     await _loadFirstPropertyPage(access, generation);
     if (generation == _scopeGeneration &&
@@ -676,6 +701,28 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       nextCursor: null,
       failureKind: null,
       message: null,
+      loadMoreFailureMessage: null,
+    );
+    await _loadFirstPropertyPage(access, generation);
+  }
+
+  /// Switches the single contract-backed list filter. A change restarts the
+  /// keyset from the first page — a cursor from the other filter view is not
+  /// a valid position in this one.
+  Future<void> setIncludeArchived(bool value) async {
+    final access = state.selectedWorkspace;
+    if (access == null || state.includeArchived == value) {
+      return;
+    }
+    final generation = ++_scopeGeneration;
+    state = state.copyWith(
+      includeArchived: value,
+      propertyListPhase: PropertyListPhase.loading,
+      properties: const <PropertySummaryDto>[],
+      nextCursor: null,
+      failureKind: null,
+      message: null,
+      loadMoreFailureMessage: null,
     );
     await _loadFirstPropertyPage(access, generation);
   }
@@ -691,15 +738,18 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       return;
     }
     final generation = _scopeGeneration;
+    final includeArchived = state.includeArchived;
     state = state.copyWith(
       propertyListPhase: PropertyListPhase.loading,
       failureKind: null,
       message: null,
+      loadMoreFailureMessage: null,
     );
     final result = await _propertyRepository.list(
       PropertyListQuery(
         workspaceId: access.workspace.id,
         page: PropertyPageRequest(cursor: cursor),
+        includeArchived: includeArchived,
       ),
     );
     if (generation != _scopeGeneration ||
@@ -719,8 +769,37 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           nextCursor: result.value.nextCursor,
         );
       case PropertyRepositoryFailure<PropertyPageResult>():
-        _applyListFailure(result);
+        if (result.kind == PropertyRepositoryFailureKind.forbidden ||
+            state.properties.isEmpty) {
+          _applyListFailure(result);
+          return;
+        }
+        // A later page failing is no reason to blank the pages the user
+        // already has: the list stays ready and only the load-more affordance
+        // carries the error.
+        state = state.copyWith(
+          propertyListPhase: PropertyListPhase.ready,
+          loadMoreFailureMessage: result.message,
+        );
     }
+  }
+
+  /// Leaves the property context: detail, mutation and conflict state are
+  /// cleared and any in-flight detail read is invalidated. The list scope
+  /// (pages, cursor, filter) stays untouched so the caller can restore the
+  /// exact list the property was opened from.
+  void closeSelectedProperty() {
+    _detailGeneration++;
+    _mutationGeneration++;
+    _retryCommand = null;
+    state = state.copyWith(
+      propertyDetailPhase: PropertyDetailPhase.idle,
+      mutationPhase: PropertyMutationPhase.idle,
+      selectedProperty: null,
+      failureKind: null,
+      versionConflict: null,
+      message: null,
+    );
   }
 
   Future<void> openProperty(String propertyId) async {
@@ -1028,6 +1107,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       failureKind: null,
       versionConflict: null,
       message: null,
+      includeArchived: false,
+      loadMoreFailureMessage: null,
     );
     final result = await _identityRepository.listWorkspaceAccesses(
       userId: userId,
@@ -1078,7 +1159,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       return;
     }
     final result = await _propertyRepository.list(
-      PropertyListQuery(workspaceId: access.workspace.id),
+      PropertyListQuery(
+        workspaceId: access.workspace.id,
+        includeArchived: state.includeArchived,
+      ),
     );
     if (generation != _scopeGeneration ||
         state.selectedWorkspaceId != access.workspace.id) {
@@ -1111,6 +1195,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       nextCursor: null,
       failureKind: failure.kind,
       message: failure.message,
+      loadMoreFailureMessage: null,
     );
   }
 
@@ -1273,6 +1358,8 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       failureKind: null,
       versionConflict: null,
       message: null,
+      includeArchived: false,
+      loadMoreFailureMessage: null,
     );
   }
 
@@ -1338,10 +1425,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           await _handleSession(null, force: true);
           return;
         }
-        // A transient reconcile failure is no evidence of revocation: the
-        // next interval retries and the server-side guards stay
-        // authoritative, so the last authorized state keeps being served
-        // instead of being destroyed by a network hiccup.
+      // A transient reconcile failure is no evidence of revocation: the
+      // next interval retries and the server-side guards stay
+      // authoritative, so the last authorized state keeps being served
+      // instead of being destroyed by a network hiccup.
     }
   }
 
@@ -1460,7 +1547,10 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     final detailGeneration = refreshDetail ? ++_detailGeneration : null;
     final currentNextCursor = state.nextCursor;
     final listFuture = _propertyRepository.list(
-      PropertyListQuery(workspaceId: workspaceId),
+      PropertyListQuery(
+        workspaceId: workspaceId,
+        includeArchived: state.includeArchived,
+      ),
     );
     final detailFuture =
         refreshDetail
@@ -1524,6 +1614,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         final mergedProperties = _replaceProperty(
           state.properties,
           detailResult.value,
+          keepArchived: state.includeArchived,
         );
         state = state.copyWith(
           propertyListPhase:
@@ -1567,6 +1658,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         final mergedProperties = _replaceProperty(
           state.properties,
           result.value,
+          keepArchived: state.includeArchived,
         );
         state = state.copyWith(
           propertyListPhase:
@@ -1587,6 +1679,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           final mergedProperties = _replaceProperty(
             state.properties,
             conflict.currentProperty,
+            keepArchived: state.includeArchived,
           );
           state = state.copyWith(
             propertyListPhase:
@@ -1659,8 +1752,9 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
 
 List<PropertySummaryDto> _replaceProperty(
   List<PropertySummaryDto> properties,
-  PropertyDto replacement,
-) {
+  PropertyDto replacement, {
+  required bool keepArchived,
+}) {
   final index = properties.indexWhere(
     (property) => property.id == replacement.id,
   );
@@ -1672,7 +1766,10 @@ List<PropertySummaryDto> _replaceProperty(
     return properties;
   }
   final result = List<PropertySummaryDto>.of(properties, growable: true);
-  if (replacement.status == PropertyStatus.archived) {
+  if (replacement.status == PropertyStatus.archived && !keepArchived) {
+    // The active view excludes tombstoned rows server-side, so a row that got
+    // archived leaves the list. The archive view (includeArchived) keeps it
+    // and shows the refreshed summary instead.
     result.removeAt(index);
   } else {
     result[index] = PropertySummaryDto.fromProperty(replacement);

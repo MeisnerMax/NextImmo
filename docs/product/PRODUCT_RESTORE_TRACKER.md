@@ -18,7 +18,7 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 
 | Paket | Screens (Map-Referenz) | Disposition | Planung | Implementierung | Staging E2E |
 |---|---|---|---|---|---|
-| PROPERTY-WORKSPACE-01 | Host + Liste + Objekt + siebenstufige Maximal-IA; Childs nur bei Contract/Implementierung registrieren | KEEP+MERGE+REBUILD | spec_approved (`screens/PROPERTY_WORKSPACE_V2.md`; Readiness-Review 2026-08-28) | todo | todo |
+| PROPERTY-WORKSPACE-01 | Host + Liste + Objekt + siebenstufige Maximal-IA; Childs nur bei Contract/Implementierung registrieren | KEEP+MERGE+REBUILD | spec_approved (`screens/PROPERTY_WORKSPACE_V2.md`; Readiness-Review 2026-08-28) | A1 implemented (2026-09-02, PR #52 `feature/property-workspace-v2-a1`; Host + Liste + Objekt; weitere Domains offen) | todo |
 | PROPERTY-OVERVIEW-DATA-01 (Backend-Gap) | Permission-gefilterte Property-KPI-/Attention-/Freshness-Projektionen; keine Client-Aggregate | — | blocked(material product/security contract decisions; Requirements in `screens/PROPERTY_OVERVIEW_V2.md`) | blocked(contract) | todo |
 | PROPERTY-DATA-02 (Backend-Gap) | Create/Archive/Delete im portfolio_property-Contract (Voraussetzung für Wizard) | — | todo | todo | todo |
 | PROPERTY-MEDIA-DATA-01 (Backend-Gap) | privates Property-Media-/Titelbild-Contract; Documents nicht zweckentfremden | — | blocked(product/contract/security decisions) | blocked(contract/security decision) | todo |
