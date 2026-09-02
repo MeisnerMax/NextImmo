@@ -273,7 +273,7 @@ Sicher ohne neue fachliche Engine/Schema:
 3. Case-Header, Faktoren mit Provenance, Varianten und Stale-/Missing-States lesen/bearbeiten.
 4. Einzelne technische Ertrags-/Sachwert-Modellrechnungen mit den Labels aus 4.1 zeigen.
 5. Aggregate DCF-Cashflow, DCF Value und eindeutig unlevered Investment-KPIs zeigen.
-6. Bestehende genehmigte/archivierte Datensätze read-only darstellen, dabei Legacy-`MarketValueOpinion` als „nicht klassifizierter Legacy-Ergebnisstand“ kennzeichnen.
+6. Bestehende genehmigte/archivierte Datensätze read-only darstellen. Eine Legacy-`MarketValueOpinion` wird nur sichtbar, wenn der bestehende Read Contract sie für den Altbestand zwingend mitliefert, und dann ausschließlich als „nicht klassifizierter Legacy-Ergebnisstand“.
 
 Nicht Teil von Rehost Now: gemischte Opinion-Karte, Methoden-/Gewichts-Editor, Publish, Submit for Review, Approval und Export. Diese Aktionen schreiben oder bestätigen heute zwingend den fachlich unzulässigen gemischten Ergebnisstand.
 
@@ -329,8 +329,7 @@ Erst danach können indikative Bewertung, getrennte Reconciliation, fachliche Re
 
 - Methodenabschnitt und Gap-Matrix durch diese Entscheidung als verbindliche Quelle referenzieren.
 - `METHOD-GOV-01` von **BLOCKED** auf **APPROVED** setzen; Umsetzung als neues **BLOCKED**-Paket `VALUATION-METHOD-CONTRACT-01` führen.
-- Paket `P02` auf Case Read/Edit/Live-Preview begrenzen.
-- Paket `P03` bleibt für vorhandene aggregate DCF-Visualisierung **APPROVED**.
+- `VALUATION-REHOST-01C` auf Case Read/Edit/Live-Preview, Varianten und vorhandene aggregate DCF-Visualisierung begrenzen.
 - Publish/Review/Approval aus Rehost entfernen und vom Method Contract abhängig machen.
 - Offene Methoden-/Begriffs-/Reconciliation-Fragen schließen; nur Implementierungsdetails offen lassen.
 

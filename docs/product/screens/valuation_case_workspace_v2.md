@@ -2,8 +2,9 @@
 
 ## Metadata
 
-- Package / screen ID: `VALUATION-V2-CASE-01`
-- Domain: Valuation mit read-only Quellen aus Property, Leasing und CapEx
+- Screen-ID (kein Arbeitspaket): `VALUATION-V2-CASE-01`
+- Implementierungspaket: `VALUATION-REHOST-01C`
+- Domain: Valuation; read-only Property-/Leasing-/CapEx-Source-Panels sind ausschließlich DRAFT-Zielbild nach `VALUATION-SOURCE-01`
 - Route: `/valuations/:valuationCaseId?section=<section>`
 - Current implementation files:
   - `lib/ui/screens/property_detail/widgets/valuation/valuation_section_host.dart`
@@ -23,7 +24,7 @@
   - **DRAFT:** geführte Source-/Baseline-Darstellung
   - **BLOCKED:** gemischte Opinion, Direct Capitalization bis Validation, Publish/Review/Approval, indikative/professionelle Marktwertfreigabe, Lease/CapEx/Debt-Cashflow, Sensitivität, Version History, Audit Read und Export
 - Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
-- Dependencies: [Method Governance](../VALUATION_METHOD_GOVERNANCE.md), [gemeinsamer Workflow](valuation_v2_workflow.md), `PRODUCT-UX-FOUNDATION-01`, `SHELL-ROUTING-01`
+- Dependencies: [Method Governance](../VALUATION_METHOD_GOVERNANCE.md), [gemeinsamer Workflow](valuation_v2_workflow.md), Foundation-Decision `PRODUCT-UX-FOUNDATION-01` (kein Arbeitspaket), `SHELL-ROUTING-01`
 - Related screens: [Valuation Queue V2](valuation_queue_v2.md), [Create Valuation V2](valuation_create_v2.md)
 
 ## 1. Purpose
@@ -32,12 +33,12 @@ Der Workspace ist der Arbeitsraum eines einzelnen Valuation Cases. Phase A führ
 
 Der Workspace muss jederzeit sichtbar machen:
 
-- welches Property, welcher Case, welche Case-Version und welches Szenario aktiv sind;
+- welches Property, welcher Case, welche Case-Version und welche vorhandene Variante aktiv sind;
 - welche Annahmen gelten, welche fehlen und woher jeder Wert stammt;
-- was gegenüber Baseline und Approved geändert wurde;
+- nach den Folgepaketen: was gegenüber Baseline und Approved geändert wurde; Phase A baut keinen Baseline-/Model-Diff;
 - welche Methoden verfügbar sind und welcher Faktor auf welche Methode wirkt;
 - ob der sichtbare Wert live, publiziert, veraltet oder freigegeben ist;
-- welcher exakte Stand genehmigt ist.
+- bei Altbestand: welcher technische Legacy-Status/-Reportstand read-only vorliegt, ohne neue Genehmigungsfläche oder professionelle Aussage.
 
 Die ca. 2.000 LOC große cloud-contract-basierte UI wird aus dem toten Legacy-Analysis-Screen herausgelöst. Ihre funktionierende Mathematik und ihre Contract-Grenzen bleiben erhalten.
 
@@ -46,17 +47,18 @@ Die ca. 2.000 LOC große cloud-contract-basierte UI wird aus dem toten Legacy-An
 | Fähigkeit / Nutzer | Job | Zuerst benötigte Information | Zentrale Aktionen |
 |---|---|---|---|
 | Analyst, `valuation.manage` | Annahmen vervollständigen und interne Analyse rechnen | Status, Vollständigkeit, aktive Variante | Faktoren speichern, technische Ergebnisse prüfen |
-| Investment Manager | Cashflow, Rendite und Szenariowirkung verstehen | KPI Summary, DCF/NOI, Baseline-Delta | Variante wählen/erstellen, Ergebnisse prüfen |
-| Valuer | Methoden und Quellen fachlich prüfen | Methode, Inputs, Provenance, Comparables | Annahmen prüfen, Methodenergebnis erklären |
-| Approver, `valuation.approve` | bestehende Legacy-Stände lesen; künftig klassifizierten Stand genehmigen | Approval Class, Review-Checks, Stale, Quellenwarnungen | in Phase A keine neue Ergebnisfreigabe |
-| Reader/Auditor | freigegebenen Stand nachvollziehen | Approved Version, Calculation Run, Quellen | lesen; künftig vergleichen/exportieren/auditieren |
+| Investment Manager | Cashflow, Rendite und Variantenwirkung verstehen | sichere KPI Summary, DCF/NOI, aktive Variante | Variante wählen/erstellen, deren interne Ergebnisse prüfen; kein Phase-A-Baseline-Diff |
+| Valuer | technische Methoden und vorhandene Herkunft fachlich prüfen | Methode, Inputs und Factor-Provenance | Annahmen prüfen, technisches Methodenergebnis erklären; Comparables erst nach `VALUATION-COMPS-01` |
+| Approver, `valuation.approve` | bestehende Legacy-Stände lesen; künftig klassifizierten Stand genehmigen | Phase A: technischer Legacy-Status/Stale; Approval Class und Review-Checks erst nach Method Contract | in Phase A keine neue Ergebnisfreigabe |
+| Reader/Auditor | vorhandenen Legacy-Stand nachvollziehen | technischer Status, Case-Version und Legacy-Report-Metadaten | read-only lesen; vergleichen/exportieren/auditieren erst nach Folgepaketen |
 
 ## 3. Entry points and navigation
 
 - Queue-Zeile und Create-Erfolg öffnen den Case-Deep-Link.
 - `valuationCaseId` ist die kanonische Auswahl; der Workspace hängt nicht von einem zuvor ausgewählten Scenario im Legacy-Screen ab.
-- `section` erlaubt: `overview`, `assumptions`, `cashflow`, `valuation`, `scenarios`, `review`, `versions`, `reporting`.
-- Ungültiger/fehlender `section` → `overview`.
+- Phase-A-Allowlist für `section`: exakt `overview`, `assumptions`, `cashflow`, `valuation`, `scenarios`.
+- `scenarios` umfasst in Phase A ausschließlich vorhandene Varianten und Variant-Wechsel.
+- Fehlende, unbekannte oder blockierte Werte – insbesondere `review`, `versions`, `reporting` – werden kanonisch auf `overview` normalisiert und dürfen keine Legacy-/Folgepaket-Oberfläche öffnen.
 - Ein Variantenwechsel navigiert zum Case-ID-Link der Variante und erhält den Bereich.
 - Breadcrumb/Back: „Bewertungen“ → Queue. Filterzustand wird von der Queue wiederhergestellt.
 - Property-Name öffnet optional den Property Workspace in neuem Shell-State, sofern `property.read`.
@@ -68,25 +70,30 @@ Die ca. 2.000 LOC große cloud-contract-basierte UI wird aus dem toten Legacy-An
 
 1. Breadcrumb und Case-Titel.
 2. Property-Name/Adresse und Case-Art.
-3. Status, Case-Version, aktives Szenario/Variante.
-4. Standindikatoren: „Live“, „Publiziert aus Version n“, „Veraltet“, „Approved“.
-5. Phase-A-Primäraktion: Faktoren speichern. Publish, Review und Approval bleiben ausgeblendet mit erklärtem Contract-Gap.
-6. Secondary Menu: Variante erstellen, in Draft zurückgeben, archivieren, künftig exportieren.
+3. Status, Case-Version und aktive Variante.
+4. Standindikatoren: „Live“, „Publiziert aus Version n“, „Veraltet“ sowie technischer Legacy-Status „Approved“ read-only.
+5. Phase-A-Primäraktion: Faktoren speichern. Publish, Review und Approval werden nicht gerendert.
+6. Phase-A-Secondary-Aktionen: Variante erstellen sowie Archivieren nur bei sicherem bestehendem Command. Return-to-Draft und Export gehören nicht in `VALUATION-REHOST-01C`.
 
-### 4.2 Bereiche
+### 4.2 Phase-A-Bereiche (`VALUATION-REHOST-01C`)
 
-1. **Überblick:** KPI Summary, Methodenstatus, Vollständigkeit, Warnungen, nächste Aktion.
-2. **Annahmen:** geführte Eingabe und Source Transparency.
+1. **Überblick (`overview`):** sichere KPI Summary, Methodenstatus, Vollständigkeit, Legacy-Stale-Hinweis und nächste zulässige Aktion.
+2. **Annahmen (`assumptions`):** vorhandene Factor-Eingabe, Provenance/Source/Note/Confidence und `suggestedDefault/accepted/manual`-Semantik; keine neue Source-/Baseline-Architektur.
 3. **Cashflow:** vorhandene jährliche DCF-Reihe und Terminal Breakdown.
 4. **Bewertung:** getrennte technische Market-Valuation-Modellrechnungen und Investment Analysis; keine Reconciliation.
-5. **Szenarien:** Varianten und künftig Baseline-/Sensitivity-Vergleich.
-6. **Review:** prüfbare Checkliste und publizierter Stand.
-7. **Versionen & Freigabe:** aktueller Lifecycle; künftig immutable History/Diff.
-8. **Bericht & Audit:** aktueller gespeicherter Report; künftig Export/Audit Timeline.
+5. **Varianten (`scenarios`):** vorhandene Variantengruppe sowie Create/Switch; keine Baseline, Deltas, Model Comparison oder Sensitivität.
 
-### 4.3 Annahmengruppen
+### 4.3 Future / Blocked target IA
 
-Die Oberfläche zeigt nicht fünf unverbundene Methodenformulare als Excel-Wand. Sie führt in dieser Reihenfolge:
+- **Review (`review`):** erst nach `VALUATION-METHOD-CONTRACT-01`; keine Phase-A-Section oder Review-Fläche.
+- **Versionen & Freigabe (`versions`):** erst nach `VALUATION-VERSION-01` und Method Contract; Phase A zeigt nur Case-Version und vorhandenen Legacy-Status im Kopf/Overview.
+- **Bericht & Audit (`reporting`):** erst nach `VALUATION-REPORT-EXPORT-01` und `VALUATION-AUDIT-READ-01`; Phase A erzeugt keine Section, Export- oder Audit-Fläche.
+
+### 4.4 Annahmengruppen
+
+Phase A gruppiert ausschließlich die heute im `ValuationFactorCatalog` vorhandenen und für die freigegebenen technischen Ertrags-/Sachwertmodelle beziehungsweise aggregate DCF benötigten Faktoren. Sie baut keine neue Datenquellen-, Lease-, Operating-, CapEx- oder Finanzierungsgruppe.
+
+Die folgende geführte Reihenfolge ist **Future / Blocked target IA** nach den jeweiligen Source-/Cashflow-Paketen:
 
 1. Objekt und Datenquellen.
 2. Miete / Leases.
@@ -96,7 +103,7 @@ Die Oberfläche zeigt nicht fünf unverbundene Methodenformulare als Excel-Wand.
 6. Finanzierung.
 7. Methoden- und Exit-Konfiguration.
 
-Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt-Gruppen erklären ihren blockierten/read-only Status und zeigen keine Attrappenfelder, die eine Berechnung suggerieren.
+Lease-/CapEx-/Debt-/Operating-Source-Panels und neue Read Models gehören nicht zu `VALUATION-REHOST-01C`; diese Zielgruppen werden weder als Tabs noch als Attrappenfelder gerendert.
 
 ## 5. Layout and interaction model
 
@@ -106,8 +113,8 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 - Unter dem Header horizontale Section Tabs, bei Platzmangel „Mehr“-Menü.
 - In Arbeitsbereichen ein 3:2-Split:
   - links Eingaben/Hauptinhalt;
-  - rechts sticky „Aktiver Stand“ mit KPI, Vollständigkeit, Baseline-Deltas und Wirkungsübersicht.
-- Cashflow und Szenariovergleich dürfen die volle Breite nutzen.
+  - rechts sticky „Aktiver Stand“ mit sicheren KPIs, Vollständigkeit und vorhandener Methoden-/Faktorwirkung; keine Baseline-Deltas.
+- Cashflow und Variantenübersicht dürfen die volle Breite nutzen.
 - Details zu Annahme/Methode öffnen einen kontextuellen Side Panel, nicht einen verschachtelten Modal-Stack.
 
 ### Tablet 768–1199 px
@@ -118,7 +125,7 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 
 ### Mobile ≤ 767 px
 
-- Case-Kopf kompakt; Section Picker statt acht gequetschter Tabs.
+- Case-Kopf kompakt; Section Picker statt fünf gequetschter Tabs.
 - Hauptinhalt einspaltig.
 - Annahmegruppen als Cards/Accordion, aber Fehler- und Vollständigkeitsstatus bleiben sichtbar.
 - Cashflow als scrollbare semantische Tabelle plus KPI Cards; Chart ist Ergänzung, nie einzige Darstellung.
@@ -130,7 +137,7 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 - Dirty-Anzeige auf Bereich und Feldern.
 - Navigation zu anderem Bereich/Case mit Dirty State fordert Speichern, Verwerfen oder Bleiben.
 - Version Conflict behält lokale Werte und öffnet einen Feldvergleich.
-- Variante/Section/aktive Baseline sind URL-/Case-State, kein versteckter Legacy-Provider-State.
+- Variante und erlaubte Section sind URL-/Case-State, kein versteckter Legacy-Provider-State. Eine aktive Baseline existiert erst nach `SCENARIO-VALUATION-01`.
 
 ## 6. Functional requirements
 
@@ -155,8 +162,8 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 - Alternative Inputs werden erklärt:
   - Bodenwert direkt **oder** Fläche × Bodenrichtwert;
   - Restnutzungsdauer direkt **oder** Gesamtnutzungsdauer − Gebäudealter;
-  - DCF Terminal Exit Cap **oder** Gordon Growth;
-  - Direktkapitalisierung NOI direkt **oder** aus Miete/Leerstand/Kosten.
+  - DCF Terminal Exit Cap **oder** Gordon Growth.
+- Direct-Capitalization-spezifische Eingabeflächen bleiben bis `VALUATION-VALIDATION-01` ausgeblendet.
 - Bestehende Draft-Werte dürfen beim Rebuild nicht verloren gehen.
 - Ungültiges Parsing darf nicht wie heute still übersprungen werden; es erzeugt Feldfehler.
 - Speichern nutzt Batch Upsert/Remove + Expected Version.
@@ -166,15 +173,13 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 ### 6.3 Vorschlag akzeptieren / Source übernehmen
 
 - Phase A: vorhandenen `suggestedDefault` explizit akzeptieren; erst dann rechenwirksam.
-- V2 Source-Ausbau: Nutzer sieht Source Value, Case Value und Differenz.
-- „Übernehmen“ schreibt einen neuen Faktorwert mit Provenance/Source-Snapshot; es bindet nicht live an spätere Source-Änderungen.
-- „Aktualisieren“ ist eine spätere bewusste Aktion und zeigt vorher/nachher.
-- Ohne Recht auf Lease/CapEx Source wird keine abgeleitete Zahl gezeigt.
+- Vorhandene Factor-Provenance, Source-Text, Note und Confidence werden ohne Contract-Erweiterung angezeigt.
+- **DRAFT/BLOCKED durch `VALUATION-SOURCE-01`:** Source Value vs. Case Value, strukturierter Source-Snapshot, „Übernehmen/Aktualisieren“ und Source-Deltas. Diese Punkte sind keine Implementierungsanforderung von `VALUATION-REHOST-01C`.
 
 ### 6.4 Case Config ändern
 
 - Methoden, Gewichte, Terminalmodus und Mindest-Comparables sind im heutigen Repository updatefähig, aber die Methoden/Gewichte bilden eine fachlich blockierte Legacy-Konfiguration.
-- Phase A darf Terminalmodus und vorhandene Config read-only erklären.
+- Phase A darf nur den für die sichere aggregate DCF benötigten Terminalmodus und sonstige freigegebene Config read-only erklären. Legacy-Methodengewichte, Mixed-Opinion-Konfiguration und Comparables-Schwelle werden nicht gerendert.
 - Editierbare Methoden-/Gewichte-Konfiguration landet erst mit `VALUATION-METHOD-CONTRACT-01`.
 - Änderung nur Draft + `valuation.manage`, Expected Version, Audit; Report wird stale.
 
@@ -190,12 +195,12 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 
 ### 6.6 Bewertungsmethoden prüfen
 
-- Eine Karte pro aktivierter Methode.
+- Eine Karte pro in Phase A freigegebener Methode: technische Ertragswert-Modellrechnung, technische Sachwert-Modellrechnung und aggregate DCF. Template-aktivierte, aber blockierte Methoden erzeugen keine Karte.
 - Karte zeigt verfügbar/nicht verfügbar, Wert, Konfidenz, verwendete Annahmen, Breakdown/Formeltext und Missing Factors.
 - Ertrags- und Sachwert stehen unter „Market Valuation – technische Modellrechnungen“; sie heißen nicht Marktwertindikation. Vergleichswert bleibt blockiert.
 - DCF steht unter „Investment Analysis“. Direct Capitalization bleibt bis `VALUATION-VALIDATION-01` ausgeblendet.
-- Die aktuelle gemischte Opinion wird nicht gerendert, publiziert, freigegeben oder exportiert. Existing approved Cases zeigen sie read-only als „nicht klassifizierter Legacy-Ergebnisstand“.
-- Comparison Card zeigt Cloud-Comparable-Gap statt leere/erfundene Vergleichswerte.
+- Die aktuelle gemischte Opinion wird nicht gerendert, publiziert, freigegeben oder exportiert. Bei bestehenden Approved Cases ist sie nur dann sichtbar, wenn der Read Contract sie für den Altbestand zwingend mitliefert, und dann read-only als „nicht klassifizierter Legacy-Ergebnisstand“.
+- Vergleichswert/Comparables werden in Phase A nicht als Karte oder navigierbare Unterfläche exponiert; sie folgen erst mit `VALUATION-COMPS-01`.
 
 ### 6.7 Variante erstellen und wechseln
 
@@ -204,7 +209,7 @@ Phase A ordnet die vorhandenen Faktoren in diese Gruppen ein. Lease-/CapEx-/Debt
 - Dialog: Variantenlabel, optionaler Grund. Keine mathematische Annahme im Dialog.
 - Erfolg: Server klont Config/Faktoren, nicht Report; neuer Case ist Draft und wird geöffnet.
 - Variantengruppe zeigt maximal die vorhandenen Contract-/UI-Grenzen; aktuell bis acht Detail-Fan-outs beachten.
-- Karten zeigen Label, Status, Wert/Stale und Version.
+- Karten zeigen Label, Status, Version und gegebenenfalls den vorhandenen Stale-Hinweis. Ein aus der gemischten Legacy-Opinion stammender Variantenwert wird nicht als reguläres KPI angezeigt.
 - Detailvergleich/Deltas bleiben bis `SCENARIO-VALUATION-01` blockiert.
 
 ### 6.8 Sensitivitätsanalyse
@@ -287,12 +292,14 @@ Die vollständige Bedeutung, Einheit, Validation, Herkunft, Default-, Import- un
 |---|---|---|---|
 | Method Result | Domain Engine / published Report | € + Confidence + Breakdown | live oder `computedFromVersion` |
 | Missing Factors | Engine | Liste mit Links | live |
-| Opinion | Reconciler / Report | € + Confidence + Spread Note | Governance beachten |
+| Legacy Opinion | vorhandener Report | nur als „nicht klassifizierter Legacy-Ergebnisstand“, falls für Altbestand zwingend sichtbar | read-only; nie aktuelles KPI oder Reconciliation-Input |
 | DCF Years | `DcfValuation` | jährliche €-Reihe | live/published abhängig Read Model |
 | Investment Metrics | Engine | %, €, Multiplikator | unlevered klar kennzeichnen |
 | Report metadata | Report Port | Zeitpunkt, Case-Version | stored latest only |
 
 ### 7.4 Source data
+
+Die folgende Tabelle ist Ziel-/Gap-Dokumentation. `VALUATION-REHOST-01C` baut daraus keine Source Panels, Snapshots oder Source-vs-Case-Comparison; Phase A verwendet nur bereits am Factor vorhandene Provenance-/Source-Felder.
 
 | Source | Aktueller Contract | Verwendbare Felder | V2-Regel |
 |---|---|---|---|
@@ -387,8 +394,8 @@ Die vollständige Bedeutung, Einheit, Validation, Herkunft, Default-, Import- un
 - Case Workspace hat keine globale Suche.
 - Annahmen können optional nach „Fehlend“, „Geändert“, „Vorgeschlagen“ und Methode gefiltert werden; der Default zeigt alle in geführter Reihenfolge.
 - Source Tables können nach Unit/Lease/Status filtern, aber nur serverseitig/contractkonform.
-- Szenariovergleich sortiert Baseline zuerst, danach aktualisiert absteigend oder bewusst gewählte Reihenfolge.
-- Version History sortiert künftig neueste zuerst; Diff wählt genau zwei Versionen.
+- Der künftige Szenariovergleich sortiert nach `SCENARIO-VALUATION-01` Baseline zuerst; Phase A besitzt nur den Variant-Wechsel.
+- Version History sortiert nach `VALUATION-VERSION-01` neueste zuerst; Phase A rendert keine History-/Diff-Fläche.
 - Section und aktiver Varianten-Case sind URL-State. Annahmenfilter müssen nicht zwingend URL-State sein.
 
 ## 12. Forms and validation
@@ -429,7 +436,7 @@ Die vollständige Bedeutung, Einheit, Validation, Herkunft, Default-, Import- un
 - `NxLiveUpdatesNotice`
 - `NxSplitView`
 - bestehende Valuation Status/Confidence Badges
-- bestehender `ValuationWorkflowStepper` als Status-/Fortschrittsbasis
+- bestehender `ValuationWorkflowStepper` nur als Harvest-Basis für sichere Objekt-/Faktor-/Berechnungsstände; Report-/Review-/Freigabeschritte nicht rehosten
 - bestehende Factor Groups/Fields
 - bestehende Method/KPI Cards nach sicherer Auswahl; keine Opinion-/`MarketValueCard`
 - bestehende Variant Cards/Dialog
@@ -439,7 +446,7 @@ Die vollständige Bedeutung, Einheit, Validation, Herkunft, Default-, Import- un
 
 - Section Navigation + URL-State;
 - Case Stand Badge (`live/published/stale/approved`);
-- Field Provenance/Source/Delta Row;
+- vorhandene Field-Provenance/Source-Anzeige; strukturierte Source-/Delta-Row erst mit `VALUATION-SOURCE-01`;
 - Validation Summary und nicht-stilles Parsing;
 - DCF Cashflow Table aus vorhandenem `DcfValuation`;
 - Missing Factor Links;
@@ -518,7 +525,7 @@ Die Screen-Implementierung darf keinen Gap mit clientseitiger Persistenz oder ne
 ### Widget/UI
 
 - Loading/Not found/Forbidden/Partial/Degraded.
-- Alle Sections Desktop/Tablet/Mobile.
+- Alle fünf erlaubten Phase-A-Sections Desktop/Tablet/Mobile; blockierte/ungültige Section-Werte normalisieren auf `overview`.
 - Header zeigt aktiven Case/Version/Szenario/Stand.
 - Factor errors statt silent skip.
 - Missing Factor Link fokussiert Feld.
@@ -572,11 +579,11 @@ Siehe Gesamtworkflow plus:
 - Die Phase-A-Cashflow-Tabelle enthält ausschließlich Werte der vorhandenen DCF Engine.
 - Lease, CapEx und Debt werden nicht als enthalten dargestellt, solange ihre Engines fehlen.
 - Eine unavailable Method zeigt Missing Reasons und keinen Amount.
-- DCF/Direktkapitalisierung werden als Investmentanalyse getrennt von einer Marktwertindikation gezeigt.
+- DCF wird als Investmentanalyse getrennt von den technischen deutschen Modellrechnungen gezeigt; Direct Capitalization bleibt bis `VALUATION-VALIDATION-01` ausgeblendet.
 
 ### Stand, Szenario, Version
 
-- Aktiver Case/Variante, Baseline (sobald vorhanden), Case-Version, publizierte Version und Approved State sind gleichzeitig verständlich.
+- Phase A zeigt aktiven Case/Variante, Case-Version und vorhandenen Legacy-Report-/Statusstand. Baseline, History und Approval-Flächen folgen ausschließlich ihren Folgepaketen.
 - Case-Änderung setzt einen vorhandenen Legacy-Report sichtbar stale.
 - Neue Publish-/Approval-Aktionen sind bis `VALUATION-METHOD-CONTRACT-01` nicht verfügbar.
 - Approved wird nicht in place editiert.
@@ -618,17 +625,20 @@ Nicht blockierend für Rehost:
 
 ### APPROVED Rehost Scope
 
+- Implementierungspaket ist ausschließlich `VALUATION-REHOST-01C`.
 - `valuation_section_host` anhand Case-ID eigenständig routen;
+- nur `overview`, `assumptions`, `cashflow`, `valuation`, `scenarios` erlauben; alle anderen Section-Werte auf `overview` normalisieren;
 - vorhandene Controller/Widgets für Case, Factors, einzelne sichere Method Results und Varianten wiederverwenden;
 - Case Header/Section Navigation und Standindikatoren ergänzen;
 - bestehende DCF-Jahresprojektion anzeigen;
 - Parsing-/Dirty-/Conflict-UX schließen;
 - Cloud-Rechte, Existing-Approved-Immutability, Expected Version und Stale-Regel bewahren;
 - `MarketValueCard`, gemischte Reconciliation sowie Publish/Review/Approval für neue Cases nicht rehosten.
+- keine neue Source-/Baseline-/Model-Diff-, Comparables-, Version-, Audit- oder Export-Fläche implementieren.
 
 ### Voraussetzungen
 
-- Route Contract aus `VALUATION-V2-P00-ROUTE-HOST` auf `main`;
+- Route Host aus `VALUATION-REHOST-01A` auf `main`;
 - Queue/Create öffnen die neue Route;
 - gemeinsame Wave-1-Komponenten, soweit verfügbar.
 

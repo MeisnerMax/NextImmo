@@ -2,7 +2,8 @@
 
 ## Metadata
 
-- Package / screen ID: `VALUATION-V2-WORKFLOW-01`
+- Spec-/Screen-ID (kein Arbeitspaket): `VALUATION-V2-WORKFLOW-01`
+- Parent-Arbeitspaket: `VALUATION-REHOST-01`; freigegebene Teilpakete `VALUATION-REHOST-01A`–`01C`
 - Domain: Valuation, Property, Leasing, CapEx, Reporting, Audit
 - Routen: `/valuations`, `/valuations/new`, `/valuations/:valuationCaseId`
 - Aktueller Einstieg: `lib/ui/screens/valuations/valuations_screen.dart`
@@ -13,7 +14,7 @@
   - [Create Valuation V2](valuation_create_v2.md)
   - [Valuation Case Workspace V2](valuation_case_workspace_v2.md)
 - Verbindliche Fachentscheidung: [Valuation Method Governance (`METHOD-GOV-01`)](../VALUATION_METHOD_GOVERNANCE.md)
-- Abhängigkeiten: `PRODUCT-UX-FOUNDATION-01`, `SHELL-ROUTING-01`, Cloud-Valuation-Contract, Cloud-Property-Contract
+- Abhängigkeiten: Foundation-Decision `PRODUCT-UX-FOUNDATION-01` (kein Arbeitspaket), `SHELL-ROUTING-01`, Cloud-Valuation-Contract, Cloud-Property-Contract
 - Stand der Recherche: 2026-08-28
 - Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
 
@@ -21,9 +22,13 @@
 
 Das Zielbild von Valuation V2 führt eine Bewertung von der Arbeitsliste bis zum freigegebenen, berichtsfähigen Stand. `REHOST NOW` endet dagegen ausdrücklich bei der internen Analyse; Review, Approval, Publish und professionelle Marktwertausgabe folgen erst nach den in Abschnitt 2 blockierten Contract-/Engine-Paketen. Das System verbindet die fachliche Nachvollziehbarkeit eines professionellen Bewertungsmodells mit einer geführten Oberfläche für Nutzer, die nicht täglich bewerten.
 
-Der Zielweg lautet:
+Der Zielweg nach Abschluss der benannten Folgepakete lautet:
 
 `Queue → Case → Annahmen → Cashflow → Bewertung → Szenarien/Sensitivität → Review/Freigabe/Version → Reporting`
+
+Der verbindliche Phase-A-Weg von `VALUATION-REHOST-01A`–`01C` endet bei:
+
+`Queue → Create → Case → Annahmen → Cashflow → Bewertung → Varianten`
 
 Die Planung ist **kein Auftrag, Formeln neu zu erfinden**. Vorhandene Cloud-Contracts und Calculation Engines bleiben die fachliche Basis. ARGUS, Brixx und BrickMetrics liefern Workflow- und Verständlichkeitsmuster, keine ungeprüften Bewertungsmethoden.
 
@@ -62,7 +67,7 @@ Beide Ebenen dürfen im selben Case arbeiten, werden aber nie gemeinsam reconcil
 | Case | Eine eigenständige Bewertung eines Objekts mit Status, Annahmen, Berechnung und Freigabe. |
 | Annahme / Faktor | Ein Eingabewert, der eine Berechnung beeinflusst, etwa Miete, Kosten oder Zinssatz. |
 | Provenance / Herkunft | Kennzeichnet, ob ein Wert manuell, abgeleitet, vorgeschlagen, akzeptiert oder fehlend ist. |
-| Baseline | Der als Bezug gewählte Stand, gegen den Änderungen oder Szenarien verglichen werden. |
+| Baseline | Zielbegriff nach `SCENARIO-VALUATION-01`: ein explizit gewählter Bezugstand für Deltas. Phase A besitzt keine neue Baseline- oder Diff-Funktion. |
 | Szenario / Variante | Eine alternative Kopie eines Cases mit bewusst abweichenden Annahmen. |
 | DCF | Discounted Cash Flow: zukünftige Netto-Cashflows und Terminalwert werden auf heute abgezinst. |
 | NOI / Reinertrag | Ertrag nach Leerstand und laufenden Bewirtschaftungskosten, vor Finanzierung und Steuern. |
@@ -160,10 +165,10 @@ Die Recherche übernimmt öffentliche Funktions- und Workflow-Ideen. Proprietär
 | `valuation_create_dialog.dart` | vier Templates und Suggestions; Property Read ist Legacy-defekt | Formlogik behalten, Cloud Property Lookup + Route |
 | `valuation_section_host.dart` | löst heute Scenario → Case auf, hostet Controller/Workflow/Varianten/Approval | Case-ID zum primären Input machen, Scenario-Abhängigkeit entfernen |
 | `valuation_section.dart` | Status, Live/Stored Report, Marktwertkarte, fünf Methodenkarten, KPIs, Assumption Ledger | nur als Harvest-Basis; `MarketValueCard`, Comparison, Direct Capitalization und gemischte Opinion in Phase A nicht rendern |
-| `valuation_factors_section.dart` | gruppierter Batch Save und Draft-Erhalt; Parsingfehler werden teilweise still übersprungen | behalten, Guided Groups/Validation/Source/Delta ergänzen |
-| `valuation_factor_row.dart` | typisierte Money/Percent/Years/Area/Factor-Eingabe | behalten, Feldstatus und Herkunft erweitern |
-| `valuation_workflow_stepper.dart` | Objekt, Faktoren, Report, Review, Freigabe in fünf Schritten | als Completion Summary weiterverwenden, nicht als gesamte IA |
-| `valuation_variant_bar.dart` | Variantengruppe, Create/Switch, Wert und stale state | behalten; detaillierter Vergleich bleibt Contract-Gap |
+| `valuation_factors_section.dart` | gruppierter Batch Save und Draft-Erhalt; Parsingfehler werden teilweise still übersprungen | behalten; Phase A nur vorhandene Factor-Gruppen, Provenance und Parsing-/Validation-UX. Neue Source-/Delta-Darstellung bleibt `VALUATION-SOURCE-01`/`SCENARIO-VALUATION-01` |
+| `valuation_factor_row.dart` | typisierte Money/Percent/Years/Area/Factor-Eingabe | behalten; vorhandene Herkunft/Provenance zeigen, neue SourceRef-/Baseline-Felder nicht im Rehost ergänzen |
+| `valuation_workflow_stepper.dart` | Objekt, Faktoren, Report, Review, Freigabe in fünf Schritten | nur sichere Objekt-/Faktor-/Berechnungsanteile ernten; Report-/Review-/Freigabeschritte in Phase A nicht rendern |
+| `valuation_variant_bar.dart` | Variantengruppe, Create/Switch, heutiger Wert und stale state | Gruppe/Create/Switch/Status/Stale behalten; einen aus gemischter Legacy-Opinion stammenden Wert nicht als reguläres Varianten-KPI rendern; Detailvergleich bleibt Contract-Gap |
 
 Relevante Testbasis ist vorhanden für Queue/Create, Case Controller/Repository/Adapter/Invalidation, alle fünf Methoden, Reconciliation, Investment Metrics, Templates/Faktorkatalog sowie Section Host, Section, Factors, Workflow Stepper und Variant Bar. SQL-Contract-Tests decken RLS, Commands, Idempotenz, Versionierung, Report-Publish, Status, Approval-Immutability, Varianten und Audit ab. Die V2-Testpläne erweitern diese Basis; sie ersetzen sie nicht.
 
@@ -217,40 +222,45 @@ Harte fachliche Invarianten:
 | `/valuations/new` | Create Valuation | Objekt, Case-Art und Startkonfiguration wählen |
 | `/valuations/:valuationCaseId?section=overview` | Case Workspace | Phase A interne Analyse bearbeiten; später klassifiziert prüfen, freigeben und berichten |
 
-`section` ist URL-Zustand. Ungültige Werte fallen auf `overview` zurück. Der Case muss per Deep Link neu ladbar sein. Shell-State und Browser-URL müssen synchron bleiben; die konkrete Routing-Lösung gehört zu `SHELL-ROUTING-01`.
+`section` ist URL-Zustand. Die verbindliche Phase-A-Allowlist lautet exakt `overview`, `assumptions`, `cashflow`, `valuation`, `scenarios`. `scenarios` zeigt ausschließlich vorhandene Varianten und den Variant-Wechsel. Unbekannte Werte sowie die blockierten Zielwerte `review`, `versions` und `reporting` werden im Rehost kanonisch auf `overview` normalisiert; sie öffnen keine Platzhalter- oder Legacy-Oberfläche. Der Case muss per Deep Link neu ladbar sein. Shell-State und Browser-URL müssen synchron bleiben; die konkrete Routing-Lösung gehört zu `SHELL-ROUTING-01`.
 
-### 7.2 Case-Navigation
+### 7.2 Phase-A-Case-Navigation (`VALUATION-REHOST-01C`)
 
-| Reihenfolge | Bereich | Leitfrage | Phase A / Rehost | Ausbau |
-|---:|---|---|---|---|
-| 1 | Überblick | Was ist der aktive, belastbare Stand? | Case, Status, KPI, Vollständigkeit, Stale-Hinweis | Baseline-/Approved-Deltas |
-| 2 | Annahmen | Welche Werte gelten, woher kommen sie? | vorhandener Faktorkatalog, geführte Gruppen | Source-Import, Operating, Rent/Lease, CapEx, Debt |
-| 3 | Cashflow | Wie entstehen NOI und Terminalwert? | jährliche bestehende DCF-Projektion | Lease-/CapEx-/Debt-Events, Actuals |
-| 4 | Bewertung | Welche sichere Einzelrechnung liefert welches Ergebnis und warum? | technische Ertrags-/Sachwert-Modellrechnungen und aggregate DCF; keine Reconciliation | Method Contract, fachliche Berichtsklassen, weitere freigegebene Methoden |
-| 5 | Szenarien | Was ändert sich bei alternativen Annahmen? | Variantenübersicht | Deltas, Baseline, Sensitivitätsmatrix |
-| 6 | Review | Ist der Case vollständig und erklärbar? | Blocked-Hinweis zum Method Contract | strukturierte Checkliste/Kommentare nach Approval Class |
-| 7 | Versionen & Freigabe | Welcher Stand ist freigegeben? | Existing Legacy Status read-only | klassifizierte Approval, History, Diff, Revision-Case |
-| 8 | Bericht & Audit | Wie wird der Stand geteilt und nachgewiesen? | Existing Legacy Report read-only | klassifizierter Report, Exportartefakt, Audit-Timeline |
+| Reihenfolge | Section-Key | Bereich | Phase-A-Inhalt |
+|---:|---|---|---|
+| 1 | `overview` | Überblick | Case, vorhandener Status, sichere KPIs, Vollständigkeit und Legacy-Stale-Hinweis; keine Baseline-Deltas |
+| 2 | `assumptions` | Annahmen | vorhandener Faktorkatalog, vorhandene Provenance und `suggestedDefault/accepted/manual`-Semantik |
+| 3 | `cashflow` | Cashflow | vorhandene jährliche aggregate-unlevered-DCF-Projektion |
+| 4 | `valuation` | Bewertung | technische Ertrags-/Sachwert-Modellrechnungen und aggregate DCF; keine Comparables, Direct Capitalization oder Reconciliation |
+| 5 | `scenarios` | Varianten | vorhandene Variantengruppe sowie Create/Switch; keine Baseline, Deltas oder Sensitivität |
 
-### 7.3 Nutzerreisen
+### 7.3 Future / Blocked target IA
+
+| Zielbereich | Voraussetzung | Phase-A-Verhalten |
+|---|---|---|
+| Review | `VALUATION-METHOD-CONTRACT-01` | keine Section, Fläche oder Aktion; `section=review` normalisiert auf `overview` |
+| Versionen & Freigabe | `VALUATION-VERSION-01` + Method Contract | keine Section/History/Approval-Fläche; Legacy-Status nur read-only im Kopf/Overview |
+| Bericht & Audit | `VALUATION-REPORT-EXPORT-01` + `VALUATION-AUDIT-READ-01` | keine Section/Export-/Audit-Fläche; vorhandene Legacy-Report-Metadaten nur read-only im Overview |
+
+### 7.4 Nutzerreisen
 
 **Analyst erstellt eine Bewertung**
 
 1. Öffnet die Queue und wählt „Neue Bewertung“.
 2. Wählt ein Cloud-Property und eine verständlich erklärte Case-Art.
-3. Prüft vorgeschlagene, importierte und fehlende Annahmen getrennt.
+3. Prüft vorhandene manuelle, vorgeschlagene und fehlende Annahmen getrennt; neue Source-Imports sind nicht Teil von Phase A.
 4. Bestätigt jeden Vorschlag, der in die Berechnung einfließen soll.
 5. Prüft Cashflow, Methodenwerte, fehlende Faktoren und Konfidenz.
 6. Speichert die Annahmen und beendet Phase A mit einer internen Live-Analyse; Publish/Review ist blockiert.
 
-**Analyst untersucht eine Änderung**
+**Analyst untersucht in Phase A eine Variante**
 
 1. Öffnet einen Draft oder eine Variante.
-2. Wählt Baseline und aktives Szenario.
-3. Sieht Deltas je Annahme und die betroffenen KPIs/Methoden.
-4. Ändert einen Wert mit optionalem Änderungsgrund.
+2. Wechselt über die vorhandene Variantengruppe den aktiven Case oder erstellt eine Variante.
+3. Prüft deren vorhandene Faktoren, sichere Methodenwerte und DCF-KPIs ohne automatische Delta-/Baseline-Aussage.
+4. Ändert einen vorhandenen Faktor mit optionalem Änderungsgrund.
 5. Berechnung wird lokal neu aufgebaut; ein vorhandener Legacy-Stand wird als veraltet markiert.
-6. Analyst vergleicht die interne Live-Analyse; ein neuer Stand wird in Phase A nicht publiziert.
+6. Ein neuer Stand wird in Phase A weder verglichen noch publiziert. Baseline-/Model-Diff folgt erst mit `SCENARIO-VALUATION-01`/`VALUATION-VERSION-01`.
 
 **Approver gibt einen Stand frei — erst nach `VALUATION-METHOD-CONTRACT-01`**
 
@@ -272,15 +282,15 @@ Harte fachliche Invarianten:
 
 ### 8.1 Regeln für jede Eingabe
 
-Diese Regeln gelten zusätzlich zu den Einzelfeldern:
+Diese Regeln beschreiben das Zielmodell zusätzlich zu den Einzelfeldern. Für `VALUATION-REHOST-01C` gilt die harte Teilmenge: vorhandene Factor-Werte, Einheiten, Notes, Confidence und Provenance bleiben sichtbar; vorhandene `suggestedDefault` werden bewusst akzeptiert. Neue SourceRef-/Snapshot-Felder, Source-vs-Case-Comparison, Baseline-Auswahl und Delta-Engine sind keine Phase-A-Anforderung.
 
 - Geldwerte tragen eine Währung. Die heutige Valuation Engine ist faktisch EUR-orientiert; ein Multi-Currency-Case ist bis `VALUATION-CURRENCY-01` blockiert.
 - Prozentfelder werden als Prozent eingegeben und als Dezimalzahl gespeichert (`3,5 %` → `0,035`). Die UI zeigt immer das Prozentzeichen.
 - Leere Eingabe ist `missing`, niemals automatisch `0`.
 - Ein Template- oder Referenzwert startet als `suggestedDefault` und ist **nicht rechenwirksam**, bis der Nutzer ihn akzeptiert. Dann wird er `accepted`.
-- Ein Cloud-Property-, Rent-Roll-, Lease- oder CapEx-Wert wird als Source-Suggestion mit Stichtag gezeigt. Import bleibt bewusst und nachvollziehbar; kein stilles Überschreiben.
+- Nach `VALUATION-SOURCE-01` wird ein Cloud-Property-, Rent-Roll-, Lease- oder CapEx-Wert als Source-Suggestion mit Stichtag gezeigt. Import bleibt bewusst und nachvollziehbar; kein stilles Überschreiben.
 - Manuelle Eingaben erhalten `userProvided`; rechnerisch abgeleitete Werte `derived` mit lesbarer Formel/Quell-IDs.
-- Jedes Feld zeigt: Wert, Einheit, Herkunft, Stichtag, Konfidenz, „gegenüber Baseline geändert“ und – falls vorhanden – Änderungsgrund.
+- Nach Source-/Scenario-Contract zeigt jedes Feld zusätzlich strukturierten Stichtag und Baseline-Delta. Phase A zeigt nur die heute im Factor Contract vorhandene Herkunft/Provenance, Note und Confidence.
 - Speichern verwendet `expectedVersion`, `mutationId` und `correlationId`. Bei Version Conflict bleibt die Nutzereingabe erhalten und wird mit dem Serverstand vergleichbar.
 - Approved Cases sind unveränderlich. „Ändern“ erzeugt künftig einen Revision-Case; es editiert nie den Approved-Stand.
 
@@ -378,6 +388,8 @@ Der aktuelle Cloud-Rent-Roll summiert aktive, zum Stichtag laufende Leases und w
 Finanzierung wirkt künftig auf levered Cashflow und Equity-KPIs, **nicht** auf den unlevered Objektwert. Das Legacy-Modell mit einem einfachen Darlehen darf erst nach fachlichen Golden-Model-Tests als Portierungsbasis dienen.
 
 ### 8.6 Szenario- und Sensitivitätsinputs
+
+In Phase A sind ausschließlich Variantengruppe, Variantenlabel und aktiver Varianten-Case verfügbar. Baseline, Deltas, Sensitivitätsachsen/-stützstellen und Ziel-KPI-Runs bleiben durch `SCENARIO-VALUATION-01` blockiert.
 
 | Eingabe | Bedeutung | Validierung | Herkunft / Default | Tracking |
 |---|---|---|---|---|
@@ -507,6 +519,8 @@ Der abweichende Legacy-Scenario-Lifecycle (`rejected` usw.) wird nicht in den Cl
 
 ## 14. Source Transparency, Audit und Versionen
 
+Dieser Abschnitt beschreibt das Ziel nach den benannten Source-, Scenario-, Version- und Audit-Paketen. `VALUATION-REHOST-01C` zeigt nur vorhandene Factor-Provenance/Source/Note/Confidence, Case-/Variant-Information und read-only Legacy-Status-/Report-Metadaten; es baut keine Source-Snapshot-, Baseline-, Diff- oder Audit-Read-Architektur.
+
 Jeder sichtbare Ergebnisstand muss beantworten:
 
 - Welche Annahmen gelten?
@@ -563,19 +577,20 @@ Kein Bericht behauptet Gutachtenqualität, Rechtskonformität oder eine Methode,
 
 ## 17. Implementierungspakete
 
+Der [Product Restore Tracker](../PRODUCT_RESTORE_TRACKER.md) ist das alleinige Package-Inventar. Diese Sequenz verwendet ausschließlich dort geführte kanonische IDs; frühere lokale P-Aliase werden nicht weiter verwendet.
+
 | Paket | Umfang | Typ | Voraussetzung | Status |
 |---|---|---|---|---|
-| `VALUATION-V2-P00-ROUTE-HOST` | Case-Route, Section-State, vorhandenen Host rehosten | Rehost | `SHELL-ROUTING-01`-Lösung | **APPROVED** |
-| `VALUATION-V2-P01-QUEUE-CREATE` | Row öffnen, Create Cloud-Property, Create-Erfolg öffnen | Rehost/Fix | P00 Route Contract | **APPROVED** |
-| `VALUATION-V2-P02-CASE-CORE` | Overview, Faktoren, sichere Einzelmethoden, Varianten; ohne Opinion/Publish/Approval | Rehost/kleine UI-Erweiterung | P00 | **APPROVED** |
-| `VALUATION-V2-P03-CASHFLOW` | bestehende DCF Projection als Tabelle/Chart | UI auf vorhandener Engine | P02 | **APPROVED** |
-| `VALUATION-V2-P04-METHOD-GOV` | verbindliche Fachentscheidung `METHOD-GOV-01` | Planning/Governance | Primärquellen und Repository-Audit | **APPROVED** |
-| `VALUATION-V2-P04B-METHOD-CONTRACT` | Value Basis, Ergebnisfamilien, Validation-Anbindung, Reconciliation und Approval Classes | Domain/Backend | P04 | **BLOCKED** |
-| `VALUATION-V2-P05-SOURCES` | Property/Rent-Roll/Lease/CapEx Source Panel und akzeptierter Import | Backend + UI | Source Contract | **DRAFT/BLOCKED** |
-| `VALUATION-V2-P06-SCENARIOS` | Baseline, Deltas, Matrix | Backend + Engine + UI | Scenario Contract | **BLOCKED** |
-| `VALUATION-V2-P07-VERSIONS-AUDIT` | immutable History, Diff, Audit Timeline | Backend + UI | Version/Audit Contracts | **BLOCKED** |
-| `VALUATION-V2-P08-REPORTING` | Reports/Export Artifact | Backend + UI | Report Export Contract, P04 | **BLOCKED** |
-| `VALUATION-V2-P09-ADVANCED-CF` | Lease-by-Lease, CapEx, Debt | neue Contracts/Engines | P04/P05, Finance | **BLOCKED**, Zukunft |
+| `VALUATION-REHOST-01A` | Queue öffnen und Route Host | Rehost | `SHELL-ROUTING-01` | **APPROVED / REHOST NOW** |
+| `VALUATION-REHOST-01B` | Create mit Cloud-Property-Read und Case-Navigation | Rehost/Fix | 01A | **APPROVED / REHOST NOW** |
+| `VALUATION-REHOST-01C` | Allowlist-Case, Factors/Provenance, Varianten, technische Einzelmodelle, aggregate DCF/KPIs | Rehost | 01A | **APPROVED / REHOST NOW** |
+| `METHOD-GOV-01` | verbindliche Fachentscheidung | Planning/Governance | Primärquellen und Repository-Audit | **APPROVED** |
+| `VALUATION-METHOD-CONTRACT-01` | Value Basis, Ergebnisfamilien, Reconciliation und Approval Classes | Domain/Backend | Method Governance | **BLOCKED** |
+| `VALUATION-SOURCE-01` | Source Snapshots und Source-vs-Case-Import | Backend + UI | Version Contract | **DRAFT/BLOCKED** |
+| `SCENARIO-VALUATION-01` | Baseline, Deltas und Sensitivität | Backend + Engine + UI | Scenario Contract | **BLOCKED** |
+| `VALUATION-VERSION-01` / `VALUATION-AUDIT-READ-01` | immutable History/Diff und Audit Timeline | Backend + UI | jeweilige Contracts | **BLOCKED** |
+| `VALUATION-REPORT-EXPORT-01` | klassifizierte Report-/Export-Artefakte | Backend + UI | Method-/Version-Contract | **BLOCKED** |
+| `VALUATION-LEASE-CF-01` / `VALUATION-CAPEX-CF-01` / `VALUATION-DEBT-01` | fortgeschrittene periodische Cashflows | neue Contracts/Engines | Cashflow-/Finance-Zielmodell | **FUTURE / BLOCKED** |
 
 ### Parallelisierbare Teile
 
@@ -590,13 +605,13 @@ Kein Bericht behauptet Gutachtenqualität, Rechtskonformität oder eine Methode,
 - Given ein Nutzer mit `valuation.read`, when er einen Case-Link öffnet, then landet er nach Reload im selben Case und selben Bereich.
 - Given ein Nutzer ohne `valuation.read`, when er Queue oder Case direkt öffnet, then sieht er Forbidden und keine Case-Daten.
 - Given ein vorgeschlagener Wert, when er nicht akzeptiert wurde, then beeinflusst er keine Methode.
-- Given eine manuelle oder importierte Annahme, then sind Einheit, Herkunft, Stichtag, Konfidenz und Baseline-Delta sichtbar.
+- Given eine Phase-A-Annahme, then sind die heute vorhandenen Werte für Einheit, Provenance/Source, Note und Confidence sichtbar; strukturierter Source-Stichtag und Baseline-Delta sind keine Rehost-Anforderung.
 - Given eine ungültige Eingabe, when gespeichert wird, then stoppt die UI feldnah und der Server weist denselben ungültigen Zustand zurück.
 - Given fehlende Faktoren, then zeigt die Methode „nicht ermittelbar“ mit Gründen und niemals einen erfundenen Wert.
 - Given die aktuelle Case-Version unterscheidet sich von einem Legacy-`computedFromVersion`, then sind Legacy- und Live-Stand unterscheidbar; neue Ergebnisaktionen bleiben generell gesperrt.
 - Given ein approved Case, when ein Nutzer mit Manage-Recht eine Eingabe ändern will, then wird keine In-place-Mutation angeboten.
-- Given ein Wert wurde gegenüber Baseline geändert, then sieht der Nutzer den alten und neuen Wert sowie die betroffenen Methoden.
-- Given eine Source ist nicht berechtigt oder hat Mischwährung, then bleibt der Case bedienbar und zeigt Partial Data statt `0`.
+- Given ein blockierter Section-Key `review`, `versions` oder `reporting`, then normalisiert Phase A sicher auf `overview` und rendert keine blockierte Fläche.
+- Given Source-/Baseline-Funktionen werden künftig aktiviert, then gelten die Source-/Delta-Kriterien erst nach ihren Tracker-Paketen; Phase A simuliert sie nicht.
 - Given Realtime ist degraded, then bleibt REST kanonisch und ein Reconnect erzeugt genau einen Reconcile.
 - No existing calculation engine is replaced by inline UI arithmetic.
 
@@ -614,7 +629,7 @@ Kein Bericht behauptet Gutachtenqualität, Rechtskonformität oder eine Methode,
 10. Publish, Submit und Approval sind für den neuen Case nicht verfügbar; kein gemischtes `MarketValueOpinion` wird erzeugt.
 11. Ein bestehender publizierter Altstand wird read-only als nicht klassifizierter Legacy-Ergebnisstand gezeigt.
 12. Archived-/Approved-Deep-Link bleibt lesbar für berechtigte Nutzer, ohne professionelle Marktwertaussage.
-13. Nutzer ohne Lease-/CapEx-Leserecht sieht keine Quelldaten und keine daraus abgeleiteten Nullwerte.
+13. Deep Links mit `section=review`, `section=versions`, `section=reporting` oder unbekanntem Wert landen auf `overview` und exponieren keine Folgepaket-UI.
 14. Realtime-Verbindung wird getrennt; Degraded Notice erscheint, REST-Aktionen funktionieren, Reconnect reconciled einmal.
 
 Zusätzliche E2Es für Version, Audit, Scenario Matrix, Export und Advanced Cashflow werden erst aktiviert, wenn die benannten Contracts auf `main` gelandet sind.

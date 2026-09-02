@@ -2,13 +2,14 @@
 
 ## Metadata
 
-- Package / screen ID: `VALUATION-V2-CREATE-01`
+- Screen-ID (kein Arbeitspaket): `VALUATION-V2-CREATE-01`
+- Implementierungspaket: `VALUATION-REHOST-01B`
 - Domain: Valuation, Property
 - Route: `/valuations/new`
 - Current implementation file: `lib/ui/screens/valuations/valuation_create_dialog.dart`
 - Planning status: **APPROVED** für Cloud-Rehost
 - Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
-- Dependencies: Cloud `PropertyRepository`, Cloud `ValuationCaseRepository`, `VALUATION-V2-P00-ROUTE-HOST`
+- Dependencies: Cloud `PropertyRepository`, Cloud `ValuationCaseRepository`, `VALUATION-REHOST-01A`
 - Related screens: [Valuation Queue V2](valuation_queue_v2.md), [Valuation Case Workspace V2](valuation_case_workspace_v2.md), [gemeinsamer Workflow](valuation_v2_workflow.md)
 
 ## 1. Purpose

@@ -2,7 +2,8 @@
 
 ## Metadata
 
-- Package / screen ID: `VALUATION-V2-QUEUE-01`
+- Screen-ID (kein Arbeitspaket): `VALUATION-V2-QUEUE-01`
+- Implementierungspaket: `VALUATION-REHOST-01A`
 - Domain: Valuation
 - Route: `/valuations`
 - Current implementation files:
@@ -10,7 +11,7 @@
   - `lib/features/valuation/application/valuation_workspace_controller.dart`
 - Planning status: **APPROVED** für Rehost; klassifizierte Ergebnisprojektion **BLOCKED** bis `VALUATION-METHOD-CONTRACT-01`
 - Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
-- Dependencies: `VALUATION-V2-P00-ROUTE-HOST`, `PRODUCT-UX-FOUNDATION-01`
+- Dependencies: `SHELL-ROUTING-01`; Foundation-Decision `PRODUCT-UX-FOUNDATION-01` (kein Arbeitspaket)
 - Related screens: [Create Valuation V2](valuation_create_v2.md), [Valuation Case Workspace V2](valuation_case_workspace_v2.md), [gemeinsamer Workflow](valuation_v2_workflow.md)
 
 ## 1. Purpose
@@ -29,7 +30,7 @@ Die bestehende Cloud-Queue wird beibehalten. Der wesentliche Defekt ist der fehl
 |---|---|---|---|
 | `valuation.read` | vorhandene Cases finden und ihren Stand verstehen | Titel, Objekt, Art, Status, aktualisiert | filtern, suchen, öffnen |
 | `valuation.manage` | Drafts priorisieren und neue Bewertung starten | eigene/in Review Cases, Aktualität | erstellen, öffnen |
-| `valuation.approve` | Review-Vorrat bearbeiten | Cases `in_review`, aktueller Report-Stand | Case zur Prüfung öffnen |
+| `valuation.approve` | bestehende Legacy-Review-Stände nachschlagen | Cases `in_review`, technischer Legacy-Status | Case auf `overview` read-only öffnen; keine Phase-A-Review-Fläche |
 | Audit-/Read-only-Nutzer | freigegebene/archivierte Stände nachschlagen | Status, Objekt, Zeitpunkt | öffnen, archivierte einschließen |
 
 ## 3. Entry points and navigation
@@ -308,6 +309,6 @@ Diese Entscheidungen blockieren den **APPROVED** Rehost nicht. Optionale Felder 
 
 - Scope: bestehenden Queue-Screen behalten, Navigation verdrahten, URL-Filter und responsive Row/Card-Verhalten absichern.
 - Wahrscheinliche Dateien: `valuations_screen.dart`, `valuation_workspace_controller.dart`, App-Navigation/Cloud-Shell, bestehende Widget-Tests.
-- Voraussetzung: verbindlicher Case Route Contract aus `VALUATION-V2-P00-ROUTE-HOST`.
+- Der verbindliche Case Route Host ist Bestandteil desselben Pakets `VALUATION-REHOST-01A`; die vollständige Shell-URL-Synchronisierung bleibt `SHELL-ROUTING-01`.
 - Nicht im Paket: Search-/Projection-/Realtime-Backend-Gaps.
 - Invarianten: Keyset bleibt serverkanonisch, RLS bleibt Autorität, keine N+1-Anreicherung, Forbidden und No-match bleiben getrennt.
