@@ -503,9 +503,14 @@ class _HarnessState extends State<_Harness> {
     return PropertyWorkspaceView(
       state: state,
       initialPropertyId: widget.initialPropertyId,
-      onOpenProperty: (id) {
+      onOpenProperty: (id) async {
         calls.opened.add(id);
-        return calls.openResult ?? Future<void>.value();
+        await (calls.openResult ?? Future<void>.value());
+        // Mirrors the connected screen: the outcome is read from the settled
+        // (harness) state after the canonical read, not from the view's
+        // widget snapshot.
+        return state.propertyDetailPhase == PropertyDetailPhase.ready &&
+            state.selectedProperty?.id == id;
       },
       onCloseProperty: () => calls.closeCalls++,
       onLoadMore: () async {},

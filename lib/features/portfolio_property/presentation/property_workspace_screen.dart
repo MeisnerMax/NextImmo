@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,7 +54,16 @@ class _PropertyWorkspaceScreenState
     return PropertyWorkspaceView(
       state: state,
       initialPropertyId: widget.initialPropertyId,
-      onOpenProperty: controller.openProperty,
+      onOpenProperty: (propertyId) async {
+        await controller.openProperty(propertyId);
+        // The controller has already settled its state when this future
+        // completes, but the consumer rebuild that delivers it to the view's
+        // widget snapshot only lands with the next frame. Decide from the
+        // provider itself, never from a possibly stale `widget.state`.
+        final next = ref.read(referenceSliceControllerProvider);
+        return next.propertyDetailPhase == PropertyDetailPhase.ready &&
+            next.selectedProperty?.id == propertyId;
+      },
       onCloseProperty: controller.closeSelectedProperty,
       onLoadMore: controller.loadNextPropertyPage,
       onReload: controller.reloadProperties,
@@ -129,7 +140,12 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// A deep-linked property: the host starts in workspace mode for it and
   /// shows the loading/notFound/forbidden states there instead of the list.
   final String? initialPropertyId;
-  final Future<void> Function(String propertyId) onOpenProperty;
+
+  /// Performs the canonical `getById` and resolves to whether the property
+  /// context is now ready for exactly [propertyId]. The host opens the
+  /// workspace only on `true`; notFound/forbidden/error resolve `false` and
+  /// surface through the state the list already renders.
+  final Future<bool> Function(String propertyId) onOpenProperty;
   final VoidCallback onCloseProperty;
   final Future<void> Function() onLoadMore;
   final Future<void> Function() onReload;
@@ -222,14 +238,13 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       _openingPropertyId = propertyId;
       _lastOpenAttemptId = propertyId;
     });
-    await widget.onOpenProperty(propertyId);
+    // The outcome comes from the callback, which reads the settled provider
+    // state; `widget.state` may still be the pre-open snapshot here.
+    final opened = await widget.onOpenProperty(propertyId);
     if (!mounted) {
       return;
     }
     final state = widget.state;
-    final opened =
-        state.propertyDetailPhase == PropertyDetailPhase.ready &&
-        state.selectedProperty?.id == propertyId;
     setState(() {
       _openingPropertyId = null;
       if (!opened) {
@@ -521,7 +536,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
           title: 'Objekt konnte nicht geladen werden',
           description:
               state.message ?? 'Die Objektdaten sind derzeit nicht verfügbar.',
-          onRetry: () => widget.onOpenProperty(_hostState.openPropertyId!),
+          onRetry:
+              () =>
+                  unawaited(widget.onOpenProperty(_hostState.openPropertyId!)),
         );
       case PropertyDetailPhase.ready:
         return PropertyAssetPanel(
