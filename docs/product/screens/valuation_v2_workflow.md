@@ -16,7 +16,7 @@
 - Verbindliche Fachentscheidung: [Valuation Method Governance (`METHOD-GOV-01`)](../VALUATION_METHOD_GOVERNANCE.md)
 - Abhängigkeiten: Foundation-Decision `PRODUCT-UX-FOUNDATION-01` (kein Arbeitspaket), `SHELL-ROUTING-01`, Cloud-Valuation-Contract, Cloud-Property-Contract
 - Stand der Recherche: 2026-08-28
-- Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
+- Publish-Prüfung: 2026-09-02 auf `origin/main` = `2818ecb1191c837202bd4b57fd019ba12208308d`
 
 ## 1. Zweck und Leitentscheidung
 

@@ -7,7 +7,7 @@
 - Entscheidungstyp: verbindliche Fach- und Produktarchitektur
 - Geltungsbereich: NexImmo Valuation V2
 - Stand: 2026-09-01
-- Repository-Basis: `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
+- Repository-Basis: `origin/main` = `2818ecb1191c837202bd4b57fd019ba12208308d`
 - Implementierung: ausdrücklich nicht Bestandteil dieser Entscheidung
 - Verbindliche Folgespecs:
   - [Valuation V2 Workflow](screens/valuation_v2_workflow.md)

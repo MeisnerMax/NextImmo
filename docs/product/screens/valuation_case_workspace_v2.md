@@ -23,7 +23,7 @@
   - **APPROVED / REHOST NOW:** eigenständiger Case-Rehost, vorhandene Faktoren, technische Ertrags-/Sachwert-Modellrechnungen, aggregate DCF-Cashflow-Darstellung und Varianten
   - **DRAFT:** geführte Source-/Baseline-Darstellung
   - **BLOCKED:** gemischte Opinion, Direct Capitalization bis Validation, Publish/Review/Approval, indikative/professionelle Marktwertfreigabe, Lease/CapEx/Debt-Cashflow, Sensitivität, Version History, Audit Read und Export
-- Publish-Prüfung: 2026-09-01 auf `origin/main` = `bf0693cbde0a1efe10a78e9fe3ca1f0a08af3a1c`
+- Publish-Prüfung: 2026-09-02 auf `origin/main` = `2818ecb1191c837202bd4b57fd019ba12208308d`
 - Dependencies: [Method Governance](../VALUATION_METHOD_GOVERNANCE.md), [gemeinsamer Workflow](valuation_v2_workflow.md), Foundation-Decision `PRODUCT-UX-FOUNDATION-01` (kein Arbeitspaket), `SHELL-ROUTING-01`
 - Related screens: [Valuation Queue V2](valuation_queue_v2.md), [Create Valuation V2](valuation_create_v2.md)
 
