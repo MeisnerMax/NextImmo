@@ -25,7 +25,13 @@ enum PlatformEntityType {
   party('party'),
   maintenanceTicket('maintenance_ticket'),
   capexProject('capex_project'),
-  scenario('scenario');
+  scenario('scenario'),
+
+  /// NOTIFICATION-EMITTER-01: the registry's task value. Notifications
+  /// address the task they report on (`/tasks/:id`); a task never LINKS a
+  /// task (server constraint `tasks_entity_not_task_check`), so task dialogs
+  /// must not offer it as a context.
+  task('task');
 
   const PlatformEntityType(this.wireName);
 

@@ -52,6 +52,15 @@ void main() {
       '/tasks',
     );
 
+    // NOTIFICATION-EMITTER-01: an emitted task event opens the task itself.
+    final taskTarget = notificationTargetFor(
+      _notification(
+        const PlatformEntityRef(type: PlatformEntityType.task, id: 'task-1'),
+      ),
+    );
+    expect(taskTarget?.route, '/tasks/task-1');
+    expect(taskTarget?.label, 'Aufgabe öffnen');
+
     // The four property-scoped types need the parent propertyId
     // (TASK-QUERY-01); portfolio/scenario surfaces are not cloud-ready.
     for (final type in <PlatformEntityType>[
