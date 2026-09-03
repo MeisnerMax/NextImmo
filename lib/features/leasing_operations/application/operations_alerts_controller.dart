@@ -270,28 +270,31 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
     }
   }
 
-  /// Creates a task linked to [signal]'s most specific entity (see
-  /// [entityRefFor]). Does not reload the signal list — a task is not a
-  /// signal property, so nothing about the list actually changed.
+  /// Creates a task from the shared dialog's [draft], linked to [signal]'s
+  /// most specific entity (see [entityRefFor]) — the link comes from the
+  /// signal authoritatively, whatever the draft carried. Does not reload the
+  /// signal list — a task is not a signal property.
   ///
-  /// [mutationId] identifies the caller's *intent* and must be created when
-  /// the dialog opens, then kept across every submit attempt of it (shared
-  /// contract §12): the server replays on it, so a retry after a timeout
-  /// converges on the first task instead of creating a second one. It must
-  /// also be a real uuid — `create_task` types `p_mutation_id` and
+  /// Returns null on success and the classified failure otherwise, so the
+  /// shared dialog maps it per the §12 contract. [mutationId] identifies the
+  /// caller's *intent* and is created when the dialog opens, then kept across
+  /// every submit attempt: the server replays on it, so a retry after a
+  /// timeout converges on the first task instead of creating a second one.
+  /// It must be a real uuid — `create_task` types `p_mutation_id` and
   /// `p_correlation_id` as `uuid`, which the previous epoch-derived
   /// `oa-task-mut-…` strings could never satisfy.
-  Future<bool> createTaskFrom({
+  Future<PlatformRepositoryFailure<TaskDto>?> createTaskFrom({
     required OperationsSignalDto signal,
-    required String title,
+    required TaskDraft draft,
     required String mutationId,
-    TaskPriority priority = TaskPriority.normal,
-    DateTime? dueAt,
   }) async {
     final workspaceId = _scope.workspaceId;
     final actorId = _scope.actorId;
     if (workspaceId == null || actorId == null) {
-      return false;
+      return const PlatformRepositoryFailure<TaskDto>(
+        kind: PlatformRepositoryFailureKind.forbidden,
+        message: 'Kein aktiver Arbeitsbereich.',
+      );
     }
     final result = await _tasks.createTask(
       CreateTaskCommand(
@@ -303,20 +306,22 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
           reason: 'Operations-Alert',
         ),
         draft: TaskDraft(
-          title: title,
+          title: draft.title,
           entity: entityRefFor(signal),
-          priority: priority,
-          dueAt: dueAt,
-          description: signal.message,
+          priority: draft.priority,
+          dueAt: draft.dueAt,
+          description: draft.description,
+          category: draft.category,
+          assignedTo: draft.assignedTo,
         ),
       ),
     );
     switch (result) {
       case PlatformRepositoryFailure<TaskDto>(:final message):
         state = state.copyWith(actionError: message);
-        return false;
+        return result;
       case PlatformRepositorySuccess<TaskDto>():
-        return true;
+        return null;
     }
   }
 

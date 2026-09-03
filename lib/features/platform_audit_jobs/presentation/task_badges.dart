@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../ui/components/nx_status_badge.dart';
+import '../domain/task_category.dart';
 import '../domain/task_dto.dart';
 
 /// German labels and badge kinds for [TaskStatus], kept beside the domain
@@ -26,6 +27,43 @@ NxBadgeKind taskStatusBadgeKind(TaskStatus status) {
     TaskStatus.blocked => NxBadgeKind.warning,
     TaskStatus.done => NxBadgeKind.success,
     TaskStatus.archived => NxBadgeKind.neutral,
+  };
+}
+
+/// German display labels of the §7.5 category vocabulary. An unknown server
+/// value has no row here on purpose: it renders as its raw wire string
+/// ("angezeigt und erhalten") via [taskCategoryDisplayLabel].
+String taskCategoryLabel(TaskCategory category) {
+  return switch (category) {
+    TaskCategory.general => 'Allgemein',
+    TaskCategory.letting => 'Vermietung',
+    TaskCategory.maintenance => 'Instandhaltung',
+    TaskCategory.renovation => 'Sanierung',
+    TaskCategory.finance => 'Finanzen',
+    TaskCategory.document => 'Dokumente',
+    TaskCategory.compliance => 'Compliance',
+    TaskCategory.valuation => 'Bewertung',
+  };
+}
+
+/// Label for a raw wire value: the German label for vocabulary members, the
+/// raw string itself for unknown ones, null for an absent category.
+String? taskCategoryDisplayLabel(String? wire) {
+  if (wire == null) {
+    return null;
+  }
+  final known = TaskCategory.tryFromWire(wire);
+  return known == null ? wire : taskCategoryLabel(known);
+}
+
+/// German priority labels (`task_center.md` §13). Visually, priority appears
+/// as its own chip only at `high` (§5.1) — the label set still covers all
+/// three for the dialog dropdown.
+String taskPriorityLabel(TaskPriority priority) {
+  return switch (priority) {
+    TaskPriority.low => 'Niedrig',
+    TaskPriority.normal => 'Normal',
+    TaskPriority.high => 'Hoch',
   };
 }
 

@@ -77,8 +77,14 @@ void main() {
 
     await tester.tap(find.text('Aufgabe erstellen'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Vertrag verlängern');
-    await tester.tap(find.text('Erstellen'));
+    // TASK-CENTER-01: the panel opens the one shared dialog (Shared §5.2)
+    // with the signal's most specific entity preset.
+    expect(find.byKey(const Key('task-form-dialog')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('task-form-title')),
+      'Vertrag verlängern',
+    );
+    await tester.tap(find.byKey(const Key('task-form-submit')));
     await tester.pumpAndSettle();
 
     expect(tasks.lastCommand?.draft.title, 'Vertrag verlängern');

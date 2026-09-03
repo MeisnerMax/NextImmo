@@ -16,12 +16,19 @@ void main() {
       ]);
     });
 
-    test('registers only the implemented Objekt domain in wave A1', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(1));
-      final asset = registeredPropertyWorkspaceDomains.single;
+    test('registers exactly the implemented domains: Objekt (A1) and '
+        'Betrieb (TASK-CENTER-01)', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(2));
+      final asset = registeredPropertyWorkspaceDomains.first;
       expect(asset.domain, PropertyWorkspaceDomain.asset);
       expect(asset.label, 'Objekt');
       expect(asset.readPermission, 'property.read');
+      final operations = registeredPropertyWorkspaceDomains.last;
+      expect(operations.domain, PropertyWorkspaceDomain.operations);
+      expect(operations.label, 'Betrieb');
+      // Gated on the read permission of its one implemented child, the
+      // property-scoped task surface; MAINTENANCE-PARITY-01 widens this.
+      expect(operations.readPermission, 'task.read');
       // Blocked or not yet implemented domains are absent, not disabled.
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
@@ -39,6 +46,16 @@ void main() {
           'property.read',
         }).map((d) => d.domain),
         <PropertyWorkspaceDomain>[PropertyWorkspaceDomain.asset],
+      );
+      expect(
+        visiblePropertyWorkspaceDomains(<String>{
+          'property.read',
+          'task.read',
+        }).map((d) => d.domain),
+        <PropertyWorkspaceDomain>[
+          PropertyWorkspaceDomain.asset,
+          PropertyWorkspaceDomain.operations,
+        ],
       );
       expect(visiblePropertyWorkspaceDomains(<String>{'lease.read'}), isEmpty);
       expect(visiblePropertyWorkspaceDomains(const <String>{}), isEmpty);

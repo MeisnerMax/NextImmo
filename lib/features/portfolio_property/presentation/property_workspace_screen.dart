@@ -9,6 +9,8 @@ import '../../../ui/components/nx_list_skeleton.dart';
 import '../../../ui/components/nx_live_updates_notice.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
+import '../../platform_audit_jobs/domain/platform_entity_type.dart';
+import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/property_workspace_host_state.dart';
 import '../domain/property_dto.dart';
@@ -78,6 +80,17 @@ class _PropertyWorkspaceScreenState
             PropertyMutationPhase.succeeded;
       },
       onRetryUpdate: controller.retryUpdate,
+      // TASK-CENTER-01: `Betrieb → Aufgaben` binds the one task surface with
+      // the property preset. Injected here so the view stays pumpable
+      // without a provider graph.
+      operationsTasksBuilder: (context, propertyId) => TaskCenterScreen(
+        key: ValueKey<String>('property-operations-tasks-$propertyId'),
+        embedded: true,
+        lockedContext: PlatformEntityRef(
+          type: PlatformEntityType.property,
+          id: propertyId,
+        ),
+      ),
     );
   }
 
@@ -132,6 +145,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     required this.onRefreshWorkspaces,
     required this.onUpdateProperty,
     required this.onRetryUpdate,
+    this.operationsTasksBuilder,
     this.initialPropertyId,
   });
 
@@ -153,6 +167,12 @@ class PropertyWorkspaceView extends StatefulWidget {
   final Future<void> Function() onRefreshWorkspaces;
   final PropertyWorkspaceUpdate onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
+
+  /// Builds the embedded task surface of `Betrieb → Aufgaben`. Injected by
+  /// the connected screen; a host pumped without it renders a plain
+  /// placeholder, never a provider error.
+  final Widget Function(BuildContext context, String propertyId)?
+  operationsTasksBuilder;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -344,13 +364,23 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     }
   }
 
-  void _selectDomain(PropertyWorkspaceDomain domain) {
+  Future<void> _selectDomain(PropertyWorkspaceDomain domain) async {
     if (domain == _hostState.domain) {
       return;
     }
-    // Only `asset` is registered in wave A1; a later increment routes here
-    // through the same dirty gate as [_backToList].
-    setState(() => _hostState = _hostState.copyWith(domain: domain));
+    // A domain switch leaves the active child exactly like back-to-list does:
+    // over unsaved asset input it goes through the one Speichern / Verwerfen /
+    // Abbrechen dialog.
+    if (!await _confirmLeave()) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _assetEditing = false;
+      _hostState = _hostState.copyWith(domain: domain);
+    });
   }
 
   // --- Build ------------------------------------------------------------------
@@ -402,7 +432,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         selected != null &&
         selected.id == openId;
     final editAction =
-        detailReady && !_assetEditing
+        detailReady &&
+                !_assetEditing &&
+                _hostState.domain == PropertyWorkspaceDomain.asset
             ? Tooltip(
               message:
                   canEdit
@@ -455,7 +487,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
             ),
           ],
           const SizedBox(height: AppSpacing.component),
-          Expanded(child: _buildDomainContent(context, state, canEdit)),
+          Expanded(
+            child: _buildDomainContent(context, state, canEdit, activeDomain),
+          ),
         ],
       ),
     );
@@ -465,6 +499,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     BuildContext context,
     ReferenceSliceState state,
     bool canEdit,
+    PropertyWorkspaceDomain activeDomain,
   ) {
     if (state.authPhase != ReferenceAuthPhase.authenticated ||
         state.selectedWorkspace == null) {
@@ -477,7 +512,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     }
     if (!visiblePropertyWorkspaceDomains(
       _permissions(state),
-    ).any((d) => d.domain == PropertyWorkspaceDomain.asset)) {
+    ).any((d) => d.domain == activeDomain)) {
       return const NxEmptyState(
         key: Key('property-workspace-forbidden'),
         title: 'Kein Zugriff auf dieses Objekt',
@@ -541,21 +576,60 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
                   unawaited(widget.onOpenProperty(_hostState.openPropertyId!)),
         );
       case PropertyDetailPhase.ready:
-        return PropertyAssetPanel(
-          key: const Key('property-asset'),
-          state: state,
-          canEdit: canEdit,
-          editing: _assetEditing,
-          onEditingChanged: (value) {
-            if (mounted && value != _assetEditing) {
-              setState(() => _assetEditing = value);
-            }
-          },
-          dirtyRegistry: _dirtyRegistry,
-          onUpdate: widget.onUpdateProperty,
-          onRetry: widget.onRetryUpdate,
-        );
+        switch (activeDomain) {
+          case PropertyWorkspaceDomain.operations:
+            return _buildOperationsDomain(context);
+          case PropertyWorkspaceDomain.overview:
+          case PropertyWorkspaceDomain.asset:
+          case PropertyWorkspaceDomain.leasing:
+          case PropertyWorkspaceDomain.documents:
+          case PropertyWorkspaceDomain.investment:
+          case PropertyWorkspaceDomain.activity:
+            return PropertyAssetPanel(
+              key: const Key('property-asset'),
+              state: state,
+              canEdit: canEdit,
+              editing: _assetEditing,
+              onEditingChanged: (value) {
+                if (mounted && value != _assetEditing) {
+                  setState(() => _assetEditing = value);
+                }
+              },
+              dirtyRegistry: _dirtyRegistry,
+              onUpdate: widget.onUpdateProperty,
+              onRetry: widget.onRetryUpdate,
+            );
+        }
     }
+  }
+
+  /// `Betrieb` (TASK-CENTER-01): the sub-navigation renders the implemented
+  /// children only — today exactly `Aufgaben`, kept as a chip so the level
+  /// stays unambiguous, exactly like the domain nav with one target.
+  /// Wartung/CapEx join with `MAINTENANCE-PARITY-01`.
+  Widget _buildOperationsDomain(BuildContext context) {
+    final propertyId = _hostState.openPropertyId!;
+    return Column(
+      key: const Key('property-operations'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ChoiceChip(
+            key: const Key('property-operations-sub-tasks'),
+            label: const Text('Aufgaben'),
+            selected: true,
+            onSelected: (_) {},
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child:
+              widget.operationsTasksBuilder?.call(context, propertyId) ??
+              const SizedBox.shrink(),
+        ),
+      ],
+    );
   }
 
   PropertySummaryDto? _summaryFromList(
