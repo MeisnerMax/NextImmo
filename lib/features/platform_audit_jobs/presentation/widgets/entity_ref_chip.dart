@@ -14,6 +14,7 @@ String platformEntityTypeLabel(PlatformEntityType type) {
     PlatformEntityType.maintenanceTicket => 'Ticket',
     PlatformEntityType.capexProject => 'CapEx-Projekt',
     PlatformEntityType.scenario => 'Szenario',
+    PlatformEntityType.task => 'Aufgabe',
   };
 }
 
@@ -42,6 +43,7 @@ class EntityRefChip extends StatelessWidget {
           PlatformEntityType.capexProject => Icons.construction_outlined,
           PlatformEntityType.portfolio => Icons.account_tree_outlined,
           PlatformEntityType.scenario => Icons.calculate_outlined,
+          PlatformEntityType.task => Icons.task_alt_outlined,
           PlatformEntityType.workspace => Icons.workspaces_outline,
         },
         size: 16,

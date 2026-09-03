@@ -305,7 +305,11 @@ select is(
   'one fan-out call reports two recipients'
 );
 select is(
-  (select count(*)::integer from public.notifications where kind = 'task.assigned'),
+  -- Scoped away from the NOTIFICATION-EMITTER-01 rows: the update_task
+  -- assignment above legitimately emitted its own task.assigned (addressed at
+  -- the task); this asserts only the explicit create_notification fan-out.
+  (select count(*)::integer from public.notifications
+   where kind = 'task.assigned' and entity_type is distinct from 'task'),
   2,
   'fan-out created one row per recipient'
 );
@@ -327,7 +331,8 @@ select is(
   'replaying the fan-out mutation succeeds'
 );
 select is(
-  (select count(*)::integer from public.notifications where kind = 'task.assigned'),
+  (select count(*)::integer from public.notifications
+   where kind = 'task.assigned' and entity_type is distinct from 'task'),
   2,
   'the fan-out replay created no extra rows'
 );
@@ -365,7 +370,7 @@ set local request.jwt.claims = '{"sub":"ca000000-0000-0000-0000-000000000002","r
 select ok(
   (public.mark_notification_read(
     'c1000000-0000-0000-0000-000000000001',
-    (select id from public.notifications where recipient_user_id = 'ca000000-0000-0000-0000-000000000002' and kind = 'task.assigned'),
+    (select id from public.notifications where recipient_user_id = 'ca000000-0000-0000-0000-000000000002' and kind = 'task.assigned' and entity_type is distinct from 'task'),
     'c5000000-0000-0000-0000-000000000030', 'c6000000-0000-0000-0000-000000000030'
   ) -> 'entity' ->> 'read_at') is not null,
   'a recipient marks their own notification read'
@@ -390,8 +395,11 @@ select is(
 -- The plain member (workspace.read only) sees only their own notifications,
 -- and no tasks at all.
 select is(
+  -- Two rows since NOTIFICATION-EMITTER-01: the explicit fan-out row and the
+  -- task.assigned the update_task assignment emitted — both addressed to this
+  -- member, both correctly theirs to see.
   (select count(*)::integer from public.notifications),
-  1,
+  2,
   'a member without notification.read sees only their own notifications'
 );
 select is(
@@ -473,10 +481,13 @@ select ok(
   'a transition publishes task.status_changed'
 );
 select is(
+  -- Two since NOTIFICATION-EMITTER-01: the explicit create_notification
+  -- fan-out and the task.assigned emission both publish the same coarse,
+  -- permission-scoped invalidation.
   (select count(*)::integer from public.domain_events
    where event_type = 'notification.fanned_out' and required_permission = 'notification.read'),
-  1,
-  'a fan-out publishes exactly one coarse, permission-scoped envelope'
+  2,
+  'every fan-out publishes exactly one coarse, permission-scoped envelope'
 );
 
 -- ---------------------------------------------------------------------------

@@ -67,7 +67,12 @@ enum DocumentLinkEntityType {
   party('party'),
   maintenanceTicket('maintenance_ticket'),
   capexProject('capex_project'),
-  scenario('scenario');
+  scenario('scenario'),
+
+  /// NOTIFICATION-EMITTER-01 added the registry value so notifications can
+  /// address the task they report on. Document->task linking stays
+  /// TASK-ENTITY-REGISTRY-01.
+  task('task');
 
   const DocumentLinkEntityType(this.wireName);
 

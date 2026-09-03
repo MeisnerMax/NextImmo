@@ -48,6 +48,12 @@ NotificationTarget? notificationTargetFor(NotificationDto notification) {
     // Property-scoped routes need the parent propertyId the notification
     // does not carry (TASK-QUERY-01); portfolio/scenario surfaces are not
     // cloud-ready.
+    // NOTIFICATION-EMITTER-01: an emitted task event addresses the task it
+    // reports on.
+    PlatformEntityType.task => NotificationTarget(
+      route: taskRouteFor(entity.id),
+      label: 'Aufgabe öffnen',
+    ),
     PlatformEntityType.unit ||
     PlatformEntityType.lease ||
     PlatformEntityType.maintenanceTicket ||

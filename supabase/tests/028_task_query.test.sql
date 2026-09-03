@@ -392,7 +392,7 @@ select is(
 select is(
   public.count_tasks(
     'd1000000-0000-0000-0000-000000000001',
-    p_entity_type => 'task', p_entity_id => 'd6000000-0000-0000-0000-000000000001'
+    p_entity_type => 'no_such_type', p_entity_id => 'd6000000-0000-0000-0000-000000000001'
   ) -> 'error' ->> 'field',
   'entity_type',
   'an unregistered entity type is a validation failure'

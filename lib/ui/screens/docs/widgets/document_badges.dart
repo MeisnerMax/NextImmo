@@ -70,6 +70,7 @@ String documentEntityTypeLabel(DocumentLinkEntityType entityType) {
     DocumentLinkEntityType.maintenanceTicket => 'Instandhaltung',
     DocumentLinkEntityType.capexProject => 'CapEx-Projekt',
     DocumentLinkEntityType.scenario => 'Szenario',
+    DocumentLinkEntityType.task => 'Aufgabe',
   };
 }
 
