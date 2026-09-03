@@ -85,7 +85,7 @@ class TaskCenterScope {
 /// when a control has no server-side counterpart — and the widget tests
 /// assert the surface offers nothing beyond it.
 const List<({String control, String queryField})> taskCenterOfferedFilters = [
-  (control: 'status', queryField: 'status'),
+  (control: 'status', queryField: 'statuses'),
   (control: 'assignedToMe', queryField: 'assignedTo'),
   (control: 'includeArchived', queryField: 'includeArchived'),
   (control: 'lockedContext', queryField: 'entity'),
@@ -143,9 +143,10 @@ class TaskCenterFilters {
     TaskStatus? statusOverride,
     bool? includeArchivedOverride,
   }) {
+    final effectiveStatus = statusOverride ?? status;
     return TaskListQuery(
       workspaceId: workspaceId,
-      status: statusOverride ?? status,
+      statuses: effectiveStatus == null ? null : <TaskStatus>[effectiveStatus],
       assignedTo: assignedToMe ? actorId : null,
       includeArchived: includeArchivedOverride ?? includeArchived,
       entity: context,

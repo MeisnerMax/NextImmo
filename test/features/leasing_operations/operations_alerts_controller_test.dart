@@ -418,6 +418,11 @@ class _FakeSignals implements OperationsSignalsPort {
 }
 
 class _FakeTasks implements TaskRepository {
+  @override
+  Future<PlatformRepositoryResult<int>> countTasks(TaskCountQuery query) async {
+    return const PlatformRepositorySuccess<int>(0);
+  }
+
   _FakeTasks({this.result});
 
   final PlatformRepositoryResult<TaskDto>? result;

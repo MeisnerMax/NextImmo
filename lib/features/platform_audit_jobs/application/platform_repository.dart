@@ -113,26 +113,104 @@ class PlatformKeysetCursor {
 // Queries
 // -----------------------------------------------------------------------------
 
-/// Newest-first task list. [entity] scopes to one workflow entity's tasks,
-/// [assignedTo] to one member's queue, [status] to one lifecycle state.
-/// Archived tasks are excluded unless [includeArchived] is set — an archived
-/// task is terminal, so it belongs in an audit view rather than a work list.
+/// Sort order of a task list read (TASK-QUERY-01).
+///
+/// [dueAsc] orders by due date ascending and — deliberately — serves only
+/// tasks that HAVE a due date: the keyset cursor is a (timestamp, id) pair
+/// and cannot express null, and "kein Termin" is a filter bucket
+/// ([TaskListQuery.withoutDue]), not a sort position the server would have to
+/// invent.
+enum TaskListSort { createdDesc, dueAsc }
+
+/// Task list read. [entity] scopes to one workflow entity's tasks,
+/// [propertyId] to one property's roll-up (a task linked to a unit, lease,
+/// ticket or capex project counts toward its parent property), [assignedTo]
+/// to one member's queue and [unassignedOnly] to the open pool, [statuses]
+/// to a union of lifecycle states. [dueFrom] is inclusive, [dueUntil]
+/// exclusive (half-open day buckets); [withoutDue] serves the no-date bucket
+/// instead and therefore excludes a range. [titleQuery] is a plain substring
+/// match (ilike, wildcards escaped by the adapter). Archived tasks are
+/// excluded unless [includeArchived] is set — an archived task is terminal,
+/// so it belongs in an audit view rather than a work list.
 class TaskListQuery {
   const TaskListQuery({
     required this.workspaceId,
-    this.status,
+    this.statuses,
     this.entity,
     this.assignedTo,
+    this.unassignedOnly = false,
+    this.propertyId,
+    this.dueFrom,
+    this.dueUntil,
+    this.withoutDue = false,
+    this.titleQuery,
     this.includeArchived = false,
+    this.sort = TaskListSort.createdDesc,
     this.page = const PlatformPageRequest(),
-  });
+  }) : assert(
+         assignedTo == null || !unassignedOnly,
+         'An assignee filter and unassignedOnly are mutually exclusive.',
+       ),
+       assert(
+         !withoutDue || (dueFrom == null && dueUntil == null),
+         'A without-due filter excludes a due range.',
+       ),
+       assert(
+         sort != TaskListSort.dueAsc || !withoutDue,
+         'A due-ordered read cannot serve the no-due-date bucket.',
+       );
 
   final String workspaceId;
-  final TaskStatus? status;
+  final List<TaskStatus>? statuses;
   final PlatformEntityRef? entity;
   final String? assignedTo;
+  final bool unassignedOnly;
+  final String? propertyId;
+  final DateTime? dueFrom;
+  final DateTime? dueUntil;
+  final bool withoutDue;
+  final String? titleQuery;
   final bool includeArchived;
+  final TaskListSort sort;
   final PlatformPageRequest page;
+}
+
+/// The KPI count for the My-Work header (`count_tasks`). Field for field the
+/// filter surface of [TaskListQuery] minus paging and sort, so a count can
+/// never disagree with the list it captions.
+class TaskCountQuery {
+  const TaskCountQuery({
+    required this.workspaceId,
+    this.statuses,
+    this.entity,
+    this.assignedTo,
+    this.unassignedOnly = false,
+    this.propertyId,
+    this.dueFrom,
+    this.dueUntil,
+    this.withoutDue = false,
+    this.titleQuery,
+    this.includeArchived = false,
+  }) : assert(
+         assignedTo == null || !unassignedOnly,
+         'An assignee filter and unassignedOnly are mutually exclusive.',
+       ),
+       assert(
+         !withoutDue || (dueFrom == null && dueUntil == null),
+         'A without-due filter excludes a due range.',
+       );
+
+  final String workspaceId;
+  final List<TaskStatus>? statuses;
+  final PlatformEntityRef? entity;
+  final String? assignedTo;
+  final bool unassignedOnly;
+  final String? propertyId;
+  final DateTime? dueFrom;
+  final DateTime? dueUntil;
+  final bool withoutDue;
+  final String? titleQuery;
+  final bool includeArchived;
 }
 
 /// Newest-first notification feed. With [recipientUserId] set the caller reads
@@ -166,15 +244,26 @@ class ImportJobListQuery {
   final PlatformPageRequest page;
 }
 
+/// Search-index read. [entityType] scopes to one registry type; [entities]
+/// instead resolves an explicit set of (type, id) pairs — the name-resolution
+/// read the task center and the notification inbox use for entity chips and
+/// deep-link labels (TASK-QUERY-01). The two scopes are mutually exclusive:
+/// a pair list carries its own types. Keep an entity list within one page
+/// ([PlatformPageRequest.limit] caps at 100); an empty list is ignored.
 class SearchIndexQuery {
   const SearchIndexQuery({
     required this.workspaceId,
     this.entityType,
+    this.entities,
     this.page = const PlatformPageRequest(),
-  });
+  }) : assert(
+         entityType == null || entities == null,
+         'A type scope and an explicit entity list are mutually exclusive.',
+       );
 
   final String workspaceId;
   final PlatformEntityType? entityType;
+  final List<PlatformEntityRef>? entities;
   final PlatformPageRequest page;
 }
 
@@ -380,6 +469,11 @@ abstract interface class TaskRepository {
   Future<PlatformRepositoryResult<PlatformPageResult<TaskDto>>> searchTasks(
     TaskListQuery query,
   );
+
+  /// The `count_tasks` KPI read. Server-gated on `task.read` through the same
+  /// predicate as the list policy, so the number can never include rows a
+  /// list read would not serve.
+  Future<PlatformRepositoryResult<int>> countTasks(TaskCountQuery query);
 
   Future<PlatformRepositoryResult<TaskDto>> getTaskById({
     required String workspaceId,

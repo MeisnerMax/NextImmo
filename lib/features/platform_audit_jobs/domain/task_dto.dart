@@ -92,6 +92,7 @@ class TaskDto {
     required this.updatedBy,
     required this.version,
     this.entity,
+    this.propertyId,
     this.description,
     this.category,
     this.assignedTo,
@@ -113,6 +114,12 @@ class TaskDto {
 
   /// Optional link to a workflow entity.
   final PlatformEntityRef? entity;
+
+  /// TASK-QUERY-01: the server-maintained property roll-up. Set when [entity]
+  /// is a property or belongs to one (unit, lease, maintenance ticket, capex
+  /// project); null for unlinked tasks and non-property contexts. Derived and
+  /// immutable — the client never writes it.
+  final String? propertyId;
   final String? description;
   final String? category;
   final String? assignedTo;
