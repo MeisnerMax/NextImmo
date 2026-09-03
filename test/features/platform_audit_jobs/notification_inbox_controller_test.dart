@@ -48,6 +48,12 @@ class _FakeNotifications implements NotificationPort {
     NotificationFeedQuery query,
   )?
   onFeed;
+
+  /// Async variant for race tests: takes precedence over [onFeed] so a test
+  /// can gate each request on its own completer.
+  Future<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>
+  Function(NotificationFeedQuery query)?
+  onFeedAsync;
   PlatformRepositoryResult<NotificationDto> Function(
     MarkNotificationReadCommand command,
   )?
@@ -57,6 +63,10 @@ class _FakeNotifications implements NotificationPort {
   Future<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>
   notificationFeed(NotificationFeedQuery query) async {
     queries.add(query);
+    final asyncHook = onFeedAsync;
+    if (asyncHook != null) {
+      return asyncHook(query);
+    }
     return onFeed?.call(query) ?? _page(const <NotificationDto>[]);
   }
 
@@ -318,6 +328,165 @@ void main() {
         isNot(contains('Zugriff')),
       );
       expect(harness.controller.state.selectedId, isNull);
+    });
+  });
+
+  group('concurrent slice reloads (QC race regression)', () {
+    test('reload with both slices loaded refreshes both slices without '
+        'cross-cancelling — and the badge follows the new unread data', () async {
+      final harness = _build();
+      harness.port.onFeed = (query) => _page(<NotificationDto>[
+        _notification(
+          id: query.unreadOnly ? 'old-unread' : 'old-all',
+          readAt: query.unreadOnly ? null : DateTime.utc(2026, 9, 1),
+        ),
+      ]);
+      await harness.controller.load();
+      await harness.controller.setTab(unreadOnly: false);
+      expect(harness.controller.state.unread.loaded, isTrue);
+      expect(harness.controller.state.all.loaded, isTrue);
+
+      // Gate the two parallel requests of one reload() on their own
+      // completers so the completion order is deterministic.
+      final unreadGate =
+          Completer<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>();
+      final allGate =
+          Completer<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>();
+      harness.port.onFeedAsync = (query) =>
+          query.unreadOnly ? unreadGate.future : allGate.future;
+
+      final reload = harness.controller.reload(background: true);
+      // The racy order of the QC finding: unread completes first while the
+      // all request is still in flight.
+      unreadGate.complete(
+        _page(<NotificationDto>[
+          _notification(id: 'new-unread-1'),
+          _notification(id: 'new-unread-2'),
+        ]),
+      );
+      await Future<void>.delayed(Duration.zero);
+      allGate.complete(
+        _page(<NotificationDto>[
+          _notification(id: 'new-all', readAt: DateTime.utc(2026, 9, 2)),
+        ]),
+      );
+      await reload;
+
+      // Neither slice result may be dropped just because the other slice
+      // loaded in parallel.
+      expect(
+        harness.controller.state.unread.items.map((item) => item.id),
+        <String>['new-unread-1', 'new-unread-2'],
+      );
+      expect(
+        harness.controller.state.all.items.map((item) => item.id),
+        <String>['new-all'],
+      );
+      // A14: the badge is fed by the unread slice — a silently stale slice
+      // would break the one-canonical-state invariant with the bell.
+      expect(harness.controller.state.unreadBadgeCount, 2);
+      expect(harness.controller.state.unreadBadgeLabel, '2');
+    });
+
+    test('inverted completion order: all first, unread second — both valid '
+        'results are kept', () async {
+      final harness = _build();
+      harness.port.onFeed = (query) => _page(<NotificationDto>[
+        _notification(
+          id: query.unreadOnly ? 'old-unread' : 'old-all',
+          readAt: query.unreadOnly ? null : DateTime.utc(2026, 9, 1),
+        ),
+      ]);
+      await harness.controller.load();
+      await harness.controller.setTab(unreadOnly: false);
+
+      final unreadGate =
+          Completer<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>();
+      final allGate =
+          Completer<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>();
+      harness.port.onFeedAsync = (query) =>
+          query.unreadOnly ? unreadGate.future : allGate.future;
+
+      final reload = harness.controller.reload(background: true);
+      allGate.complete(
+        _page(<NotificationDto>[
+          _notification(id: 'new-all', readAt: DateTime.utc(2026, 9, 2)),
+        ]),
+      );
+      await Future<void>.delayed(Duration.zero);
+      unreadGate.complete(
+        _page(<NotificationDto>[_notification(id: 'new-unread')]),
+      );
+      await reload;
+
+      expect(
+        harness.controller.state.unread.items.map((item) => item.id),
+        <String>['new-unread'],
+      );
+      expect(
+        harness.controller.state.all.items.map((item) => item.id),
+        <String>['new-all'],
+      );
+    });
+
+    test('a newer request invalidates only the older request of the same '
+        'slice', () async {
+      final harness = _build();
+      harness.port.onFeed = (query) => _page(<NotificationDto>[
+        _notification(
+          id: query.unreadOnly ? 'old-unread' : 'old-all',
+          readAt: query.unreadOnly ? null : DateTime.utc(2026, 9, 1),
+        ),
+      ]);
+      await harness.controller.load();
+      await harness.controller.setTab(unreadOnly: false);
+
+      final gates =
+          <Completer<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>>[];
+      harness.port.onFeedAsync = (query) {
+        final gate =
+            Completer<
+              PlatformRepositoryResult<PlatformPageResult<NotificationDto>>
+            >();
+        gates.add(gate);
+        return gate.future;
+      };
+
+      // Two overlapping reloads: requests 0/1 belong to the first, 2/3 to
+      // the second (order: unread, all per reload).
+      final first = harness.controller.reload(background: true);
+      final second = harness.controller.reload(background: true);
+      expect(gates, hasLength(4));
+
+      // The superseded first-reload responses arrive late…
+      gates[0].complete(
+        _page(<NotificationDto>[_notification(id: 'stale-unread')]),
+      );
+      gates[1].complete(
+        _page(<NotificationDto>[
+          _notification(id: 'stale-all', readAt: DateTime.utc(2026, 9, 2)),
+        ]),
+      );
+      await Future<void>.delayed(Duration.zero);
+      // …after the newer ones. The newer reload's results must win.
+      gates[2].complete(
+        _page(<NotificationDto>[_notification(id: 'fresh-unread')]),
+      );
+      gates[3].complete(
+        _page(<NotificationDto>[
+          _notification(id: 'fresh-all', readAt: DateTime.utc(2026, 9, 2)),
+        ]),
+      );
+      await Future.wait(<Future<void>>[first, second]);
+
+      expect(
+        harness.controller.state.unread.items.map((item) => item.id),
+        <String>['fresh-unread'],
+      );
+      expect(
+        harness.controller.state.all.items.map((item) => item.id),
+        <String>['fresh-all'],
+      );
     });
   });
 

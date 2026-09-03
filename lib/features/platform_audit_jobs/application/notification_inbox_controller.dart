@@ -226,7 +226,21 @@ class NotificationInboxController
 
   StreamSubscription<PlatformQueryInvalidation>? _invalidationSubscription;
   Timer? _invalidationTimer;
-  int _generation = 0;
+
+  /// One staleness token **per slice**: a reload() runs both slice requests
+  /// in parallel, and a global counter would let the second request's start
+  /// invalidate the first request's result — leaving the unread slice (and
+  /// with it the A14 bell badge) silently stale. A newer unread request
+  /// invalidates only an older unread request, an all request only an older
+  /// all request; cross-slice requests never cancel each other.
+  int _unreadGeneration = 0;
+  int _allGeneration = 0;
+
+  int _bumpGeneration({required bool unreadOnly}) =>
+      unreadOnly ? ++_unreadGeneration : ++_allGeneration;
+
+  int _currentGeneration({required bool unreadOnly}) =>
+      unreadOnly ? _unreadGeneration : _allGeneration;
 
   NotificationInboxScope get scope => _scope;
 
@@ -274,7 +288,7 @@ class NotificationInboxController
     if (workspaceId == null || actorId == null) {
       return;
     }
-    final generation = ++_generation;
+    final generation = _bumpGeneration(unreadOnly: unreadOnly);
     final before = unreadOnly ? state.unread : state.all;
     _setSlice(
       unreadOnly,
@@ -295,7 +309,8 @@ class NotificationInboxController
         unreadOnly: unreadOnly,
       ),
     );
-    if (generation != _generation || !mounted) {
+    if (generation != _currentGeneration(unreadOnly: unreadOnly) ||
+        !mounted) {
       return;
     }
     switch (result) {
@@ -342,7 +357,9 @@ class NotificationInboxController
         slice.loadingMore) {
       return;
     }
-    final generation = _generation;
+    // No bump: a reload of the same slice that starts during this page
+    // fetch supersedes it, exactly as before — but only within its slice.
+    final generation = _currentGeneration(unreadOnly: unreadOnly);
     _setSlice(unreadOnly, slice.copyWith(loadingMore: true));
     final result = await _notifications.notificationFeed(
       NotificationFeedQuery(
@@ -352,7 +369,8 @@ class NotificationInboxController
         page: PlatformPageRequest(cursor: cursor),
       ),
     );
-    if (generation != _generation || !mounted) {
+    if (generation != _currentGeneration(unreadOnly: unreadOnly) ||
+        !mounted) {
       return;
     }
     final current = unreadOnly ? state.unread : state.all;
