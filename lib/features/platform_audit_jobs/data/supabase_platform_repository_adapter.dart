@@ -15,11 +15,18 @@ abstract interface class PlatformSupabaseGateway {
 
   Future<List<Map<String, dynamic>>> listTasks({
     required String workspaceId,
-    required String? status,
+    required List<String>? statuses,
     required String? entityType,
     required String? entityId,
     required String? assignedTo,
+    required bool unassignedOnly,
+    required String? propertyId,
+    required DateTime? dueFrom,
+    required DateTime? dueUntil,
+    required bool withoutDue,
+    required String? titleQuery,
     required bool includeArchived,
+    required bool sortByDue,
     required PlatformKeysetCursor? after,
     required int limit,
   });
@@ -53,6 +60,7 @@ abstract interface class PlatformSupabaseGateway {
   Future<List<Map<String, dynamic>>> listSearchEntries({
     required String workspaceId,
     required String? entityType,
+    required List<({String type, String id})>? entities,
     required PlatformKeysetCursor? after,
     required int limit,
   });
@@ -71,11 +79,18 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
   @override
   Future<List<Map<String, dynamic>>> listTasks({
     required String workspaceId,
-    required String? status,
+    required List<String>? statuses,
     required String? entityType,
     required String? entityId,
     required String? assignedTo,
+    required bool unassignedOnly,
+    required String? propertyId,
+    required DateTime? dueFrom,
+    required DateTime? dueUntil,
+    required bool withoutDue,
+    required String? titleQuery,
     required bool includeArchived,
+    required bool sortByDue,
     required PlatformKeysetCursor? after,
     required int limit,
   }) async {
@@ -83,8 +98,8 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
         .from('tasks')
         .select()
         .eq('workspace_id', workspaceId);
-    if (status != null) {
-      query = query.eq('status', status);
+    if (statuses != null && statuses.isNotEmpty) {
+      query = query.inFilter('status', statuses);
     }
     if (entityType != null && entityId != null) {
       query = query.eq('entity_type', entityType).eq('entity_id', entityId);
@@ -92,8 +107,40 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
     if (assignedTo != null) {
       query = query.eq('assigned_to', assignedTo);
     }
+    if (unassignedOnly) {
+      query = query.isFilter('assigned_to', null);
+    }
+    if (propertyId != null) {
+      query = query.eq('property_id', propertyId);
+    }
+    // Half-open, matching count_tasks: from inclusive, until exclusive.
+    if (dueFrom != null) {
+      query = query.gte('due_at', dueFrom.toUtc().toIso8601String());
+    }
+    if (dueUntil != null) {
+      query = query.lt('due_at', dueUntil.toUtc().toIso8601String());
+    }
+    if (withoutDue) {
+      query = query.isFilter('due_at', null);
+    }
+    if (titleQuery != null) {
+      query = query.ilike('title', '%${escapeLikePattern(titleQuery)}%');
+    }
     if (!includeArchived) {
       query = query.neq('status', 'archived');
+    }
+    if (sortByDue) {
+      // The due-ordered read serves only dated tasks — the keyset pair cannot
+      // express null, and the no-date bucket is the withoutDue filter.
+      query = query.not('due_at', 'is', null);
+      if (after != null) {
+        query = query.or(_keysetFilterAscending('due_at', after));
+      }
+      final rows = await query
+          .order('due_at', ascending: true)
+          .order('id', ascending: true)
+          .limit(limit);
+      return rows.map(Map<String, dynamic>.from).toList(growable: false);
     }
     if (after != null) {
       query = query.or(_keysetFilter('created_at', after));
@@ -193,6 +240,7 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
   Future<List<Map<String, dynamic>>> listSearchEntries({
     required String workspaceId,
     required String? entityType,
+    required List<({String type, String id})>? entities,
     required PlatformKeysetCursor? after,
     required int limit,
   }) async {
@@ -202,6 +250,17 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
         .eq('workspace_id', workspaceId);
     if (entityType != null) {
       query = query.eq('entity_type', entityType);
+    }
+    if (entities != null && entities.isNotEmpty) {
+      // Registry wire names and uuids only — no or-syntax metacharacters.
+      query = query.or(
+        entities
+            .map(
+              (entity) =>
+                  'and(entity_type.eq.${entity.type},entity_id.eq.${entity.id})',
+            )
+            .join(','),
+      );
     }
     if (after != null) {
       query = query.or(_keysetFilter('updated_at', after));
@@ -226,6 +285,28 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
     final stamp = cursor.timestamp.toUtc().toIso8601String();
     return '$column.lt.$stamp,and($column.eq.$stamp,id.lt.${cursor.id})';
   }
+
+  /// The ascending twin, for the due-ordered read: strictly later, or the
+  /// same instant with a larger id.
+  static String _keysetFilterAscending(
+    String column,
+    PlatformKeysetCursor cursor,
+  ) {
+    final stamp = cursor.timestamp.toUtc().toIso8601String();
+    return '$column.gt.$stamp,and($column.eq.$stamp,id.gt.${cursor.id})';
+  }
+
+  /// A title query is a literal substring: `%`, `_` and `\` in the input must
+  /// match themselves, not act as ilike wildcards — the same escaping
+  /// `count_tasks` applies server-side, so list and count agree.
+  /// Public for the contract test; production code reaches it only through
+  /// [listTasks].
+  static String escapeLikePattern(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+  }
 }
 
 /// Supabase-backed implementation of the four data-plane DOM-010 ports.
@@ -248,13 +329,23 @@ class SupabasePlatformRepositoryAdapter
     TaskListQuery query,
   ) async {
     try {
+      final sortByDue = query.sort == TaskListSort.dueAsc;
       final rows = await _gateway.listTasks(
         workspaceId: query.workspaceId,
-        status: query.status?.wireName,
+        statuses: query.statuses
+            ?.map((status) => status.wireName)
+            .toList(growable: false),
         entityType: query.entity?.type.wireName,
         entityId: query.entity?.id,
         assignedTo: query.assignedTo,
+        unassignedOnly: query.unassignedOnly,
+        propertyId: query.propertyId,
+        dueFrom: query.dueFrom,
+        dueUntil: query.dueUntil,
+        withoutDue: query.withoutDue,
+        titleQuery: query.titleQuery,
         includeArchived: query.includeArchived,
+        sortByDue: sortByDue,
         after: PlatformKeysetCursor.decode(query.page.cursor),
         limit: query.page.limit + 1,
       );
@@ -265,7 +356,9 @@ class SupabasePlatformRepositoryAdapter
           workspaceId: query.workspaceId,
           parse: _parseTask,
           cursorOf: (task) => PlatformKeysetCursor(
-            timestamp: task.createdAt,
+            // The cursor column must match the active sort; a due-ordered
+            // read never serves a task without a due date.
+            timestamp: sortByDue ? task.dueAt! : task.createdAt,
             id: task.id,
           ),
           workspaceOf: (task) => task.workspaceId,
@@ -275,6 +368,44 @@ class SupabasePlatformRepositoryAdapter
       return _readFailure<PlatformPageResult<TaskDto>>(
         error,
         'Supabase tasks could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PlatformRepositoryResult<int>> countTasks(TaskCountQuery query) async {
+    try {
+      final response = await _gateway.callRpc('count_tasks', <String, Object?>{
+        'p_workspace_id': query.workspaceId,
+        'p_statuses': query.statuses
+            ?.map((status) => status.wireName)
+            .toList(growable: false),
+        'p_assigned_to': query.assignedTo,
+        'p_unassigned_only': query.unassignedOnly,
+        'p_entity_type': query.entity?.type.wireName,
+        'p_entity_id': query.entity?.id,
+        'p_property_id': query.propertyId,
+        'p_due_from': _formatTimestamp(query.dueFrom),
+        'p_due_until': _formatTimestamp(query.dueUntil),
+        'p_without_due': query.withoutDue,
+        'p_include_archived': query.includeArchived,
+        'p_title_query': query.titleQuery,
+      });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return PlatformRepositorySuccess<int>(
+          _requiredInt(_asMap(payload['entity']), 'count'),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<int>(_asMap(payload['error']), null);
+    } catch (error) {
+      return _readFailure<int>(
+        error,
+        'Supabase task count could not be loaded.',
       );
     }
   }
@@ -634,6 +765,9 @@ class SupabasePlatformRepositoryAdapter
       final rows = await _gateway.listSearchEntries(
         workspaceId: query.workspaceId,
         entityType: query.entityType?.wireName,
+        entities: query.entities
+            ?.map((entity) => (type: entity.type.wireName, id: entity.id))
+            .toList(growable: false),
         after: PlatformKeysetCursor.decode(query.page.cursor),
         limit: query.page.limit + 1,
       );
@@ -946,6 +1080,7 @@ TaskDto _parseTask(Map<String, dynamic> row) {
     updatedBy: _requiredString(row, 'updated_by'),
     version: _requiredInt(row, 'version'),
     entity: _parseEntityRef(row),
+    propertyId: _optionalString(row, 'property_id'),
     description: _optionalString(row, 'description'),
     category: _optionalString(row, 'category'),
     assignedTo: _optionalString(row, 'assigned_to'),

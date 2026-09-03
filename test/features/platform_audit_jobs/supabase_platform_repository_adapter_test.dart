@@ -31,7 +31,7 @@ void main() {
       final result = await repository.searchTasks(
         const TaskListQuery(
           workspaceId: 'workspace-a',
-          status: TaskStatus.inProgress,
+          statuses: <TaskStatus>[TaskStatus.inProgress, TaskStatus.blocked],
           entity: PlatformEntityRef(
             type: PlatformEntityType.property,
             id: 'property-1',
@@ -42,7 +42,7 @@ void main() {
       );
 
       expect(gateway.taskWorkspaceId, 'workspace-a');
-      expect(gateway.taskStatus, 'in_progress');
+      expect(gateway.taskStatuses, <String>['in_progress', 'blocked']);
       expect(gateway.taskEntityType, 'property');
       expect(gateway.taskEntityId, 'property-1');
       expect(gateway.taskAssignedTo, 'user-9');
@@ -100,6 +100,148 @@ void main() {
       );
 
       expect(gateway.taskIncludeArchived, isTrue);
+    });
+
+    // --- tasks: TASK-QUERY-01 filters, sort and count ------------------------
+
+    test('forwards the My-Work filters', () async {
+      gateway.taskRows = const <Map<String, dynamic>>[];
+
+      await repository.searchTasks(
+        TaskListQuery(
+          workspaceId: 'workspace-a',
+          unassignedOnly: true,
+          propertyId: 'property-7',
+          dueFrom: DateTime.utc(2026, 9, 1),
+          dueUntil: DateTime.utc(2026, 9, 8),
+          titleQuery: 'Heizung',
+        ),
+      );
+
+      expect(gateway.taskUnassignedOnly, isTrue);
+      expect(gateway.taskPropertyId, 'property-7');
+      expect(gateway.taskDueFrom, DateTime.utc(2026, 9, 1));
+      expect(gateway.taskDueUntil, DateTime.utc(2026, 9, 8));
+      expect(gateway.taskWithoutDue, isFalse);
+      expect(gateway.taskTitleQuery, 'Heizung');
+      expect(gateway.taskSortByDue, isFalse);
+    });
+
+    test('forwards the no-due-date bucket', () async {
+      gateway.taskRows = const <Map<String, dynamic>>[];
+
+      await repository.searchTasks(
+        const TaskListQuery(workspaceId: 'workspace-a', withoutDue: true),
+      );
+
+      expect(gateway.taskWithoutDue, isTrue);
+    });
+
+    test('a due-ordered read cursors on the due date, not created_at',
+        () async {
+      gateway.taskRows = <Map<String, dynamic>>[
+        _taskJson(id: 'task-a', dueAt: '2026-09-10T09:00:00.000Z'),
+        _taskJson(id: 'task-b', dueAt: '2026-09-20T09:00:00.000Z'),
+      ];
+
+      final result = await repository.searchTasks(
+        const TaskListQuery(
+          workspaceId: 'workspace-a',
+          sort: TaskListSort.dueAsc,
+          page: PlatformPageRequest(limit: 1),
+        ),
+      );
+
+      expect(gateway.taskSortByDue, isTrue);
+      final page =
+          (result
+                  as PlatformRepositorySuccess<PlatformPageResult<TaskDto>>)
+              .value;
+      expect(page.nextCursor, '2026-09-10T09:00:00.000Z|task-a');
+    });
+
+    test('parses the property roll-up', () async {
+      gateway.taskRows = <Map<String, dynamic>>[
+        _taskJson(id: 'task-a')..['property_id'] = 'property-7',
+      ];
+
+      final result = await repository.searchTasks(
+        const TaskListQuery(workspaceId: 'workspace-a'),
+      );
+
+      final page =
+          (result
+                  as PlatformRepositorySuccess<PlatformPageResult<TaskDto>>)
+              .value;
+      expect(page.items.single.propertyId, 'property-7');
+    });
+
+    test('counts tasks through the count_tasks envelope', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': <String, Object?>{'count': 7},
+      };
+
+      final result = await repository.countTasks(
+        TaskCountQuery(
+          workspaceId: 'workspace-a',
+          statuses: const <TaskStatus>[TaskStatus.open],
+          unassignedOnly: true,
+          propertyId: 'property-7',
+          dueUntil: DateTime.utc(2026, 9, 8),
+          titleQuery: 'Heizung',
+        ),
+      );
+
+      expect(gateway.lastFunction, 'count_tasks');
+      expect(gateway.lastParameters?['p_workspace_id'], 'workspace-a');
+      expect(gateway.lastParameters?['p_statuses'], <String>['open']);
+      expect(gateway.lastParameters?['p_unassigned_only'], isTrue);
+      expect(gateway.lastParameters?['p_property_id'], 'property-7');
+      expect(
+        gateway.lastParameters?['p_due_until'],
+        '2026-09-08T00:00:00.000Z',
+      );
+      expect(gateway.lastParameters?['p_title_query'], 'Heizung');
+      expect((result as PlatformRepositorySuccess<int>).value, 7);
+    });
+
+    test('maps a count refusal onto the failure kinds', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'forbidden',
+          'message': 'Task read is not permitted',
+        },
+      };
+
+      final result = await repository.countTasks(
+        const TaskCountQuery(workspaceId: 'workspace-a'),
+      );
+
+      final failure = result as PlatformRepositoryFailure<int>;
+      expect(failure.kind, PlatformRepositoryFailureKind.forbidden);
+      expect(failure.message, 'Task read is not permitted');
+    });
+
+    test('classifies a count infrastructure error as such', () async {
+      gateway.rpcError = Exception('down');
+
+      final result = await repository.countTasks(
+        const TaskCountQuery(workspaceId: 'workspace-a'),
+      );
+
+      expect(
+        (result as PlatformRepositoryFailure<int>).kind,
+        PlatformRepositoryFailureKind.infrastructureFailure,
+      );
+    });
+
+    test('escapes ilike wildcards in a title query', () {
+      expect(
+        SupabasePlatformGateway.escapeLikePattern(r'100%_of\it'),
+        r'100\%\_of\\it',
+      );
     });
 
     test('rejects a task row from a foreign workspace', () async {
@@ -615,6 +757,34 @@ void main() {
       expect(removal.entity.type, PlatformEntityType.property);
     });
 
+    test('resolves an explicit entity-ref list (TASK-QUERY-01)', () async {
+      gateway.searchRows = <Map<String, dynamic>>[
+        _searchEntryJson(id: 'entry-a'),
+      ];
+
+      final result = await repository.searchIndex(
+        const SearchIndexQuery(
+          workspaceId: 'workspace-a',
+          entities: <PlatformEntityRef>[
+            PlatformEntityRef(
+              type: PlatformEntityType.property,
+              id: 'property-1',
+            ),
+            PlatformEntityRef(type: PlatformEntityType.unit, id: 'unit-9'),
+          ],
+        ),
+      );
+
+      expect(gateway.searchEntities, <({String type, String id})>[
+        (type: 'property', id: 'property-1'),
+        (type: 'unit', id: 'unit-9'),
+      ]);
+      expect(
+        result,
+        isA<PlatformRepositorySuccess<PlatformPageResult<SearchEntryDto>>>(),
+      );
+    });
+
     test('pages the search index on its own updated_at keyset', () async {
       gateway.searchRows = <Map<String, dynamic>>[
         _searchEntryJson(id: 'entry-a', updatedAt: '2026-07-24T10:00:00.000Z'),
@@ -917,6 +1087,7 @@ Map<String, dynamic> _taskJson({
   String status = 'open',
   int version = 1,
   String createdAt = '2026-07-24T10:00:00.000Z',
+  String? dueAt = '2026-08-01T12:00:00.000Z',
   String? generatedKey,
 }) {
   return <String, dynamic>{
@@ -930,7 +1101,7 @@ Map<String, dynamic> _taskJson({
     'assigned_to': 'user-9',
     'priority': 'normal',
     'status': status,
-    'due_at': '2026-08-01T12:00:00.000Z',
+    'due_at': dueAt,
     'generated_key': generatedKey,
     'archived_at': null,
     'created_at': createdAt,
@@ -1022,11 +1193,18 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   List<Map<String, dynamic>> searchRows = const <Map<String, dynamic>>[];
 
   String? taskWorkspaceId;
-  String? taskStatus;
+  List<String>? taskStatuses;
   String? taskEntityType;
   String? taskEntityId;
   String? taskAssignedTo;
+  bool? taskUnassignedOnly;
+  String? taskPropertyId;
+  DateTime? taskDueFrom;
+  DateTime? taskDueUntil;
+  bool? taskWithoutDue;
+  String? taskTitleQuery;
   bool? taskIncludeArchived;
+  bool? taskSortByDue;
   PlatformKeysetCursor? taskCursor;
   int? taskLimit;
 
@@ -1034,6 +1212,7 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   bool? notificationUnreadOnly;
 
   String? searchEntityType;
+  List<({String type, String id})>? searchEntities;
 
   Object? taskListError;
   Object? taskGetError;
@@ -1048,20 +1227,34 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   @override
   Future<List<Map<String, dynamic>>> listTasks({
     required String workspaceId,
-    required String? status,
+    required List<String>? statuses,
     required String? entityType,
     required String? entityId,
     required String? assignedTo,
+    required bool unassignedOnly,
+    required String? propertyId,
+    required DateTime? dueFrom,
+    required DateTime? dueUntil,
+    required bool withoutDue,
+    required String? titleQuery,
     required bool includeArchived,
+    required bool sortByDue,
     required PlatformKeysetCursor? after,
     required int limit,
   }) async {
     taskWorkspaceId = workspaceId;
-    taskStatus = status;
+    taskStatuses = statuses;
     taskEntityType = entityType;
     taskEntityId = entityId;
     taskAssignedTo = assignedTo;
+    taskUnassignedOnly = unassignedOnly;
+    taskPropertyId = propertyId;
+    taskDueFrom = dueFrom;
+    taskDueUntil = dueUntil;
+    taskWithoutDue = withoutDue;
+    taskTitleQuery = titleQuery;
     taskIncludeArchived = includeArchived;
+    taskSortByDue = sortByDue;
     taskCursor = after;
     taskLimit = limit;
     final error = taskListError;
@@ -1119,10 +1312,12 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   Future<List<Map<String, dynamic>>> listSearchEntries({
     required String workspaceId,
     required String? entityType,
+    required List<({String type, String id})>? entities,
     required PlatformKeysetCursor? after,
     required int limit,
   }) async {
     searchEntityType = entityType;
+    searchEntities = entities;
     return searchRows;
   }
 

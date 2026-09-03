@@ -43,6 +43,11 @@ PlatformRepositorySuccess<PlatformPageResult<TaskDto>> _page(
 }
 
 class _FakeTasks implements TaskRepository {
+  @override
+  Future<PlatformRepositoryResult<int>> countTasks(TaskCountQuery query) async {
+    return const PlatformRepositorySuccess<int>(0);
+  }
+
   final List<TaskListQuery> queries = <TaskListQuery>[];
   final List<CreateTaskCommand> creates = <CreateTaskCommand>[];
   final List<UpdateTaskCommand> updates = <UpdateTaskCommand>[];
@@ -168,7 +173,7 @@ void main() {
       // the machine-checkable form of "was der Contract nicht trägt, wird
       // nicht angeboten".
       const contractFields = <String>{
-        'status',
+        'statuses',
         'assignedTo',
         'includeArchived',
         'entity',
@@ -207,7 +212,7 @@ void main() {
       final query = filters.toQuery(workspaceId: _workspace, actorId: _actor);
       // Every filter field lands in the query — and the query is fully
       // determined by them, so no hidden client-side narrowing exists.
-      expect(query.status, TaskStatus.blocked);
+      expect(query.statuses, const <TaskStatus>[TaskStatus.blocked]);
       expect(query.assignedTo, _actor);
       expect(query.includeArchived, isTrue);
       expect(query.entity?.id, 'property-1');
@@ -220,7 +225,7 @@ void main() {
       await harness.controller.load();
 
       final query = harness.tasks.queries.single;
-      expect(query.status, TaskStatus.open);
+      expect(query.statuses, const <TaskStatus>[TaskStatus.open]);
       expect(query.includeArchived, isFalse);
       expect(query.assignedTo, isNull);
       expect(query.entity, isNull);
@@ -279,7 +284,7 @@ void main() {
       await harness.controller.setIncludeArchived(true);
 
       final last = harness.tasks.queries.last;
-      expect(last.status, isNull);
+      expect(last.statuses, isNull);
       expect(last.assignedTo, _actor);
       expect(last.includeArchived, isTrue);
     });
@@ -288,7 +293,7 @@ void main() {
   group('board (A9)', () {
     test('loads four independent status-bound keysets', () async {
       final harness = _build();
-      harness.tasks.onSearch = (query) => query.status == TaskStatus.open
+      harness.tasks.onSearch = (query) => query.statuses?.single == TaskStatus.open
           ? _page(<TaskDto>[_task(id: 'open-1')], nextCursor: 'open-cursor')
           : _page(const <TaskDto>[]);
       await harness.controller.load();
@@ -296,7 +301,7 @@ void main() {
       await harness.controller.setViewMode(TaskCenterViewMode.board);
 
       expect(
-        harness.tasks.queries.map((query) => query.status),
+        harness.tasks.queries.map((query) => query.statuses?.single),
         containsAll(taskBoardStatuses),
       );
       expect(harness.tasks.queries, hasLength(4));
@@ -316,7 +321,7 @@ void main() {
 
     test('loadMoreInColumn pages exactly one column', () async {
       final harness = _build();
-      harness.tasks.onSearch = (query) => query.status == TaskStatus.open
+      harness.tasks.onSearch = (query) => query.statuses?.single == TaskStatus.open
           ? _page(<TaskDto>[_task(id: 'open-${query.page.cursor ?? '1'}')],
               nextCursor: query.page.cursor == null ? 'open-cursor' : null)
           : _page(const <TaskDto>[]);
@@ -327,7 +332,7 @@ void main() {
       await harness.controller.loadMoreInColumn(TaskStatus.open);
 
       final query = harness.tasks.queries.single;
-      expect(query.status, TaskStatus.open);
+      expect(query.statuses, const <TaskStatus>[TaskStatus.open]);
       expect(query.page.cursor, 'open-cursor');
       expect(
         harness.controller.state.board[TaskStatus.open]!.tasks,
