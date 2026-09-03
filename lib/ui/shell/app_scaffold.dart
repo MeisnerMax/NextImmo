@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../features/identity_access/presentation/admin_members_screen.dart';
+import '../../features/platform_audit_jobs/presentation/notification_inbox_screen.dart';
 import '../../features/platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../features/portfolio_property/presentation/property_workspace_screen.dart';
 import '../../features/reference_slice/application/reference_slice_controller.dart';
@@ -376,6 +377,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               ? target.taskId
               : null,
         );
+      case GlobalPage.notifications:
+        // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
+        return const NotificationInboxScreen();
       case GlobalPage.maintenance:
         return const MaintenanceTicketsPanel();
       case GlobalPage.contractors:

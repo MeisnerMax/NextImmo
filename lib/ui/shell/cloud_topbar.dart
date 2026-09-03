@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/identity_access/application/identity_access_repository.dart';
+import '../../features/platform_audit_jobs/presentation/widgets/notification_bell.dart';
 import '../../features/reference_slice/application/reference_slice_controller.dart';
 import '../components/nx_glass_panel.dart';
 import '../navigation/app_navigation.dart';
@@ -81,6 +82,9 @@ class CloudTopBar extends ConsumerWidget {
               ),
             if (!compact)
               _IdentityChip(icon: Icons.person_outline, label: identity),
+            // NOTIFICATION-INBOX-01 (A14): the bell renders only for sessions
+            // that can reach the inbox page and hides itself otherwise.
+            const NotificationBell(),
             if (state.assuranceLevel != AuthenticationAssuranceLevel.aal2)
               IconButton(
                 key: const Key('cloud-enable-mfa'),
