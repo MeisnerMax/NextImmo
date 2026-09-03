@@ -125,6 +125,74 @@ class WorkspaceRoleCapability {
   final String permissionName;
 }
 
+/// One membership-related audit event (`audit_events` rows with entity_type
+/// `membership`/`membership_invitation`), reduced to the fields the Aktivität
+/// tab presents. Target/role extracts are pulled defensively from the event
+/// snapshots — raw payloads never reach the UI.
+class MembershipAuditEvent {
+  const MembershipAuditEvent({
+    required this.id,
+    required this.workspaceId,
+    required this.action,
+    required this.entityType,
+    required this.createdAt,
+    this.entityId,
+    this.actorUserId,
+    this.actorRoleKey,
+    this.reason,
+    this.targetUserId,
+    this.targetEmail,
+    this.oldRoleId,
+    this.newRoleId,
+  });
+
+  final String id;
+  final String workspaceId;
+
+  /// The stored action key, e.g. `membership.role_change`. Presentation maps
+  /// known keys to German copy and renders unknown-but-real keys neutrally.
+  final String action;
+  final String entityType;
+  final DateTime createdAt;
+  final String? entityId;
+  final String? actorUserId;
+  final String? actorRoleKey;
+  final String? reason;
+  final String? targetUserId;
+  final String? targetEmail;
+  final String? oldRoleId;
+  final String? newRoleId;
+}
+
+/// Opaque keyset cursor over `(created_at desc, id desc)`. [createdAt] keeps
+/// the server's raw timestamp representation so the follow-up filter compares
+/// exactly what the server returned.
+class MembershipAuditCursor {
+  const MembershipAuditCursor({required this.createdAt, required this.id});
+
+  final String createdAt;
+  final String id;
+
+  @override
+  bool operator ==(Object other) {
+    return other is MembershipAuditCursor &&
+        other.createdAt == createdAt &&
+        other.id == id;
+  }
+
+  @override
+  int get hashCode => Object.hash(createdAt, id);
+}
+
+class MembershipAuditPage {
+  const MembershipAuditPage({required this.events, this.nextCursor});
+
+  final List<MembershipAuditEvent> events;
+
+  /// Null when this page ends the feed.
+  final MembershipAuditCursor? nextCursor;
+}
+
 /// One entry of the signed-in user's own pending-invitation list. Carries the
 /// workspace/role names the invitee's row-level security could not otherwise
 /// read yet.
@@ -315,6 +383,17 @@ abstract interface class MembershipAdminRepository {
   /// empty list, matching the RLS filter semantics of the underlying tables.
   Future<MembershipAdminResult<List<WorkspaceRoleCapability>>>
   listRolePermissions({required String workspaceId});
+
+  /// One keyset page of membership audit events, newest first
+  /// (`created_at desc, id desc`; [before] continues after a prior page's
+  /// cursor). Row-level security gates the read on `audit.read` (at AAL2);
+  /// a caller below that sees an empty page, so callers pre-check the
+  /// capability for an honest forbidden state.
+  Future<MembershipAdminResult<MembershipAuditPage>> listMembershipAuditEvents({
+    required String workspaceId,
+    int limit = 50,
+    MembershipAuditCursor? before,
+  });
 
   Future<MembershipAdminResult<List<MembershipInvitation>>> listInvitations({
     required String workspaceId,

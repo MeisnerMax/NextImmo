@@ -12,7 +12,7 @@ import 'package:neximmo_app/ui/theme/app_theme.dart';
 /// diff on role changes, conflict UX that preserves input, and no password UI.
 void main() {
   group('frame', () {
-    testWidgets('renders header, all three tabs and no activity tab', (
+    testWidgets('renders header and all four tabs (A1 tabs + Aktivität)', (
       tester,
     ) async {
       await _pumpView(tester, state: _readyState());
@@ -27,7 +27,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('admin-members-tab-roles')), findsOneWidget);
-      expect(find.text('Aktivität'), findsNothing);
+      expect(
+        find.byKey(const Key('admin-members-tab-activity')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('admin-members-refresh')), findsOneWidget);
       expect(find.byKey(const Key('admin-members-invite')), findsOneWidget);
     });
@@ -830,6 +833,174 @@ void main() {
     );
   });
 
+  group('activity tab (ADMIN-AREA-01 A2)', () {
+    Future<void> openActivity(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('admin-members-tab-activity')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('loading, empty, forbidden and error states render', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        state: _readyState(activityPhase: MembersTabPhase.loading),
+        settle: false,
+      );
+      await tester.pump();
+      await openActivity(tester);
+      expect(
+        find.byKey(const Key('admin-members-activity-skeleton')),
+        findsOneWidget,
+      );
+
+      await _pumpView(
+        tester,
+        state: _readyState(activityPhase: MembersTabPhase.empty),
+      );
+      await openActivity(tester);
+      expect(
+        find.byKey(const Key('admin-members-activity-empty')),
+        findsOneWidget,
+      );
+
+      await _pumpView(
+        tester,
+        state: _readyState(activityPhase: MembersTabPhase.forbidden),
+      );
+      await openActivity(tester);
+      expect(
+        find.byKey(const Key('admin-members-activity-forbidden')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('audit.read'), findsOneWidget);
+
+      var retried = 0;
+      await _pumpView(
+        tester,
+        state: _readyState(activityPhase: MembersTabPhase.error),
+        onReloadActivity: () async {
+          retried += 1;
+        },
+      );
+      await openActivity(tester);
+      expect(
+        find.byKey(const Key('admin-members-activity-error')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Erneut versuchen'));
+      await tester.pumpAndSettle();
+      expect(retried, 1);
+    });
+
+    testWidgets(
+      'renders real membership events newest-first with German labels',
+      (tester) async {
+        await _pumpView(tester, state: _readyState());
+        await openActivity(tester);
+
+        expect(
+          find.byKey(const Key('admin-members-activity-list')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('admin-members-activity-event-e-2')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('admin-members-activity-event-e-1')),
+          findsOneWidget,
+        );
+        expect(find.text('Rolle geändert'), findsOneWidget);
+        expect(find.text('Einladung widerrufen'), findsOneWidget);
+        // Newest (e-2) renders above e-1.
+        final topOfNewest =
+            tester
+                .getTopLeft(
+                  find.byKey(const Key('admin-members-activity-event-e-2')),
+                )
+                .dy;
+        final topOfOlder =
+            tester
+                .getTopLeft(
+                  find.byKey(const Key('admin-members-activity-event-e-1')),
+                )
+                .dy;
+        expect(topOfNewest, lessThan(topOfOlder));
+        // Actor resolved via the loaded directory; target via payload.
+        expect(find.textContaining('Clara Admin'), findsWidgets);
+        expect(find.textContaining('Ben Viewer'), findsWidgets);
+        expect(find.textContaining('gast@neximmo.de'), findsWidgets);
+        // Actor fallback: unresolvable id stays an honest technical id.
+        expect(find.textContaining('user-unbekannt'), findsOneWidget);
+        // Reason shows only where the event carries one.
+        expect(find.textContaining('Neuzuschnitt'), findsOneWidget);
+        expect(find.textContaining('Grund:'), findsOneWidget);
+      },
+    );
+
+    testWidgets('an unknown stored action renders neutrally', (tester) async {
+      await _pumpView(
+        tester,
+        state: _readyState(
+          activity: <MembershipAuditEvent>[
+            MembershipAuditEvent(
+              id: 'e-x',
+              workspaceId: 'ws-1',
+              action: 'membership.migrate_x',
+              entityType: 'membership',
+              createdAt: DateTime.utc(2026, 8, 28, 9),
+              actorUserId: 'user-m-1',
+            ),
+          ],
+        ),
+      );
+      await openActivity(tester);
+
+      expect(find.text('Mitgliedschafts-Ereignis'), findsOneWidget);
+      expect(find.text('membership.migrate_x'), findsOneWidget);
+      expect(find.text('Rolle geändert'), findsNothing);
+    });
+
+    testWidgets('load more is keyset-driven and only offered while more '
+        'events exist', (tester) async {
+      var loadedMore = 0;
+      await _pumpView(
+        tester,
+        state: _readyState(activityHasMore: true),
+        onLoadMoreActivity: () async {
+          loadedMore += 1;
+        },
+      );
+      await openActivity(tester);
+
+      final loadMore = find.byKey(
+        const Key('admin-members-activity-load-more'),
+      );
+      expect(loadMore, findsOneWidget);
+      await tester.tap(loadMore);
+      await tester.pumpAndSettle();
+      expect(loadedMore, 1);
+
+      await _pumpView(tester, state: _readyState(activityHasMore: false));
+      await openActivity(tester);
+      expect(
+        find.byKey(const Key('admin-members-activity-load-more')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('renders without overflow at 320px', (tester) async {
+      await _pumpView(
+        tester,
+        state: _readyState(),
+        viewport: const Size(320, 700),
+      );
+      await openActivity(tester);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('no password UI', () {
     testWidgets('no tab contains any password affordance', (tester) async {
       await _pumpView(tester, state: _readyState());
@@ -895,6 +1066,8 @@ Future<void> _pumpView(
   bool settle = true,
   Size viewport = const Size(1440, 900),
   Future<void> Function()? onReloadDirectory,
+  Future<void> Function()? onReloadActivity,
+  Future<void> Function()? onLoadMoreActivity,
   AdminMembersInviteSubmit? onInvite,
   AdminMembersChangeRoleSubmit? onChangeRole,
   AdminMembersUpdateStatusSubmit? onUpdateStatus,
@@ -954,6 +1127,8 @@ Future<void> _pumpView(
                 reason,
               }) async => successOutcome,
           onAcceptOwnInvitation: onAcceptOwnInvitation ?? (_) async {},
+          onReloadActivity: onReloadActivity ?? () async {},
+          onLoadMoreActivity: onLoadMoreActivity ?? () async {},
         ),
       ),
     ),
@@ -978,7 +1153,13 @@ MembersAdminState _state({
   );
 }
 
-MembersAdminState _readyState({List<MembershipInvitation>? invitations}) {
+MembersAdminState _readyState({
+  List<MembershipInvitation>? invitations,
+  MembersTabPhase? activityPhase,
+  List<MembershipAuditEvent>? activity,
+  bool activityHasMore = false,
+}) {
+  final activityEvents = activity ?? _activityFixture();
   return MembersAdminState(
     directoryPhase: MembersTabPhase.ready,
     invitationsPhase:
@@ -986,6 +1167,14 @@ MembersAdminState _readyState({List<MembershipInvitation>? invitations}) {
             ? MembersTabPhase.empty
             : MembersTabPhase.ready,
     rolesPhase: MembersTabPhase.ready,
+    activityPhase:
+        activityPhase ??
+        (activityEvents.isEmpty
+            ? MembersTabPhase.empty
+            : MembersTabPhase.ready),
+    activity:
+        activityPhase == null ? activityEvents : const <MembershipAuditEvent>[],
+    activityHasMore: activityHasMore,
     pendingPhase: MembersPendingPhase.ready,
     directory: <WorkspaceMemberDirectoryEntry>[
       _entryFixture(
@@ -1065,6 +1254,34 @@ MembersAdminState _readyState({List<MembershipInvitation>? invitations}) {
       ),
     ],
   );
+}
+
+List<MembershipAuditEvent> _activityFixture() {
+  return <MembershipAuditEvent>[
+    MembershipAuditEvent(
+      id: 'e-2',
+      workspaceId: 'ws-1',
+      action: 'membership.role_change',
+      entityType: 'membership',
+      createdAt: DateTime.utc(2026, 8, 28, 12),
+      actorUserId: 'user-m-1',
+      actorRoleKey: 'admin',
+      reason: 'Neuzuschnitt',
+      targetUserId: 'user-m-2',
+      oldRoleId: 'role-admin',
+      newRoleId: 'role-viewer',
+    ),
+    MembershipAuditEvent(
+      id: 'e-1',
+      workspaceId: 'ws-1',
+      action: 'membership_invitation.revoke',
+      entityType: 'membership_invitation',
+      createdAt: DateTime.utc(2026, 8, 28, 11),
+      actorUserId: 'user-unbekannt',
+      actorRoleKey: 'admin',
+      targetEmail: 'gast@neximmo.de',
+    ),
+  ];
 }
 
 List<MembershipInvitation> _invitationsFixture() {

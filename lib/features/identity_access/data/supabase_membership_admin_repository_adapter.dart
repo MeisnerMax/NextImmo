@@ -24,6 +24,13 @@ abstract interface class MembershipAdminSupabaseGateway {
     required bool includeResolved,
   });
 
+  Future<List<Map<String, dynamic>>> listAuditEvents({
+    required String workspaceId,
+    required List<String> entityTypes,
+    required int limit,
+    ({String createdAt, String id})? before,
+  });
+
   Future<Object?> callRpc(String function, Map<String, Object?> parameters);
 }
 
@@ -85,6 +92,36 @@ class SupabaseMembershipAdminGateway implements MembershipAdminSupabaseGateway {
         .from('permissions')
         .select('id, key, name')
         .inFilter('id', permissionIds);
+    return rows.map(Map<String, dynamic>.from).toList(growable: false);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listAuditEvents({
+    required String workspaceId,
+    required List<String> entityTypes,
+    required int limit,
+    ({String createdAt, String id})? before,
+  }) async {
+    var query = _client
+        .from('audit_events')
+        .select(
+          'id, workspace_id, action, entity_type, entity_id, actor_user_id, '
+          'role_key, reason, old_values, new_values, created_at',
+        )
+        .eq('workspace_id', workspaceId)
+        .inFilter('entity_type', entityTypes);
+    if (before != null) {
+      // Keyset over (created_at desc, id desc): strictly older, or the same
+      // timestamp with a smaller id.
+      query = query.or(
+        'created_at.lt."${before.createdAt}",'
+        'and(created_at.eq."${before.createdAt}",id.lt."${before.id}")',
+      );
+    }
+    final rows = await query
+        .order('created_at', ascending: false)
+        .order('id', ascending: false)
+        .limit(limit);
     return rows.map(Map<String, dynamic>.from).toList(growable: false);
   }
 
@@ -254,6 +291,68 @@ class SupabaseMembershipAdminRepositoryAdapter
       return const MembershipAdminFailure<List<WorkspaceRoleCapability>>(
         kind: MembershipAdminFailureKind.infrastructureFailure,
         message: 'Supabase role permissions could not be loaded.',
+      );
+    }
+  }
+
+  static const _membershipAuditEntityTypes = <String>[
+    'membership',
+    'membership_invitation',
+  ];
+
+  @override
+  Future<MembershipAdminResult<MembershipAuditPage>> listMembershipAuditEvents({
+    required String workspaceId,
+    int limit = 50,
+    MembershipAuditCursor? before,
+  }) async {
+    try {
+      final rows = await _gateway.listAuditEvents(
+        workspaceId: workspaceId,
+        entityTypes: _membershipAuditEntityTypes,
+        limit: limit + 1,
+        before:
+            before == null
+                ? null
+                : (createdAt: before.createdAt, id: before.id),
+      );
+      final events = <MembershipAuditEvent>[];
+      final rawCursorByEventId = <String, String>{};
+      for (final row in rows) {
+        // A row of a foreign entity type is never a membership activity;
+        // dropping it beats mislabelling it (defense in depth over the
+        // server-side filter).
+        if (!_membershipAuditEntityTypes.contains(
+          _requiredString(row, 'entity_type'),
+        )) {
+          continue;
+        }
+        final event = _parseAuditEvent(row);
+        if (event.workspaceId != workspaceId) {
+          throw const FormatException('Audit event workspace mismatch.');
+        }
+        events.add(event);
+        rawCursorByEventId[event.id] = _requiredString(row, 'created_at');
+      }
+      final hasMore = events.length > limit;
+      final page = hasMore ? events.sublist(0, limit) : events;
+      final cursorEvent = hasMore ? page.last : null;
+      return MembershipAdminSuccess<MembershipAuditPage>(
+        MembershipAuditPage(
+          events: List<MembershipAuditEvent>.unmodifiable(page),
+          nextCursor:
+              cursorEvent == null
+                  ? null
+                  : MembershipAuditCursor(
+                    createdAt: rawCursorByEventId[cursorEvent.id]!,
+                    id: cursorEvent.id,
+                  ),
+        ),
+      );
+    } catch (_) {
+      return const MembershipAdminFailure<MembershipAuditPage>(
+        kind: MembershipAdminFailureKind.infrastructureFailure,
+        message: 'Supabase membership audit events could not be loaded.',
       );
     }
   }
@@ -594,6 +693,46 @@ WorkspaceRole _parseRole(Map<String, dynamic> json) {
     key: _requiredString(json, 'key'),
     name: _requiredString(json, 'name'),
   );
+}
+
+MembershipAuditEvent _parseAuditEvent(Map<String, dynamic> json) {
+  final entityType = _requiredString(json, 'entity_type');
+  final oldValues = json['old_values'];
+  final newValues = json['new_values'];
+  final isInvitation = entityType == 'membership_invitation';
+  return MembershipAuditEvent(
+    id: _requiredString(json, 'id'),
+    workspaceId: _requiredString(json, 'workspace_id'),
+    action: _requiredString(json, 'action'),
+    entityType: entityType,
+    createdAt: DateTime.parse(_requiredString(json, 'created_at')),
+    entityId: _nullableString(json, 'entity_id'),
+    actorUserId: _nullableString(json, 'actor_user_id'),
+    actorRoleKey: _nullableString(json, 'role_key'),
+    reason: _nullableString(json, 'reason'),
+    targetUserId:
+        isInvitation
+            ? null
+            : _snapshotString(newValues, 'user_id') ??
+                _snapshotString(oldValues, 'user_id'),
+    targetEmail:
+        isInvitation
+            ? _snapshotString(newValues, 'email') ??
+                _snapshotString(oldValues, 'email')
+            : null,
+    oldRoleId: _snapshotString(oldValues, 'role_id'),
+    newRoleId: _snapshotString(newValues, 'role_id'),
+  );
+}
+
+/// Fail-safe snapshot lookup: a malformed payload nulls the extract instead
+/// of failing the whole page.
+String? _snapshotString(Object? snapshot, String key) {
+  if (snapshot is! Map) {
+    return null;
+  }
+  final value = snapshot[key];
+  return value is String ? value : null;
 }
 
 PendingInvitationEntry _parsePendingInvitationEntry(Map<String, dynamic> json) {

@@ -631,6 +631,222 @@ void main() {
         expect(failure.message, isNot(contains('Postgrest')));
       });
     });
+
+    group('listMembershipAuditEvents (ADMIN-AREA-01 A2)', () {
+      test('reads membership audit events with keyset parameters', () async {
+        gateway.auditEventsResult = <Map<String, dynamic>>[
+          _auditEventJson(
+            id: 'event-2',
+            action: 'membership.role_change',
+            createdAt: '2026-08-28T12:00:00.200000+00:00',
+            reason: 'Beförderung',
+            oldValues: <String, dynamic>{
+              'user_id': 'user-a',
+              'role_id': 'role-viewer',
+            },
+            newValues: <String, dynamic>{
+              'user_id': 'user-a',
+              'role_id': 'role-admin',
+            },
+          ),
+          _auditEventJson(
+            id: 'event-1',
+            action: 'membership_invitation.revoke',
+            entityType: 'membership_invitation',
+            createdAt: '2026-08-28T11:00:00.100000+00:00',
+            oldValues: <String, dynamic>{'email': 'gast@example.com'},
+            newValues: <String, dynamic>{'email': 'gast@example.com'},
+          ),
+        ];
+
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+        );
+
+        expect(gateway.auditWorkspaceId, 'workspace-a');
+        expect(
+          gateway.auditEntityTypes,
+          unorderedEquals(<String>['membership', 'membership_invitation']),
+        );
+        expect(gateway.auditLimit, 51);
+        expect(gateway.auditBefore, isNull);
+        final page =
+            (result as MembershipAdminSuccess<MembershipAuditPage>).value;
+        expect(page.events, hasLength(2));
+        expect(page.nextCursor, isNull);
+        final roleChange = page.events.first;
+        expect(roleChange.id, 'event-2');
+        expect(roleChange.action, 'membership.role_change');
+        expect(roleChange.entityType, 'membership');
+        expect(roleChange.actorUserId, 'actor-a');
+        expect(roleChange.actorRoleKey, 'manager');
+        expect(roleChange.reason, 'Beförderung');
+        expect(roleChange.targetUserId, 'user-a');
+        expect(roleChange.oldRoleId, 'role-viewer');
+        expect(roleChange.newRoleId, 'role-admin');
+        final revoke = page.events.last;
+        expect(revoke.reason, isNull);
+        expect(revoke.targetEmail, 'gast@example.com');
+        expect(revoke.targetUserId, isNull);
+      });
+
+      test('pages with a cursor and hands back the next one', () async {
+        gateway.auditEventsResult = <Map<String, dynamic>>[
+          _auditEventJson(
+            id: 'event-3',
+            action: 'membership.suspend',
+            createdAt: '2026-08-28T10:00:00.300000+00:00',
+          ),
+          _auditEventJson(
+            id: 'event-2',
+            action: 'membership.reactivate',
+            createdAt: '2026-08-28T09:00:00.200000+00:00',
+          ),
+          _auditEventJson(
+            id: 'event-1',
+            action: 'membership.revoke',
+            createdAt: '2026-08-28T08:00:00.100000+00:00',
+          ),
+        ];
+
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+          limit: 2,
+          before: const MembershipAuditCursor(
+            createdAt: '2026-08-28T11:00:00.000000+00:00',
+            id: 'event-9',
+          ),
+        );
+
+        expect(gateway.auditLimit, 3);
+        expect(gateway.auditBefore, (
+          createdAt: '2026-08-28T11:00:00.000000+00:00',
+          id: 'event-9',
+        ));
+        final page =
+            (result as MembershipAdminSuccess<MembershipAuditPage>).value;
+        expect(page.events, hasLength(2));
+        expect(page.events.map((event) => event.id), <String>[
+          'event-3',
+          'event-2',
+        ]);
+        expect(page.nextCursor?.id, 'event-2');
+        expect(page.nextCursor?.createdAt, '2026-08-28T09:00:00.200000+00:00');
+      });
+
+      test('returns an empty page as success, not as an error', () async {
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+        );
+
+        final page =
+            (result as MembershipAdminSuccess<MembershipAuditPage>).value;
+        expect(page.events, isEmpty);
+        expect(page.nextCursor, isNull);
+      });
+
+      test(
+        'drops rows of foreign entity types instead of relabelling them',
+        () async {
+          gateway.auditEventsResult = <Map<String, dynamic>>[
+            _auditEventJson(
+              id: 'event-2',
+              action: 'membership.suspend',
+              createdAt: '2026-08-28T10:00:00.200000+00:00',
+            ),
+            _auditEventJson(
+              id: 'event-x',
+              action: 'property.update',
+              entityType: 'property',
+              createdAt: '2026-08-28T09:30:00.000000+00:00',
+            ),
+          ];
+
+          final result = await repository.listMembershipAuditEvents(
+            workspaceId: 'workspace-a',
+          );
+
+          final page =
+              (result as MembershipAdminSuccess<MembershipAuditPage>).value;
+          expect(page.events.map((event) => event.id), <String>['event-2']);
+        },
+      );
+
+      test(
+        'keeps events with malformed payloads and nulls the extracts',
+        () async {
+          gateway.auditEventsResult = <Map<String, dynamic>>[
+            _auditEventJson(
+              id: 'event-1',
+              action: 'membership.role_change',
+              createdAt: '2026-08-28T10:00:00.100000+00:00',
+              newValues: 'kaputt',
+            ),
+          ];
+
+          final result = await repository.listMembershipAuditEvents(
+            workspaceId: 'workspace-a',
+          );
+
+          final page =
+              (result as MembershipAdminSuccess<MembershipAuditPage>).value;
+          final event = page.events.single;
+          expect(event.targetUserId, isNull);
+          expect(event.newRoleId, isNull);
+        },
+      );
+
+      test('fails closed on a malformed required field', () async {
+        final row = _auditEventJson(
+          id: 'event-1',
+          action: 'membership.suspend',
+          createdAt: '2026-08-28T10:00:00.100000+00:00',
+        )..remove('action');
+        gateway.auditEventsResult = <Map<String, dynamic>>[row];
+
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+        );
+
+        expect(
+          (result as MembershipAdminFailure<MembershipAuditPage>).kind,
+          MembershipAdminFailureKind.infrastructureFailure,
+        );
+      });
+
+      test('rejects events from a foreign workspace', () async {
+        gateway.auditEventsResult = <Map<String, dynamic>>[
+          _auditEventJson(
+            id: 'event-1',
+            action: 'membership.suspend',
+            createdAt: '2026-08-28T10:00:00.100000+00:00',
+            workspaceId: 'workspace-b',
+          ),
+        ];
+
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+        );
+
+        expect(
+          (result as MembershipAdminFailure<MembershipAuditPage>).kind,
+          MembershipAdminFailureKind.infrastructureFailure,
+        );
+      });
+
+      test('hides infrastructure details on gateway failures', () async {
+        gateway.auditEventsError = StateError('sensitive Postgrest detail');
+
+        final result = await repository.listMembershipAuditEvents(
+          workspaceId: 'workspace-a',
+        );
+
+        final failure = result as MembershipAdminFailure<MembershipAuditPage>;
+        expect(failure.kind, MembershipAdminFailureKind.infrastructureFailure);
+        expect(failure.message, isNot(contains('sensitive')));
+        expect(failure.message, isNot(contains('Postgrest')));
+      });
+    });
   });
 }
 
@@ -839,6 +1055,57 @@ class _FakeMembershipAdminSupabaseGateway
     permissionsRequestedIds = permissionIds;
     return permissionsResult;
   }
+
+  List<Map<String, dynamic>> auditEventsResult = <Map<String, dynamic>>[];
+  Object? auditEventsError;
+  String? auditWorkspaceId;
+  List<String>? auditEntityTypes;
+  int? auditLimit;
+  ({String createdAt, String id})? auditBefore;
+
+  @override
+  Future<List<Map<String, dynamic>>> listAuditEvents({
+    required String workspaceId,
+    required List<String> entityTypes,
+    required int limit,
+    ({String createdAt, String id})? before,
+  }) async {
+    if (auditEventsError != null) {
+      throw auditEventsError!;
+    }
+    auditWorkspaceId = workspaceId;
+    auditEntityTypes = entityTypes;
+    auditLimit = limit;
+    auditBefore = before;
+    return auditEventsResult;
+  }
+}
+
+Map<String, dynamic> _auditEventJson({
+  required String id,
+  required String action,
+  required String createdAt,
+  String entityType = 'membership',
+  String workspaceId = 'workspace-a',
+  String? actorUserId = 'actor-a',
+  String? roleKey = 'manager',
+  String? reason,
+  Object? oldValues,
+  Object? newValues,
+}) {
+  return <String, dynamic>{
+    'id': id,
+    'workspace_id': workspaceId,
+    'action': action,
+    'entity_type': entityType,
+    'entity_id': 'entity-$id',
+    'actor_user_id': actorUserId,
+    'role_key': roleKey,
+    'reason': reason,
+    'old_values': oldValues,
+    'new_values': newValues,
+    'created_at': createdAt,
+  };
 }
 
 Map<String, dynamic> _rolePermissionJson({

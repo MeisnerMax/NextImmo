@@ -669,6 +669,186 @@ void main() {
     });
   });
 
+  group('activity (ADMIN-AREA-01 A2)', () {
+    const auditPermissions = <String>{
+      'security.manage',
+      'workspace.read',
+      'audit.read',
+    };
+
+    test('audit.read loads the first activity page in server order', () async {
+      final repository =
+          _FakeMembershipAdminRepository()
+            ..auditResult = MembershipAdminSuccess<MembershipAuditPage>(
+              MembershipAuditPage(
+                events: <MembershipAuditEvent>[
+                  _auditEvent('e-2', action: 'membership.role_change'),
+                  _auditEvent('e-1', action: 'membership_invitation.revoke'),
+                ],
+              ),
+            );
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+
+      expect(controller.state.activityPhase, MembersTabPhase.ready);
+      expect(controller.state.activity.map((event) => event.id), <String>[
+        'e-2',
+        'e-1',
+      ]);
+      expect(controller.state.activityHasMore, isFalse);
+      expect(repository.auditCalls, 1);
+      expect(repository.lastAuditBefore, isNull);
+    });
+
+    test(
+      'missing audit.read fails the activity zone closed without a call',
+      () async {
+        final repository = _FakeMembershipAdminRepository();
+        final controller = buildController(repository: repository);
+        await controller.load();
+
+        expect(controller.state.activityPhase, MembersTabPhase.forbidden);
+        expect(repository.auditCalls, 0);
+      },
+    );
+
+    test('a failing audit read is an error, never empty', () async {
+      final repository =
+          _FakeMembershipAdminRepository()
+            ..auditResult = const MembershipAdminFailure<MembershipAuditPage>(
+              kind: MembershipAdminFailureKind.infrastructureFailure,
+              message: 'boom',
+            );
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+
+      expect(controller.state.activityPhase, MembersTabPhase.error);
+      expect(controller.state.activity, isEmpty);
+    });
+
+    test('an empty first page renders as empty', () async {
+      final repository = _FakeMembershipAdminRepository();
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+
+      expect(controller.state.activityPhase, MembersTabPhase.empty);
+    });
+
+    test('load more appends deduplicated and stops at the end', () async {
+      const cursor = MembershipAuditCursor(
+        createdAt: '2026-08-28T10:00:00.000000+00:00',
+        id: 'e-2',
+      );
+      final repository =
+          _FakeMembershipAdminRepository()
+            ..auditPages = <MembershipAdminResult<MembershipAuditPage>>[
+              MembershipAdminSuccess<MembershipAuditPage>(
+                MembershipAuditPage(
+                  events: <MembershipAuditEvent>[
+                    _auditEvent('e-3'),
+                    _auditEvent('e-2'),
+                  ],
+                  nextCursor: cursor,
+                ),
+              ),
+              MembershipAdminSuccess<MembershipAuditPage>(
+                MembershipAuditPage(
+                  events: <MembershipAuditEvent>[
+                    _auditEvent('e-2'),
+                    _auditEvent('e-1'),
+                  ],
+                ),
+              ),
+            ];
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+      expect(controller.state.activityHasMore, isTrue);
+
+      await controller.loadMoreActivity();
+
+      expect(controller.state.activity.map((event) => event.id), <String>[
+        'e-3',
+        'e-2',
+        'e-1',
+      ]);
+      expect(controller.state.activityHasMore, isFalse);
+      expect(repository.lastAuditBefore, cursor);
+    });
+
+    test('background refresh keeps visible activity data', () async {
+      final repository =
+          _FakeMembershipAdminRepository()
+            ..auditResult = MembershipAdminSuccess<MembershipAuditPage>(
+              MembershipAuditPage(
+                events: <MembershipAuditEvent>[_auditEvent('e-1')],
+              ),
+            );
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+      expect(controller.state.activityPhase, MembersTabPhase.ready);
+
+      final gate = Completer<void>();
+      repository.auditGate = gate.future;
+      final refresh = controller.refreshAll();
+      expect(controller.state.activityPhase, MembersTabPhase.ready);
+      expect(controller.state.activity, hasLength(1));
+      gate.complete();
+      await refresh;
+
+      expect(controller.state.activityPhase, MembersTabPhase.ready);
+    });
+
+    test('a stale load-more result is dropped after a reload', () async {
+      const cursor = MembershipAuditCursor(
+        createdAt: '2026-08-28T10:00:00.000000+00:00',
+        id: 'e-2',
+      );
+      final repository =
+          _FakeMembershipAdminRepository()
+            ..auditResult = MembershipAdminSuccess<MembershipAuditPage>(
+              MembershipAuditPage(
+                events: <MembershipAuditEvent>[_auditEvent('e-2')],
+                nextCursor: cursor,
+              ),
+            );
+      final controller = buildController(
+        repository: repository,
+        permissions: auditPermissions,
+      );
+      await controller.load();
+
+      final gate = Completer<void>();
+      repository.auditGate = gate.future;
+      final more = controller.loadMoreActivity();
+      repository.auditResult = MembershipAdminSuccess<MembershipAuditPage>(
+        MembershipAuditPage(events: <MembershipAuditEvent>[_auditEvent('e-9')]),
+      );
+      final reload = controller.reloadActivity();
+      gate.complete();
+      await Future.wait(<Future<void>>[more, reload]);
+
+      expect(controller.state.activity.map((event) => event.id), <String>[
+        'e-9',
+      ]);
+      expect(controller.state.activityHasMore, isFalse);
+    });
+  });
+
   group('computeRoleCapabilityDiff', () {
     test('reports added and removed capabilities by key', () {
       final from = <WorkspaceRoleCapability>[
@@ -769,6 +949,26 @@ PendingInvitationEntry _pendingEntry() {
     createdAt: DateTime.utc(2026, 1, 1),
     version: 1,
     membershipId: 'm-pending',
+  );
+}
+
+MembershipAuditEvent _auditEvent(
+  String id, {
+  String action = 'membership.suspend',
+  String? reason,
+}) {
+  return MembershipAuditEvent(
+    id: id,
+    workspaceId: 'ws-1',
+    action: action,
+    entityType:
+        action.startsWith('membership_invitation')
+            ? 'membership_invitation'
+            : 'membership',
+    createdAt: DateTime.utc(2026, 8, 28, 10),
+    actorUserId: 'user-m-1',
+    actorRoleKey: 'admin',
+    reason: reason,
   );
 }
 
@@ -919,6 +1119,35 @@ class _FakeMembershipAdminRepository implements MembershipAdminRepository {
     return revokeInvitationResult ??
         MembershipAdminSuccess<MembershipInvitation>(
           _invitation(command.invitationId),
+        );
+  }
+
+  List<MembershipAdminResult<MembershipAuditPage>> auditPages =
+      <MembershipAdminResult<MembershipAuditPage>>[];
+  MembershipAdminResult<MembershipAuditPage>? auditResult;
+  Future<void>? auditGate;
+  int auditCalls = 0;
+  MembershipAuditCursor? lastAuditBefore;
+
+  @override
+  Future<MembershipAdminResult<MembershipAuditPage>> listMembershipAuditEvents({
+    required String workspaceId,
+    int limit = 50,
+    MembershipAuditCursor? before,
+  }) async {
+    final gate = auditGate;
+    if (gate != null) {
+      auditGate = null;
+      await gate;
+    }
+    auditCalls += 1;
+    lastAuditBefore = before;
+    if (auditPages.isNotEmpty) {
+      return auditPages.removeAt(0);
+    }
+    return auditResult ??
+        const MembershipAdminSuccess<MembershipAuditPage>(
+          MembershipAuditPage(events: <MembershipAuditEvent>[]),
         );
   }
 }
