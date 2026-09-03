@@ -54,6 +54,12 @@ Jeder Eintrag ist gegen Code/Migrationen belegt; Definitionen und Belege in `scr
 | NOTIFICATION-RETENTION-01 | `expires_at`, Dedupe-Fenster, Retention-Job — Backend/Governance. Nach Entscheidung OD-1 **kein Blocker** für Task Center und Inbox | Verfall als Produktverhalten | todo | todo |
 | UI-HYGIENE-02 | Löschung der Legacy-Task-/Notification-Dateien (`tasks_screen`, `task_templates_screen`, `property_tasks_screen`, `tasks_repo`, `notifications_screen`, `notifications_repo`, `task_generation_service`, `startup_task_service`) **nach** nachgewiesenem Harvest; Entfernen des Enum-Werts `GlobalPage.taskTemplates` | — | todo | blocked(TASK-CENTER-01, TASK-SCHEDULER-01) |
 
+### Infrastruktur (Deploy-Pfad)
+
+| Paket | Inhalt | Blockiert | Planung | Implementierung |
+|---|---|---|---|---|
+| **STAGING-DB-MIGRATION-DEPLOY-01** | manueller, fail-closed `workflow_dispatch` „Supabase Staging Migrations" (`.github/workflows/staging_db_deploy.yml` + `tool/staging_migration_history_gate.sh`): nur main, Kill-Switch `STAGING_DB_DEPLOY_ENABLED`, CI-Checks-Gate, Environment `staging` (`SUPABASE_ACCESS_TOKEN`/`SUPABASE_PROJECT_REF_STAGING`/`SUPABASE_DB_PASSWORD_STAGING`), Project-Ref-Allowlist, History-Reconciliation (remote-only/divergent ⇒ STOP, kein repair), Dry-Run, forward-only `db push --linked`, Post-Verify + Read-only-Artefakt-Dump; Doku Runbook §12 | Staging-DB erhält B-1/B-2-Migrationen (`20260903100000`/`20260903120000`); danach erst Nicht-Web-E2E | direkt umgesetzt (2026-09-03) | implemented (2026-09-03, `chore/staging-db-migration-deploy-01`); erster Rollout erst NACH Owner-Merge + Secrets + Variable, manuell |
+
 Bereits geführte Pakete, die diese Flächen zusätzlich berühren: `SHELL-ROUTING-01` (die drei Minimalrouten reiten auf `TASKS-NOTIFICATIONS-CORE-01`), `SETTINGS-01` (Preferences für gespeicherte Sichten und Benachrichtigungseinstellungen), `MAINTENANCE-PARITY-01` (Ticket-Zuweisungsereignis).
 
 ## Wave 3 — abhängige Module

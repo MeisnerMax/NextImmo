@@ -1,0 +1,243 @@
+name: Supabase Staging Migrations
+
+# Applies pending Supabase migrations from main to the STAGING project — and
+# nothing else. This is the database half of the staging pipeline; the web app
+# half lives in web_deploy.yml. Production is intentionally unreachable from
+# here: no production ref, no --prod, no promotion path. Staging DB deployment
+# must never infer or reuse production project credentials.
+#
+# MANUAL ONLY (workflow_dispatch), fail-closed on every gate:
+#
+#   1. must be dispatched from main — any other ref fails, hard.
+#   2. the repository variable STAGING_DB_DEPLOY_ENABLED must equal "true".
+#      It is deliberately unset until an owner flips it, so merging this file
+#      alone cannot make the workflow act (same pattern as
+#      STAGING_DEPLOY_ENABLED in web_deploy.yml).
+#   3. the four named CI checks must be green on the exact dispatched commit.
+#   4. all three secrets must be present in the `staging` environment.
+#   5. the project ref must equal the documented staging project — a swapped
+#      secret cannot silently point this workflow at another project. If
+#      staging is ever re-provisioned, this pin changes in its own reviewed
+#      commit (docs/architecture/cloud/07_staging_runbook.md §4).
+#   6. local and remote migration history must reconcile cleanly: any
+#      remote-only migration, ordering gap or unparsable history stops the run
+#      before anything is pushed. No repair, no force, no skip.
+#
+# The push itself is forward-only: no db reset, no seed, no roles, no
+# --include-all, no migration repair, no down migrations against staging (the
+# rollback proofs stay in CI, supabase/tests_rollback/). A failed push fails
+# the run and leaves the state for a human — it never self-heals.
+#
+# Required values, all inside the `staging` environment (presence is checked,
+# values are never printed):
+#   SUPABASE_ACCESS_TOKEN          account-scoped CLI token
+#   SUPABASE_PROJECT_REF_STAGING   the staging project ref
+#   SUPABASE_DB_PASSWORD_STAGING   the staging database password
+# Naming follows the existing *_STAGING suffix convention
+# (SUPABASE_URL_STAGING / SUPABASE_PUBLISHABLE_KEY_STAGING in web_deploy.yml);
+# SUPABASE_ACCESS_TOKEN keeps the name every doc and the CLI itself use.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  # One database deployment at a time, and a running one is never cancelled:
+  # interrupting a migration apply mid-flight is exactly the state this
+  # workflow exists to prevent.
+  group: supabase-staging-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate_staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      # The one documented staging project (07_staging_runbook.md §4,
+      # provisioned 2026-08-09, eu-central-1). An identifier, not a credential.
+      EXPECTED_STAGING_PROJECT_REF: vhxdgchhgyzbjnogjicb
+    steps:
+      - name: Gate — dispatched from main only
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow migrates the staging database and runs only from main; dispatched ref was '${{ github.ref }}'."
+            exit 1
+          fi
+          echo "Dispatched from main at ${{ github.sha }}"
+
+      - name: Gate — owner kill switch
+        run: |
+          if [ "${{ vars.STAGING_DB_DEPLOY_ENABLED }}" != "true" ]; then
+            echo "::error::STAGING_DB_DEPLOY_ENABLED is not 'true'; staging DB deployment is disabled until an owner enables it."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          # The exact dispatched commit, never a moving ref.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Confirm the deployed commit
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "${{ github.sha }}" ]; then
+            echo "::error::Checked out $actual but was asked for ${{ github.sha }}."
+            exit 1
+          fi
+          echo "Deploying migrations from commit $actual"
+
+      - name: Gate — the four CI checks are green on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A migration set that never passed CI must not reach staging.
+          missing=''
+          for check in verify supply_chain marketing database; do
+            conclusion="$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+              --jq ".check_runs[] | select(.name==\"$check\") | .conclusion" | head -n1)"
+            if [ "$conclusion" != "success" ]; then
+              missing="$missing $check(${conclusion:-absent})"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Required checks are not green on ${{ github.sha }}:$missing"
+            exit 1
+          fi
+
+      - name: Gate — all three staging values are present
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF_STAGING: ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+          SUPABASE_DB_PASSWORD_STAGING: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          # Presence only. Naming which one is missing is safe; printing any
+          # value is not.
+          missing=''
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF_STAGING \
+                      SUPABASE_DB_PASSWORD_STAGING; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Staging DB deployment is incompletely configured; missing:$missing"
+            exit 1
+          fi
+
+      - name: Gate — the project ref is the documented staging project
+        env:
+          SUPABASE_PROJECT_REF_STAGING: ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+        run: |
+          # Defense in depth against a swapped or mistyped secret: this
+          # workflow refuses to talk to any project other than the one the
+          # staging runbook documents. Production can therefore not be reached
+          # even by misconfiguration.
+          if [ "$SUPABASE_PROJECT_REF_STAGING" != "$EXPECTED_STAGING_PROJECT_REF" ]; then
+            echo "::error::SUPABASE_PROJECT_REF_STAGING does not match the documented staging project; refusing to touch an unverified project."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the pinned Supabase CLI
+        run: npm ci
+
+      - name: Verify the pinned Supabase CLI is what runs
+        run: |
+          # package.json is the single source of truth for the CLI version
+          # (same guard as the database job in flutter.yml). An unpinned or
+          # registry-resolved CLI must never migrate a remote database.
+          version="$(node -p "require('./package.json').devDependencies.supabase")"
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json must pin an exact Supabase CLI version, got '$version'"
+            exit 1
+          fi
+          actual="$(npx supabase --version)"
+          if [ "$actual" != "$version" ]; then
+            echo "::error::Supabase CLI version drift: expected $version, found $actual"
+            exit 1
+          fi
+          echo "Supabase CLI $actual"
+
+      - name: Link the staging project explicitly
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # The target is set here, every run, from the verified ref — never
+          # from previously stored link metadata. Linking needs only the access
+          # token (07_staging_runbook.md §4 step 5); the DB password is scoped
+          # to the individual db commands below and never passed as argv.
+          npx supabase link --project-ref "$EXPECTED_STAGING_PROJECT_REF"
+
+      - name: Gate — migration history reconciles
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          ./tool/staging_migration_history_gate.sh before
+
+      - name: Dry run — preview exactly what would be pushed
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          # Prints the migration versions that would be applied and nothing
+          # else. Deliberately no --include-all, no --include-roles, no
+          # --include-seed: forward application of tracked migrations only.
+          npx supabase db push --linked --dry-run
+
+      - name: Apply pending migrations to staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          npx supabase db push --linked
+
+      - name: Verify — history is consistent and nothing is pending
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          ./tool/staging_migration_history_gate.sh after
+          # Second, independent proof through the CLI's own comparison.
+          output="$(npx supabase db push --linked --dry-run 2>&1)"
+          echo "$output"
+          if ! printf '%s' "$output" | grep -qi 'up to date'; then
+            echo "::error::A dry run after the push still reports pending work; the deployment did not converge."
+            exit 1
+          fi
+
+      - name: Verify — expected schema artifacts exist (read-only)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+        run: |
+          # Schema-only dump (DDL, no data, no credentials), grepped for
+          # markers and then discarded — the dump itself is never printed.
+          # The marker list asserts presence, it does not pin the deployment
+          # to a fixed migration set.
+          npx supabase db dump --linked --schema public -f /tmp/staging_schema.sql
+          missing=''
+          for marker in \
+            'property_id' \
+            'count_tasks' \
+            'tasks_property_rollup' \
+            'tasks_emit_notifications' \
+            'notifications_unread_dedupe_idx'; do
+            grep -q "$marker" /tmp/staging_schema.sql || missing="$missing $marker"
+          done
+          if ! grep -Eq "'task'" /tmp/staging_schema.sql; then
+            missing="$missing document_link_entity_type:'task'"
+          fi
+          rm -f /tmp/staging_schema.sql
+          if [ -n "$missing" ]; then
+            echo "::error::Expected schema artifacts are missing on staging:$missing"
+            exit 1
+          fi
+          echo "All expected schema artifacts are present."
