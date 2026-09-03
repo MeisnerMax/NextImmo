@@ -6,6 +6,8 @@ import 'package:neximmo_app/features/platform_audit_jobs/domain/notification_dto
 import 'package:neximmo_app/features/platform_audit_jobs/domain/platform_entity_type.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/domain/search_entry_dto.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show PostgrestException;
 
 void main() {
   group('SupabasePlatformRepositoryAdapter', () {
@@ -737,11 +739,146 @@ void main() {
 
       final result = await repository.createTask(_createTaskCommand());
 
+      final failure = result as PlatformRepositoryFailure<TaskDto>;
+      expect(failure.message, 'Assignee must be an active workspace member');
+      expect(failure.validationFields, isEmpty);
+    });
+
+    // --- validation field names (A15, Shared §12) --------------------------
+
+    test('carries the single named field of a validation failure', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'validation_failed',
+          'message': 'Title is required',
+          'field': 'title',
+        },
+      };
+
+      final result = await repository.createTask(_createTaskCommand());
+
+      final failure = result as PlatformRepositoryFailure<TaskDto>;
+      expect(failure.kind, PlatformRepositoryFailureKind.validationFailed);
+      expect(failure.validationFields, <String>['title']);
+    });
+
+    test('carries the field list of a validation failure', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'validation_failed',
+          'message': 'Unknown change keys',
+          'fields': <Object?>['due_at', 'priority', 42],
+        },
+      };
+
+      final result = await repository.updateTask(
+        UpdateTaskCommand(
+          context: _context(),
+          taskId: 'task-a',
+          expectedVersion: 1,
+          changes: const TaskUpdateDto(title: 'Neu'),
+        ),
+      );
+
+      final failure = result as PlatformRepositoryFailure<TaskDto>;
+      // Non-string entries are a contract violation and dropped rather than
+      // crashing the error path.
+      expect(failure.validationFields, <String>['due_at', 'priority']);
+    });
+
+    // --- read-path classification (A15) ------------------------------------
+
+    test('classifies a permission-denied task read as forbidden', () async {
+      gateway.taskListError = PostgrestException(
+        message: 'permission denied for table tasks',
+        code: '42501',
+      );
+
+      final result = await repository.searchTasks(
+        const TaskListQuery(workspaceId: 'workspace-a'),
+      );
+
+      final failure =
+          result as PlatformRepositoryFailure<PlatformPageResult<TaskDto>>;
+      expect(failure.kind, PlatformRepositoryFailureKind.forbidden);
+      expect(failure.message, 'permission denied for table tasks');
+    });
+
+    test('classifies a PostgREST 403 refusal of the feed as forbidden', () async {
+      gateway.notificationListError = PostgrestException(
+        message: 'Forbidden',
+        code: '403',
+      );
+
+      final result = await repository.notificationFeed(
+        const NotificationFeedQuery(workspaceId: 'workspace-a'),
+      );
+
       expect(
-        (result as PlatformRepositoryFailure<TaskDto>).message,
-        'Assignee must be an active workspace member',
+        (result
+                as PlatformRepositoryFailure<
+                  PlatformPageResult<NotificationDto>
+                >)
+            .kind,
+        PlatformRepositoryFailureKind.forbidden,
       );
     });
+
+    test('classifies a permission-denied task detail read as forbidden', () async {
+      gateway.taskGetError = PostgrestException(
+        message: 'permission denied for table tasks',
+        code: '42501',
+      );
+
+      final result = await repository.getTaskById(
+        workspaceId: 'workspace-a',
+        taskId: 'task-a',
+      );
+
+      expect(
+        (result as PlatformRepositoryFailure<TaskDto>).kind,
+        PlatformRepositoryFailureKind.forbidden,
+      );
+    });
+
+    test('keeps a transport error on the read path as infrastructure', () async {
+      gateway.taskListError = StateError(
+        'connection to 10.0.0.5:5432 refused',
+      );
+
+      final result = await repository.searchTasks(
+        const TaskListQuery(workspaceId: 'workspace-a'),
+      );
+
+      final failure =
+          result as PlatformRepositoryFailure<PlatformPageResult<TaskDto>>;
+      expect(failure.kind, PlatformRepositoryFailureKind.infrastructureFailure);
+      expect(failure.message, 'Supabase tasks could not be loaded.');
+      expect(failure.message, isNot(contains('10.0.0.5')));
+    });
+
+    test(
+      'keeps a non-authorization PostgrestException as infrastructure',
+      () async {
+        gateway.taskListError = PostgrestException(
+          message: 'canceling statement due to statement timeout',
+          code: '57014',
+        );
+
+        final result = await repository.searchTasks(
+          const TaskListQuery(workspaceId: 'workspace-a'),
+        );
+
+        expect(
+          (result
+                  as PlatformRepositoryFailure<PlatformPageResult<TaskDto>>)
+              .kind,
+          PlatformRepositoryFailureKind.infrastructureFailure,
+        );
+      },
+    );
   });
 }
 
@@ -898,6 +1035,10 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
 
   String? searchEntityType;
 
+  Object? taskListError;
+  Object? taskGetError;
+  Object? notificationListError;
+
   Object? rpcResult;
   Object? rpcError;
   int rpcCalls = 0;
@@ -923,6 +1064,10 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
     taskIncludeArchived = includeArchived;
     taskCursor = after;
     taskLimit = limit;
+    final error = taskListError;
+    if (error != null) {
+      throw error;
+    }
     return taskRows;
   }
 
@@ -930,7 +1075,13 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   Future<List<Map<String, dynamic>>> getTask({
     required String workspaceId,
     required String taskId,
-  }) async => taskRows;
+  }) async {
+    final error = taskGetError;
+    if (error != null) {
+      throw error;
+    }
+    return taskRows;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> listNotifications({
@@ -942,6 +1093,10 @@ class _FakePlatformGateway implements PlatformSupabaseGateway {
   }) async {
     notificationRecipientUserId = recipientUserId;
     notificationUnreadOnly = unreadOnly;
+    final error = notificationListError;
+    if (error != null) {
+      throw error;
+    }
     return notificationRows;
   }
 

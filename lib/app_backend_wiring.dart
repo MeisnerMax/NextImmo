@@ -30,6 +30,7 @@ import 'features/maintenance_capex/application/maintenance_capex_providers.dart'
 import 'features/maintenance_capex/data/supabase_maintenance_capex_query_invalidation_adapter.dart';
 import 'features/maintenance_capex/data/supabase_maintenance_capex_repository_adapter.dart';
 import 'features/platform_audit_jobs/application/platform_providers.dart';
+import 'features/platform_audit_jobs/data/supabase_domain_event_consumer_adapter.dart';
 import 'features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
 import 'features/valuation/application/valuation_comparable_source.dart';
@@ -115,6 +116,14 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
       SupabaseMaintenanceCapexQueryInvalidationAdapter(client: client),
     ),
     taskRepositoryProvider.overrideWithValue(platform),
+    // A15: the same adapter instance serves the notification port — P2-D04
+    // shipped all four data-plane ports in one class. The invalidation source
+    // is the existing realtime consumer, instantiated here exactly like its
+    // party/document/leasing/maintenance siblings.
+    notificationPortProvider.overrideWithValue(platform),
+    platformQueryInvalidationSourceProvider.overrideWithValue(
+      SupabasePlatformQueryInvalidationAdapter(client: client),
+    ),
   ];
 }
 

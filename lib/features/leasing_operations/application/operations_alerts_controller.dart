@@ -26,6 +26,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../identity_access/application/workspace_session_scope.dart';
 import '../../platform_audit_jobs/application/platform_providers.dart';
@@ -158,12 +159,14 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
     required String propertyId,
     LeasingQueryInvalidationSource? invalidationSource,
     Duration invalidationCoalesceWindow = const Duration(milliseconds: 250),
+    String Function()? idFactory,
   }) : _signals = signals,
        _tasks = tasks,
        _scope = scope,
        _propertyId = propertyId,
        _invalidationSource = invalidationSource,
        _coalesceWindow = invalidationCoalesceWindow,
+       _idFactory = idFactory ?? const Uuid().v4,
        super(const OperationsAlertsState.loading());
 
   final OperationsSignalsPort _signals;
@@ -172,6 +175,7 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
   final String _propertyId;
   final LeasingQueryInvalidationSource? _invalidationSource;
   final Duration _coalesceWindow;
+  final String Function() _idFactory;
 
   StreamSubscription<LeasingQueryInvalidation>? _invalidationSubscription;
   Timer? _invalidationTimer;
@@ -269,9 +273,18 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
   /// Creates a task linked to [signal]'s most specific entity (see
   /// [entityRefFor]). Does not reload the signal list — a task is not a
   /// signal property, so nothing about the list actually changed.
+  ///
+  /// [mutationId] identifies the caller's *intent* and must be created when
+  /// the dialog opens, then kept across every submit attempt of it (shared
+  /// contract §12): the server replays on it, so a retry after a timeout
+  /// converges on the first task instead of creating a second one. It must
+  /// also be a real uuid — `create_task` types `p_mutation_id` and
+  /// `p_correlation_id` as `uuid`, which the previous epoch-derived
+  /// `oa-task-mut-…` strings could never satisfy.
   Future<bool> createTaskFrom({
     required OperationsSignalDto signal,
     required String title,
+    required String mutationId,
     TaskPriority priority = TaskPriority.normal,
     DateTime? dueAt,
   }) async {
@@ -280,14 +293,14 @@ class OperationsAlertsController extends StateNotifier<OperationsAlertsState> {
     if (workspaceId == null || actorId == null) {
       return false;
     }
-    final now = DateTime.now().microsecondsSinceEpoch.toString();
     final result = await _tasks.createTask(
       CreateTaskCommand(
         context: PlatformCommandContext(
           workspaceId: workspaceId,
           actorId: actorId,
-          mutationId: 'oa-task-mut-$now',
-          correlationId: 'oa-task-cor-$now',
+          mutationId: mutationId,
+          correlationId: _idFactory(),
+          reason: 'Operations-Alert',
         ),
         draft: TaskDraft(
           title: title,

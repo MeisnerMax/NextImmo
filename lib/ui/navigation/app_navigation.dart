@@ -57,6 +57,28 @@ const rentalOverviewRoute = '/rental-overview';
 /// or `rentalOverview`, not through a URL.
 const propertyMaintenanceRoute = '/property-maintenance';
 
+/// TASKS-NOTIFICATIONS-CORE-01 (A15): the three minimal routes riding ahead of
+/// `SHELL-ROUTING-01`, because without them no notification has a deep-link
+/// target. Both pages are workspace-wide like `/documents`; the task detail
+/// carries its id in the route, the same shape as the property routes.
+const tasksRoute = '/tasks';
+const notificationsRoute = '/notifications';
+
+String taskRouteFor(String taskId) {
+  final normalized = taskId.trim();
+  if (normalized.isEmpty) {
+    throw ArgumentError.value(taskId, 'taskId', 'must not be empty');
+  }
+  return '$tasksRoute/${Uri.encodeComponent(normalized)}';
+}
+
+String? taskIdFromRoute(String? routeName) {
+  if (routeName == null) {
+    return null;
+  }
+  return _idFromRoute(routeName, tasksRoute);
+}
+
 String unitsRouteFor(String propertyId) => '$unitsRoute/$propertyId';
 String leasesRouteFor(String propertyId) => '$leasesRoute/$propertyId';
 String leasingPipelineRouteFor(String propertyId) =>
@@ -98,6 +120,9 @@ enum CloudRouteSurface {
   tenants,
   rentalOverview,
   maintenance,
+  tasks,
+  taskDetail,
+  notifications,
 }
 
 class CloudRouteTarget {
@@ -105,6 +130,7 @@ class CloudRouteTarget {
     required this.page,
     this.surface = CloudRouteSurface.page,
     this.propertyId,
+    this.taskId,
   });
 
   static const dashboard = CloudRouteTarget(page: GlobalPage.dashboard);
@@ -116,6 +142,9 @@ class CloudRouteTarget {
   final GlobalPage page;
   final CloudRouteSurface surface;
   final String? propertyId;
+
+  /// Set only for [CloudRouteSurface.taskDetail] (`/tasks/:taskId`).
+  final String? taskId;
 }
 
 CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
@@ -219,6 +248,26 @@ CloudRouteTarget? cloudRouteTargetFromName(String? routeName) {
       page: GlobalPage.properties,
       surface: CloudRouteSurface.maintenance,
       propertyId: maintenancePropertyId,
+    );
+  }
+  if (routeName == tasksRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.tasks,
+      surface: CloudRouteSurface.tasks,
+    );
+  }
+  final taskId = taskIdFromRoute(routeName);
+  if (taskId != null) {
+    return CloudRouteTarget(
+      page: GlobalPage.tasks,
+      surface: CloudRouteSurface.taskDetail,
+      taskId: taskId,
+    );
+  }
+  if (routeName == notificationsRoute) {
+    return const CloudRouteTarget(
+      page: GlobalPage.notifications,
+      surface: CloudRouteSurface.notifications,
     );
   }
   if (routeName == documentsWorkspaceRoute) {

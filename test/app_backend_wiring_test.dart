@@ -15,6 +15,7 @@ import 'package:neximmo_app/features/maintenance_capex/application/maintenance_c
 import 'package:neximmo_app/features/maintenance_capex/data/supabase_maintenance_capex_query_invalidation_adapter.dart';
 import 'package:neximmo_app/features/maintenance_capex/data/supabase_maintenance_capex_repository_adapter.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/data/supabase_domain_event_consumer_adapter.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
 import 'package:neximmo_app/features/valuation/application/valuation_providers.dart';
 import 'package:neximmo_app/features/valuation/data/supabase_valuation_query_invalidation_adapter.dart';
@@ -127,12 +128,18 @@ void main() {
       );
     });
 
-    test('binds the task port to the Supabase adapter', () {
+    test('binds the platform ports to their Supabase adapters', () {
       final container = _cloudContainer();
+      final adapter = container.read(taskRepositoryProvider);
 
+      expect(adapter, isA<SupabasePlatformRepositoryAdapter>());
+      // A15: the notification port is the same adapter instance — P2-D04
+      // shipped all four data-plane ports in one class, and a second instance
+      // would only pretend there were two seams.
+      expect(container.read(notificationPortProvider), same(adapter));
       expect(
-        container.read(taskRepositoryProvider),
-        isA<SupabasePlatformRepositoryAdapter>(),
+        container.read(platformQueryInvalidationSourceProvider),
+        isA<SupabasePlatformQueryInvalidationAdapter>(),
       );
     });
 
@@ -194,6 +201,17 @@ void main() {
       );
       expect(
         () => container.read(taskRepositoryProvider),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        () => container.read(notificationPortProvider),
+        throwsA(isA<StateError>()),
+      );
+      // Unlike the nullable leasing/maintenance sources below, the platform
+      // invalidation source fails closed: A15 always binds it, so reading it
+      // unbound is a wiring bug, not a "no realtime here" configuration.
+      expect(
+        () => container.read(platformQueryInvalidationSourceProvider),
         throwsA(isA<StateError>()),
       );
       expect(

@@ -418,6 +418,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case CloudRouteSurface.tenants:
       case CloudRouteSurface.rentalOverview:
       case CloudRouteSurface.maintenance:
+      case CloudRouteSurface.tasks:
+      case CloudRouteSurface.taskDetail:
+      case CloudRouteSurface.notifications:
         return const DocumentsWorkspacePanel();
     }
   }

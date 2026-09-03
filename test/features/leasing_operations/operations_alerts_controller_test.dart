@@ -6,6 +6,7 @@ import 'package:neximmo_app/features/leasing_operations/domain/operations_signal
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/domain/platform_entity_type.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
+import 'package:uuid/uuid.dart';
 
 const String _workspace = 'workspace-a';
 const String _propertyId = 'p1';
@@ -215,12 +216,52 @@ void main() {
       final success = await controller.createTaskFrom(
         signal: signal,
         title: 'Review renewal',
+        mutationId: 'intent-1',
       );
 
       expect(success, isTrue);
       expect(tasks.lastCommand!.draft.title, 'Review renewal');
       expect(tasks.lastCommand!.draft.entity, entityRefFor(signal));
       expect(tasks.lastCommand!.draft.entity!.type, PlatformEntityType.lease);
+    });
+
+    test('keeps the caller-owned mutationId and audits the surface', () async {
+      final tasks = _FakeTasks();
+      final controller = _controllerWith(
+        _FakeSignals(
+          listResult: OperationsSignalsSuccess<List<OperationsSignalDto>>(
+            const [],
+          ),
+        ),
+        tasks: tasks,
+      );
+      final signal = _signal('lease_expiry', 'critical', status: 'open');
+
+      // The intent id is owned by the dialog (shared contract §12): a second
+      // submit attempt of the same intent must reach the server with the same
+      // id, so the RPC replay layer converges instead of duplicating.
+      await controller.createTaskFrom(
+        signal: signal,
+        title: 'Follow up',
+        mutationId: 'intent-1',
+      );
+      final first = tasks.lastCommand!.context;
+      await controller.createTaskFrom(
+        signal: signal,
+        title: 'Follow up',
+        mutationId: 'intent-1',
+      );
+      final second = tasks.lastCommand!.context;
+
+      expect(first.mutationId, 'intent-1');
+      expect(second.mutationId, 'intent-1');
+      expect(first.reason, 'Operations-Alert');
+      // `create_task` types p_correlation_id as uuid; the epoch-derived
+      // `oa-task-cor-…` strings of the previous implementation could never
+      // reach the server.
+      expect(Uuid.isValidUUID(fromString: first.correlationId), isTrue);
+      expect(Uuid.isValidUUID(fromString: second.correlationId), isTrue);
+      expect(first.correlationId, isNot(second.correlationId));
     });
 
     test('falls back to unit, then tenant, then the property itself', () {
@@ -268,6 +309,7 @@ void main() {
       final success = await controller.createTaskFrom(
         signal: _signal('lease_expiry', 'critical', status: 'open'),
         title: 'Follow up',
+        mutationId: 'intent-1',
       );
 
       expect(success, isFalse);
