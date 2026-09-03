@@ -561,14 +561,14 @@ class _TaskCenterViewState extends State<TaskCenterView> {
     }
     final detailOpen = state.detailPhase != TaskDetailPhase.idle;
     return NxSplitView(
-      list: _list(context),
+      list: _list(context, mobile),
       detail: _detail(context),
       showDetail: detailOpen,
       onBackToList: widget.onCloseDetail,
     );
   }
 
-  Widget _list(BuildContext context) {
+  Widget _list(BuildContext context, bool mobile) {
     switch (state.listPhase) {
       case TaskCenterListPhase.loading:
         return const NxCard(
@@ -662,6 +662,24 @@ class _TaskCenterViewState extends State<TaskCenterView> {
               separatorBuilder: (_, _) => const SizedBox(height: 2),
               itemBuilder: (context, index) {
                 final task = state.tasks[index];
+                final onTap = state.selecting
+                    ? () => widget.onToggleSelected(task.id)
+                    : () => widget.onSelectTask(task);
+                // Foundation §6: on mobile the primary list is a ListTile
+                // fallback with a chevron — the desktop row layout is not
+                // squeezed onto 320–390 px.
+                if (mobile) {
+                  return TaskMobileRow(
+                    task: task,
+                    actorId: widget.actorId,
+                    now: widget.now,
+                    selected: state.selectedTask?.id == task.id,
+                    selecting: state.selecting,
+                    checked: state.selectedIds.contains(task.id),
+                    onCheckedChanged: (_) => widget.onToggleSelected(task.id),
+                    onTap: onTap,
+                  );
+                }
                 return TaskRow(
                   task: task,
                   actorId: widget.actorId,
@@ -670,9 +688,7 @@ class _TaskCenterViewState extends State<TaskCenterView> {
                   selecting: state.selecting,
                   checked: state.selectedIds.contains(task.id),
                   onCheckedChanged: (_) => widget.onToggleSelected(task.id),
-                  onTap: state.selecting
-                      ? () => widget.onToggleSelected(task.id)
-                      : () => widget.onSelectTask(task),
+                  onTap: onTap,
                 );
               },
             ),
@@ -1068,7 +1084,14 @@ class _LabeledSwitch extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Switch(value: value, onChanged: onChanged),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
       ],
     );
   }
