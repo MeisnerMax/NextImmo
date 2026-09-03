@@ -271,10 +271,10 @@ class SupabasePlatformRepositoryAdapter
           workspaceOf: (task) => task.workspaceId,
         ),
       );
-    } catch (_) {
-      return const PlatformRepositoryFailure<PlatformPageResult<TaskDto>>(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase tasks could not be loaded.',
+    } catch (error) {
+      return _readFailure<PlatformPageResult<TaskDto>>(
+        error,
+        'Supabase tasks could not be loaded.',
       );
     }
   }
@@ -298,11 +298,8 @@ class SupabasePlatformRepositoryAdapter
       final task = _parseTask(rows.first);
       _requireWorkspace(task.workspaceId, workspaceId);
       return PlatformRepositorySuccess<TaskDto>(task);
-    } catch (_) {
-      return const PlatformRepositoryFailure<TaskDto>(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase task could not be loaded.',
-      );
+    } catch (error) {
+      return _readFailure<TaskDto>(error, 'Supabase task could not be loaded.');
     }
   }
 
@@ -423,12 +420,10 @@ class SupabasePlatformRepositoryAdapter
           workspaceOf: (notification) => notification.workspaceId,
         ),
       );
-    } catch (_) {
-      return const PlatformRepositoryFailure<
-        PlatformPageResult<NotificationDto>
-      >(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase notifications could not be loaded.',
+    } catch (error) {
+      return _readFailure<PlatformPageResult<NotificationDto>>(
+        error,
+        'Supabase notifications could not be loaded.',
       );
     }
   }
@@ -507,10 +502,10 @@ class SupabasePlatformRepositoryAdapter
           workspaceOf: (job) => job.workspaceId,
         ),
       );
-    } catch (_) {
-      return const PlatformRepositoryFailure<PlatformPageResult<ImportJobDto>>(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase import jobs could not be loaded.',
+    } catch (error) {
+      return _readFailure<PlatformPageResult<ImportJobDto>>(
+        error,
+        'Supabase import jobs could not be loaded.',
       );
     }
   }
@@ -534,10 +529,10 @@ class SupabasePlatformRepositoryAdapter
       final job = _parseImportJob(rows.first);
       _requireWorkspace(job.workspaceId, workspaceId);
       return PlatformRepositorySuccess<ImportJobDto>(job);
-    } catch (_) {
-      return const PlatformRepositoryFailure<ImportJobDto>(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase import job could not be loaded.',
+    } catch (error) {
+      return _readFailure<ImportJobDto>(
+        error,
+        'Supabase import job could not be loaded.',
       );
     }
   }
@@ -653,12 +648,10 @@ class SupabasePlatformRepositoryAdapter
           workspaceOf: (entry) => entry.workspaceId,
         ),
       );
-    } catch (_) {
-      return const PlatformRepositoryFailure<
-        PlatformPageResult<SearchEntryDto>
-      >(
-        kind: PlatformRepositoryFailureKind.infrastructureFailure,
-        message: 'Supabase search index could not be loaded.',
+    } catch (error) {
+      return _readFailure<PlatformPageResult<SearchEntryDto>>(
+        error,
+        'Supabase search index could not be loaded.',
       );
     }
   }
@@ -812,6 +805,7 @@ class SupabasePlatformRepositoryAdapter
         return PlatformRepositoryFailure<T>(
           kind: PlatformRepositoryFailureKind.validationFailed,
           message: message,
+          validationFields: _validationFields(error),
         );
       case 'mutation_conflict':
         return PlatformRepositoryFailure<T>(
@@ -867,6 +861,39 @@ class SupabasePlatformRepositoryAdapter
 
 typedef _ConflictEntity =
     ({TaskDto? currentTask, ImportJobDto? currentImportJob});
+
+/// Read-path failure classification (A15). An authorization refusal must
+/// surface as `forbidden`, not be flattened into an infrastructure failure —
+/// the UI is neither allowed to claim "Kein Zugriff" it cannot know nor to
+/// hide one it was told. `42501` is Postgres `insufficient_privilege`; `403`
+/// is PostgREST's HTTP form of the same answer. An RLS policy that merely
+/// filters rows never lands here (it returns an empty result, not an error).
+PlatformRepositoryFailure<T> _readFailure<T>(Object error, String message) {
+  if (error is PostgrestException &&
+      (error.code == '42501' || error.code == '403')) {
+    return PlatformRepositoryFailure<T>(
+      kind: PlatformRepositoryFailureKind.forbidden,
+      message: error.message,
+    );
+  }
+  return PlatformRepositoryFailure<T>(
+    kind: PlatformRepositoryFailureKind.infrastructureFailure,
+    message: message,
+  );
+}
+
+/// `validation_failed` names its rejected input as `field` (one key) or
+/// `fields` (several, e.g. unknown update keys). Anything else in there is a
+/// contract violation and is dropped rather than crashing the error path.
+List<String> _validationFields(Map<String, dynamic> error) {
+  final single = error['field'];
+  final many = error['fields'];
+  return List<String>.unmodifiable(<String>[
+    if (single is String && single.isNotEmpty) single,
+    if (many is List)
+      ...many.whereType<String>().where((field) => field.isNotEmpty),
+  ]);
+}
 
 /// Fail closed on a workspace mismatch: a row the server returned for another
 /// workspace means the scope guard was bypassed somewhere, and continuing would

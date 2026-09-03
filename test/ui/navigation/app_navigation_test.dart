@@ -98,6 +98,60 @@ void main() {
     expect(cloudRouteTargetFromName('/unknown'), isNull);
   });
 
+  test('task and notification routes resolve to their shell targets (A15)', () {
+    final tasks = cloudRouteTargetFromName(tasksRoute);
+    expect(tasks?.page, GlobalPage.tasks);
+    expect(tasks?.surface, CloudRouteSurface.tasks);
+
+    final detail = cloudRouteTargetFromName(taskRouteFor('task-1'));
+    expect(detail?.page, GlobalPage.tasks);
+    expect(detail?.surface, CloudRouteSurface.taskDetail);
+    expect(detail?.taskId, 'task-1');
+
+    final inbox = cloudRouteTargetFromName(notificationsRoute);
+    expect(inbox?.page, GlobalPage.notifications);
+    expect(inbox?.surface, CloudRouteSurface.notifications);
+
+    // `/tasks/` with an empty id stays unclaimed instead of resolving to a
+    // detail without a task.
+    expect(cloudRouteTargetFromName('/tasks/'), isNull);
+  });
+
+  test('task route round-trips a stable encoded id', () {
+    final route = taskRouteFor('task / ä');
+
+    expect(route, '/tasks/task%20%2F%20%C3%A4');
+    expect(taskIdFromRoute(route), 'task / ä');
+    expect(taskIdFromRoute(tasksRoute), isNull);
+    expect(taskIdFromRoute('/tasks/'), isNull);
+    expect(taskIdFromRoute('/other/task-1'), isNull);
+    expect(taskIdFromRoute(null), isNull);
+    expect(() => taskRouteFor('  '), throwsArgumentError);
+  });
+
+  test('tasks and notifications pin their cloud read permissions (A15)', () {
+    // Shared §8.2: these pages ride the server permission vocabulary. The
+    // determinism test below cannot catch a silently remapped key; these
+    // pins can.
+    expect(cloudReadPermissionForPage(GlobalPage.tasks), 'task.read');
+    expect(cloudReadPermissionForPage(GlobalPage.taskTemplates), 'task.read');
+    expect(
+      cloudReadPermissionForPage(GlobalPage.notifications),
+      'notification.read',
+    );
+    // A15 wires routes, not surfaces: both pages stay migrationRequired until
+    // the Task-Center and Inbox waves flip them independently at their own
+    // end — anything else would expose an empty page.
+    expect(
+      cloudReadinessForPage(GlobalPage.tasks),
+      CloudDestinationReadiness.migrationRequired,
+    );
+    expect(
+      cloudReadinessForPage(GlobalPage.notifications),
+      CloudDestinationReadiness.migrationRequired,
+    );
+  });
+
   test('every GlobalPage has deterministic cloud readiness and permission', () {
     for (final page in GlobalPage.values) {
       expect(cloudReadinessForPage(page), isA<CloudDestinationReadiness>());

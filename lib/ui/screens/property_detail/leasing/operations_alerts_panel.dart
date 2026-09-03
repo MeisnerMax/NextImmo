@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../features/leasing_operations/application/operations_alerts_controller.dart';
 import '../../../../features/leasing_operations/domain/operations_signal_dto.dart';
@@ -219,6 +220,10 @@ class OperationsAlertsPanel extends ConsumerWidget {
           ? signal.message
           : signal.recommendedAction,
     );
+    // One mutationId per intent, created when the dialog opens and reused for
+    // every submit attempt of it (shared contract §12); only cancelling and
+    // reopening the dialog is a new intent with a new id.
+    final mutationId = const Uuid().v4();
     var priority = TaskPriority.normal;
     DateTime? dueDate;
     final draft = await showDialog<({String title, TaskPriority priority, DateTime? dueAt})>(
@@ -318,6 +323,7 @@ class OperationsAlertsPanel extends ConsumerWidget {
     await controller.createTaskFrom(
       signal: signal,
       title: draft.title,
+      mutationId: mutationId,
       priority: draft.priority,
       dueAt: draft.dueAt,
     );

@@ -346,6 +346,7 @@ class PlatformRepositoryFailure<T> extends PlatformRepositoryResult<T> {
     required this.kind,
     required this.message,
     this.versionConflict,
+    this.validationFields = const <String>[],
   }) : assert(
          kind == PlatformRepositoryFailureKind.versionConflict
              ? versionConflict != null
@@ -355,6 +356,13 @@ class PlatformRepositoryFailure<T> extends PlatformRepositoryResult<T> {
   final PlatformRepositoryFailureKind kind;
   final String message;
   final PlatformVersionConflict? versionConflict;
+
+  /// The change keys a `validation_failed` rejection named (the RPC error's
+  /// `field` / `fields`), so a form can mark the exact input inline instead of
+  /// showing one generic message (TASKS-NOTIFICATIONS shared contract §12).
+  /// Empty when the server named none — and always empty for every other
+  /// failure kind.
+  final List<String> validationFields;
 }
 
 // -----------------------------------------------------------------------------
