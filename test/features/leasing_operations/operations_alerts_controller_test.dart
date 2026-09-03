@@ -213,13 +213,13 @@ void main() {
         tenantPartyId: 't1',
         status: 'open',
       );
-      final success = await controller.createTaskFrom(
+      final failure = await controller.createTaskFrom(
         signal: signal,
-        title: 'Review renewal',
+        draft: const TaskDraft(title: 'Review renewal'),
         mutationId: 'intent-1',
       );
 
-      expect(success, isTrue);
+      expect(failure, isNull);
       expect(tasks.lastCommand!.draft.title, 'Review renewal');
       expect(tasks.lastCommand!.draft.entity, entityRefFor(signal));
       expect(tasks.lastCommand!.draft.entity!.type, PlatformEntityType.lease);
@@ -242,13 +242,13 @@ void main() {
       // id, so the RPC replay layer converges instead of duplicating.
       await controller.createTaskFrom(
         signal: signal,
-        title: 'Follow up',
+        draft: const TaskDraft(title: 'Follow up'),
         mutationId: 'intent-1',
       );
       final first = tasks.lastCommand!.context;
       await controller.createTaskFrom(
         signal: signal,
-        title: 'Follow up',
+        draft: const TaskDraft(title: 'Follow up'),
         mutationId: 'intent-1',
       );
       final second = tasks.lastCommand!.context;
@@ -306,13 +306,17 @@ void main() {
         tasks: tasks,
       );
 
-      final success = await controller.createTaskFrom(
+      final failure = await controller.createTaskFrom(
         signal: _signal('lease_expiry', 'critical', status: 'open'),
-        title: 'Follow up',
+        draft: const TaskDraft(title: 'Follow up'),
         mutationId: 'intent-1',
       );
 
-      expect(success, isFalse);
+      expect(failure, isNotNull);
+      expect(
+        failure!.kind,
+        PlatformRepositoryFailureKind.dependencyConflict,
+      );
       expect(controller.state.actionError, 'not supported locally');
     });
   });

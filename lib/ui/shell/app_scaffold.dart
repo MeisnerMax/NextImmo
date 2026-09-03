@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../features/identity_access/presentation/admin_members_screen.dart';
+import '../../features/platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../features/portfolio_property/presentation/property_workspace_screen.dart';
 import '../../features/reference_slice/application/reference_slice_controller.dart';
 import '../components/command_palette.dart';
@@ -367,6 +368,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             : const PartiesScreen();
       case GlobalPage.rentalOverview:
         return const RentalOverviewPanel();
+      case GlobalPage.tasks:
+        // TASK-CENTER-01: the one task surface. `/tasks/:taskId` arrives as
+        // the taskDetail surface and opens list + detail.
+        return TaskCenterScreen(
+          initialTaskId: target.surface == CloudRouteSurface.taskDetail
+              ? target.taskId
+              : null,
+        );
       case GlobalPage.maintenance:
         return const MaintenanceTicketsPanel();
       case GlobalPage.contractors:

@@ -45,18 +45,28 @@ class PropertyWorkspaceDomainRegistration {
   final String readPermission;
 }
 
-/// Runtime registry for wave A1: `Objekt` is the first and only implemented
-/// domain. `Übersicht` stays unregistered until `PROPERTY-OVERVIEW-DATA-01`
-/// lands; `Vermietung`/`Betrieb`/`Dokumente`/`Investment` follow in later
-/// implementation packages; `Aktivität` stays hidden until it has at least one
-/// implemented child. Registering a domain here is a deliberate act of the
-/// increment that implements it — never a placeholder.
+/// Runtime registry: `Objekt` arrived with wave A1; `Betrieb` with
+/// TASK-CENTER-01, whose only implemented child today is the property-scoped
+/// task surface — its gate is therefore `task.read`, the read permission of
+/// that one child (`PROPERTY_OPERATIONS_V2.md` §8: sub-areas without read are
+/// hidden, and a domain with no readable child would be an empty frame).
+/// `MAINTENANCE-PARITY-01` widens the gate when Wartung/CapEx land.
+/// `Übersicht` stays unregistered until `PROPERTY-OVERVIEW-DATA-01` lands;
+/// `Vermietung`/`Dokumente`/`Investment` follow in later implementation
+/// packages; `Aktivität` stays hidden until it has at least one implemented
+/// child. Registering a domain here is a deliberate act of the increment that
+/// implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
 registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.asset,
     label: 'Objekt',
     readPermission: 'property.read',
+  ),
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.operations,
+    label: 'Betrieb',
+    readPermission: 'task.read',
   ),
 ];
 

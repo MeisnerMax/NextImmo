@@ -18,11 +18,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../features/leasing_operations/application/operations_alerts_controller.dart';
 import '../../../../features/leasing_operations/domain/operations_signal_dto.dart';
-import '../../../../features/platform_audit_jobs/domain/task_dto.dart';
+import '../../../../features/platform_audit_jobs/presentation/widgets/task_dialogs.dart';
 import '../../../components/nx_card.dart';
 import '../../../components/nx_empty_state.dart';
 import '../../../components/nx_page_header.dart';
@@ -207,132 +206,28 @@ class OperationsAlertsPanel extends ConsumerWidget {
     );
   }
 
-  /// Same pop-then-act shape as [_resolve]: the dialog closes synchronously
-  /// on confirm, [titleCtrl] disposes a frame later, and the actual creation
-  /// runs after the dialog route is gone.
+  /// TASK-CENTER-01: the one shared create dialog (Shared §5.2) with the
+  /// signal's most specific entity preset — the panel no longer owns a
+  /// dialog of its own. The dialog owns the intent's `mutationId` and maps
+  /// failures per the §12 contract inline.
   Future<void> _createTask(
     BuildContext context,
     OperationsAlertsController controller,
     OperationsSignalDto signal,
   ) async {
-    final titleCtrl = TextEditingController(
-      text: signal.recommendedAction.isEmpty
+    await showTaskCreateDialog(
+      context,
+      presetEntity: entityRefFor(signal),
+      initialTitle: signal.recommendedAction.isEmpty
           ? signal.message
           : signal.recommendedAction,
-    );
-    // One mutationId per intent, created when the dialog opens and reused for
-    // every submit attempt of it (shared contract §12); only cancelling and
-    // reopening the dialog is a new intent with a new id.
-    final mutationId = const Uuid().v4();
-    var priority = TaskPriority.normal;
-    DateTime? dueDate;
-    final draft = await showDialog<({String title, TaskPriority priority, DateTime? dueAt})>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Aufgabe erstellen'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'Titel'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<TaskPriority>(
-                  value: priority,
-                  items: const <DropdownMenuItem<TaskPriority>>[
-                    DropdownMenuItem(value: TaskPriority.low, child: Text('niedrig')),
-                    DropdownMenuItem(
-                      value: TaskPriority.normal,
-                      child: Text('normal'),
-                    ),
-                    DropdownMenuItem(value: TaskPriority.high, child: Text('hoch')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => priority = value);
-                    }
-                  },
-                  decoration: const InputDecoration(labelText: 'Priorität'),
-                ),
-                const SizedBox(height: 8),
-                InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Fälligkeit'),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(dueDate == null ? '—' : _formatDialogDate(dueDate!)),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: dialogContext,
-                            initialDate: dueDate ?? DateTime.now(),
-                            firstDate: DateTime.now().subtract(
-                              const Duration(days: 365),
-                            ),
-                            lastDate: DateTime.now().add(const Duration(days: 3650)),
-                          );
-                          if (picked != null) {
-                            setDialogState(() => dueDate = picked);
-                          }
-                        },
-                        child: const Text('Wählen'),
-                      ),
-                      if (dueDate != null)
-                        TextButton(
-                          onPressed: () => setDialogState(() => dueDate = null),
-                          child: const Text('Löschen'),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final title = titleCtrl.text.trim();
-                if (title.isEmpty) {
-                  return;
-                }
-                Navigator.of(dialogContext).pop((
-                  title: title,
-                  priority: priority,
-                  dueAt: dueDate,
-                ));
-              },
-              child: const Text('Erstellen'),
-            ),
-          ],
-        ),
+      initialDescription: signal.message,
+      onSubmit: (draft, mutationId) => controller.createTaskFrom(
+        signal: signal,
+        draft: draft,
+        mutationId: mutationId,
       ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => titleCtrl.dispose());
-    if (draft == null) {
-      return;
-    }
-    await controller.createTaskFrom(
-      signal: signal,
-      title: draft.title,
-      mutationId: mutationId,
-      priority: draft.priority,
-      dueAt: draft.dueAt,
-    );
-  }
-
-  String _formatDialogDate(DateTime value) {
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '$day.$month.${value.year}';
   }
 
   void _openSource(WidgetRef ref, OperationsSignalDto signal) {
