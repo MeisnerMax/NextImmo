@@ -139,20 +139,20 @@ void main() {
       cloudReadPermissionForPage(GlobalPage.notifications),
       'notification.read',
     );
-    // TASK-CENTER-01 flips `tasks` to ready; `notifications` stays
-    // migrationRequired until the Inbox wave flips it independently, and
-    // `taskTemplates` until TASK-SCHEDULER-01 delivers a real templates
-    // surface (B9) — flipping either early would expose an empty page.
+    // TASK-CENTER-01 flipped `tasks`, NOTIFICATION-INBOX-01 flips
+    // `notifications` — each wave independently. `taskTemplates` stays
+    // migrationRequired until TASK-SCHEDULER-01 delivers a real templates
+    // surface (B9) — flipping it early would expose an empty page.
     expect(
       cloudReadinessForPage(GlobalPage.tasks),
       CloudDestinationReadiness.ready,
     );
     expect(
-      cloudReadinessForPage(GlobalPage.taskTemplates),
-      CloudDestinationReadiness.migrationRequired,
+      cloudReadinessForPage(GlobalPage.notifications),
+      CloudDestinationReadiness.ready,
     );
     expect(
-      cloudReadinessForPage(GlobalPage.notifications),
+      cloudReadinessForPage(GlobalPage.taskTemplates),
       CloudDestinationReadiness.migrationRequired,
     );
   });

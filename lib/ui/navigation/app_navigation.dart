@@ -307,10 +307,12 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // contracts only — see `04d_wave4_maintenance_capex.md`.
     GlobalPage.maintenance ||
     GlobalPage.contractors ||
-    // TASK-CENTER-01: the Task Center reads platform_audit_jobs through its
-    // contract only. `notifications` flips independently with its own wave;
-    // `taskTemplates` stays migrationRequired until TASK-SCHEDULER-01 (B9).
+    // TASK-CENTER-01 / NOTIFICATION-INBOX-01: both surfaces read
+    // platform_audit_jobs through its contract only; each wave flipped its
+    // own page independently. `taskTemplates` stays migrationRequired until
+    // TASK-SCHEDULER-01 delivers a real templates surface (B9).
     GlobalPage.tasks ||
+    GlobalPage.notifications ||
     GlobalPage.adminUsers ||
     GlobalPage.help => CloudDestinationReadiness.ready,
     _ => CloudDestinationReadiness.migrationRequired,
