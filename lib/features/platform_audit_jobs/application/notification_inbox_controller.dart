@@ -55,7 +55,12 @@ class NotificationInboxScope {
   /// step-up state, never as an empty inbox).
   final bool canMutate;
 
-  bool get canRead => permissions.contains('notification.read');
+  /// PERMISSION-CATALOG-02: the inbox reads the member's OWN feed, which the
+  /// server serves recipient-scoped without any permission
+  /// (notifications_select_own_or_read). A bound scope is therefore always
+  /// readable; `notification.read` remains the admin-only workspace oversight
+  /// capability and is deliberately not consulted here.
+  bool get canRead => workspaceId != null && actorId != null;
 
   @override
   bool operator ==(Object other) {

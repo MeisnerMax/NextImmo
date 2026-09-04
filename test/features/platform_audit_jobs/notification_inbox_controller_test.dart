@@ -101,6 +101,21 @@ class _FakeInvalidation implements PlatformQueryInvalidationSource {
   }) => controller.stream;
 }
 
+// PERMISSION-CATALOG-02: the own feed is recipient-scoped on the server and
+// needs no permission at all — a member without notification.read must still
+// see their own inbox.
+void _pinOwnFeedNeedsNoPermission() {
+  test('the own inbox needs no permission (PERMISSION-CATALOG-02)', () {
+    final scope = NotificationInboxScope(
+      workspaceId: _workspace,
+      actorId: _actor,
+      permissions: const <String>{},
+      canMutate: true,
+    );
+    expect(scope.canRead, isTrue);
+  });
+}
+
 NotificationInboxScope _scope() {
   return NotificationInboxScope(
     workspaceId: _workspace,
@@ -137,6 +152,7 @@ Future<void> _settle() async {
 }
 
 void main() {
+  _pinOwnFeedNeedsNoPermission();
   group('OD-2 pretense regression (§17)', () {
     test('every offered control maps onto a NotificationFeedQuery field', () {
       // The full server capability set, pinned by name: recipient, the

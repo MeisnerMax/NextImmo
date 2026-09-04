@@ -135,10 +135,12 @@ void main() {
     // pins can.
     expect(cloudReadPermissionForPage(GlobalPage.tasks), 'task.read');
     expect(cloudReadPermissionForPage(GlobalPage.taskTemplates), 'task.read');
-    expect(
-      cloudReadPermissionForPage(GlobalPage.notifications),
-      'notification.read',
-    );
+    // PERMISSION-CATALOG-02: the inbox is the OWN feed and the server serves
+    // it recipient-scoped without any permission
+    // (notifications_select_own_or_read). notification.read is the
+    // workspace-wide oversight capability and stays admin-only — gating the
+    // page on it would hide members' own notifications for no server reason.
+    expect(cloudReadPermissionForPage(GlobalPage.notifications), isNull);
     // TASK-CENTER-01 flipped `tasks`, NOTIFICATION-INBOX-01 flips
     // `notifications` — each wave independently. `taskTemplates` stays
     // migrationRequired until TASK-SCHEDULER-01 delivers a real templates

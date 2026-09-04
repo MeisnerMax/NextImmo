@@ -8,6 +8,8 @@
 /// switches while a child holds unsaved input.
 library;
 
+import '../../../core/security/rbac.dart';
+
 /// The binding maximal IA of the property workspace:
 /// `Übersicht / Objekt / Vermietung / Betrieb / Dokumente / Investment /
 /// Aktivität` (spec `PROPERTY_WORKSPACE_V2.md` §4).
@@ -66,7 +68,7 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.operations,
     label: 'Betrieb',
-    readPermission: 'task.read',
+    readPermission: Permission.taskRead,
   ),
 ];
 
