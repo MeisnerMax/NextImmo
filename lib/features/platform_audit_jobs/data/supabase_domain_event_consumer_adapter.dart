@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../../core/security/rbac.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/platform_domain_event.dart';
@@ -10,7 +12,7 @@ import '../application/platform_query_invalidation_source.dart';
 /// topic — by the permission a reader must hold. There is deliberately no
 /// workspace-wide topic: it would leak the existence and ids of rows the reader
 /// may not see.
-const platformTaskEventPermission = 'task.read';
+const platformTaskEventPermission = Permission.taskRead;
 const platformNotificationEventPermission = 'notification.read';
 const platformImportEventPermission = 'import.read';
 

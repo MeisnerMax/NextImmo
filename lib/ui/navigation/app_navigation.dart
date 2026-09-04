@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/security/rbac.dart';
 
 import '../state/app_state.dart';
 
@@ -327,21 +328,26 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     GlobalPage.esg ||
     GlobalPage.maintenance ||
     GlobalPage.budgets ||
-    GlobalPage.ledger => 'property.read',
+    GlobalPage.ledger => Permission.propertyRead,
     // The rental view is a leasing read, not a property one: it lists units and
     // leases and only borrows the property name.
-    GlobalPage.rentalOverview => 'lease.read',
-    GlobalPage.parties || GlobalPage.contractors => 'party.read',
-    GlobalPage.documents => 'document.read',
-    GlobalPage.tasks || GlobalPage.taskTemplates => 'task.read',
-    GlobalPage.notifications => 'notification.read',
-    GlobalPage.imports => 'import.read',
+    GlobalPage.rentalOverview => Permission.leaseRead,
+    GlobalPage.parties || GlobalPage.contractors => Permission.partyRead,
+    GlobalPage.documents => Permission.documentRead,
+    GlobalPage.tasks || GlobalPage.taskTemplates => Permission.taskRead,
+    // PERMISSION-CATALOG-02: the inbox is the member's OWN feed and the server
+    // serves it recipient-scoped without any permission
+    // (notifications_select_own_or_read). notification.read is the
+    // workspace-wide oversight capability and stays admin-only; gating the
+    // page on it would hide members' own notifications for no server reason.
+    GlobalPage.notifications => null,
+    GlobalPage.imports => Permission.importRead,
     GlobalPage.valuations ||
     GlobalPage.criteriaSets ||
-    GlobalPage.compare => 'valuation.read',
-    GlobalPage.reportTemplates => 'reporting.generate',
-    GlobalPage.adminUsers || GlobalPage.settings => 'security.manage',
-    GlobalPage.audit => 'audit.read',
+    GlobalPage.compare => Permission.valuationRead,
+    GlobalPage.reportTemplates => Permission.reportingGenerate,
+    GlobalPage.adminUsers || GlobalPage.settings => Permission.securityManage,
+    GlobalPage.audit => Permission.auditRead,
   };
 }
 

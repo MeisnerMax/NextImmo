@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/app.dart';
 import 'package:neximmo_app/core/config/app_environment.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_query_invalidation_source.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/notification_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
@@ -30,6 +35,10 @@ void main() {
           ),
           referencePropertyRepositoryProvider.overrideWithValue(
             _PropertyRepository(),
+          ),
+          notificationPortProvider.overrideWithValue(_EmptyNotificationPort()),
+          platformQueryInvalidationSourceProvider.overrideWithValue(
+            _SilentInvalidationSource(),
           ),
         ],
         child: const NexImmoApp(environment: environment),
@@ -59,6 +68,10 @@ void main() {
           ),
           referencePropertyRepositoryProvider.overrideWithValue(
             _PropertyRepository(),
+          ),
+          notificationPortProvider.overrideWithValue(_EmptyNotificationPort()),
+          platformQueryInvalidationSourceProvider.overrideWithValue(
+            _SilentInvalidationSource(),
           ),
         ],
         child: const NexImmoApp(environment: environment),
@@ -104,6 +117,10 @@ void main() {
         overrides: [
           identityAccessRepositoryProvider.overrideWithValue(identity),
           referencePropertyRepositoryProvider.overrideWithValue(properties),
+          notificationPortProvider.overrideWithValue(_EmptyNotificationPort()),
+          platformQueryInvalidationSourceProvider.overrideWithValue(
+            _SilentInvalidationSource(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -150,6 +167,10 @@ void main() {
         overrides: [
           identityAccessRepositoryProvider.overrideWithValue(identity),
           referencePropertyRepositoryProvider.overrideWithValue(properties),
+          notificationPortProvider.overrideWithValue(_EmptyNotificationPort()),
+          platformQueryInvalidationSourceProvider.overrideWithValue(
+            _SilentInvalidationSource(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -308,4 +329,39 @@ class _PropertyRepository implements PropertyRepository {
   ) async {
     return PropertyRepositorySuccess<PropertyDto>(property);
   }
+}
+
+
+// PERMISSION-CATALOG-02: the notification bell is part of the standard shell
+// for every member (the own feed needs no permission), so the runtime harness
+// binds an empty platform notification surface like the real wiring does.
+class _EmptyNotificationPort implements NotificationPort {
+  @override
+  Future<PlatformRepositoryResult<PlatformPageResult<NotificationDto>>>
+  notificationFeed(NotificationFeedQuery query) async {
+    return const PlatformRepositorySuccess<PlatformPageResult<NotificationDto>>(
+      PlatformPageResult<NotificationDto>(items: <NotificationDto>[]),
+    );
+  }
+
+  @override
+  Future<PlatformRepositoryResult<NotificationFanOutReceipt>> fanOutNotification(
+    CreateNotificationCommand command,
+  ) async {
+    throw UnsupportedError('not part of the runtime harness');
+  }
+
+  @override
+  Future<PlatformRepositoryResult<NotificationDto>> markNotificationRead(
+    MarkNotificationReadCommand command,
+  ) async {
+    throw UnsupportedError('not part of the runtime harness');
+  }
+}
+
+class _SilentInvalidationSource implements PlatformQueryInvalidationSource {
+  @override
+  Stream<PlatformQueryInvalidation> watchWorkspace({
+    required String workspaceId,
+  }) => const Stream<PlatformQueryInvalidation>.empty();
 }

@@ -20,6 +20,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/security/rbac.dart';
 import '../domain/platform_entity_type.dart';
 import '../domain/task_dto.dart';
 import 'platform_providers.dart';
@@ -55,8 +56,8 @@ class TaskCenterScope {
   /// workspace-wide destination.
   final PlatformEntityRef? lockedContext;
 
-  bool get canRead => permissions.contains('task.read');
-  bool get canManage => permissions.contains('task.manage');
+  bool get canRead => permissions.contains(Permission.taskRead);
+  bool get canManage => permissions.contains(Permission.taskManage);
 
   @override
   bool operator ==(Object other) {
