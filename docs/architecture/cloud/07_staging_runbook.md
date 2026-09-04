@@ -378,3 +378,77 @@ an einen echten Staging-Client inklusive Reconnect-Recovery und anonym dichter
 Auth-/RLS-Grenze. **Weiterhin nicht bewiesen:** SMTP (nicht konfiguriert), die
 Remote-Integration-Gates (Schritt 14) und das Remote-E2E der fünf
 Schwester-Invalidation-Adapter (blockiert nur durch fehlende Staging-Daten/Permissions).
+
+---
+
+## 12. Supabase-Migrationen nach Staging (`staging_db_deploy.yml`)
+
+Seit `STAGING-DB-MIGRATION-DEPLOY-01` rollt ein eigener, **manueller** Workflow die
+Migrationen kontrolliert aus — die bisherigen Remote-Pushes waren beaufsichtigte
+Einzelaktionen aus lokalen Sitzungen (Abschnitt 4). Der Zielzustand der Pipeline:
+
+```text
+STAGING
+  PR → vollständige CI → Merge auf main
+    → Web-Staging automatisch (web_deploy.yml, Abschnitt 10)
+    → Supabase-Migrationen manuell: Actions → „Supabase Staging Migrations"
+      → Run workflow auf main
+    → Staging-E2E
+
+PRODUCTION
+  NICHT automatisch. Eine separate, zukünftige Release-/Promotion-Stufe mit
+  eigener Entscheidung (DEC-017: Production bleibt nicht autorisiert).
+```
+
+**Staging DB deployment must never infer or reuse production project credentials.**
+
+Ablauf des Workflows, fail-closed in dieser Reihenfolge:
+
+```text
+workflow_dispatch (nur main; jeder andere Ref ⇒ FAIL)
+  → Gate: STAGING_DB_DEPLOY_ENABLED == "true"       (Repo-Variable, bewusst ungesetzt
+                                                     bis ein Owner sie aktiviert)
+  → Checkout genau des Dispatch-SHA, verifiziert und geloggt
+  → vier Required Checks auf diesem SHA == success
+  → Environment `staging`: SUPABASE_ACCESS_TOKEN,
+    SUPABASE_PROJECT_REF_STAGING, SUPABASE_DB_PASSWORD_STAGING
+    (nur Presence-Prüfung, nie Werte im Log)
+  → Project-Ref-Allowlist: der Secret-Wert muss exakt das dokumentierte
+    Staging-Projekt (Abschnitt 4) sein — ein vertauschtes Secret kann den
+    Workflow nicht auf ein anderes Projekt richten. Wird Staging je neu
+    provisioniert, ändert sich dieser Pin in einem eigenen Review-Commit.
+  → Supabase-CLI exakt aus package.json (npm ci + Versions-Drift-Guard,
+    wie der database-Job in flutter.yml)
+  → supabase link --project-ref <Staging>            (Token genügt; Passwort nie argv)
+  → History-Gate (tool/staging_migration_history_gate.sh before):
+    lokal+remote / pending / remote-only / divergent strikt getrennt;
+    remote-only, Mismatch, Ordnungslücke oder unlesbarer Zustand ⇒ STOP.
+    Kein migration repair, kein Überspringen, kein --force, kein manuelles
+    Eintragen in die History — dafür braucht es eine separate Owner-Freigabe.
+  → supabase db push --linked --dry-run              (Preview: Anzahl + Versionen)
+  → supabase db push --linked                        (forward-only; ohne
+                                                     --include-all/-roles/-seed)
+  → History-Gate (after): 0 pending, kein Mismatch; zweiter Dry-Run muss
+    „up to date" melden
+  → Read-only-Schema-Dump, geprüft auf erwartete Artefakte, danach verworfen
+```
+
+Rollback-Strategie: **forward-only.** Down-Migrationen laufen nie gegen Staging; die
+Down-Pfade bleiben CI-Beweis (`supabase/tests_rollback/`, database-Job). Schlägt ein Push
+fehl, endet der Run rot und der Zustand wird dokumentiert — kein automatisches
+`db reset`, kein automatisches Down, kein `migration repair`.
+
+Ein automatischer Staging-DB-Deploy nach jedem grünen Main-Lauf (analog Abschnitt 10)
+darf erst aktiviert werden, nachdem der manuelle Pfad mindestens einmal nachweislich
+erfolgreich gelaufen ist.
+
+Aktivierung (einmalig, nach dem Merge dieses Workflows):
+
+1. Environment-Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF_STAGING`,
+   `SUPABASE_DB_PASSWORD_STAGING` im Environment `staging` hinterlegen.
+2. Repo-Variable `STAGING_DB_DEPLOY_ENABLED=true` setzen.
+3. Actions → „Supabase Staging Migrations" → Run workflow → Branch `main`.
+4. Erster-Lauf-QC: der Dry-Run muss als pending exakt `20260903100000` und
+   `20260903120000` zeigen (Remote-Head 36/36, Abschnitt 11). Zeigt er etwas
+   anderes: Run abbrechen lassen bzw. FAIL akzeptieren, Zustand berichten,
+   nichts reparieren.
