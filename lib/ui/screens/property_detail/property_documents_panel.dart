@@ -1,16 +1,18 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../features/documents_compliance/application/document_mutation_outcome.dart';
 import '../../../features/documents_compliance/application/document_repository.dart';
 import '../../../features/documents_compliance/application/property_documents_controller.dart';
 import '../../../features/documents_compliance/domain/document_dto.dart';
-import '../../components/nx_data_table_shell.dart';
+import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
+import '../../components/nx_list_skeleton.dart';
+import '../../components/nx_notice.dart';
 import '../../components/nx_page_header.dart';
 import '../../components/nx_section_header.dart';
 import '../../theme/app_theme.dart';
+import '../docs/widgets/document_content_opener.dart';
 import '../docs/widgets/document_detail_panel.dart';
 import '../docs/widgets/document_dialogs.dart';
 import '../docs/widgets/document_notices.dart';
@@ -39,15 +41,13 @@ class PropertyDocumentsPanel extends ConsumerStatefulWidget {
 
 class _PropertyDocumentsPanelState
     extends ConsumerState<PropertyDocumentsPanel> {
-  /// Width at which the archive and one document's detail fit side by side
-  /// without either becoming unreadably narrow.
-  static const double _splitViewBreakpoint = 1200;
-
   Set<DocumentColumn> _columns = defaultDocumentColumns;
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(propertyDocumentsControllerProvider(widget.propertyId));
+    final state = ref.watch(
+      propertyDocumentsControllerProvider(widget.propertyId),
+    );
     final controller = ref.read(
       propertyDocumentsControllerProvider(widget.propertyId).notifier,
     );
@@ -65,13 +65,20 @@ class _PropertyDocumentsPanelState
           subtitle:
               'Nachweise dieses Objekts: Anforderungen, Versionen und '
               'Verifikation.',
-          primaryAction: FilledButton.icon(
-            onPressed:
+          primaryAction: Tooltip(
+            message:
                 controller.canMutate
-                    ? () => _createDocument(controller, types)
-                    : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Dokument hinzufügen'),
+                    ? 'Ein Dokument dieses Objekts anlegen'
+                    : 'Benötigt die Berechtigung (document.manage)',
+            child: FilledButton.icon(
+              key: const Key('property-documents-create'),
+              onPressed:
+                  controller.canMutate
+                      ? () => _createDocument(controller, types)
+                      : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Dokument hinzufügen'),
+            ),
           ),
           secondaryActions: <Widget>[
             PopupMenuButton<DocumentColumn>(
@@ -121,14 +128,14 @@ class _PropertyDocumentsPanelState
           const SizedBox(height: AppSpacing.component),
           const DocumentReadOnlyNotice(),
         ],
-        if (state.actionPhase == PropertyDocumentsActionPhase.contentRejected)
-          ...<Widget>[
-            const SizedBox(height: AppSpacing.component),
-            _ContentRejectedNotice(
-              message: state.actionMessage,
-              onDismiss: controller.clearAction,
-            ),
-          ],
+        if (state.actionPhase ==
+            PropertyDocumentsActionPhase.contentRejected) ...<Widget>[
+          const SizedBox(height: AppSpacing.component),
+          _ContentRejectedNotice(
+            message: state.actionMessage,
+            onDismiss: controller.clearAction,
+          ),
+        ],
         const SizedBox(height: AppSpacing.section),
         const NxSectionHeader(
           title: 'Anforderungen',
@@ -160,24 +167,9 @@ class _PropertyDocumentsPanelState
         }
         switch (next.actionPhase) {
           case PropertyDocumentsActionPhase.conflict:
-            final conflict = next.versionConflict;
-            if (conflict == null) {
-              return;
-            }
-            unawaited(
-              showDocumentVersionConflictDialog(
-                context: context,
-                conflict: conflict,
-                onReload: () {
-                  controller.clearAction();
-                  controller.load();
-                  final selectedId = next.selectedDocumentId;
-                  if (selectedId != null) {
-                    controller.selectDocument(selectedId);
-                  }
-                },
-              ),
-            );
+            // Owned by the dialog that submitted (banner + "Neu laden" /
+            // "Erneut speichern"), or by the row action that reloads.
+            return;
           case PropertyDocumentsActionPhase.contentRejected:
             // Kept on screen as an inline notice instead of a snackbar that
             // disappears: a rejected upload needs a follow-up action.
@@ -210,28 +202,27 @@ class _PropertyDocumentsPanelState
       case PropertyDocumentsRequirementPhase.idle:
         return const SizedBox.shrink();
       case PropertyDocumentsRequirementPhase.loading:
-        return const NxDataTableShell(loading: true, child: SizedBox.shrink());
+        return const NxCard(
+          key: Key('property-documents-requirements-loading'),
+          child: NxListSkeleton(rows: 3),
+        );
       case PropertyDocumentsRequirementPhase.forbidden:
         return const NxEmptyState(
+          key: Key('property-documents-requirements-forbidden'),
           title: 'Kein Zugriff auf Anforderungen',
           description:
-              'Dein Konto darf die Dokumentanforderungen dieses Objekts nicht '
-              'sehen. Wende dich an eine Administratorin oder einen '
-              'Administrator des Arbeitsbereichs.',
+              'Die Anforderungen dieses Objekts benötigen die Berechtigung '
+              '(document.read).',
           icon: Icons.lock_outline,
         );
       case PropertyDocumentsRequirementPhase.error:
-        return NxEmptyState(
+        return NxEmptyState.error(
+          key: const Key('property-documents-requirements-error'),
           title: 'Anforderungen konnten nicht geladen werden',
           description:
               'Beim Auswerten der Anforderungen ist ein Fehler aufgetreten. '
               'Bitte versuche es erneut.',
-          icon: Icons.error_outline,
-          primaryAction: ElevatedButton.icon(
-            onPressed: controller.load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Erneut versuchen'),
-          ),
+          onRetry: controller.load,
         );
       case PropertyDocumentsRequirementPhase.empty:
         return const NxEmptyState(
@@ -262,28 +253,27 @@ class _PropertyDocumentsPanelState
           icon: Icons.workspaces_outline,
         );
       case PropertyDocumentsListPhase.loading:
-        return const NxDataTableShell(loading: true, child: SizedBox.shrink());
+        return const NxCard(
+          key: Key('property-documents-loading'),
+          child: NxListSkeleton(rows: 6),
+        );
       case PropertyDocumentsListPhase.forbidden:
         return const NxEmptyState(
+          key: Key('property-documents-forbidden'),
           title: 'Kein Zugriff auf Dokumente',
           description:
-              'Dein Konto darf die Dokumente dieses Objekts nicht sehen. '
-              'Wende dich an eine Administratorin oder einen Administrator '
-              'des Arbeitsbereichs.',
+              'Die Dokumente dieses Objekts benötigen die Berechtigung '
+              '(document.read).',
           icon: Icons.lock_outline,
         );
       case PropertyDocumentsListPhase.error:
-        return NxEmptyState(
+        return NxEmptyState.error(
+          key: const Key('property-documents-error'),
           title: 'Dokumente konnten nicht geladen werden',
           description:
               'Beim Laden der Dokumente ist ein Fehler aufgetreten. Bitte '
               'versuche es erneut.',
-          icon: Icons.error_outline,
-          primaryAction: ElevatedButton.icon(
-            onPressed: controller.load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Erneut versuchen'),
-          ),
+          onRetry: controller.load,
         );
       case PropertyDocumentsListPhase.empty:
         return NxEmptyState(
@@ -292,13 +282,19 @@ class _PropertyDocumentsPanelState
               'Füge das erste Dokument dieses Objekts hinzu — Nachweise, '
               'Verträge und Gutachten liegen hier zentral.',
           icon: Icons.folder_open_outlined,
-          primaryAction: FilledButton.icon(
-            onPressed:
+          primaryAction: Tooltip(
+            message:
                 controller.canMutate
-                    ? () => _createDocument(controller, types)
-                    : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Dokument hinzufügen'),
+                    ? 'Ein Dokument dieses Objekts anlegen'
+                    : 'Benötigt die Berechtigung (document.manage)',
+            child: FilledButton.icon(
+              onPressed:
+                  controller.canMutate
+                      ? () => _createDocument(controller, types)
+                      : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Dokument hinzufügen'),
+            ),
           ),
         );
       case PropertyDocumentsListPhase.ready:
@@ -314,7 +310,7 @@ class _PropertyDocumentsPanelState
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final split = constraints.maxWidth >= _splitViewBreakpoint;
+        final split = constraints.maxWidth >= AppLayout.splitViewMinWidth;
         final selected = _selectedDocument(state);
         final list = _buildList(state, controller, types);
         final detail = DocumentDetailPanel(
@@ -335,7 +331,7 @@ class _PropertyDocumentsPanelState
           onVerify: (version) => _verify(controller, selected, version),
           onSupersede: () => _supersede(controller, state, selected),
           onArchive: () => _archive(controller, selected),
-          onDownload: (version) => _download(controller, selected, version),
+          onOpen: (version) => _open(controller, selected, version),
         );
 
         if (split) {
@@ -405,28 +401,25 @@ class _PropertyDocumentsPanelState
   Future<void> _createDocument(
     PropertyDocumentsController controller,
     List<DocumentTypeDto> types,
-  ) async {
-    final result = await showDocumentFormDialog(
+  ) {
+    return showDocumentFormDialog(
       context: context,
-      types:
-          types
-              .where(
-                (type) =>
-                    type.entityType == DocumentLinkEntityType.property &&
-                    type.isActive,
-              )
-              .toList(growable: false),
-    );
-    if (result == null) {
-      return;
-    }
-    await controller.createDocument(
-      title: result.title,
-      file: result.file,
-      documentTypeId: result.documentTypeId,
-      validFrom: result.validFrom,
-      validUntil: result.validUntil,
-      notes: result.notes,
+      types: types
+          .where(
+            (type) =>
+                type.entityType == DocumentLinkEntityType.property &&
+                type.isActive,
+          )
+          .toList(growable: false),
+      onSubmit:
+          (result) => controller.createDocument(
+            title: result.title,
+            file: result.file,
+            documentTypeId: result.documentTypeId,
+            validFrom: result.validFrom,
+            validUntil: result.validUntil,
+            notes: result.notes,
+          ),
     );
   }
 
@@ -437,21 +430,20 @@ class _PropertyDocumentsPanelState
     if (document == null) {
       return;
     }
-    final file = await showDocumentVersionDialog(
+    await showDocumentVersionDialog(
       context: context,
-      documentTitle: document.title,
-    );
-    if (file == null) {
-      return;
-    }
-    await controller.addVersion(
-      documentId: document.id,
-      expectedVersion: document.version,
-      nextVersionNo: document.currentVersionNo + 1,
-      file: file,
+      document: document,
+      onSubmit:
+          (file, current) => controller.addVersion(
+            documentId: current.id,
+            expectedVersion: current.version,
+            nextVersionNo: current.currentVersionNo + 1,
+            file: file,
+          ),
     );
   }
 
+  /// No form input, so a conflict reloads the server state and says so.
   Future<void> _confirmContent(
     PropertyDocumentsController controller,
     DocumentDto? document,
@@ -468,11 +460,24 @@ class _PropertyDocumentsPanelState
     if (!confirmed) {
       return;
     }
-    await controller.confirmContent(
+    final outcome = await controller.confirmContent(
       documentId: document.id,
       versionNo: version.versionNo,
       expectedVersion: document.version,
     );
+    if (outcome is DocumentMutationConflicted && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            '„${document.title}" wurde zwischenzeitlich geändert. Der aktuelle '
+            'Stand wurde geladen.',
+          ),
+        ),
+      );
+      controller.clearAction();
+      await controller.load();
+      await controller.selectDocument(document.id);
+    }
   }
 
   Future<void> _verify(
@@ -483,19 +488,19 @@ class _PropertyDocumentsPanelState
     if (document == null) {
       return;
     }
-    final decision = await showDocumentVerifyDialog(
+    await showDocumentVerifyDialog(
       context: context,
+      document: document,
       versionNo: version.versionNo,
-    );
-    if (decision == null) {
-      return;
-    }
-    await controller.verifyVersion(
-      documentId: document.id,
-      versionNo: version.versionNo,
-      expectedVersion: document.version,
-      outcome: decision.outcome,
-      note: decision.note,
+      onSubmit:
+          (decision, current) => controller.verifyVersion(
+            documentId: current.id,
+            versionNo: version.versionNo,
+            expectedVersion: current.version,
+            outcome: decision.outcome,
+            note: decision.note,
+            reason: decision.reason,
+          ),
     );
   }
 
@@ -507,13 +512,12 @@ class _PropertyDocumentsPanelState
     if (document == null) {
       return;
     }
-    final candidates =
-        state.documents
-            .where(
-              (candidate) =>
-                  candidate.id != document.id && candidate.status.isActive,
-            )
-            .toList(growable: false);
+    final candidates = state.documents
+        .where(
+          (candidate) =>
+              candidate.id != document.id && candidate.status.isActive,
+        )
+        .toList(growable: false);
     if (candidates.isEmpty) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
@@ -525,19 +529,18 @@ class _PropertyDocumentsPanelState
       );
       return;
     }
-    final successor = await showDocumentSupersedeDialog(
+    await showDocumentSupersedeDialog(
       context: context,
       document: document,
       candidates: candidates,
-    );
-    if (successor == null) {
-      return;
-    }
-    await controller.transitionStatus(
-      documentId: document.id,
-      expectedVersion: document.version,
-      transition: DocumentStatusTransition.supersede,
-      supersededByDocumentId: successor.id,
+      onSubmit:
+          (decision, current) => controller.transitionStatus(
+            documentId: current.id,
+            expectedVersion: current.version,
+            transition: DocumentStatusTransition.supersede,
+            supersededByDocumentId: decision.successor.id,
+            reason: decision.reason,
+          ),
     );
   }
 
@@ -548,21 +551,23 @@ class _PropertyDocumentsPanelState
     if (document == null) {
       return;
     }
-    final confirmed = await showDocumentArchiveDialog(
+    await showDocumentArchiveDialog(
       context: context,
       document: document,
-    );
-    if (!confirmed) {
-      return;
-    }
-    await controller.transitionStatus(
-      documentId: document.id,
-      expectedVersion: document.version,
-      transition: DocumentStatusTransition.archive,
+      onSubmit:
+          (decision, current) => controller.transitionStatus(
+            documentId: current.id,
+            expectedVersion: current.version,
+            transition: DocumentStatusTransition.archive,
+            reason: decision.reason,
+          ),
     );
   }
 
-  Future<void> _download(
+  /// `PROPERTY_DOCUMENTS_V2.md` §8 / DOCUMENTS-V2 §6.7: the signed URL is
+  /// minted on the click, handed to the launcher and forgotten. Same flow,
+  /// same security, as the workspace register.
+  Future<void> _open(
     PropertyDocumentsController controller,
     DocumentDto? document,
     DocumentVersionDto? version,
@@ -577,7 +582,13 @@ class _PropertyDocumentsPanelState
     if (signedUrl == null || !mounted) {
       return;
     }
-    await showDocumentSignedUrlDialog(context: context, signedUrl: signedUrl);
+    final opened = await openSignedDocumentUrl(
+      signedUrl,
+      ref.read(documentUrlLauncherProvider),
+    );
+    if (!opened && mounted) {
+      reportDocumentOpenFailure(context);
+    }
   }
 }
 
@@ -585,28 +596,30 @@ class _PropertyDocumentsPanelState
 /// outcomes, so a rejection must not read as success — and must not vanish
 /// with a snackbar either, because it needs a new upload.
 class _ContentRejectedNotice extends StatelessWidget {
-  const _ContentRejectedNotice({required this.message, required this.onDismiss});
+  const _ContentRejectedNotice({
+    required this.message,
+    required this.onDismiss,
+  });
 
   final String? message;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: <Widget>[
-        DocumentNotice(
-          title: 'Upload abgelehnt',
-          icon: Icons.report_problem_outlined,
-          severity: DocumentNoticeSeverity.warning,
-          description:
-              message ??
-              'Der hochgeladene Inhalt stimmt nicht mit den angegebenen Daten '
-                  'überein. Das Dokument wurde abgelehnt und muss neu '
-                  'hochgeladen werden.',
-        ),
-        TextButton(onPressed: onDismiss, child: const Text('Hinweis schließen')),
-      ],
+    return NxNotice(
+      key: const Key('property-documents-content-rejected'),
+      kind: NxNoticeKind.warning,
+      icon: Icons.report_problem_outlined,
+      title: 'Upload abgelehnt',
+      message:
+          message ??
+          'Der hochgeladene Inhalt stimmt nicht mit den angegebenen Daten '
+              'überein. Das Dokument wurde abgelehnt und muss neu '
+              'hochgeladen werden.',
+      action: TextButton(
+        onPressed: onDismiss,
+        child: const Text('Hinweis schließen'),
+      ),
     );
   }
 }

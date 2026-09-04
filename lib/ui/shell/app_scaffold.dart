@@ -12,6 +12,7 @@ import '../../features/reference_slice/application/reference_slice_controller.da
 import '../components/command_palette.dart';
 import '../components/nx_content_frame.dart';
 import '../components/nx_empty_state.dart';
+import '../../features/identity_access/application/identity_access_repository.dart';
 import '../navigation/app_navigation.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
@@ -26,9 +27,9 @@ import '../screens/maintenance/contractors_panel.dart';
 import '../screens/maintenance/maintenance_tickets_panel.dart';
 import '../screens/property_detail/property_maintenance_capex_panel.dart';
 import '../screens/budgets/budgets_screen.dart';
-import '../screens/docs/documents_screen.dart';
-import '../screens/docs/compliance_dashboard_screen.dart';
-import '../screens/docs/documents_workspace_panel.dart';
+import '../navigation/cloud_route_request.dart';
+import '../screens/docs/documents_host_screen.dart';
+import '../screens/docs/widgets/document_notices.dart';
 import '../screens/ledger/ledger_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/parties/parties_screen.dart';
@@ -104,6 +105,23 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     final providerPage = ref.watch(globalPageProvider);
+    // State-first surface navigation (Foundation §2): a screen that needs a
+    // specific surface publishes the full target; the shell adopts it once,
+    // aligns the page provider and clears the request.
+    final request =
+        widget.cloudMode ? ref.watch(cloudRouteRequestProvider) : null;
+    if (request != null) {
+      _activeCloudRouteTarget = request;
+      _lastPage = request.page;
+      scheduleMicrotask(() {
+        if (!mounted) {
+          return;
+        }
+        ref.read(cloudRouteRequestProvider.notifier).state = null;
+        ref.read(globalPageProvider.notifier).state = request.page;
+      });
+      return _buildScaffold(context, request.page);
+    }
     final page =
         widget.cloudMode && _initialCloudRoutePending
             ? _activeCloudRouteTarget.page
@@ -270,7 +288,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case GlobalPage.esg:
         return const EsgDashboardScreen();
       case GlobalPage.documents:
-        return const DocumentsScreen();
+        // DOCUMENTS-V2: the documents destination is cloud-only; the legacy
+        // four-tab host is gone and this local shell branch is dead under
+        // DEC-024.
+        return const _CloudDestinationState(
+          title: 'Dokumente nur in der Cloud-Shell',
+          description:
+              'Der Dokumentbereich ist ausschließlich über die '
+              'Cloud-Anmeldung verfügbar.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.audit:
         return const AuditScreen();
       case GlobalPage.compare:
@@ -373,9 +400,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // TASK-CENTER-01: the one task surface. `/tasks/:taskId` arrives as
         // the taskDetail surface and opens list + detail.
         return TaskCenterScreen(
-          initialTaskId: target.surface == CloudRouteSurface.taskDetail
-              ? target.taskId
-              : null,
+          initialTaskId:
+              target.surface == CloudRouteSurface.taskDetail
+                  ? target.taskId
+                  : null,
         );
       case GlobalPage.notifications:
         // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
@@ -401,23 +429,28 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
   }
 
+  /// DOCUMENTS-V2: one destination with tabs; the surface only chooses the
+  /// initial tab. The object-scoped surface stays its own deep-link target
+  /// (`PROPERTY_DOCUMENTS_V2.md`) and is also hosted by the property
+  /// workspace. DEC-025: below AAL2 every surface of this domain renders the
+  /// step-up state instead of empty reads.
   Widget _buildCloudDocuments(CloudRouteTarget target) {
+    final assurance = ref.watch(
+      referenceSliceControllerProvider.select((state) => state.assuranceLevel),
+    );
+    final requiresStepUp = assurance != AuthenticationAssuranceLevel.aal2;
     switch (target.surface) {
       case CloudRouteSurface.propertyDocuments:
+        if (requiresStepUp) {
+          return const SingleChildScrollView(
+            child: DocumentStepUpRequiredState(),
+          );
+        }
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xl),
+          padding: EdgeInsets.all(context.adaptivePagePadding),
           child: PropertyDocumentsPanel(propertyId: target.propertyId!),
         );
       case CloudRouteSurface.compliance:
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: ComplianceDashboardScreen(
-            onOpenRequirement:
-                (requirement) => Navigator.of(
-                  context,
-                ).pushNamed(propertyDocumentsRouteFor(requirement.entityId)),
-          ),
-        );
       case CloudRouteSurface.documentsWorkspace:
       case CloudRouteSurface.page:
       case CloudRouteSurface.propertyDetail:
@@ -434,7 +467,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case CloudRouteSurface.tasks:
       case CloudRouteSurface.taskDetail:
       case CloudRouteSurface.notifications:
-        return const DocumentsWorkspacePanel();
+        return DocumentsHostScreen(
+          key: ValueKey<CloudRouteSurface>(target.surface),
+          initialTab: documentsHostTabForSurface(target.surface),
+          requiresStepUp: requiresStepUp,
+        );
     }
   }
 

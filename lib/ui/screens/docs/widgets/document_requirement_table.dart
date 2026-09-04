@@ -68,8 +68,8 @@ class DocumentRequirementTable extends StatelessWidget {
         column('Fällig'),
         column('Gültig bis'),
       ],
-      rows:
-          requirements.map((requirement) {
+      rows: requirements
+          .map((requirement) {
             return DataRow(
               onSelectChanged:
                   onOpen == null ? null : (_) => onOpen!(requirement),
@@ -113,7 +113,8 @@ class DocumentRequirementTable extends StatelessWidget {
                 ),
               ],
             );
-          }).toList(growable: false),
+          })
+          .toList(growable: false),
     );
   }
 

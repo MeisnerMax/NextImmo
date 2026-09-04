@@ -1,38 +1,43 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../features/documents_compliance/application/document_mutation_outcome.dart';
 import '../../../features/documents_compliance/application/document_repository.dart';
 import '../../../features/documents_compliance/application/documents_workspace_controller.dart';
 import '../../../features/documents_compliance/domain/document_dto.dart';
-import '../../components/nx_data_table_shell.dart';
+import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
+import '../../components/nx_list_skeleton.dart';
+import '../../components/nx_split_view.dart';
 import '../../templates/list_filter_template.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/document_badges.dart';
+import 'widgets/document_content_opener.dart';
 import 'widgets/document_detail_panel.dart';
 import 'widgets/document_dialogs.dart';
-import 'widgets/document_notices.dart';
 import 'widgets/document_table.dart';
 import 'widgets/document_type_registry.dart';
 
-/// The workspace-wide documents workplace (SCR-051, Wave 2, Arbeitspaket 4).
+/// The workspace-wide document register — tab `Dokumente` of the documents
+/// destination (DOCUMENTS-V2 increment A, `documents.md` §5).
 ///
-/// Generalises the property-scoped archive (SCR-020) from one object to the
-/// whole workspace instead of duplicating it: the table, the dialogs, the
-/// detail view, the status vocabulary and the notices are the shared
-/// `docs/widgets/` building blocks AP3 built for three callers — this screen is
-/// the orchestration around them plus the filters the wider scope needs.
+/// Header, primary action and secondary actions belong to the host
+/// (`DocumentsHostScreen`); this panel owns the filter bar, the list/detail
+/// split and every flow that starts from a row.
 ///
-/// Deliberately its own widget, separate from [DocumentsScreen]: that file is
-/// the four-tab host and its remaining tabs still read the legacy document
-/// registry repositories, while this panel touches nothing but the
-/// `documents_compliance` feature contract. That is what makes it mountable on
-/// its own additive cloud route, where the local `AppScaffold` — and therefore
-/// the tab host — never exists.
+/// What it deliberately does **not** offer (§11, §20.5): a search field. The
+/// list is a keyset over `documents` with no text predicate; a client search
+/// over the loaded pages would claim completeness it cannot have. Both filters
+/// here are served by the query itself (`documentTypeId`, `includeInactive`),
+/// and "Keine Treffer" only ever follows a server-empty first page.
 class DocumentsWorkspacePanel extends ConsumerStatefulWidget {
-  const DocumentsWorkspacePanel({super.key});
+  const DocumentsWorkspacePanel({
+    super.key,
+    this.columns = defaultDocumentColumns,
+  });
+
+  /// Optional table columns, chosen in the host's column picker.
+  final Set<DocumentColumn> columns;
 
   @override
   ConsumerState<DocumentsWorkspacePanel> createState() =>
@@ -41,22 +46,6 @@ class DocumentsWorkspacePanel extends ConsumerStatefulWidget {
 
 class _DocumentsWorkspacePanelState
     extends ConsumerState<DocumentsWorkspacePanel> {
-  /// Width at which the archive and one document's detail fit side by side
-  /// without either becoming unreadably narrow.
-  static const double _splitViewBreakpoint = 1200;
-  static const String _allValue = '__all__';
-
-  final TextEditingController _searchController = TextEditingController();
-  Set<DocumentColumn> _columns = defaultDocumentColumns;
-  String _query = '';
-  DocumentLinkEntityType? _levelFilter;
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(documentsWorkspaceControllerProvider);
@@ -66,45 +55,66 @@ class _DocumentsWorkspacePanelState
         const <DocumentTypeDto>[];
     _listenForActionFeedback(controller);
 
-    return ListFilterTemplate(
-      title: 'Dokumente',
-      breadcrumbs: const <String>['Dokumente & Berichte', 'Dokumente'],
-      subtitle:
-          'Alle Dokumente des Arbeitsbereichs mit Status, Version und '
-          'Verifikation an einer Stelle.',
-      primaryAction: FilledButton.icon(
-        onPressed:
-            controller.canMutate
-                ? () => _createDocument(controller, types)
-                : null,
-        icon: const Icon(Icons.add),
-        label: const Text('Dokument hinzufügen'),
-      ),
-      secondaryActions: <Widget>[
-        PopupMenuButton<DocumentColumn>(
-          tooltip: 'Spalten wählen',
-          icon: const Icon(Icons.view_column_outlined),
-          itemBuilder:
-              (context) => <PopupMenuEntry<DocumentColumn>>[
-                for (final column in DocumentColumn.values)
-                  CheckedPopupMenuItem<DocumentColumn>(
-                    value: column,
-                    checked: _columns.contains(column),
-                    child: Text(documentColumnLabel(column)),
+    return Column(
+      key: const Key('documents-register'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _buildFilters(context, state, controller, types),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(child: _buildContent(context, state, controller, types)),
+      ],
+    );
+  }
+
+  /// Both filters run server-side (§11): the type filter is the query's
+  /// `documentTypeId`, the toggle its `includeInactive`. Types are offered
+  /// grouped by level in reading order — a typed nullable dropdown, no
+  /// `'__all__'` sentinel.
+  Widget _buildFilters(
+    BuildContext context,
+    DocumentsWorkspaceState state,
+    DocumentsWorkspaceController controller,
+    List<DocumentTypeDto> types,
+  ) {
+    final mobile = context.viewport == AppViewport.mobile;
+    final offered = _activeTypesByLevel(types);
+    final selected =
+        offered.any((type) => type.id == state.documentTypeFilter)
+            ? state.documentTypeFilter
+            : null;
+    return ListFilterBar(
+      children: <Widget>[
+        SizedBox(
+          width: mobile ? 220 : 300,
+          child: DropdownButtonFormField<String?>(
+            key: const Key('documents-register-type-filter'),
+            value: selected,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Dokumenttyp',
+              prefixIcon: Icon(Icons.category_outlined),
+            ),
+            items: <DropdownMenuItem<String?>>[
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Alle Typen'),
+              ),
+              for (final type in offered)
+                DropdownMenuItem<String?>(
+                  value: type.id,
+                  child: Text(
+                    '${documentEntityTypeLabel(type.entityType)} · ${type.name}',
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
-          onSelected: (column) {
-            setState(() {
-              final next = <DocumentColumn>{..._columns};
-              if (!next.remove(column)) {
-                next.add(column);
-              }
-              _columns = next;
-            });
-          },
+                ),
+            ],
+            onChanged: (value) => controller.setDocumentTypeFilter(value),
+          ),
         ),
         OutlinedButton.icon(
-          onPressed: () => controller.setIncludeInactive(!state.includeInactive),
+          key: const Key('documents-register-include-inactive'),
+          onPressed:
+              () => controller.setIncludeInactive(!state.includeInactive),
           icon: Icon(
             state.includeInactive
                 ? Icons.visibility_off_outlined
@@ -116,161 +126,24 @@ class _DocumentsWorkspacePanelState
                 : 'Ersetzte und archivierte zeigen',
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: controller.load,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Aktualisieren'),
-        ),
-      ],
-      contextBar: _buildNotices(state, controller),
-      filters: _buildFilters(context, state, controller, types),
-      scrollable: true,
-      expandContent: false,
-      content: _buildContent(context, state, controller, types),
-    );
-  }
-
-  Widget? _buildNotices(
-    DocumentsWorkspaceState state,
-    DocumentsWorkspaceController controller,
-  ) {
-    final rejected =
-        state.actionPhase == DocumentsWorkspaceActionPhase.contentRejected;
-    if (!controller.isReadOnlyBackend && !rejected) {
-      return null;
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        if (controller.isReadOnlyBackend) const DocumentReadOnlyNotice(),
-        if (controller.isReadOnlyBackend && rejected)
-          const SizedBox(height: AppSpacing.component),
-        if (rejected)
-          _ContentRejectedNotice(
-            message: state.actionMessage,
-            onDismiss: controller.clearAction,
-          ),
       ],
     );
   }
 
-  Widget _buildFilters(
-    BuildContext context,
-    DocumentsWorkspaceState state,
-    DocumentsWorkspaceController controller,
+  static List<DocumentTypeDto> _activeTypesByLevel(
     List<DocumentTypeDto> types,
   ) {
-    final mobile = context.viewport == AppViewport.mobile;
-    final typesForLevel = _typesForLevel(types);
-    return ListFilterBar(
-      children: <Widget>[
-        SizedBox(
-          width: mobile ? 180 : 260,
-          child: TextField(
-            controller: _searchController,
-            onChanged:
-                (value) => setState(() => _query = value.trim().toLowerCase()),
-            decoration: const InputDecoration(
-              labelText: 'Dokumente durchsuchen',
-              prefixIcon: Icon(Icons.search),
-            ),
-          ),
-        ),
-        SizedBox(
-          width: mobile ? 180 : 220,
-          child: DropdownButtonFormField<String>(
-            value: _levelFilter?.name ?? _allValue,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Ebene',
-              helperText: 'Aus dem Dokumenttyp',
-              prefixIcon: Icon(Icons.account_tree_outlined),
-            ),
-            items: <DropdownMenuItem<String>>[
-              const DropdownMenuItem<String>(
-                value: _allValue,
-                child: Text('Alle Ebenen'),
-              ),
-              for (final entityType in DocumentLinkEntityType.values)
-                DropdownMenuItem<String>(
-                  value: entityType.name,
-                  child: Text(documentEntityTypeLabel(entityType)),
-                ),
-            ],
-            onChanged:
-                (value) => _onLevelChanged(controller, types, value),
-          ),
-        ),
-        SizedBox(
-          width: mobile ? 180 : 240,
-          child: DropdownButtonFormField<String>(
-            value:
-                typesForLevel.any((type) => type.id == state.documentTypeFilter)
-                    ? state.documentTypeFilter
-                    : _allValue,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Dokumenttyp',
-              prefixIcon: Icon(Icons.category_outlined),
-            ),
-            items: <DropdownMenuItem<String>>[
-              const DropdownMenuItem<String>(
-                value: _allValue,
-                child: Text('Alle Typen'),
-              ),
-              for (final type in typesForLevel)
-                DropdownMenuItem<String>(
-                  value: type.id,
-                  child: Text(type.name, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: (value) {
-              controller.setDocumentTypeFilter(
-                value == null || value == _allValue ? null : value,
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _onLevelChanged(
-    DocumentsWorkspaceController controller,
-    List<DocumentTypeDto> types,
-    String? value,
-  ) {
-    final level =
-        value == null || value == _allValue
-            ? null
-            : DocumentLinkEntityType.values.byName(value);
-    setState(() => _levelFilter = level);
-    // The type choices cascade from the level, so a type filter that no longer
-    // belongs to the chosen level is cleared instead of silently excluding
-    // everything.
-    final activeType = ref
-        .read(documentsWorkspaceControllerProvider)
-        .documentTypeFilter;
-    if (activeType == null || level == null) {
-      return;
-    }
-    final stillOffered = types.any(
-      (type) => type.id == activeType && type.entityType == level,
-    );
-    if (!stillOffered) {
-      controller.setDocumentTypeFilter(null);
-    }
-  }
-
-  List<DocumentTypeDto> _typesForLevel(List<DocumentTypeDto> types) {
-    final level = _levelFilter;
-    final active = types.where((type) => type.isActive);
-    if (level == null) {
-      return active.toList(growable: false);
-    }
-    return active
-        .where((type) => type.entityType == level)
-        .toList(growable: false);
+    final active = types.where((type) => type.isActive).toList();
+    active.sort((a, b) {
+      final byLevel = documentEntityTypeLabel(
+        a.entityType,
+      ).compareTo(documentEntityTypeLabel(b.entityType));
+      if (byLevel != 0) {
+        return byLevel;
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return active;
   }
 
   void _listenForActionFeedback(DocumentsWorkspaceController controller) {
@@ -283,27 +156,11 @@ class _DocumentsWorkspacePanelState
       }
       switch (next.actionPhase) {
         case DocumentsWorkspaceActionPhase.conflict:
-          final conflict = next.versionConflict;
-          if (conflict == null) {
-            return;
-          }
-          unawaited(
-            showDocumentVersionConflictDialog(
-              context: context,
-              conflict: conflict,
-              onReload: () {
-                controller.clearAction();
-                controller.load();
-                final selectedId = next.selectedDocumentId;
-                if (selectedId != null) {
-                  controller.selectDocument(selectedId);
-                }
-              },
-            ),
-          );
+          // Owned by the dialog that submitted (banner + "Neu laden" /
+          // "Erneut speichern"), or by the row action that reloads the detail.
+          return;
         case DocumentsWorkspaceActionPhase.contentRejected:
-          // Kept on screen as an inline notice instead of a snackbar that
-          // disappears: a rejected upload needs a follow-up action.
+          // Rendered by the host as a persistent notice under the header.
           return;
         case DocumentsWorkspaceActionPhase.succeeded:
         case DocumentsWorkspaceActionPhase.readOnly:
@@ -332,91 +189,97 @@ class _DocumentsWorkspacePanelState
   ) {
     switch (state.listPhase) {
       case DocumentsWorkspaceListPhase.idle:
-        return const NxEmptyState(
-          title: 'Kein Arbeitsbereich aktiv',
-          description:
-              'Dokumente werden je Arbeitsbereich geführt. Melde dich an oder '
-              'wähle einen Arbeitsbereich, um den Bestand zu sehen.',
-          icon: Icons.workspaces_outline,
+        return const _Scrollable(
+          child: NxEmptyState(
+            key: Key('documents-register-idle'),
+            title: 'Kein Arbeitsbereich aktiv',
+            description:
+                'Dokumente werden je Arbeitsbereich geführt. Melde dich an '
+                'oder wähle einen Arbeitsbereich, um den Bestand zu sehen.',
+            icon: Icons.workspaces_outline,
+          ),
         );
       case DocumentsWorkspaceListPhase.loading:
-        return const NxDataTableShell(loading: true, child: SizedBox.shrink());
+        return const _Scrollable(
+          child: NxCard(
+            key: Key('documents-register-loading'),
+            child: NxListSkeleton(rows: 8),
+          ),
+        );
       case DocumentsWorkspaceListPhase.forbidden:
-        return const NxEmptyState(
-          title: 'Kein Zugriff auf Dokumente',
-          description:
-              'Dein Konto darf die Dokumente dieses Arbeitsbereichs nicht '
-              'sehen. Wende dich an eine Administratorin oder einen '
-              'Administrator des Arbeitsbereichs.',
-          icon: Icons.lock_outline,
+        return const _Scrollable(
+          child: NxEmptyState(
+            key: Key('documents-register-forbidden'),
+            title: 'Kein Zugriff auf Dokumente',
+            description:
+                'Der Dokumentbereich benötigt die Berechtigung '
+                '(document.read).',
+            icon: Icons.lock_outline,
+          ),
         );
       case DocumentsWorkspaceListPhase.error:
-        return NxEmptyState(
-          title: 'Dokumente konnten nicht geladen werden',
-          description:
-              'Beim Laden der Dokumente ist ein Fehler aufgetreten. Bitte '
-              'versuche es erneut.',
-          icon: Icons.error_outline,
-          primaryAction: ElevatedButton.icon(
-            onPressed: controller.load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Erneut versuchen'),
+        return _Scrollable(
+          child: NxEmptyState.error(
+            key: const Key('documents-register-error'),
+            title: 'Dokumente konnten nicht geladen werden',
+            description:
+                'Beim Laden der Dokumente ist ein Fehler aufgetreten. Bitte '
+                'versuche es erneut.',
+            onRetry: controller.load,
           ),
         );
       case DocumentsWorkspaceListPhase.empty:
-        // The type filter is served by the backend, so "no rows" can mean two
-        // different things — and they need different next actions.
+        // The type filter is served by the backend, so "no rows" means two
+        // different things with two different next actions.
         if (state.documentTypeFilter != null) {
-          return _buildFilteredEmpty(state);
+          return _Scrollable(
+            child: NxEmptyState(
+              key: const Key('documents-register-no-match'),
+              title: 'Keine Treffer für diesen Filter.',
+              description:
+                  'Für den gewählten Dokumenttyp liegen keine Dokumente vor.',
+              icon: Icons.filter_alt_off_outlined,
+              primaryAction: OutlinedButton.icon(
+                key: const Key('documents-register-reset-filters'),
+                onPressed: () => controller.setDocumentTypeFilter(null),
+                icon: const Icon(Icons.filter_alt_off_outlined),
+                label: const Text('Filter zurücksetzen'),
+              ),
+            ),
+          );
         }
-        return NxEmptyState(
-          title: 'Noch keine Dokumente',
-          description:
-              'Der Arbeitsbereich enthält noch keine Dokumente. Lege das erste '
-              'an — Nachweise, Verträge und Gutachten liegen hier zentral.',
-          icon: Icons.folder_open_outlined,
-          primaryAction: FilledButton.icon(
-            onPressed:
-                controller.canMutate
-                    ? () => _createDocument(controller, types)
-                    : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Dokument hinzufügen'),
+        return _Scrollable(
+          child: NxEmptyState(
+            key: const Key('documents-register-empty'),
+            title: 'Noch keine Dokumente',
+            description:
+                'Der Arbeitsbereich enthält noch keine Dokumente. Lege das '
+                'erste an — Nachweise, Verträge und Gutachten liegen hier '
+                'zentral.',
+            icon: Icons.folder_open_outlined,
+            primaryAction: Tooltip(
+              message:
+                  controller.isReadOnlyBackend
+                      ? 'Benötigt eine MFA-bestätigte Sitzung (AAL2).'
+                      : controller.canMutate
+                      ? 'Ein Dokument mit erster Version anlegen'
+                      : 'Benötigt die Berechtigung (document.manage)',
+              child: FilledButton.icon(
+                key: const Key('documents-register-empty-create'),
+                onPressed:
+                    controller.canMutate
+                        ? () =>
+                            openCreateDocumentDialog(context, controller, types)
+                        : null,
+                icon: const Icon(Icons.add),
+                label: const Text('Dokument hinzufügen'),
+              ),
+            ),
           ),
         );
       case DocumentsWorkspaceListPhase.ready:
         return _buildSplit(context, state, controller, types);
     }
-  }
-
-  Widget _buildFilteredEmpty(DocumentsWorkspaceState state) {
-    return NxEmptyState(
-      title: 'Keine Dokumente für diesen Filter',
-      description:
-          state.hasMore
-              ? 'Suche, Ebene und Dokumenttyp grenzen den Bestand gerade ein. '
-                  'Passe die Filter an oder lade weitere Seiten — Suche und '
-                  'Ebene wirken auf die bereits geladenen Dokumente.'
-              : 'Suche, Ebene und Dokumenttyp grenzen den Bestand gerade ein. '
-                  'Passe die Filter an, um wieder Dokumente zu sehen.',
-      icon: Icons.filter_alt_off_outlined,
-      primaryAction: OutlinedButton.icon(
-        onPressed: _resetFilters,
-        icon: const Icon(Icons.filter_alt_off_outlined),
-        label: const Text('Filter zurücksetzen'),
-      ),
-    );
-  }
-
-  void _resetFilters() {
-    _searchController.clear();
-    setState(() {
-      _query = '';
-      _levelFilter = null;
-    });
-    ref
-        .read(documentsWorkspaceControllerProvider.notifier)
-        .setDocumentTypeFilter(null);
   }
 
   Widget _buildSplit(
@@ -425,49 +288,39 @@ class _DocumentsWorkspacePanelState
     DocumentsWorkspaceController controller,
     List<DocumentTypeDto> types,
   ) {
-    final visible = _visibleDocuments(state.documents, types);
-    if (visible.isEmpty) {
-      return _buildFilteredEmpty(state);
-    }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final split = constraints.maxWidth >= _splitViewBreakpoint;
-        final selected = state.selectedDocument;
-        final list = _buildList(state, controller, types, visible);
-        final detail = DocumentDetailPanel(
-          document: selected,
-          versions: state.versions,
-          links: state.links,
-          typeName:
-              selected == null
-                  ? null
-                  : documentTypeName(types, selected.documentTypeId),
-          canMutate: controller.canMutate,
-          canVerify: controller.canVerify,
-          readOnlyBackend: controller.isReadOnlyBackend,
-          showCloseAction: !split,
-          onClose: () => controller.selectDocument(null),
-          onAddVersion: () => _addVersion(controller, selected),
-          onConfirmContent:
-              (version) => _confirmContent(controller, selected, version),
-          onVerify: (version) => _verify(controller, selected, version),
-          onSupersede: () => _supersede(controller, state, selected),
-          onArchive: () => _archive(controller, selected),
-          onDownload: (version) => _download(controller, selected, version),
-        );
-
-        if (split) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(flex: 3, child: list),
-              const SizedBox(width: AppSpacing.component),
-              Expanded(flex: 2, child: detail),
-            ],
-          );
-        }
-        return selected != null ? detail : list;
-      },
+    final selected = state.selectedDocument;
+    final launcher = ref.watch(documentUrlLauncherProvider);
+    final detail = DocumentDetailPanel(
+      key: Key(
+        selected == null
+            ? 'documents-register-detail-idle'
+            : 'documents-register-detail',
+      ),
+      document: selected,
+      versions: state.versions,
+      links: state.links,
+      loading: state.detailLoading,
+      typeName:
+          selected == null
+              ? null
+              : documentTypeName(types, selected.documentTypeId),
+      canMutate: controller.canMutate,
+      canVerify: controller.canVerify,
+      readOnlyBackend: controller.isReadOnlyBackend,
+      onClose: () => controller.selectDocument(null),
+      onAddVersion: () => _addVersion(controller, selected),
+      onConfirmContent:
+          (version) => _confirmContent(controller, selected, version),
+      onVerify: (version) => _verify(controller, selected, version),
+      onSupersede: () => _supersede(controller, state, selected),
+      onArchive: () => _archive(controller, selected),
+      onOpen: (version) => _open(controller, launcher, selected, version),
+    );
+    return NxSplitView(
+      list: _Scrollable(child: _buildList(state, controller, types)),
+      detail: _Scrollable(child: detail),
+      showDetail: selected != null,
+      onBackToList: () => controller.selectDocument(null),
     );
   }
 
@@ -475,15 +328,14 @@ class _DocumentsWorkspacePanelState
     DocumentsWorkspaceState state,
     DocumentsWorkspaceController controller,
     List<DocumentTypeDto> types,
-    List<DocumentDto> visible,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         DocumentTable(
-          documents: visible,
-          columns: _columns,
+          documents: state.documents,
+          columns: widget.columns,
           // The split view's list pane is narrower than a full page; keep it a
           // table there instead of dropping to the phone tile list.
           mobileBreakpoint: 640,
@@ -496,6 +348,7 @@ class _DocumentsWorkspacePanelState
           const SizedBox(height: AppSpacing.component),
           Center(
             child: OutlinedButton.icon(
+              key: const Key('documents-register-load-more'),
               onPressed: state.loadingMore ? null : controller.loadMore,
               icon: const Icon(Icons.expand_more),
               label: Text(
@@ -508,68 +361,6 @@ class _DocumentsWorkspacePanelState
     );
   }
 
-  /// Search and the level filter run over the loaded keyset pages:
-  /// `DocumentListQuery` has no text predicate, and its entity filter needs a
-  /// type *and* an id, which a workspace-wide screen has no controlled source
-  /// for — so the level comes from the document type's own level and this
-  /// screen adds no backend read. The document-type filter, by contrast, is
-  /// served by the query itself.
-  List<DocumentDto> _visibleDocuments(
-    List<DocumentDto> documents,
-    List<DocumentTypeDto> types,
-  ) {
-    final level = _levelFilter;
-    if (level == null && _query.isEmpty) {
-      return documents;
-    }
-    return documents.where((document) {
-      if (level != null) {
-        final type = _typeOf(types, document.documentTypeId);
-        if (type == null || type.entityType != level) {
-          return false;
-        }
-      }
-      if (_query.isEmpty) {
-        return true;
-      }
-      final typeName = documentTypeName(types, document.documentTypeId) ?? '';
-      return '${document.title} $typeName'.toLowerCase().contains(_query);
-    }).toList(growable: false);
-  }
-
-  DocumentTypeDto? _typeOf(List<DocumentTypeDto> types, String? documentTypeId) {
-    if (documentTypeId == null) {
-      return null;
-    }
-    for (final type in types) {
-      if (type.id == documentTypeId) {
-        return type;
-      }
-    }
-    return null;
-  }
-
-  Future<void> _createDocument(
-    DocumentsWorkspaceController controller,
-    List<DocumentTypeDto> types,
-  ) async {
-    final result = await showDocumentFormDialog(
-      context: context,
-      types: _typesForLevel(types),
-    );
-    if (result == null) {
-      return;
-    }
-    await controller.createDocument(
-      title: result.title,
-      file: result.file,
-      documentTypeId: result.documentTypeId,
-      validFrom: result.validFrom,
-      validUntil: result.validUntil,
-      notes: result.notes,
-    );
-  }
-
   Future<void> _addVersion(
     DocumentsWorkspaceController controller,
     DocumentDto? document,
@@ -577,21 +368,21 @@ class _DocumentsWorkspacePanelState
     if (document == null) {
       return;
     }
-    final file = await showDocumentVersionDialog(
+    await showDocumentVersionDialog(
       context: context,
-      documentTitle: document.title,
-    );
-    if (file == null) {
-      return;
-    }
-    await controller.addVersion(
-      documentId: document.id,
-      expectedVersion: document.version,
-      nextVersionNo: document.currentVersionNo + 1,
-      file: file,
+      document: document,
+      onSubmit:
+          (file, current) => controller.addVersion(
+            documentId: current.id,
+            expectedVersion: current.version,
+            nextVersionNo: current.currentVersionNo + 1,
+            file: file,
+          ),
     );
   }
 
+  /// No form input, so a conflict here reloads the server state and says so
+  /// (§10) instead of a banner in a dialog.
   Future<void> _confirmContent(
     DocumentsWorkspaceController controller,
     DocumentDto? document,
@@ -608,11 +399,24 @@ class _DocumentsWorkspacePanelState
     if (!confirmed) {
       return;
     }
-    await controller.confirmContent(
+    final outcome = await controller.confirmContent(
       documentId: document.id,
       versionNo: version.versionNo,
       expectedVersion: document.version,
     );
+    if (outcome is DocumentMutationConflicted && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            '„${document.title}" wurde zwischenzeitlich geändert. Der aktuelle '
+            'Stand wurde geladen.',
+          ),
+        ),
+      );
+      controller.clearAction();
+      await controller.load();
+      await controller.selectDocument(document.id);
+    }
   }
 
   Future<void> _verify(
@@ -623,19 +427,19 @@ class _DocumentsWorkspacePanelState
     if (document == null) {
       return;
     }
-    final decision = await showDocumentVerifyDialog(
+    await showDocumentVerifyDialog(
       context: context,
+      document: document,
       versionNo: version.versionNo,
-    );
-    if (decision == null) {
-      return;
-    }
-    await controller.verifyVersion(
-      documentId: document.id,
-      versionNo: version.versionNo,
-      expectedVersion: document.version,
-      outcome: decision.outcome,
-      note: decision.note,
+      onSubmit:
+          (decision, current) => controller.verifyVersion(
+            documentId: current.id,
+            versionNo: version.versionNo,
+            expectedVersion: current.version,
+            outcome: decision.outcome,
+            note: decision.note,
+            reason: decision.reason,
+          ),
     );
   }
 
@@ -647,13 +451,12 @@ class _DocumentsWorkspacePanelState
     if (document == null) {
       return;
     }
-    final candidates =
-        state.documents
-            .where(
-              (candidate) =>
-                  candidate.id != document.id && candidate.status.isActive,
-            )
-            .toList(growable: false);
+    final candidates = state.documents
+        .where(
+          (candidate) =>
+              candidate.id != document.id && candidate.status.isActive,
+        )
+        .toList(growable: false);
     if (candidates.isEmpty) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
@@ -665,19 +468,18 @@ class _DocumentsWorkspacePanelState
       );
       return;
     }
-    final successor = await showDocumentSupersedeDialog(
+    await showDocumentSupersedeDialog(
       context: context,
       document: document,
       candidates: candidates,
-    );
-    if (successor == null) {
-      return;
-    }
-    await controller.transitionStatus(
-      documentId: document.id,
-      expectedVersion: document.version,
-      transition: DocumentStatusTransition.supersede,
-      supersededByDocumentId: successor.id,
+      onSubmit:
+          (decision, current) => controller.transitionStatus(
+            documentId: current.id,
+            expectedVersion: current.version,
+            transition: DocumentStatusTransition.supersede,
+            supersededByDocumentId: decision.successor.id,
+            reason: decision.reason,
+          ),
     );
   }
 
@@ -688,22 +490,25 @@ class _DocumentsWorkspacePanelState
     if (document == null) {
       return;
     }
-    final confirmed = await showDocumentArchiveDialog(
+    await showDocumentArchiveDialog(
       context: context,
       document: document,
-    );
-    if (!confirmed) {
-      return;
-    }
-    await controller.transitionStatus(
-      documentId: document.id,
-      expectedVersion: document.version,
-      transition: DocumentStatusTransition.archive,
+      onSubmit:
+          (decision, current) => controller.transitionStatus(
+            documentId: current.id,
+            expectedVersion: current.version,
+            transition: DocumentStatusTransition.archive,
+            reason: decision.reason,
+          ),
     );
   }
 
-  Future<void> _download(
+  /// §6.7: mint immediately before the open, hand the URL to the launcher,
+  /// keep nothing. A failure reports a URL-free sentence; the next click
+  /// mints again.
+  Future<void> _open(
     DocumentsWorkspaceController controller,
+    DocumentUrlLauncher launcher,
     DocumentDto? document,
     DocumentVersionDto? version,
   ) async {
@@ -717,36 +522,48 @@ class _DocumentsWorkspacePanelState
     if (signedUrl == null || !mounted) {
       return;
     }
-    await showDocumentSignedUrlDialog(context: context, signedUrl: signedUrl);
+    final opened = await openSignedDocumentUrl(signedUrl, launcher);
+    if (!opened && mounted) {
+      reportDocumentOpenFailure(context);
+    }
   }
 }
 
-/// MIG-BND-003 made visible: `confirm_document_content` succeeds in both
-/// outcomes, so a rejection must not read as success — and must not vanish
-/// with a snackbar either, because it needs a new upload.
-class _ContentRejectedNotice extends StatelessWidget {
-  const _ContentRejectedNotice({required this.message, required this.onDismiss});
+/// The create flow, shared by the host's primary action and the empty state's
+/// CTA. Offers active types of every level; creating links to no entity —
+/// that happens on the entity's own document surface.
+Future<void> openCreateDocumentDialog(
+  BuildContext context,
+  DocumentsWorkspaceController controller,
+  List<DocumentTypeDto> types,
+) {
+  return showDocumentFormDialog(
+    context: context,
+    types: _DocumentsWorkspacePanelState._activeTypesByLevel(types),
+    onSubmit:
+        (result) => controller.createDocument(
+          title: result.title,
+          file: result.file,
+          documentTypeId: result.documentTypeId,
+          validFrom: result.validFrom,
+          validUntil: result.validUntil,
+          notes: result.notes,
+        ),
+  );
+}
 
-  final String? message;
-  final VoidCallback onDismiss;
+/// The one targeted scroll region per pane (Foundation §15): the header and
+/// tabs stay put, the content scrolls.
+class _Scrollable extends StatelessWidget {
+  const _Scrollable({required this.child});
+
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: <Widget>[
-        DocumentNotice(
-          title: 'Upload abgelehnt',
-          icon: Icons.report_problem_outlined,
-          severity: DocumentNoticeSeverity.warning,
-          description:
-              message ??
-              'Der hochgeladene Inhalt stimmt nicht mit den angegebenen Daten '
-                  'überein. Das Dokument wurde abgelehnt und muss neu '
-                  'hochgeladen werden.',
-        ),
-        TextButton(onPressed: onDismiss, child: const Text('Hinweis schließen')),
-      ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.section),
+      child: child,
     );
   }
 }

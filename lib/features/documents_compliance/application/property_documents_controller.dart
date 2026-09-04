@@ -27,11 +27,19 @@ import '../../identity_access/application/workspace_session_scope.dart';
 import '../domain/document_dto.dart';
 import 'document_providers.dart';
 import 'document_query_invalidation_source.dart';
+import 'document_mutation_outcome.dart';
 import 'document_repository.dart';
 
 const Object _unchanged = Object();
 
-enum PropertyDocumentsListPhase { idle, loading, ready, empty, forbidden, error }
+enum PropertyDocumentsListPhase {
+  idle,
+  loading,
+  ready,
+  empty,
+  forbidden,
+  error,
+}
 
 enum PropertyDocumentsRequirementPhase {
   idle,
@@ -101,10 +109,9 @@ class PropertyDocumentsState {
 
   /// Mandatory requirements that are not met — what the compliance surfaces
   /// count. Derived server-side; this only filters the projection.
-  List<DocumentRequirementProjection> get blockingRequirements =>
-      requirements
-          .where((requirement) => requirement.isBlocking)
-          .toList(growable: false);
+  List<DocumentRequirementProjection> get blockingRequirements => requirements
+      .where((requirement) => requirement.isBlocking)
+      .toList(growable: false);
 
   PropertyDocumentsState copyWith({
     PropertyDocumentsListPhase? listPhase,
@@ -422,7 +429,7 @@ class PropertyDocumentsController
   /// two steps are not atomic: a create that succeeds and a link that fails
   /// leaves an unlinked document, and that is reported as its own outcome
   /// instead of being shown as a plain success the list then contradicts.
-  Future<void> createDocument({
+  Future<DocumentMutationOutcome> createDocument({
     required String title,
     required DocumentFileSelection file,
     String? documentTypeId,
@@ -430,19 +437,21 @@ class PropertyDocumentsController
     DateTime? validUntil,
     String? notes,
   }) async {
-    if (!_guardMutation(requiredPermission: managePermission)) {
-      return;
+    final denied = _guardMutation(requiredPermission: managePermission);
+    if (denied != null) {
+      return denied;
     }
     // The bytes must be in the bucket before the aggregate can reference them.
     // `create_document` mints the real id, so the object path carries a
     // caller-generated scope id instead.
-    final content = await _uploadContent(
+    final (content, uploadFailure) = await _uploadContent(
       scopeId: _idFactory(),
       versionNo: 1,
       file: file,
     );
     if (content == null) {
-      return;
+      return uploadFailure ??
+          const DocumentMutationRejected(message: 'Upload fehlgeschlagen.');
     }
     final draft = DocumentDraft(
       title: title,
@@ -453,7 +462,7 @@ class PropertyDocumentsController
       notes: notes,
     );
     DocumentRepositoryFailure<DocumentLinkDto>? linkFailure;
-    await _runMutation<DocumentDto>(
+    return _runMutation<DocumentDto>(
       () => _repository.create(
         CreateDocumentCommand(context: _commandContext(), draft: draft),
       ),
@@ -487,24 +496,26 @@ class PropertyDocumentsController
     );
   }
 
-  Future<void> addVersion({
+  Future<DocumentMutationOutcome> addVersion({
     required String documentId,
     required int expectedVersion,
     required int nextVersionNo,
     required DocumentFileSelection file,
   }) async {
-    if (!_guardMutation(requiredPermission: managePermission)) {
-      return;
+    final denied = _guardMutation(requiredPermission: managePermission);
+    if (denied != null) {
+      return denied;
     }
-    final content = await _uploadContent(
+    final (content, uploadFailure) = await _uploadContent(
       scopeId: documentId,
       versionNo: nextVersionNo,
       file: file,
     );
     if (content == null) {
-      return;
+      return uploadFailure ??
+          const DocumentMutationRejected(message: 'Upload fehlgeschlagen.');
     }
-    await _runMutation<DocumentVersionDto>(
+    return _runMutation<DocumentVersionDto>(
       () => _content.addVersion(
         AddDocumentVersionCommand(
           context: _commandContext(),
@@ -525,12 +536,12 @@ class PropertyDocumentsController
   /// MIG-BND-003. Succeeds in both outcomes, so the resulting status decides
   /// what the user is told: `rejected` is a visible outcome, never a silent
   /// success.
-  Future<void> confirmContent({
+  Future<DocumentMutationOutcome> confirmContent({
     required String documentId,
     required int versionNo,
     required int expectedVersion,
   }) async {
-    await _runMutation<DocumentDto>(
+    return _runMutation<DocumentDto>(
       () => _content.confirmContent(
         ConfirmDocumentContentCommand(
           context: _commandContext(),
@@ -558,20 +569,22 @@ class PropertyDocumentsController
     );
   }
 
-  Future<void> verifyVersion({
+  Future<DocumentMutationOutcome> verifyVersion({
     required String documentId,
     required int versionNo,
     required int expectedVersion,
     required DocumentVerificationOutcome outcome,
     String? note,
+    String? reason,
   }) async {
-    if (!_guardMutation(requiredPermission: verifyPermission)) {
-      return;
+    final denied = _guardMutation(requiredPermission: verifyPermission);
+    if (denied != null) {
+      return denied;
     }
-    await _runMutation<DocumentVersionDto>(
+    return _runMutation<DocumentVersionDto>(
       () => _verification.verify(
         VerifyDocumentVersionCommand(
-          context: _commandContext(),
+          context: _commandContext(reason: reason),
           documentId: documentId,
           versionNo: versionNo,
           expectedVersion: expectedVersion,
@@ -593,16 +606,17 @@ class PropertyDocumentsController
 
   /// STM-008 transitions. Archiving is terminal and there is no delete path
   /// (`OPN-DOM-005` default), so the screen confirms before calling this.
-  Future<void> transitionStatus({
+  Future<DocumentMutationOutcome> transitionStatus({
     required String documentId,
     required int expectedVersion,
     required DocumentStatusTransition transition,
     String? supersededByDocumentId,
+    String? reason,
   }) async {
-    await _runMutation<DocumentDto>(
+    return _runMutation<DocumentDto>(
       () => _repository.transitionStatus(
         TransitionDocumentStatusCommand(
-          context: _commandContext(),
+          context: _commandContext(reason: reason),
           documentId: documentId,
           expectedVersion: expectedVersion,
           transition: transition,
@@ -653,7 +667,7 @@ class PropertyDocumentsController
   /// Uploads the picked bytes and reports failure in the same visible phases as
   /// any other mutation. Returns null when the upload failed, so callers stop
   /// before registering a document whose content is not there.
-  Future<DocumentContentDraft?> _uploadContent({
+  Future<(DocumentContentDraft?, DocumentMutationRejected?)> _uploadContent({
     required String scopeId,
     required int versionNo,
     required DocumentFileSelection file,
@@ -673,7 +687,7 @@ class PropertyDocumentsController
     );
     switch (result) {
       case DocumentRepositorySuccess<DocumentContentDraft>(:final value):
-        return value;
+        return (value, null);
       case DocumentRepositoryFailure<DocumentContentDraft>(
         :final kind,
         :final message,
@@ -682,7 +696,7 @@ class PropertyDocumentsController
           actionPhase: _phaseForFailure(kind),
           actionMessage: message,
         );
-        return null;
+        return (null, DocumentMutationRejected(kind: kind, message: message));
     }
   }
 
@@ -700,38 +714,46 @@ class PropertyDocumentsController
     };
   }
 
-  bool _guardMutation({required String requiredPermission}) {
+  DocumentMutationRejected? _guardMutation({
+    required String requiredPermission,
+  }) {
+    // The message is captured first: the screen's feedback listener runs
+    // synchronously on the state change and clears it again.
     if (isReadOnlyBackend) {
+      const message =
+          'Diese Sitzung ist schreibgeschützt. Änderungen benötigen eine '
+          'MFA-bestätigte Sitzung (AAL2).';
       state = state.copyWith(
         actionPhase: PropertyDocumentsActionPhase.readOnly,
-        actionMessage:
-            'Dokumente sind in der lokalen Datenbank schreibgeschützt, bis '
-            'diese Domäne migriert ist.',
+        actionMessage: message,
         versionConflict: null,
       );
-      return false;
+      return const DocumentMutationRejected(message: message);
     }
     if (!_scope.isResolved || !_authorization.can(requiredPermission)) {
+      const message = 'Für diese Aktion fehlt die Berechtigung.';
       state = state.copyWith(
         actionPhase: PropertyDocumentsActionPhase.forbidden,
-        actionMessage: 'Für diese Aktion fehlt die Berechtigung.',
+        actionMessage: message,
         versionConflict: null,
       );
-      return false;
+      return const DocumentMutationRejected(message: message);
     }
-    return true;
+    return null;
   }
 
-  Future<void> _runMutation<T>(
+  Future<DocumentMutationOutcome> _runMutation<T>(
     Future<DocumentRepositoryResult<T>> Function() command, {
     required Future<void> Function(T value) onSuccess,
     required String successMessage,
     (PropertyDocumentsActionPhase, String)? Function(T value)? outcomeOverride,
     bool permissionAlreadyChecked = false,
   }) async {
-    if (!permissionAlreadyChecked &&
-        !_guardMutation(requiredPermission: managePermission)) {
-      return;
+    if (!permissionAlreadyChecked) {
+      final denied = _guardMutation(requiredPermission: managePermission);
+      if (denied != null) {
+        return denied;
+      }
     }
     state = state.copyWith(
       actionPhase: PropertyDocumentsActionPhase.submitting,
@@ -748,6 +770,7 @@ class PropertyDocumentsController
           actionMessage: override?.$2 ?? successMessage,
           versionConflict: null,
         );
+        return const DocumentMutationSucceeded();
       case DocumentRepositoryFailure<T>(
         :final kind,
         :final message,
@@ -758,15 +781,21 @@ class PropertyDocumentsController
           actionMessage: message,
           versionConflict: versionConflict,
         );
+        if (versionConflict != null) {
+          return DocumentMutationConflicted(versionConflict);
+        }
+        return DocumentMutationRejected(kind: kind, message: message);
     }
   }
 
-  DocumentCommandContext _commandContext() {
+  DocumentCommandContext _commandContext({String? reason}) {
+    final trimmed = reason?.trim();
     return DocumentCommandContext(
       workspaceId: _scope.workspaceId!,
       actorId: _scope.actorId!,
       mutationId: _idFactory(),
       correlationId: _idFactory(),
+      reason: trimmed == null || trimmed.isEmpty ? null : trimmed,
     );
   }
 

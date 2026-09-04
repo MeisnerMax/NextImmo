@@ -87,9 +87,7 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.light(densityMode: density),
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: ComplianceDashboardScreen(onOpenRequirement: onOpen),
-            ),
+            body: ComplianceDashboardScreen(onOpenRequirement: onOpen),
           ),
         ),
       ),
@@ -109,29 +107,37 @@ void main() {
     await pumpDashboard(tester, backend: backend, settle: false);
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    // The header stays usable while the projection loads.
-    expect(find.text('Compliance'), findsOneWidget);
+    expect(
+      find.byKey(const Key('documents-compliance-loading')),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // The filter stays usable while the projection loads.
+    expect(
+      find.byKey(const Key('documents-compliance-only-unmet')),
+      findsOneWidget,
+    );
 
     backend.release();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('nothing outstanding reads as a positive result, not as no data', (
-    tester,
-  ) async {
-    final container = await pumpDashboard(
-      tester,
-      backend: _FakeRequirementBackend(),
-    );
-    await container
-        .read(complianceDashboardControllerProvider.notifier)
-        .setOnlyUnmet(true);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'nothing outstanding reads as a positive result, not as no data',
+    (tester) async {
+      final container = await pumpDashboard(
+        tester,
+        backend: _FakeRequirementBackend(),
+      );
+      await container
+          .read(complianceDashboardControllerProvider.notifier)
+          .setOnlyUnmet(true);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Alles erfüllt'), findsOneWidget);
-    expect(find.textContaining('Zuletzt geprüft'), findsOneWidget);
-  });
+      expect(find.text('Alles erfüllt'), findsOneWidget);
+      expect(find.textContaining('Zuletzt geprüft'), findsOneWidget);
+    },
+  );
 
   testWidgets('an empty rule set is not dressed up as compliance', (
     tester,
@@ -144,26 +150,28 @@ void main() {
     expect(find.text('Alles erfüllt'), findsNothing);
   });
 
-  testWidgets('infrastructure failure offers retry without raw exception text', (
-    tester,
-  ) async {
-    await pumpDashboard(
-      tester,
-      backend: _FakeRequirementBackend(
-        failure: const DocumentRepositoryFailure<WorkspaceDocumentRequirements>(
-          kind: DocumentRepositoryFailureKind.infrastructureFailure,
-          message: 'Exception: socket closed',
+  testWidgets(
+    'infrastructure failure offers retry without raw exception text',
+    (tester) async {
+      await pumpDashboard(
+        tester,
+        backend: _FakeRequirementBackend(
+          failure:
+              const DocumentRepositoryFailure<WorkspaceDocumentRequirements>(
+                kind: DocumentRepositoryFailureKind.infrastructureFailure,
+                message: 'Exception: socket closed',
+              ),
         ),
-      ),
-    );
+      );
 
-    expect(
-      find.text('Compliance konnte nicht ausgewertet werden'),
-      findsOneWidget,
-    );
-    expect(find.text('Erneut versuchen'), findsOneWidget);
-    expect(find.textContaining('Exception'), findsNothing);
-  });
+      expect(
+        find.text('Compliance konnte nicht ausgewertet werden'),
+        findsOneWidget,
+      );
+      expect(find.text('Erneut versuchen'), findsOneWidget);
+      expect(find.textContaining('Exception'), findsNothing);
+    },
+  );
 
   testWidgets('forbidden is its own state, distinct from empty and error', (
     tester,
@@ -193,10 +201,7 @@ void main() {
       tester,
       backend: _FakeRequirementBackend(
         requirements: <DocumentRequirementProjection>[
-          requirement(
-            entityId: 'p-1',
-            state: DocumentRequirementState.missing,
-          ),
+          requirement(entityId: 'p-1', state: DocumentRequirementState.missing),
         ],
       ),
       directory: _FakePropertyDirectory(
@@ -233,43 +238,49 @@ void main() {
     expect(backend.calls.single.entityType, DocumentLinkEntityType.property);
   });
 
-  testWidgets('KPI tiles count the server states and separate the mandatory ones',
-      (tester) async {
-    await pumpDashboard(
-      tester,
-      backend: _FakeRequirementBackend(
-        requirements: <DocumentRequirementProjection>[
-          requirement(entityId: 'p-1', state: DocumentRequirementState.missing),
-          requirement(
-            entityId: 'p-2',
-            state: DocumentRequirementState.missing,
-            isMandatory: false,
-            name: 'Optionaler Nachweis',
-          ),
-          requirement(
-            entityId: 'p-3',
-            state: DocumentRequirementState.expiring,
-            name: 'Versicherung',
-          ),
-          requirement(
-            entityId: 'p-4',
-            state: DocumentRequirementState.satisfied,
-            name: 'Kaufvertrag',
-          ),
-        ],
-      ),
-      directory: _FakePropertyDirectory(properties: const <String, String>{}),
-    );
+  testWidgets(
+    'KPI tiles count the server states and separate the mandatory ones',
+    (tester) async {
+      await pumpDashboard(
+        tester,
+        backend: _FakeRequirementBackend(
+          requirements: <DocumentRequirementProjection>[
+            requirement(
+              entityId: 'p-1',
+              state: DocumentRequirementState.missing,
+            ),
+            requirement(
+              entityId: 'p-2',
+              state: DocumentRequirementState.missing,
+              isMandatory: false,
+              name: 'Optionaler Nachweis',
+            ),
+            requirement(
+              entityId: 'p-3',
+              state: DocumentRequirementState.expiring,
+              name: 'Versicherung',
+            ),
+            requirement(
+              entityId: 'p-4',
+              state: DocumentRequirementState.satisfied,
+              name: 'Kaufvertrag',
+            ),
+          ],
+        ),
+        directory: _FakePropertyDirectory(properties: const <String, String>{}),
+      );
 
-    // The tile labels deliberately reuse the status vocabulary, so the tiles
-    // are identified by their unique sublabels instead.
-    expect(find.text('Offen'), findsOneWidget);
-    // Two outstanding rows, but only one of them actually blocks.
-    expect(find.text('davon 1 pflichtig'), findsOneWidget);
-    expect(find.text('in 45 Tagen'), findsOneWidget);
-    expect(find.text('verifiziert und gültig'), findsOneWidget);
-    expect(find.text('Upload oder Verifikation offen'), findsOneWidget);
-  });
+      // The tile labels deliberately reuse the status vocabulary, so the tiles
+      // are identified by their unique sublabels instead.
+      // NxKpiTile renders its label uppercased.
+      expect(find.text('OFFEN'), findsOneWidget);
+      // Two outstanding rows, but only one of them actually blocks.
+      expect(find.text('davon 1 pflichtig'), findsOneWidget);
+      expect(find.text('in 45 Tagen'), findsOneWidget);
+      expect(find.text('verifiziert und gültig'), findsOneWidget);
+      expect(find.text('Upload oder Verifikation offen'), findsOneWidget);
+    },
+  );
 
   testWidgets('scoped rules the server could not evaluate are reported', (
     tester,
@@ -327,28 +338,32 @@ void main() {
     expect(find.text('Teilweise ausgewertet'), findsOneWidget);
   });
 
-  testWidgets('a finding jumps to its object rather than pretending to fix it', (
-    tester,
-  ) async {
-    final opened = <String>[];
-    await pumpDashboard(
-      tester,
-      backend: _FakeRequirementBackend(
-        requirements: <DocumentRequirementProjection>[
-          requirement(entityId: 'p-1', state: DocumentRequirementState.missing),
-        ],
-      ),
-      directory: _FakePropertyDirectory(
-        properties: <String, String>{'p-1': 'Objekt A'},
-      ),
-      onOpen: (requirement) => opened.add(requirement.entityId),
-    );
+  testWidgets(
+    'a finding jumps to its object rather than pretending to fix it',
+    (tester) async {
+      final opened = <String>[];
+      await pumpDashboard(
+        tester,
+        backend: _FakeRequirementBackend(
+          requirements: <DocumentRequirementProjection>[
+            requirement(
+              entityId: 'p-1',
+              state: DocumentRequirementState.missing,
+            ),
+          ],
+        ),
+        directory: _FakePropertyDirectory(
+          properties: <String, String>{'p-1': 'Objekt A'},
+        ),
+        onOpen: (requirement) => opened.add(requirement.entityId),
+      );
 
-    await tester.tap(find.text('Energieausweis'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Energieausweis'));
+      await tester.pumpAndSettle();
 
-    expect(opened, <String>['p-1']);
-  });
+      expect(opened, <String>['p-1']);
+    },
+  );
 
   testWidgets('the outstanding filter is re-queried server-side', (
     tester,
@@ -466,9 +481,8 @@ class _FakeRequirementBackend implements RequirementPolicyRepository {
   }
 
   @override
-  Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>> evaluate(
-    DocumentRequirementQuery query,
-  ) async {
+  Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>>
+  evaluate(DocumentRequirementQuery query) async {
     return const DocumentRepositorySuccess<List<DocumentRequirementProjection>>(
       <DocumentRequirementProjection>[],
     );
@@ -527,21 +541,20 @@ class _FakePropertyDirectory implements PropertyRepository {
   ) async {
     return PropertyRepositorySuccess<PropertyPageResult>(
       PropertyPageResult(
-        items:
-            properties.entries
-                .map(
-                  (entry) => PropertySummaryDto(
-                    id: entry.key,
-                    workspaceId: query.workspaceId,
-                    name: entry.value,
-                    addressLine1: 'Strasse 1',
-                    zip: '10115',
-                    city: 'Berlin',
-                    status: PropertyStatus.active,
-                    version: 1,
-                  ),
-                )
-                .toList(growable: false),
+        items: properties.entries
+            .map(
+              (entry) => PropertySummaryDto(
+                id: entry.key,
+                workspaceId: query.workspaceId,
+                name: entry.value,
+                addressLine1: 'Strasse 1',
+                zip: '10115',
+                city: 'Berlin',
+                status: PropertyStatus.active,
+                version: 1,
+              ),
+            )
+            .toList(growable: false),
         nextCursor: alwaysHasMore ? 'more' : null,
       ),
     );

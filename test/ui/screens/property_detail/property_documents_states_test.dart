@@ -9,6 +9,7 @@ import 'package:neximmo_app/features/documents_compliance/application/document_r
 import 'package:neximmo_app/features/documents_compliance/application/property_documents_controller.dart';
 import 'package:neximmo_app/features/documents_compliance/domain/document_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
+import 'package:neximmo_app/ui/screens/docs/widgets/document_content_opener.dart';
 import 'package:neximmo_app/ui/screens/property_detail/property_documents_panel.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
 
@@ -130,6 +131,7 @@ void main() {
     WidgetTester tester, {
     required _FakeDocumentBackend backend,
     WorkspaceSessionScope? scope,
+    DocumentUrlLauncher? launcher,
     Size size = const Size(1440, 900),
     AppDensityModeSetting density = AppDensityModeSetting.comfort,
     bool settle = true,
@@ -152,6 +154,9 @@ void main() {
           documentVerificationProvider.overrideWithValue(backend),
           signedUrlProvider.overrideWithValue(backend),
           documentUploadProvider.overrideWithValue(backend),
+          documentUrlLauncherProvider.overrideWithValue(
+            launcher ?? (_) async => true,
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.light(densityMode: density),
@@ -184,7 +189,8 @@ void main() {
     await pumpPanel(tester, backend: backend, settle: false);
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsWidgets);
+    expect(find.byKey(const Key('property-documents-loading')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     // The header and its actions stay usable while the zones load.
     expect(find.text('Dokumente'), findsOneWidget);
     expect(find.text('Vorhandene Dokumente'), findsOneWidget);
@@ -200,23 +206,27 @@ void main() {
     expect(buttonWithText<FilledButton>('Dokument hinzufügen'), findsWidgets);
   });
 
-  testWidgets('infrastructure failure offers retry without raw exception text', (
-    tester,
-  ) async {
-    await pumpPanel(
-      tester,
-      backend: _FakeDocumentBackend(
-        searchFailure: const DocumentRepositoryFailure<DocumentPageResult>(
-          kind: DocumentRepositoryFailureKind.infrastructureFailure,
-          message: 'Exception: socket closed',
+  testWidgets(
+    'infrastructure failure offers retry without raw exception text',
+    (tester) async {
+      await pumpPanel(
+        tester,
+        backend: _FakeDocumentBackend(
+          searchFailure: const DocumentRepositoryFailure<DocumentPageResult>(
+            kind: DocumentRepositoryFailureKind.infrastructureFailure,
+            message: 'Exception: socket closed',
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Dokumente konnten nicht geladen werden'), findsOneWidget);
-    expect(find.text('Erneut versuchen'), findsWidgets);
-    expect(find.textContaining('Exception'), findsNothing);
-  });
+      expect(
+        find.text('Dokumente konnten nicht geladen werden'),
+        findsOneWidget,
+      );
+      expect(find.text('Erneut versuchen'), findsWidgets);
+      expect(find.textContaining('Exception'), findsNothing);
+    },
+  );
 
   testWidgets('forbidden is its own state, distinct from empty and error', (
     tester,
@@ -245,10 +255,7 @@ void main() {
         documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
         evaluateFailure: const DocumentRepositoryFailure<
           List<DocumentRequirementProjection>
-        >(
-          kind: DocumentRepositoryFailureKind.forbidden,
-          message: 'no access',
-        ),
+        >(kind: DocumentRepositoryFailureKind.forbidden, message: 'no access'),
       ),
     );
 
@@ -298,7 +305,7 @@ void main() {
       scope: localScope(),
     );
 
-    expect(find.text('Schreibgeschützt bis zur Migration'), findsOneWidget);
+    expect(find.text('Schreibgeschützt'), findsOneWidget);
     final createButton =
         tester
             .widgetList<FilledButton>(
@@ -321,7 +328,9 @@ void main() {
         scope: localScope(),
       );
 
-      await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
+      await controllerOf(
+        container,
+      ).createDocument(title: 'Neuer Nachweis', file: _selection());
       await tester.pumpAndSettle();
 
       expect(backend.createCalls, 0);
@@ -329,36 +338,49 @@ void main() {
     },
   );
 
-  testWidgets('version conflict shows both versions and a resolve action', (
-    tester,
-  ) async {
-    final current = document('d1', 'Kaufvertrag');
-    final backend = _FakeDocumentBackend(
-      documents: <DocumentDto>[current],
-      transitionFailure: DocumentRepositoryFailure<DocumentDto>(
-        kind: DocumentRepositoryFailureKind.versionConflict,
-        message: 'stale',
-        versionConflict: DocumentVersionConflict(
-          expectedVersion: 3,
-          actualVersion: 5,
-          currentDocument: current,
+  testWidgets(
+    'a version conflict keeps the dialog open with the server state',
+    (tester) async {
+      final current = document('d1', 'Kaufvertrag');
+      final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[current],
+        versions: <DocumentVersionDto>[version('d1')],
+        transitionFailure: DocumentRepositoryFailure<DocumentDto>(
+          kind: DocumentRepositoryFailureKind.versionConflict,
+          message: 'stale',
+          versionConflict: DocumentVersionConflict(
+            expectedVersion: 3,
+            actualVersion: 5,
+            currentDocument: current,
+          ),
         ),
-      ),
-    );
-    final container = await pumpPanel(tester, backend: backend);
+      );
+      await pumpPanel(tester, backend: backend);
 
-    await controllerOf(container).transitionStatus(
-      documentId: 'd1',
-      expectedVersion: 3,
-      transition: DocumentStatusTransition.archive,
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Kaufvertrag'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('documents-detail-archive')),
+      );
+      await tester.tap(find.byKey(const Key('documents-detail-archive')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('documents-dialog-submit')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Zwischenzeitlich geändert'), findsOneWidget);
-    expect(find.textContaining('Deine Version: 3'), findsOneWidget);
-    expect(find.textContaining('Aktuelle Version: 5'), findsOneWidget);
-    expect(find.text('Aktuellen Stand laden'), findsOneWidget);
-  });
+      // Foundation §10: input is never thrown away — the dialog stays open,
+      // names the server version and offers reload/retry.
+      expect(
+        find.byKey(const Key('documents-dialog-conflict')),
+        findsOneWidget,
+      );
+      expect(find.text('Zwischenzeitlich geändert'), findsOneWidget);
+      expect(find.textContaining('Version 5'), findsOneWidget);
+      expect(find.text('Neu laden'), findsOneWidget);
+      expect(find.text('Erneut speichern'), findsOneWidget);
+      expect(find.text('Aktuellen Stand laden'), findsNothing);
+      expect(backend.transitionCalls, 1);
+    },
+  );
 
   testWidgets('missing document.manage forbids mutations without pretending', (
     tester,
@@ -372,7 +394,9 @@ void main() {
       scope: cloudScope(permissions: const <String>{'document.read'}),
     );
 
-    await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
+    await controllerOf(
+      container,
+    ).createDocument(title: 'Neuer Nachweis', file: _selection());
     await tester.pumpAndSettle();
 
     expect(backend.createCalls, 0);
@@ -421,11 +445,9 @@ void main() {
       );
       final container = await pumpPanel(tester, backend: backend);
 
-      await controllerOf(container).confirmContent(
-        documentId: 'd1',
-        versionNo: 1,
-        expectedVersion: 3,
-      );
+      await controllerOf(
+        container,
+      ).confirmContent(documentId: 'd1', versionNo: 1, expectedVersion: 3);
       await tester.pumpAndSettle();
 
       expect(backend.confirmCalls, 1);
@@ -477,7 +499,9 @@ void main() {
     );
     final container = await pumpPanel(tester, backend: backend);
 
-    await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
+    await controllerOf(
+      container,
+    ).createDocument(title: 'Neuer Nachweis', file: _selection());
     await tester.pumpAndSettle();
 
     expect(backend.createCalls, 1);
@@ -510,16 +534,13 @@ void main() {
   testWidgets('a failed upload stops before any document is registered', (
     tester,
   ) async {
-    final backend =
-        _FakeDocumentBackend(
-            documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-          )
-          ..uploadFailure = const DocumentRepositoryFailure<
-            DocumentContentDraft
-          >(
-            kind: DocumentRepositoryFailureKind.infrastructureFailure,
-            message: 'Die Datei konnte nicht geladen werden.',
-          );
+    final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+      )
+      ..uploadFailure = const DocumentRepositoryFailure<DocumentContentDraft>(
+        kind: DocumentRepositoryFailureKind.infrastructureFailure,
+        message: 'Die Datei konnte nicht geladen werden.',
+      );
     final container = await pumpPanel(tester, backend: backend);
 
     await controllerOf(
@@ -556,42 +577,64 @@ void main() {
     expect(backend.createCalls, 0);
   });
 
-  testWidgets('a created but unlinked document is reported, not shown as done', (
-    tester,
-  ) async {
-    final backend = _FakeDocumentBackend(
-      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-      linkFailure: const DocumentRepositoryFailure<DocumentLinkDto>(
-        kind: DocumentRepositoryFailureKind.dependencyConflict,
-        message: 'entity not migrated',
-      ),
-    );
-    final container = await pumpPanel(tester, backend: backend);
+  testWidgets(
+    'a created but unlinked document is reported, not shown as done',
+    (tester) async {
+      final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+        linkFailure: const DocumentRepositoryFailure<DocumentLinkDto>(
+          kind: DocumentRepositoryFailureKind.dependencyConflict,
+          message: 'entity not migrated',
+        ),
+      );
+      final container = await pumpPanel(tester, backend: backend);
 
-    await controllerOf(container).createDocument(title: 'Neuer Nachweis', file: _selection());
-    await tester.pumpAndSettle();
+      await controllerOf(
+        container,
+      ).createDocument(title: 'Neuer Nachweis', file: _selection());
+      await tester.pumpAndSettle();
 
-    expect(backend.createCalls, 1);
-    expect(find.textContaining('nicht mit diesem Objekt verknüpft'), findsOneWidget);
-  });
+      expect(backend.createCalls, 1);
+      expect(
+        find.textContaining('nicht mit diesem Objekt verknüpft'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('content is reached through a signed URL with its expiry', (
-    tester,
-  ) async {
-    final backend = _FakeDocumentBackend(
-      documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
-      versions: <DocumentVersionDto>[version('d1')],
-    );
-    await pumpPanel(tester, backend: backend);
+  testWidgets(
+    'content opens through a freshly minted signed URL, never shown',
+    (tester) async {
+      final backend = _FakeDocumentBackend(
+        documents: <DocumentDto>[document('d1', 'Kaufvertrag')],
+        versions: <DocumentVersionDto>[version('d1')],
+      );
+      final launched = <Uri>[];
+      await pumpPanel(
+        tester,
+        backend: backend,
+        launcher: (uri) async {
+          launched.add(uri);
+          return true;
+        },
+      );
 
-    await tester.tap(find.text('Kaufvertrag'));
-    await tester.pumpAndSettle();
-    await tester.tap(buttonWithText<OutlinedButton>('Inhalt öffnen'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Kaufvertrag'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('documents-detail-open')),
+      );
+      await tester.tap(find.byKey(const Key('documents-detail-open')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Download-Link'), findsOneWidget);
-    expect(find.textContaining('5 Minuten'), findsOneWidget);
-  });
+      // Same flow and the same security as the workspace register (§6.7).
+      expect(launched, <Uri>[Uri.parse('https://storage.test/signed/d1')]);
+      expect(find.text('Download-Link'), findsNothing);
+      expect(find.byType(SelectableText), findsNothing);
+      expect(find.textContaining('storage.test'), findsNothing);
+      expect(find.text('Link kopieren'), findsNothing);
+    },
+  );
 
   group('responsive', () {
     const sizes = <String, Size>{
@@ -888,9 +931,8 @@ class _FakeDocumentBackend
   }
 
   @override
-  Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>> evaluate(
-    DocumentRequirementQuery query,
-  ) async {
+  Future<DocumentRepositoryResult<List<DocumentRequirementProjection>>>
+  evaluate(DocumentRequirementQuery query) async {
     final failure = evaluateFailure;
     if (failure != null) {
       return failure;
@@ -942,7 +984,9 @@ class _FakeDocumentBackend
     required String documentId,
     int? versionNo,
   }) async {
-    return DocumentRepositorySuccess<DocumentContentRef>(_contentRef(documentId));
+    return DocumentRepositorySuccess<DocumentContentRef>(
+      _contentRef(documentId),
+    );
   }
 
   @override
