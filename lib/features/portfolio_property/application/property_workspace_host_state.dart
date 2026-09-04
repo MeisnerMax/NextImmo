@@ -53,9 +53,13 @@ class PropertyWorkspaceDomainRegistration {
 /// that one child (`PROPERTY_OPERATIONS_V2.md` §8: sub-areas without read are
 /// hidden, and a domain with no readable child would be an empty frame).
 /// `MAINTENANCE-PARITY-01` widens the gate when Wartung/CapEx land.
+/// `Dokumente` with DOCUMENTS-COMPLETE-01 (`PROPERTY_DOCUMENTS_V2.md`): the
+/// property-scoped document panel on the `documents_compliance` contract,
+/// gated by `document.read` — the spec's own rule (§8: host `property.read`,
+/// screen `document.read`; without it the domain is hidden, never an empty
+/// frame).
 /// `Übersicht` stays unregistered until `PROPERTY-OVERVIEW-DATA-01` lands;
-/// `Vermietung`/`Dokumente`/`Investment` follow in later implementation
-/// packages; `Aktivität` stays hidden until it has at least one implemented
+/// `Vermietung`/`Investment` follow in later implementation packages; `Aktivität` stays hidden until it has at least one implemented
 /// child. Registering a domain here is a deliberate act of the increment that
 /// implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
@@ -69,6 +73,11 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     domain: PropertyWorkspaceDomain.operations,
     label: 'Betrieb',
     readPermission: Permission.taskRead,
+  ),
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.documents,
+    label: 'Dokumente',
+    readPermission: Permission.documentRead,
   ),
 ];
 

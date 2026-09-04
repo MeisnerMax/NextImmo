@@ -100,10 +100,6 @@ void executeCommandPaletteAction(WidgetRef ref, String actionId) {
       ref.read(tasksRequestedDueFilterProvider.notifier).state = 'overdue';
       openGlobalPage(ref, GlobalPage.tasks);
       break;
-    case 'jump_missing_documents':
-      ref.read(documentsRequestedTabProvider.notifier).state = 3;
-      openGlobalPage(ref, GlobalPage.documents);
-      break;
     case 'create_report_pack':
       openGlobalPage(ref, GlobalPage.portfolios);
       break;

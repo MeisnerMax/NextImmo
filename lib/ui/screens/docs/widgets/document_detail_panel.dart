@@ -10,11 +10,16 @@ import 'document_formatting.dart';
 
 /// The shared detail view of one document and its immutable version history.
 ///
-/// Reused by the property-scoped archive (SCR-020) and the workspace-wide
-/// workplace (SCR-051): the affordances are identical in both scopes, only the
-/// surrounding list differs. Which actions are *offered* is decided here from
-/// the document's STM-008 status and the two independent capabilities; whether
-/// they are *allowed* stays a server decision.
+/// Reused by the property-scoped archive and the workspace register: the
+/// affordances are identical in both scopes, only the surrounding list
+/// differs. Which actions are *offered* is decided here from the document's
+/// STM-008 status and the two independent capabilities; whether they are
+/// *allowed* stays a server decision. Gated actions are disabled with a
+/// tooltip naming the capability (Foundation §3) — never hidden, so the
+/// two-stage model (`document.manage` vs `document.verify`) stays learnable.
+///
+/// "Öffnen" is a labelled action, never a bare icon (§15), and it hands off to
+/// the caller's open flow — this panel never sees a URL.
 class DocumentDetailPanel extends StatelessWidget {
   const DocumentDetailPanel({
     super.key,
@@ -28,11 +33,12 @@ class DocumentDetailPanel extends StatelessWidget {
     required this.onVerify,
     required this.onSupersede,
     required this.onArchive,
-    required this.onDownload,
+    required this.onOpen,
     required this.onClose,
     this.typeName,
     this.links,
     this.showCloseAction = false,
+    this.loading = false,
   });
 
   final DocumentDto? document;
@@ -54,19 +60,27 @@ class DocumentDetailPanel extends StatelessWidget {
   final void Function(DocumentVersionDto version) onVerify;
   final VoidCallback onSupersede;
   final VoidCallback onArchive;
-  final void Function(DocumentVersionDto? version) onDownload;
+
+  /// Opens the content of [version] (null = current version) through the
+  /// caller's signed-URL flow.
+  final void Function(DocumentVersionDto? version) onOpen;
   final VoidCallback onClose;
   final bool showCloseAction;
+
+  /// True while the selection's versions/links are being read; rendered as
+  /// the Foundation §8 detail indicator inside the card.
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final current = document;
     if (current == null) {
       return const NxEmptyState(
+        key: Key('documents-detail-idle'),
         title: 'Kein Dokument gewählt',
         description:
-            'Wähle links ein Dokument, um Versionen, Verifikation und '
-            'Gültigkeit zu sehen.',
+            'Wähle ein Dokument, um Versionen, Verifikation und Gültigkeit zu '
+            'sehen.',
         icon: Icons.description_outlined,
       );
     }
@@ -77,12 +91,26 @@ class DocumentDetailPanel extends StatelessWidget {
     );
     final currentVersion = _currentVersion(current);
     final isActive = current.status.isActive;
+    final manageTooltip = _gateTooltip(
+      allowed: canMutate,
+      capability: 'document.manage',
+      isActive: isActive,
+    );
+    final verifyTooltip = _gateTooltip(
+      allowed: canVerify,
+      capability: 'document.verify',
+      isActive: isActive,
+    );
 
     return NxCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
+          if (loading) ...<Widget>[
+            const LinearProgressIndicator(key: Key('documents-detail-loading')),
+            const SizedBox(height: AppSpacing.component),
+          ],
           NxSectionHeader(
             title: current.title,
             description: typeName,
@@ -91,9 +119,10 @@ class DocumentDetailPanel extends StatelessWidget {
             actions: <Widget>[
               if (showCloseAction)
                 TextButton.icon(
+                  key: const Key('documents-detail-close'),
                   onPressed: onClose,
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Zurück zur Liste'),
+                  label: const Text('Zur Liste'),
                 ),
             ],
           ),
@@ -131,42 +160,65 @@ class DocumentDetailPanel extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               OutlinedButton.icon(
-                onPressed: () => onDownload(currentVersion),
-                icon: const Icon(Icons.download_outlined),
+                key: const Key('documents-detail-open'),
+                onPressed: () => onOpen(currentVersion),
+                icon: const Icon(Icons.open_in_new),
                 label: const Text('Inhalt öffnen'),
               ),
-              FilledButton.icon(
-                onPressed: canMutate && isActive ? onAddVersion : null,
-                icon: const Icon(Icons.upload_file_outlined),
-                label: const Text('Neue Version'),
+              Tooltip(
+                message: manageTooltip ?? 'Eine neue Version hochladen',
+                child: FilledButton.icon(
+                  key: const Key('documents-detail-add-version'),
+                  onPressed: manageTooltip == null ? onAddVersion : null,
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Neue Version'),
+                ),
               ),
               if (currentVersion != null && !currentVersion.isContentConfirmed)
-                OutlinedButton.icon(
-                  onPressed:
-                      canMutate && isActive
-                          ? () => onConfirmContent(currentVersion)
-                          : null,
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text('Upload bestätigen'),
+                Tooltip(
+                  message:
+                      manageTooltip ??
+                      'Gespeicherte Datei serverseitig abgleichen',
+                  child: OutlinedButton.icon(
+                    key: const Key('documents-detail-confirm'),
+                    onPressed:
+                        manageTooltip == null
+                            ? () => onConfirmContent(currentVersion)
+                            : null,
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Upload bestätigen'),
+                  ),
                 ),
               if (currentVersion != null && currentVersion.isContentConfirmed)
-                OutlinedButton.icon(
-                  onPressed:
-                      canVerify && isActive
-                          ? () => onVerify(currentVersion)
-                          : null,
-                  icon: const Icon(Icons.verified_outlined),
-                  label: const Text('Verifizieren'),
+                Tooltip(
+                  message: verifyTooltip ?? 'Diese Version fachlich prüfen',
+                  child: OutlinedButton.icon(
+                    key: const Key('documents-detail-verify'),
+                    onPressed:
+                        verifyTooltip == null
+                            ? () => onVerify(currentVersion)
+                            : null,
+                    icon: const Icon(Icons.verified_outlined),
+                    label: const Text('Verifizieren'),
+                  ),
                 ),
-              OutlinedButton.icon(
-                onPressed: canMutate && isActive ? onSupersede : null,
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('Ersetzen'),
+              Tooltip(
+                message: manageTooltip ?? 'Durch ein anderes Dokument ersetzen',
+                child: OutlinedButton.icon(
+                  key: const Key('documents-detail-supersede'),
+                  onPressed: manageTooltip == null ? onSupersede : null,
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('Ersetzen'),
+                ),
               ),
-              OutlinedButton.icon(
-                onPressed: canMutate && isActive ? onArchive : null,
-                icon: const Icon(Icons.inventory_2_outlined),
-                label: const Text('Archivieren'),
+              Tooltip(
+                message: manageTooltip ?? 'Endgültig archivieren',
+                child: OutlinedButton.icon(
+                  key: const Key('documents-detail-archive'),
+                  onPressed: manageTooltip == null ? onArchive : null,
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('Archivieren'),
+                ),
               ),
             ],
           ),
@@ -186,7 +238,9 @@ class DocumentDetailPanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           if (versions.isEmpty)
             Text(
-              'Für dieses Dokument sind keine Versionen abrufbar.',
+              loading
+                  ? 'Versionen werden geladen …'
+                  : 'Für dieses Dokument sind keine Versionen abrufbar.',
               style: secondary,
             )
           else
@@ -194,13 +248,34 @@ class DocumentDetailPanel extends StatelessWidget {
               _VersionRow(
                 version: version,
                 isCurrent: version.versionNo == current.currentVersionNo,
-                onDownload: () => onDownload(version),
+                onOpen: () => onOpen(version),
               ),
               if (version != versions.last) const Divider(height: 20),
             ],
         ],
       ),
     );
+  }
+
+  /// Null when the action is available; otherwise the tooltip that explains
+  /// why it is disabled — the capability by name (Foundation §3), the
+  /// read-only session, or the terminal status.
+  String? _gateTooltip({
+    required bool allowed,
+    required String capability,
+    required bool isActive,
+  }) {
+    if (readOnlyBackend) {
+      return 'Benötigt eine MFA-bestätigte Sitzung (AAL2).';
+    }
+    if (!allowed) {
+      return 'Benötigt die Berechtigung ($capability)';
+    }
+    if (!isActive) {
+      return 'Ersetzte und archivierte Dokumente lassen sich nicht mehr '
+          'ändern.';
+    }
+    return null;
   }
 
   /// Names the levels a document is linked to. Deliberately levels, not ids: an
@@ -235,12 +310,12 @@ class _VersionRow extends StatelessWidget {
   const _VersionRow({
     required this.version,
     required this.isCurrent,
-    required this.onDownload,
+    required this.onOpen,
   });
 
   final DocumentVersionDto version;
   final bool isCurrent;
-  final VoidCallback onDownload;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +330,10 @@ class _VersionRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xxs,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
                   Text(
                     'Version ${version.versionNo}',
@@ -263,19 +341,21 @@ class _VersionRow extends StatelessWidget {
                       fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  DocumentVerificationBadge(
-                    status: version.verificationStatus,
-                  ),
+                  DocumentVerificationBadge(status: version.verificationStatus),
                 ],
               ),
               const SizedBox(height: 2),
               Text(
                 '${version.originalFilename ?? version.mimeType} · '
-                '${formatDocumentByteSize(version.byteSize)} · '
-                'SHA-256 ${formatContentHashPreview(version.contentHash)}',
+                '${formatDocumentByteSize(version.byteSize)}',
                 style: secondary,
                 maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'SHA-256 ${formatContentHashPreview(version.contentHash)}',
+                style: secondary?.merge(context.dataMonoStyle),
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
@@ -293,10 +373,11 @@ class _VersionRow extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Version ${version.versionNo} öffnen',
-          icon: const Icon(Icons.download_outlined, size: 18),
-          onPressed: onDownload,
+        TextButton.icon(
+          key: Key('documents-version-open-${version.versionNo}'),
+          onPressed: onOpen,
+          icon: const Icon(Icons.open_in_new, size: 18),
+          label: const Text('Öffnen'),
         ),
       ],
     );
@@ -330,9 +411,7 @@ class _Fact extends StatelessWidget {
         Text(
           value,
           style: theme.textTheme.bodyMedium
-              ?.copyWith(
-                color: emphasize ? context.semanticColors.error : null,
-              )
+              ?.copyWith(color: emphasize ? context.semanticColors.error : null)
               .merge(context.tabularNumericStyle),
         ),
       ],

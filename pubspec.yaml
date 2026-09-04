@@ -29,6 +29,12 @@ dependencies:
   # which uses it for exactly this purpose. Declared directly because the
   # desktop auth callback observer imports it; no new package enters the build.
   app_links: ^6.4.1
+  # DOCUMENTS-V2 §20.4 (binding security decision): document content opens
+  # through a freshly minted signed URL handed straight to the platform
+  # launcher — never displayed, copied or kept. Already resolved in the tree as
+  # a transitive dependency of supabase_flutter; declared directly because
+  # lib/ui/screens/docs/widgets/document_content_opener.dart imports it.
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

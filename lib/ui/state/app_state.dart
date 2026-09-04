@@ -170,7 +170,6 @@ final selectedOperationsTenantIdProvider = StateProvider<String?>(
 final selectedOperationsLeaseIdProvider = StateProvider<String?>((ref) => null);
 final selectedAssetWorkbookTabProvider = StateProvider<int>((ref) => 0);
 final tasksRequestedDueFilterProvider = StateProvider<String?>((ref) => null);
-final documentsRequestedTabProvider = StateProvider<int?>((ref) => null);
 final propertyDetailPageProvider = StateProvider<PropertyDetailPage>(
   (ref) => PropertyDetailPage.overview,
 );

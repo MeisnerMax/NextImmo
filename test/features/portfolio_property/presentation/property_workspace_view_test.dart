@@ -263,6 +263,29 @@ void main() {
       expect(calls.closeCalls, 1);
     });
 
+    testWidgets('Dokumente is a registered domain gated by document.read '
+        '(DOCUMENTS-COMPLETE-01)', (tester) async {
+      await _pump(
+        tester,
+        detailState(
+          permissions: const <String>{'property.read', 'document.read'},
+        ),
+        _Calls(),
+      );
+
+      final chip = find.byKey(const Key('property-workspace-nav-documents'));
+      expect(chip, findsOneWidget);
+      expect(find.text('Dokumente'), findsOneWidget);
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+
+      // The domain slot renders (the connected screen injects the panel); the
+      // asset panel is gone.
+      expect(find.byKey(const Key('property-documents')), findsOneWidget);
+      expect(find.byKey(const Key('property-asset')), findsNothing);
+    });
+
     testWidgets('edit is disabled with a capability tooltip without '
         'property.update', (tester) async {
       await _pump(

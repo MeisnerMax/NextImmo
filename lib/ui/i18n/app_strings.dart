@@ -245,9 +245,6 @@ class AppStrings {
     'Open Overdue Tasks': 'Uberfallige Aufgaben offnen',
     'Go straight to the task queue filtered for overdue work':
         'Direkt zur Aufgabenliste mit uberfalligen Aufgaben wechseln',
-    'Jump to Missing Documents': 'Zu fehlenden Dokumenten springen',
-    'Open document compliance and review missing requirements':
-        'Dokumenten-Compliance offnen und fehlende Anforderungen prufen',
     'Create Report Pack': 'Berichtspaket erstellen',
     'Open portfolio workflows to generate reporting packs':
         'Portfolio-Workflows offnen und Berichtspakete erzeugen',

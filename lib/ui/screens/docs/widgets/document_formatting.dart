@@ -29,7 +29,8 @@ String formatDocumentByteSize(int bytes) {
     value /= 1024;
     unitIndex++;
   }
-  final rendered = value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  final rendered =
+      value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
   return '$rendered ${units[unitIndex]}';
 }
 

@@ -197,4 +197,40 @@ void main() {
       'Szenariovergleich',
     ]);
   });
+
+  test(
+    'document surfaces resolve to the documents page with their surface',
+    () {
+      // DOCUMENTS-V2 §3: `/documents` lands on the register, `/compliance` on
+      // the compliance tab, `/property-documents/<id>` on the object surface.
+      expect(
+        cloudRouteTargetFromName(documentsWorkspaceRoute)?.page,
+        GlobalPage.documents,
+      );
+      expect(
+        cloudRouteTargetFromName(documentsWorkspaceRoute)?.surface,
+        CloudRouteSurface.documentsWorkspace,
+      );
+      expect(
+        cloudRouteTargetFromName(complianceRoute)?.page,
+        GlobalPage.documents,
+      );
+      expect(
+        cloudRouteTargetFromName(complianceRoute)?.surface,
+        CloudRouteSurface.compliance,
+      );
+      expect(
+        cloudRouteTargetFromName(
+          propertyDocumentsRouteFor('property-a'),
+        )?.surface,
+        CloudRouteSurface.propertyDocuments,
+      );
+      expect(
+        cloudRouteTargetFromName(
+          propertyDocumentsRouteFor('property-a'),
+        )?.propertyId,
+        'property-a',
+      );
+    },
+  );
 }

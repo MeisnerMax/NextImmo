@@ -7,6 +7,8 @@ import '../../../ui/components/nx_card.dart';
 import '../../../ui/components/nx_empty_state.dart';
 import '../../../ui/components/nx_list_skeleton.dart';
 import '../../../ui/components/nx_live_updates_notice.dart';
+import '../../../ui/screens/docs/widgets/document_notices.dart';
+import '../../../ui/screens/property_detail/property_documents_panel.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
@@ -83,14 +85,28 @@ class _PropertyWorkspaceScreenState
       // TASK-CENTER-01: `Betrieb → Aufgaben` binds the one task surface with
       // the property preset. Injected here so the view stays pumpable
       // without a provider graph.
-      operationsTasksBuilder: (context, propertyId) => TaskCenterScreen(
-        key: ValueKey<String>('property-operations-tasks-$propertyId'),
-        embedded: true,
-        lockedContext: PlatformEntityRef(
-          type: PlatformEntityType.property,
-          id: propertyId,
-        ),
-      ),
+      // DOCUMENTS-COMPLETE-01: `Dokumente` hosts the property-scoped
+      // document panel (`PROPERTY_DOCUMENTS_V2.md`). DEC-025: below AAL2 the
+      // domain renders the step-up state instead of empty reads.
+      documentsBuilder:
+          (context, propertyId) =>
+              state.assuranceLevel == AuthenticationAssuranceLevel.aal2
+                  ? SingleChildScrollView(
+                    key: ValueKey<String>('property-documents-$propertyId'),
+                    child: PropertyDocumentsPanel(propertyId: propertyId),
+                  )
+                  : const SingleChildScrollView(
+                    child: DocumentStepUpRequiredState(),
+                  ),
+      operationsTasksBuilder:
+          (context, propertyId) => TaskCenterScreen(
+            key: ValueKey<String>('property-operations-tasks-$propertyId'),
+            embedded: true,
+            lockedContext: PlatformEntityRef(
+              type: PlatformEntityType.property,
+              id: propertyId,
+            ),
+          ),
     );
   }
 
@@ -146,6 +162,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     required this.onUpdateProperty,
     required this.onRetryUpdate,
     this.operationsTasksBuilder,
+    this.documentsBuilder,
     this.initialPropertyId,
   });
 
@@ -173,6 +190,11 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// placeholder, never a provider error.
   final Widget Function(BuildContext context, String propertyId)?
   operationsTasksBuilder;
+
+  /// Builds the `Dokumente` domain (DOCUMENTS-COMPLETE-01). Injected by the
+  /// connected screen for the same reason as [operationsTasksBuilder].
+  final Widget Function(BuildContext context, String propertyId)?
+  documentsBuilder;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -579,10 +601,19 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         switch (activeDomain) {
           case PropertyWorkspaceDomain.operations:
             return _buildOperationsDomain(context);
+          case PropertyWorkspaceDomain.documents:
+            return KeyedSubtree(
+              key: const Key('property-documents'),
+              child:
+                  widget.documentsBuilder?.call(
+                    context,
+                    _hostState.openPropertyId!,
+                  ) ??
+                  const SizedBox.shrink(),
+            );
           case PropertyWorkspaceDomain.overview:
           case PropertyWorkspaceDomain.asset:
           case PropertyWorkspaceDomain.leasing:
-          case PropertyWorkspaceDomain.documents:
           case PropertyWorkspaceDomain.investment:
           case PropertyWorkspaceDomain.activity:
             return PropertyAssetPanel(

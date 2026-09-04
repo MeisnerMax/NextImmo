@@ -16,19 +16,25 @@ void main() {
       ]);
     });
 
-    test('registers exactly the implemented domains: Objekt (A1) and '
-        'Betrieb (TASK-CENTER-01)', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(2));
+    test('registers exactly the implemented domains: Objekt (A1), '
+        'Betrieb (TASK-CENTER-01) and Dokumente (DOCUMENTS-COMPLETE-01)', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(3));
       final asset = registeredPropertyWorkspaceDomains.first;
       expect(asset.domain, PropertyWorkspaceDomain.asset);
       expect(asset.label, 'Objekt');
       expect(asset.readPermission, 'property.read');
-      final operations = registeredPropertyWorkspaceDomains.last;
+      final operations = registeredPropertyWorkspaceDomains[1];
       expect(operations.domain, PropertyWorkspaceDomain.operations);
       expect(operations.label, 'Betrieb');
       // Gated on the read permission of its one implemented child, the
       // property-scoped task surface; MAINTENANCE-PARITY-01 widens this.
       expect(operations.readPermission, 'task.read');
+      // Documents: the property-scoped document panel, gated by the screen's
+      // own read capability (PROPERTY_DOCUMENTS_V2.md §8).
+      final documents = registeredPropertyWorkspaceDomains.last;
+      expect(documents.domain, PropertyWorkspaceDomain.documents);
+      expect(documents.label, 'Dokumente');
+      expect(documents.readPermission, 'document.read');
       // Blocked or not yet implemented domains are absent, not disabled.
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),

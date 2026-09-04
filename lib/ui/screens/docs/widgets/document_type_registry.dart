@@ -30,10 +30,7 @@ final documentTypeRegistryProvider =
 
 /// Name lookup over an already-loaded registry — the shape the tables expect,
 /// so no widget issues a read per row.
-String? documentTypeName(
-  List<DocumentTypeDto> types,
-  String? documentTypeId,
-) {
+String? documentTypeName(List<DocumentTypeDto> types, String? documentTypeId) {
   if (documentTypeId == null) {
     return null;
   }

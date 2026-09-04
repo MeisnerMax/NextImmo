@@ -115,8 +115,8 @@ class DocumentTable extends StatelessWidget {
         if (columns.contains(DocumentColumn.updated))
           column(documentColumnLabel(DocumentColumn.updated)),
       ],
-      rows:
-          documents.map((document) {
+      rows: documents
+          .map((document) {
             final verification = document.currentVersion?.verificationStatus;
             return DataRow(
               selected: document.id == selectedDocumentId,
@@ -178,7 +178,8 @@ class DocumentTable extends StatelessWidget {
                   ),
               ],
             );
-          }).toList(growable: false),
+          })
+          .toList(growable: false),
     );
   }
 

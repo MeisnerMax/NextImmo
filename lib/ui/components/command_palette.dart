@@ -290,15 +290,6 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         kindLabel: context.strings.text('Action'),
       ),
       _PaletteEntry.action(
-        actionId: 'jump_missing_documents',
-        title: context.strings.text('Jump to Missing Documents'),
-        subtitle: context.strings.text(
-          'Open document compliance and review missing requirements',
-        ),
-        icon: Icons.folder_off_outlined,
-        kindLabel: context.strings.text('Action'),
-      ),
-      _PaletteEntry.action(
         actionId: 'create_report_pack',
         title: context.strings.text('Create Report Pack'),
         subtitle: context.strings.text(
@@ -352,7 +343,9 @@ class _CommandPaletteDialogState extends ConsumerState<CommandPaletteDialog> {
         _PaletteEntry.action(
           actionId: 'check_property_budget',
           title: context.strings.text('Check Property Budget'),
-          subtitle: context.strings.text('Open budget vs actual for this object'),
+          subtitle: context.strings.text(
+            'Open budget vs actual for this object',
+          ),
           icon: Icons.request_quote_outlined,
           kindLabel: context.strings.text('Property Action'),
         ),

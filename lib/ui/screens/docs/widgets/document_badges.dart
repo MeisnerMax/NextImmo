@@ -148,10 +148,42 @@ class DocumentRequirementBadge extends StatelessWidget {
     final label = documentRequirementLabel(state);
     return NxStatusBadge(
       label: isMandatory ? label : '$label (optional)',
-      kind:
-          isMandatory
-              ? documentRequirementKind(state)
-              : NxBadgeKind.neutral,
+      kind: isMandatory ? documentRequirementKind(state) : NxBadgeKind.neutral,
     );
   }
+}
+
+/// Plural level labels for scope copy ("Alle Objekte").
+String documentEntityTypePluralLabel(DocumentLinkEntityType entityType) {
+  return switch (entityType) {
+    DocumentLinkEntityType.workspace => 'Arbeitsbereiche',
+    DocumentLinkEntityType.property => 'Objekte',
+    DocumentLinkEntityType.portfolio => 'Portfolios',
+    DocumentLinkEntityType.unit => 'Einheiten',
+    DocumentLinkEntityType.lease => 'Mietverträge',
+    DocumentLinkEntityType.party => 'Parteien',
+    DocumentLinkEntityType.maintenanceTicket => 'Instandhaltungen',
+    DocumentLinkEntityType.capexProject => 'CapEx-Projekte',
+    DocumentLinkEntityType.scenario => 'Szenarien',
+    DocumentLinkEntityType.task => 'Aufgaben',
+  };
+}
+
+/// Where a requirement rule applies (DOCUMENTS-V2 §5): every entity of the
+/// level, one object type (`scope_key`), or one instance. Instance ids are
+/// internal keys and never shown in full.
+String documentRequirementScopeLabel({
+  required DocumentLinkEntityType entityType,
+  String? entityId,
+  String? scopeKey,
+}) {
+  if (entityId != null) {
+    final short =
+        entityId.length > 8 ? '${entityId.substring(0, 8)}…' : entityId;
+    return 'Instanz: $short';
+  }
+  if (scopeKey != null && scopeKey.trim().isNotEmpty) {
+    return 'Objektart: ${scopeKey.trim()}';
+  }
+  return 'Alle ${documentEntityTypePluralLabel(entityType)}';
 }
