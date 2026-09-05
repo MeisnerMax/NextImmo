@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_media_controller.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_media_port.dart';
@@ -102,6 +103,23 @@ void main() {
         PropertyRepositoryFailureKind.infrastructureFailure,
       );
       expect(gateway.calls, <String>['upload']);
+    });
+
+    test('a retry of the same command replays instead of failing on the '
+        'duplicate object', () async {
+      // The path carries the mutation id, so a retry uploads to the same
+      // place; the bucket refuses the second write. That is the idempotent
+      // case, and the RPC must still get the chance to replay its receipt.
+      gateway.uploadError = const StorageException(
+        'The resource already exists',
+        statusCode: '409',
+      );
+      gateway.rpcResult = _mediaPayload();
+
+      final result = await adapter.register(_command());
+
+      expect(result, isA<PropertyRepositorySuccess<PropertyMediaDto>>());
+      expect(gateway.calls, <String>['upload', 'rpc']);
     });
 
     test('a command from another actor is refused', () async {

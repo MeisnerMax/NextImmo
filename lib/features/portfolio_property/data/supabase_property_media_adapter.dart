@@ -218,11 +218,19 @@ class SupabasePropertyMediaAdapter implements PropertyMediaPort {
         contentType: upload.contentType,
         bytes: upload.bytes,
       );
-    } catch (_) {
-      return const PropertyRepositoryFailure<PropertyMediaDto>(
-        kind: PropertyRepositoryFailureKind.infrastructureFailure,
-        message: 'Das Bild konnte nicht hochgeladen werden.',
-      );
+    } catch (error) {
+      // A retry of the *same* command lands on the same path, because the path
+      // carries the mutation id and the request hash covers the path — a
+      // different path would turn a legitimate retry into a mutation conflict.
+      // The bucket has no update policy, so that second upload is refused as a
+      // duplicate. That is the idempotent case, not a failure: fall through and
+      // let the RPC replay its receipt.
+      if (!_isDuplicateObject(error)) {
+        return const PropertyRepositoryFailure<PropertyMediaDto>(
+          kind: PropertyRepositoryFailureKind.infrastructureFailure,
+          message: 'Das Bild konnte nicht hochgeladen werden.',
+        );
+      }
     }
 
     return _dispatch('register_property_media', <String, Object?>{
@@ -401,6 +409,20 @@ class SupabasePropertyMediaAdapter implements PropertyMediaPort {
       );
     }
   }
+}
+
+/// Whether a storage error means "an object already exists at this exact
+/// path". Matched on the status first and only then on the message, because a
+/// status is a contract and a message is prose.
+bool _isDuplicateObject(Object error) {
+  if (error is! StorageException) {
+    return false;
+  }
+  if (error.statusCode == '409') {
+    return true;
+  }
+  final text = '${error.error ?? ''} ${error.message}'.toLowerCase();
+  return text.contains('already exists') || text.contains('duplicate');
 }
 
 PropertyMediaDto _parseMedia(Map<String, dynamic> row) {
