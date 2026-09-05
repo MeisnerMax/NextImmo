@@ -6,7 +6,9 @@
 - Domain: Scenario / Underwriting
 - Route: zukünftige Ziele `/properties/:propertyId/investment/scenarios`, `/scenarios/:scenarioId`, `/versions/:versionId?`
 - Current implementation file(s): `lib/ui/screens/property_detail/inputs_screen.dart`, `analysis_screen.dart`, `scenarios_screen.dart`, `scenario_versions_screen.dart`, zugehörige Legacy-Repositories/Models
-- Planning status: BLOCKED (Scenario-Lifecycle-/Versions-/Calculation-Contract; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `SCENARIO-VALUATION-01` (Lifecycle, Versionen, Calculation, Security)
+- Former status: BLOCKED (Scenario-Lifecycle-/Versions-/Calculation-Contract; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), genehmigter Scenario-Lifecycle-/Versions-Cloud-Contract, `VALUATION-REHOST-01`
 - Related screens: [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Performance V2](PROPERTY_PERFORMANCE_V2.md)
 
@@ -130,7 +132,9 @@ Property-Stammdaten, Valuation-Faktoren und Finance-Actuals bleiben referenziert
 
 - `NxVersionCompare` erst nach Abgleich mit Documents/Valuation; separates Shared-UI-Paket, nicht vorab.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - vollständiger Scenario Lifecycle-, Assumption-, Calculation-, Version-, Diff-, Rollback- und Approval-Contract; bestehendes `SCENARIO-VALUATION-01`.
 - Security: Schema/RLS/Permissions/AAL/Entity-Scope explizit festlegen.
@@ -175,7 +179,9 @@ Property-Stammdaten, Valuation-Faktoren und Finance-Actuals bleiben referenziert
 - Approval besitzt separate serverseitige Capability.
 - ohne genehmigten Contract ist der Screen nicht implementiert/registriert.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Legacy SQLite/JSON, dupliziertes Valuation-Formular, Client-Proforma, Offer/Comps/Criteria ohne Contracts, Routercode.
 
@@ -185,4 +191,4 @@ Property-Stammdaten, Valuation-Faktoren und Finance-Actuals bleiben referenziert
 
 ## 21. Implementation handoff
 
-Status bleibt BLOCKED, bis der vollständige Cloud-Contract samt Security und Calculation-Version genehmigt ist. Legacy liefert Jobs und Regressionserwartungen, keinen Code-/Datenpfad. Hard invariants: keine Autoanlage, typisierte Inputs, reproduzierbarer Serveroutput, immutable Versionen, sicherer Rollback, separate Approval.
+Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). Voraussetzung ist der vollständige Cloud-Contract samt Security und Calculation-Version (`SCENARIO-VALUATION-01`); er wird prerequisite-first gebaut, danach unmittelbar diese Oberfläche. Vorher wird der Child nicht registriert. Legacy liefert Jobs und Regressionserwartungen, keinen Code-/Datenpfad. Hard invariants: keine Autoanlage, typisierte Inputs, reproduzierbarer Serveroutput, immutable Versionen, sicherer Rollback, separate Approval.

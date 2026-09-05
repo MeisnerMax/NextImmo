@@ -6,7 +6,9 @@
 - Domain: Documents & Compliance
 - Route: zukünftiges Ziel `/properties/:propertyId/documents/:documentId?`; heute property-scoped Documents Panel
 - Current implementation file(s): `lib/ui/screens/property_detail/property_documents_panel.dart`, `lib/features/documents_compliance/application/property_documents_controller.dart`, `lib/features/documents_compliance/application/document_repository.dart`, `lib/features/documents_compliance/domain/document_dto.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY — Dokumentregister und Anforderungen implementiert; PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01`, Dokument-Query-/Link-Erweiterungen
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, `DOCUMENTS-COMPLETE-01`; Routing separat `SHELL-ROUTING-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md), [Property Investment V2](PROPERTY_INVESTMENT_V2.md)
 
@@ -182,7 +184,9 @@ Zusätzlich:
 
 - immutable `NxVersionHistory` nur dann als Shared-UI, wenn Valuation/Scenario denselben geprüften Interaktionsvertrag teilen; sonst documents-spezifisch halten.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `DOCUMENTS-COMPLETE-01`: Registry-Flächen für Typen/Pflichtregeln sowie Paritätsdiff, ohne neue Schema/RLS/Permission still vorauszusetzen.
 - Property Media/Titelbild besitzt keinen vollständigen Cloud-Contract: Vorschlag `PROPERTY-MEDIA-DATA-01`; nicht durch Document category simulieren.
@@ -237,7 +241,9 @@ Zusätzlich:
 - Mobile Detail ersetzt Liste und Back restauriert Zustand/Fokus.
 - Realtime ist Invalidation-only, kanonischer Read folgt.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Property Media/Titelbild
 - AI/OCR Lease Abstraction und conversational document search

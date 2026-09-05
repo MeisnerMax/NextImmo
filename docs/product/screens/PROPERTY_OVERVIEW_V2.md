@@ -6,7 +6,9 @@
 - Domain: domainübergreifende Property-Zusammenfassung
 - Route: zukünftiges Ziel `/properties/:propertyId/overview`; heute zustandsbasiert im Property-Host
 - Current implementation file(s): `lib/ui/screens/property_detail/overview_screen.dart`, `lib/ui/screens/property_detail/overview/overview_view_model.dart`, `lib/ui/screens/property_detail/leasing/operations_overview_panel.dart`, `lib/ui/screens/property_detail/leasing/operations_alerts_panel.dart`
-- Planning status: BLOCKED (`PROPERTY-OVERVIEW-DATA-01`; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` (serverseitige KPI-/Attention-/Freshness-Projektion)
+- Former status: BLOCKED (`PROPERTY-OVERVIEW-DATA-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, vorgeschlagener Backend-Contract `PROPERTY-OVERVIEW-DATA-01`
 - Related screens: alle Property-Domain-Screens; globales Dashboard ist nicht dieses Overview
 
@@ -198,7 +200,9 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 
 - `NxAttentionList` für serverpriorisierte, quellbelegte Zeilen mit Severity, Grund, Stand und Drilldown; als Shared-UI-Kandidat separat reviewen.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 1. `PROPERTY-OVERVIEW-DATA-01`: exakte, permission-gefilterte Summary-/Attention-Projektionen samt Definition, `asOf`, Coverage, Währung, Drilldown und Partial-Error-Semantik. Schema/RLS/Permission-Auswirkung ist offen und separat zu reviewen.
 2. Lease Roll / Vacancy Exposure / Renewal Risk: vollständige serverseitige Projektion; keine Ableitung aus paginierten Units/Leases.
@@ -261,7 +265,9 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 - Background refresh und Realtime-Degradation lassen stale, als stale markierte Daten sichtbar.
 - Alle Overview-Drilldowns erhalten dieselbe `propertyId`.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - KPI-Formeln, Schema, RLS oder Permission-Erweiterungen
 - Portfolioübergreifendes Dashboard und Benchmarking
@@ -278,4 +284,4 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 
 ## 21. Implementation handoff
 
-Status bleibt BLOCKED, bis `PROPERTY-OVERVIEW-DATA-01` mit Security-, Definition-, Coverage-, Drilldown- und Freshness-Semantik genehmigt ist. Ein Layout-Skeleton oder einzelne Operations-Signals erfüllen die Acceptance Criteria nicht und rechtfertigen keine Laufzeitregistrierung als `Übersicht`. Erwartete Tests nach Contractfreigabe: Contract-Mapping, Mixed-Permission, Partial Failure, Realtime-Coalescing, responsive Widgettests und die fünf Staging-Journeys. Hard invariant: Der Client visualisiert Fakten; er erfindet keine Asset-Performance.
+Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). Die Fläche wird gebaut; `PROPERTY-OVERVIEW-DATA-01` ist ihre Voraussetzung und wird prerequisite-first mit Security-, Definition-, Coverage-, Drilldown- und Freshness-Semantik umgesetzt, unmittelbar gefolgt von dieser Oberfläche. Bis der Contract steht, wird `Übersicht` nicht zur Laufzeit registriert — ein Layout-Skeleton oder einzelne Operations-Signals erfüllen die Acceptance Criteria nicht und rechtfertigen keine Laufzeitregistrierung als `Übersicht`. Erwartete Tests nach Contractfreigabe: Contract-Mapping, Mixed-Permission, Partial Failure, Realtime-Coalescing, responsive Widgettests und die fünf Staging-Journeys. Hard invariant: Der Client visualisiert Fakten; er erfindet keine Asset-Performance.

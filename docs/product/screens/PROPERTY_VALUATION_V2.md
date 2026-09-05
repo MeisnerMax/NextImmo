@@ -6,7 +6,9 @@
 - Domain: Valuation
 - Route: zukünftige Ziele `/properties/:propertyId/investment/valuations` und `/valuations/:caseId`; heute `ValuationsScreen(propertyId: ...)` plus nicht vollständig gerouteter Case-Host
 - Current implementation file(s): `lib/ui/screens/valuations/valuations_screen.dart`, `lib/ui/screens/property_detail/widgets/valuation/valuation_section_host.dart`, `lib/features/valuation/application/valuation_repository.dart`, `lib/features/valuation/application/valuation_case_controller.dart`, `lib/features/valuation/domain/valuation_case_dto.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `VALUATION-REHOST-01`; Comparables `P2-D07`
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), `UX-FOUNDATION-IMPL-01`, `VALUATION-REHOST-01`; Routing separat
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Documents V2](PROPERTY_DOCUMENTS_V2.md)
 
@@ -129,7 +131,9 @@ Der Screen verwaltet alle Valuation Cases eines Properties und führt einen Case
 
 - Provenance-Zeile kann später mit Document Intelligence geteilt werden, aber nicht vor Contractvergleich.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - explizite Property-Valuation-Summary für Overview (`PROPERTY-OVERVIEW-DATA-01`).
 - Comparables/Comparison Method wartet auf verbleibenden `P2-D07`-/`COMPS-CRITERIA-01`-Contract.
@@ -175,7 +179,9 @@ Der Screen verwaltet alle Valuation Cases eines Properties und führt einen Case
 - Comparison Method ist ohne Cloud-Quelle unavailable.
 - Realtime überschreibt keine Dirty-Faktoren.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Scenario-Lifecycle, Finance, Comps-Import, AI-Bewertung, Portfolio-Valuation-Dashboard, Routercode.
 

@@ -6,7 +6,9 @@
 - Domain: Maintenance, CapEx, Platform Tasks
 - Route: zukünftige Ziele `/properties/:propertyId/operations/maintenance`, `/capex`, `/tasks`; heute property-scoped Panels
 - Current implementation file(s): `lib/ui/screens/property_detail/property_maintenance_capex_panel.dart`, `lib/features/maintenance_capex/application/property_maintenance_capex_controller.dart`, `lib/features/maintenance_capex/application/maintenance_capex_repository.dart`, `lib/features/platform_audit_jobs/application/platform_repository.dart`, `lib/features/platform_audit_jobs/domain/task_dto.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY für Aufgaben; PREREQUISITE REQUIRED — `MAINTENANCE-PARITY-01` (Wartung/CapEx-Parität)
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, bestehende Pakete `MAINTENANCE-PARITY-01` und `TASKS-NOTIFICATIONS-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Documents V2](PROPERTY_DOCUMENTS_V2.md), [Property Activity & Reports V2](PROPERTY_ACTIVITY_REPORTS_V2.md)
 
@@ -174,7 +176,9 @@ Spezifisch:
 
 - keine neue Board-Plattform im Workspace-Paket; ein späteres gemeinsames Entity-Link-Widget nur im zugehörigen Shared-UI-Paket.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `MAINTENANCE-PARITY-01` muss Edit/Delete/Document-/Task-Links/Filter/Notifications gegen den aktuellen Cloud-Contract diffen; Delete ist heute nicht vorhanden und darf nicht als UI-only geplant werden.
 - serverseitige Overview-Aggregate/Priorisierung für Tickets, CapEx und Tasks: `PROPERTY-OVERVIEW-DATA-01`.
@@ -229,7 +233,9 @@ Spezifisch:
 - Mobile Detail ersetzt Liste und Back restauriert Zustand/Fokus.
 - Realtime bleibt invalidation-only und überschreibt keine Dirty-Form.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Facility-/IoT-System, Vendor Portal und präventive AI
 - Client-Portfolioaggregation und KPI-Scores

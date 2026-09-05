@@ -6,7 +6,9 @@
 - Domain: Portfolio Property
 - Route: heutiges Zustandsziel `GlobalPage.properties`; zukünftiges Ziel `/properties`
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_slice_screen.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY für Liste, Keyset und Archivfilter; PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` (serverweite Suche), `PROPERTY-DATA-02` (Lifecycle-Aktionen)
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: `UX-FOUNDATION-IMPL-01`; [Property Workspace V2](PROPERTY_WORKSPACE_V2.md); `PROPERTY-DATA-02` nur für spätere Lifecycle-Aktionen
 - Related screens: [Property Asset V2](PROPERTY_ASSET_V2.md), [Property Overview V2](PROPERTY_OVERVIEW_V2.md), später `PROPERTY-CREATE-01`
 
@@ -112,7 +114,9 @@ Kein Property-Formular. Filter validieren lediglich zulässige Enums/Textlänge.
 ### New shared component candidate
 - keiner.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `PROPERTY-DATA-02` für Create/Archive/Delete.
 - vollständige serverseitige Property-Suche nach Name/Adresse/PLZ/Ort, falls als Produktfunktion gewünscht; separates Property-Query-Inkrement mit RLS/Indexprüfung.
@@ -156,7 +160,9 @@ Kein Property-Formular. Filter validieren lediglich zulässige Enums/Textlänge.
 - Create/Archive/Delete sind ohne `PROPERTY-DATA-02` nicht vorhanden.
 - Realtime ist Invalidation-only; Keyset bleibt stabil.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Portfolio-KPIs/Dashboard, inline edit, Create-Wizard, Archive/Delete, globale Routerimplementierung.
 

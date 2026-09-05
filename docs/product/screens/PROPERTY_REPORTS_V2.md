@@ -6,7 +6,9 @@
 - Domain: Reporting & Analytics
 - Route: zukünftiges Ziel `/properties/:propertyId/activity/reports/:reportId?`
 - Current implementation file(s): Legacy `reports_screen.dart` mit lokalen Scenario-Exports; vorhandene Valuation Reports bleiben Valuation-Domain; kein einheitlicher Cloud-Reporting-Contract
-- Planning status: BLOCKED (`P2-D09` / `PORTFOLIO-REPORTING-01`; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `P2-D09` / `PORTFOLIO-REPORTING-01` (Reporting-Contract)
+- Former status: BLOCKED (`P2-D09` / `PORTFOLIO-REPORTING-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md), Backend `P2-D09 reporting_analytics`, `PORTFOLIO-REPORTING-01`
 - Related screens: [Property Performance V2](PROPERTY_PERFORMANCE_V2.md), [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Audit V2](PROPERTY_AUDIT_V2.md)
 
@@ -102,7 +104,9 @@ Benötigt werden: report id/property, definition/template id+version, report typ
 ### New shared component candidate
 - `NxAsyncJobStatus` nur im platformweiten Job-Paket; nicht innerhalb Reports verstecken.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `P2-D09 reporting_analytics`: definition/template, property-scoped registry, async generation, immutable outputs/versions, approval, private delivery, RLS/permissions/audit.
 - Integration zu `P2-D08`, Scenario und Valuation über explizite source refs/versionen.
@@ -146,7 +150,9 @@ Benötigt werden: report id/property, definition/template id+version, report typ
 - fehlender Contract führt zu verborgenem Screen, nicht Legacyfallback.
 - Versionen überschreiben einander nicht.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - lokale Exporte, Reportdesigner, Investor Portal, Portfolioaggregation außerhalb P2-D09, Routercode.
 
