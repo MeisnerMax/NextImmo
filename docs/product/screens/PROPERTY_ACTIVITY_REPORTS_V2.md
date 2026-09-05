@@ -6,7 +6,9 @@
 - Domain: Activity / Audit / Reporting
 - Route: zukünftige Basis `/properties/:propertyId/activity/*`
 - Current implementation file(s): Legacy `audit_log_screen.dart`, `reports_screen.dart`; Cloud `lib/features/platform_audit_jobs/` enthält Task-/Event-Infrastruktur, aber keinen Property-Activity-/Audit-Screen
-- Planning status: BLOCKED (kein implementierter Child; zuerst voraussichtlich `AUDIT-01`; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — erster implementierter Child (`PROPERTY-ACTIVITY-01` oder `AUDIT-01`)
+- Former status: BLOCKED (kein implementierter Child; zuerst voraussichtlich `AUDIT-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `AUDIT-01`, `PORTFOLIO-REPORTING-01`
 - Related screens: [Property Activity V2](PROPERTY_ACTIVITY_V2.md), [Property Audit V2](PROPERTY_AUDIT_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md)
 
@@ -87,7 +89,9 @@ Kein Hostformular.
 ### New shared component candidate
 - keiner.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - Activity read model, `AUDIT-01` App-Port, `P2-D09` Reports. Schema/RLS/Permissions jeweils separat.
 
@@ -119,7 +123,9 @@ Hosttelemetrie enthält nur Child-ID/technischen Zustand, keine Fachpayloads.
 - Tasks werden nicht dupliziert.
 - nicht implementierte/unerlaubte Childs leaken keine Inhalte.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Childimplementation, Router, lokale Exports, Task Board.
 
@@ -129,4 +135,4 @@ Hosttelemetrie enthält nur Child-ID/technischen Zustand, keine Fachpayloads.
 
 ## 21. Implementation handoff
 
-Status bleibt BLOCKED. Host erst registrieren, wenn mindestens ein Child implementiert und staging-fähig ist; bis dahin erscheint `Aktivität` nicht als leeres Workspace-Ziel. Childs können nach ihren Backend-Paketen unabhängig landen; Hard invariant ist die Trennung von Activity, Audit, Report und ausführbarer Task.
+Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). Der Host wird registriert, sobald mindestens ein Child implementiert und staging-fähig ist; bis dahin erscheint `Aktivität` nicht als leeres Workspace-Ziel. Childs können nach ihren Backend-Paketen unabhängig landen; Hard invariant ist die Trennung von Activity, Audit, Report und ausführbarer Task.

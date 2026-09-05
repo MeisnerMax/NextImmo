@@ -6,7 +6,9 @@
 - Domain: Portfolio Property / Stammdaten
 - Route: zukünftiges Ziel `/properties/:propertyId/asset`; heute Property-Detail im Reference Slice
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/domain/property_dto.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY für Stammdaten lesen/bearbeiten; PREREQUISITE REQUIRED — `PROPERTY-DATA-02` (Anlegen/Archivieren/Wiederherstellen), `PROPERTY-MEDIA-DATA-01` (Medien)
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), `PROPERTY-CREATE-01` nach `PROPERTY-DATA-02`
 
@@ -171,7 +173,9 @@ Nicht anwendbar. Der Property-Wechsler gehört zum Host, nicht zu den Stammdaten
 
 - keiner außerhalb `NxPropertyContextHeader`; generische Stammdatenkarten nicht vorschnell als Shared-UI abstrahieren.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `PROPERTY-DATA-02`: Create/Archive/Delete/gegebenenfalls Restore; Schema/RLS/Permission ausdrücklich separat.
 - `PROPERTY-MEDIA-DATA-01` (Vorschlag): Property-Media/Titelbild mit privatem Storage, Version und Lifecycle.
@@ -228,7 +232,9 @@ Nicht anwendbar. Der Property-Wechsler gehört zum Host, nicht zu den Stammdaten
 - Auf ≤767 px sind alle Felder, Fehler und Actions ohne horizontales Scrollen nutzbar.
 - Keine Mutation erzeugt Szenario, Unit, Lease oder anderen Domainrecord als Nebenwirkung.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Property-Lifecycle und Create-Wizard
 - Media/Titelbild

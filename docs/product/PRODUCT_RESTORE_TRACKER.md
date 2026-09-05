@@ -2,7 +2,9 @@
 
 Live-Status aller Rebuild-Pakete. Quelle der Wahrheit für Fortschritt (Master Plan §5: `PLAN → SPEC APPROVED → IMPLEMENT → PR → REVIEW → MERGE → STAGING → E2E → DONE`). Ein Paket ist erst DONE mit Staging-E2E. Grundlage: `PRODUCT_SCREEN_MAP.md` (Basis `9003392`, 2026-08-27).
 
-Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `merged` · `e2e_done` · `blocked(<worauf>)` · `n/a`.
+Statuswerte: `todo` · `in_progress` · `spec_approved` · `committed` · `implemented` · `merged` · `e2e_done` · `blocked(<worauf>)` · `n/a`.
+
+**FULL-V2-SCOPE-01 (Product-Owner-Entscheidung, 2026-09-04):** Eine Produktfähigkeit wird nicht mehr wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract aus dem V2-Zielbild genommen. Solche Fähigkeiten stehen auf `committed` und führen ihre technische Voraussetzung offen mit (`prerequisite-first`): `missing capability → prerequisite package → dependent feature → staging E2E → DONE`. `committed` heißt ausdrücklich **nicht**, dass das Backend existiert — es heißt, dass wir es bauen. Deshalb wird je Eintrag der Produkt-Scope von der technischen Bereitschaft getrennt geführt (`READY` vs. `PREREQUISITE REQUIRED: <Paket>`). `blocked(...)` bleibt nur für echte externe Sperren, `REJECTED` nur für bewusste Nicht-Ziele (fremdes Trade Dress, Fake-KPIs, Client-Synthese fehlender Serverdaten, Security-/AAL-/RLS-Bypass). Dieser Normalisierungsstand ist bisher für den **Property-Bereich** vollzogen; die übrigen Domänen folgen in ihren eigenen Normalisierungs-PRs.
 
 ## Wave 1 — Shared/Core
 
@@ -19,10 +21,10 @@ Statuswerte: `todo` · `in_progress` · `spec_approved` · `implemented` · `mer
 | Paket | Screens (Map-Referenz) | Disposition | Planung | Implementierung | Staging E2E |
 |---|---|---|---|---|---|
 | PROPERTY-WORKSPACE-01 | Host + Liste + Objekt + siebenstufige Maximal-IA; Childs nur bei Contract/Implementierung registrieren | KEEP+MERGE+REBUILD | spec_approved (`screens/PROPERTY_WORKSPACE_V2.md`; Readiness-Review 2026-08-28) | A1 implemented (2026-09-02, PR #52 `feature/property-workspace-v2-a1`; Host + Liste + Objekt; weitere Domains offen) | todo |
-| PROPERTY-OVERVIEW-DATA-01 (Backend-Gap) | Permission-gefilterte Property-KPI-/Attention-/Freshness-Projektionen; keine Client-Aggregate | — | blocked(material product/security contract decisions; Requirements in `screens/PROPERTY_OVERVIEW_V2.md`) | blocked(contract) | todo |
-| PROPERTY-DATA-02 (Backend-Gap) | Create/Archive/Delete im portfolio_property-Contract (Voraussetzung für Wizard) | — | todo | todo | todo |
-| PROPERTY-MEDIA-DATA-01 (Backend-Gap) | privates Property-Media-/Titelbild-Contract; Documents nicht zweckentfremden | — | blocked(product/contract/security decisions) | blocked(contract/security decision) | todo |
-| PROPERTY-CREATE-01 | 12-Schritt-Wizard rehosten | REDESIGN | blocked(PROPERTY-DATA-02) | blocked | todo |
+| PROPERTY-OVERVIEW-DATA-01 (Prerequisite) | Permission-gefilterte Property-KPI-/Attention-/Freshness-Projektionen serverseitig; keine Client-Aggregate | — | committed (Scope beschlossen FULL-V2-SCOPE-01; Requirements in `screens/PROPERTY_OVERVIEW_V2.md`; Endpointform + Security-Review sind Inhalt des Pakets, nicht seine Sperre) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — serverseitige Projektion + RLS-Review) | todo |
+| PROPERTY-DATA-02 (Prerequisite) | Property-Lifecycle im portfolio_property-Contract: Create, Archivieren, Wiederherstellen. **Technische Realität getrennt:** Archivieren/Wiederherstellen sind über den bestehenden auditierten `update_property`-Tombstone-Pfad (DEBT-012, `status`-Übergang) bereits **READY** und brauchen nur benannte, bestätigte Aktionen statt eines Status-Dropdowns; **Create** braucht `create_property`-RPC + `property.create` im DB-Permission-Katalog. Kein Hard-Delete | — | committed (Scope beschlossen FULL-V2-SCOPE-01) | committed — prerequisite-first (Archive/Restore: READY; Create: PREREQUISITE REQUIRED — `create_property` RPC + `property.create`) | todo |
+| PROPERTY-MEDIA-DATA-01 (Prerequisite) | privates Property-Media-/Titelbild-Contract (Storage-Bucket, Version, Lifecycle, signierte Auslieferung); Documents nicht zweckentfremden | — | committed (Scope beschlossen FULL-V2-SCOPE-01; Security-/Storage-Contract ist Inhalt des Pakets) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — Media-Contract + Storage-Policy; kein Security-Downgrade, keine öffentlichen Signed URLs) | todo |
+| PROPERTY-CREATE-01 | Objekt anlegen (Wizard-UX aus dem Legacy-12-Schritt-Flow geerntet, auf den Cloud-Contract reduziert) | REDESIGN | committed (Scope beschlossen FULL-V2-SCOPE-01) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — `PROPERTY-DATA-02` Create) | todo |
 | VALUATION-REHOST-01 | Sicherer interner Analyse-Rehost; Parent für 01A–01C. Property-Host: `screens/PROPERTY_VALUATION_V2.md`; Specs: [Workflow](screens/valuation_v2_workflow.md), [Queue](screens/valuation_queue_v2.md), [Create](screens/valuation_create_v2.md), [Case](screens/valuation_case_workspace_v2.md) | MERGE | spec_approved (Property-Host 2026-08-28; Valuation V2 2026-09-01; `REHOST NOW`) | todo | todo |
 | VALUATION-REHOST-01A | Queue öffnen und Case-/Create-Routen hosten; keine Value-Projektion | KEEP+REHOST | spec_approved (2026-09-01; `REHOST NOW`) | todo | todo |
 | VALUATION-REHOST-01B | Create auf Cloud-Property-Read umstellen und neuen Case öffnen; nur interne Analyse | REHOST/FIX | spec_approved (2026-09-01; `REHOST NOW`) | todo | todo |
@@ -68,8 +70,8 @@ Bereits geführte Pakete, die diese Flächen zusätzlich berühren: `SHELL-ROUTI
 |---|---|---|---|---|
 | IMPORTS-01 (Wizard-UX erhalten, Ausführung serverseitig) | platform_audit_jobs-Adoption (W2), Import-Pipeline-Backend | blocked(backend) | — | — |
 | AUDIT-01 (Workspace- + Objekt-Audit auf sicherem App-Read-Port) | allowlisted DTO, Redaction, Property-Keyset, RLS-/Retention-Proof | blocked(contract/security decisions; `screens/PROPERTY_AUDIT_V2.md`) | blocked(app read port) | todo |
-| PROPERTY-ACTIVITY-HOST-01 | Top-Level `Aktivität` mit getrennten Childs Aktivität/Audit/Berichte; Voraussetzung: mindestens ein implementierter Child | blocked(no implemented child; `screens/PROPERTY_ACTIVITY_REPORTS_V2.md`) | blocked | todo |
-| PROPERTY-ACTIVITY-01 (verständliche Objekt-Timeline) | permission-gefiltertes Activity-Read-Model; Audit-/Domain-Sichtbarkeit entscheiden | blocked(activity/security contract; `screens/PROPERTY_ACTIVITY_V2.md`) | blocked(contract) | todo |
+| PROPERTY-ACTIVITY-HOST-01 | Top-Level `Aktivität` mit getrennten Childs Aktivität/Audit/Berichte; registriert wird erst mit dem ersten implementierten Child (kein leerer Tab) | committed (Scope beschlossen FULL-V2-SCOPE-01; `screens/PROPERTY_ACTIVITY_REPORTS_V2.md`) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — erster Child aus `PROPERTY-ACTIVITY-01` bzw. `AUDIT-01`) | todo |
+| PROPERTY-ACTIVITY-01 (verständliche Objekt-Timeline) | permission-gefiltertes Activity-Read-Model; Audit-/Domain-Sichtbarkeit ist Inhalt des Pakets | committed (Scope beschlossen FULL-V2-SCOPE-01; `screens/PROPERTY_ACTIVITY_V2.md`) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — Activity-Read-Contract + Redaction-Review) | todo |
 | SCENARIO-VALUATION-01 (Inputs/Analysis/Scenarios/Versions/Offer) | Scenario-Lifecycle-Contract (Welle-5-Modell), VALUATION-REHOST-01; Zielbild/Gaps in [Valuation V2 Workflow](screens/valuation_v2_workflow.md) | blocked(contract; 2026-08-28 Zielbild spezifiziert) | blocked(contract/engine) | — |
 | VALUATION-METHOD-CONTRACT-01 | `METHOD-GOV-01`; Value Basis, Ergebnisfamilien, Eligibility, getrennte Reconciliation und Approval Classes technisch umsetzen | todo (Scope beschlossen) | blocked(contract/backend/engine) | — |
 | VALUATION-VALIDATION-01 | `METHOD-GOV-01`; semantische Domain-/Server-Validation, NOI-Semantik und Terminalbedingungen | todo (Scope beschlossen) | blocked(contract/engine) | — |
@@ -89,36 +91,68 @@ Bereits geführte Pakete, die diese Flächen zusätzlich berühren: `SHELL-ROUTI
 | VALUATION-CURRENCY-01 | `VALUATION-METHOD-CONTRACT-01`; Case-Währung und freigegebene FX-Policy | todo (FUTURE) | blocked(contract/data) | — |
 | VALUATION-ACTUALS-01 | P2-D08; periodisierte Objekt-Ist-/Plan-Daten als Valuation-Quelle | todo (FUTURE) | blocked(data/contract) | — |
 | VALUATION-OPEX-01 | `VALUATION-ACTUALS-01`; kategorisierte Operating-Plan-/Ist-Daten und Umlagefähigkeit | todo (FUTURE) | blocked(data/contract) | — |
-| PROPERTY-LOOKUP-01 | `PROPERTY-DATA-02`; serverweite Property-Suche für Entity Picker, paginierte Auswahl reicht für Valuation-Rehost | todo (optional) | blocked(contract/backend) | — |
+| PROPERTY-LOOKUP-01 | serverweite Property-Suche (Name/Adresse/PLZ/Ort) für Objektliste, Property-Wechsler und Entity Picker; ersetzt die ehrliche paginierte Browse-Auswahl | committed (Scope beschlossen FULL-V2-SCOPE-01) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — Such-/Index-Contract + RLS-/Index-Review) | — |
 | FINANCE-01 (Ledger, Budgets, BvA-Aufteilung, Covenants, Asset Workbook) | P2-D08 finance_debt | blocked(P2-D08) | — | — |
 | PORTFOLIO-REPORTING-01 (Portfolios, Detail+Analytics+Quality, ESG, Report Templates, Dashboard) | P2-D09 reporting_analytics | blocked(P2-D09) | — | — |
 | COMPS-CRITERIA-01 (Comps, Criteria Check, Criteria Sets, Compare) | P2-D07-Rest | blocked(P2-D07) | — | — |
 | SETTINGS-01 (Workspace-Settings vs. User-Preferences) | Settings-/Preferences-Contract (unbeplant) | blocked(decision) | — | — |
 | SALE-HOTEL-01 (10 Detail-Pages) | Produktentscheidung + neue Domain oder REMOVE | blocked(product decision) | — | — |
 
-## PROPERTY-WORKSPACE-V2 — Spec Readiness (Review 2026-08-28)
+## PROPERTY-WORKSPACE-V2 — Spec Readiness (FULL-V2-SCOPE-01, Stand 2026-09-04)
 
-Die 15 Dateien sind Implementierungsgrenzen. Sie erzeugen keine 15 gleichrangigen Ziele. Die verbindliche Maximal-IA bleibt `Übersicht / Objekt / Vermietung / Betrieb / Dokumente / Investment / Aktivität`; Investment und Aktivität hosten ihre Child-Screens, nicht implementierte Childs bleiben verborgen.
+Die 15 Dateien sind Implementierungsgrenzen. Sie erzeugen keine 15 gleichrangigen Ziele. Die verbindliche Maximal-IA bleibt `Übersicht / Objekt / Vermietung / Betrieb / Dokumente / Investment / Aktivität`; Investment und Aktivität hosten ihre Child-Screens, nicht implementierte Childs bleiben aus der Laufzeitnavigation verborgen — das ist eine Anzeigeregel, **keine** Scope-Aussage: jede Fläche unten gehört zum verbindlichen Zielbild.
 
-| Spec | IA-Ebene | Status | Blocker / abgegrenzte Voraussetzung |
-|---|---|---|---|
-| `PROPERTY_WORKSPACE_V2.md` | Workspace Host | APPROVED | keine; UX-Foundation gelandet |
-| `PROPERTY_LIST_V2.md` | Einstieg vor Workspace | APPROVED | Workspace Host-State |
-| `PROPERTY_OVERVIEW_V2.md` | Übersicht | BLOCKED | `PROPERTY-OVERVIEW-DATA-01` |
-| `PROPERTY_ASSET_V2.md` | Objekt | APPROVED | Workspace Host |
-| `PROPERTY_LEASING_V2.md` | Vermietung Host | APPROVED | Workspace Host + Degraded-Wiring |
-| `PROPERTY_OPERATIONS_V2.md` | Betrieb Host | APPROVED | Workspace Host + MAINTENANCE-/TASKS-UI-Pakete |
-| `PROPERTY_DOCUMENTS_V2.md` | Dokumente | APPROVED | Workspace Host; Media ausdrücklich nicht enthalten |
-| `PROPERTY_INVESTMENT_V2.md` | Investment Host | APPROVED | Workspace Host + erster Child Valuation |
-| `PROPERTY_VALUATION_V2.md` | Investment → Bewertung | APPROVED | `VALUATION-REHOST-01` |
-| `PROPERTY_SCENARIOS_V2.md` | Investment → Szenarien | BLOCKED | Scenario-Lifecycle-/Versions-/Calculation-Contract |
-| `PROPERTY_PERFORMANCE_V2.md` | Investment → Performance | BLOCKED | `P2-D08` / `FINANCE-01` |
-| `PROPERTY_ACTIVITY_REPORTS_V2.md` | Aktivität Host | BLOCKED | mindestens ein implementierter Child |
-| `PROPERTY_ACTIVITY_V2.md` | Aktivität → Aktivität | BLOCKED | Activity-Read-/Security-Contract |
-| `PROPERTY_AUDIT_V2.md` | Aktivität → Audit | BLOCKED | `AUDIT-01` App-Read-Port/Redaction |
-| `PROPERTY_REPORTS_V2.md` | Aktivität → Berichte | BLOCKED | `P2-D09` / `PORTFOLIO-REPORTING-01` |
+Produkt-Scope und technische Bereitschaft werden getrennt geführt. `COMMITTED` heißt: wir bauen es. `PREREQUISITE REQUIRED` benennt, was vorher entsteht (prerequisite-first, unmittelbar gefolgt von der abhängigen UI und Staging-E2E). Der frühere Status bleibt als Historie in der letzten Spalte.
 
-**DRAFT:** keine. Noch offene Materialentscheidungen liegen ausschließlich in den als BLOCKED markierten Contract-Paketen; sie dürfen nicht durch UI-Annahmen geschlossen werden.
+| Spec | IA-Ebene | Produkt-Scope | Technische Bereitschaft | Früherer Status |
+|---|---|---|---|---|
+| `PROPERTY_WORKSPACE_V2.md` | Workspace Host | COMMITTED | READY — Host implementiert; wächst mit jeder Domain | APPROVED |
+| `PROPERTY_LIST_V2.md` | Einstieg vor Workspace | COMMITTED | READY für Liste/Keyset/Filter; Volltextsuche und Lifecycle-Aktionen: PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01`, `PROPERTY-DATA-02` | APPROVED |
+| `PROPERTY_OVERVIEW_V2.md` | Übersicht | COMMITTED | PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` (serverseitige KPI-/Attention-/Freshness-Projektion) | BLOCKED |
+| `PROPERTY_ASSET_V2.md` | Objekt | COMMITTED | READY für Stammdaten (implementiert); Lifecycle-Aktionen und Medien: PREREQUISITE REQUIRED — `PROPERTY-DATA-02`, `PROPERTY-MEDIA-DATA-01` | APPROVED |
+| `PROPERTY_LEASING_V2.md` | Vermietung Host | COMMITTED | READY — Cloud-Contracts und Panels (Flächen/Verträge/Pipeline/Rent Roll) vorhanden; Registrierung im Host ist Implementierungsarbeit | APPROVED |
+| `PROPERTY_OPERATIONS_V2.md` | Betrieb Host | COMMITTED | READY für Aufgaben (implementiert); Wartung/CapEx: PREREQUISITE REQUIRED — `MAINTENANCE-PARITY-01` | APPROVED |
+| `PROPERTY_DOCUMENTS_V2.md` | Dokumente | COMMITTED | READY (implementiert); Medien bleiben eigenes Paket: PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` | APPROVED |
+| `PROPERTY_INVESTMENT_V2.md` | Investment Host | COMMITTED | PREREQUISITE REQUIRED — erster Child `VALUATION-REHOST-01` | APPROVED |
+| `PROPERTY_VALUATION_V2.md` | Investment → Bewertung | COMMITTED | PREREQUISITE REQUIRED — `VALUATION-REHOST-01` (Valuation-Domäne normalisiert separat) | APPROVED |
+| `PROPERTY_SCENARIOS_V2.md` | Investment → Szenarien | COMMITTED | PREREQUISITE REQUIRED — `SCENARIO-VALUATION-01` (Lifecycle-/Versions-/Calculation-Contract) | BLOCKED |
+| `PROPERTY_PERFORMANCE_V2.md` | Investment → Performance | COMMITTED | PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01` | BLOCKED |
+| `PROPERTY_ACTIVITY_REPORTS_V2.md` | Aktivität Host | COMMITTED | PREREQUISITE REQUIRED — erster implementierter Child (`PROPERTY-ACTIVITY-01` oder `AUDIT-01`) | BLOCKED |
+| `PROPERTY_ACTIVITY_V2.md` | Aktivität → Aktivität | COMMITTED | PREREQUISITE REQUIRED — `PROPERTY-ACTIVITY-01` (Activity-Read-Model + Redaction) | BLOCKED |
+| `PROPERTY_AUDIT_V2.md` | Aktivität → Audit | COMMITTED | PREREQUISITE REQUIRED — `AUDIT-01` (App-Read-Port, allowlisted DTO, Redaction) | BLOCKED |
+| `PROPERTY_REPORTS_V2.md` | Aktivität → Berichte | COMMITTED | PREREQUISITE REQUIRED — `P2-D09` / `PORTFOLIO-REPORTING-01` | BLOCKED |
+
+**DRAFT:** keine. Offene Materialentscheidungen (Overview-Endpointform, Activity-Sichtbarkeit, Media-/Sharing-Security, Scenario-Lifecycle) sind ab FULL-V2-SCOPE-01 **Inhalt** ihrer prerequisite-Pakete, nicht mehr deren Sperre. Sie dürfen weiterhin nicht durch UI-Annahmen geschlossen werden: keine Client-Synthese fehlender Serverdaten, keine erfundenen KPIs, kein Security-/AAL-/RLS-Bypass.
+
+### Property — Non-Goals (REJECTED, bleiben ausgeschlossen)
+
+Bewusste Nicht-Ziele. Sie werden **nicht** in COMMITTED überführt; „aufwendig" ist kein Grund für diese Liste, sondern nur echte fachliche, rechtliche oder Sicherheitsgründe.
+
+| Non-Goal | Grund |
+|---|---|
+| Exaktes VTS-/MRI-Layout, Logos, Trade Dress, pixelgenaue Kopie | fremdes geistiges Eigentum; übernommen werden Workflow-Muster, Informationsarchitektur, Interaction Patterns und funktionale Dichte |
+| Client-seitig synthetisierte Overview-/Portfolio-KPIs aus geladenen Listen oder Teilmengen | erfundene Kennzahl statt Serverwahrheit; KPIs kommen ausschließlich aus `PROPERTY-OVERVIEW-DATA-01` |
+| Completion-Proxies, Legacy-Formeln, fabrizierte NOI/IRR/DSCR/Scores | Legacy-Defekt (Screen Map §0.7); ersetzt durch contract-basierte Werte |
+| Hard-Delete von Objekten | Datenverlust ohne Wiederherstellung; Lifecycle bleibt der auditierte, restaurierbare Tombstone (DEBT-012) |
+| Öffentlich teilbare, ungeschützte URLs für Property-Medien/Dokumente | Security-Downgrade; externes Teilen nur über ein eigenes Sharing-Contract-Paket mit Ablauf, Widerruf und Audit |
+| Rohes Tabellen-JSON, lokale Dateisystem-Exporte oder Client-Volltextsuche über Audit-Payloads | Leak-Risiko und Umgehung der serverseitigen Redaction |
+| Automatisch erzeugtes „Basis"-Szenario und andere Cross-Domain-Writes beim Öffnen eines Objekts | Legacy-Nebenwirkung; Öffnen bleibt seiteneffektfrei |
+| Umgehen von AAL2/RLS/Entity-Scope für UI-Komfort | historische Sicherheitsgarantien bleiben bindend (DEC-025) |
+| Sale-/Hospitality-Flächen im Property Workspace | ungeklärte Produktdomäne; eigene Entscheidung unter `SALE-HOTEL-01` |
+
+### Property — verbindliche Umsetzungsreihenfolge (prerequisite-first)
+
+Backend-Voraussetzung zuerst, unmittelbar gefolgt von der abhängigen UI und Staging-E2E — keine langlaufenden Backend-Backlogs ohne konsumierende Oberfläche.
+
+| Welle | Inhalt | Voraussetzung → abhängige Fläche |
+|---|---|---|
+| P-1 | Objektliste und Objekt-Stammdaten vervollständigen: Lifecycle (Anlegen/Archivieren/Wiederherstellen), Objektwechsler, `Vermietung` im Host registrieren | `PROPERTY-DATA-02` → `PROPERTY-CREATE-01` und Asset-Lifecycle-Aktionen; vorhandene Leasing-Panels → `Vermietung` |
+| P-2 | `Übersicht` mit belastbaren KPIs und Attention-Drilldowns | `PROPERTY-OVERVIEW-DATA-01` → `PROPERTY_OVERVIEW_V2` |
+| P-3 | Objektmedien/Titelbild; serverweite Objektsuche in Liste und Objektwechsler | `PROPERTY-MEDIA-DATA-01`; `PROPERTY-LOOKUP-01` |
+| P-4 | `Investment` mit Bewertung, danach Szenarien und Performance | `VALUATION-REHOST-01`; `SCENARIO-VALUATION-01`; `P2-D08` |
+| P-5 | `Aktivität` mit Timeline, Audit und Berichten | `PROPERTY-ACTIVITY-01`; `AUDIT-01`; `P2-D09` |
+
+Eine Property-Fläche gilt erst als DONE, wenn ihr vollständiger COMMITTED-Scope implementiert ist, die prerequisite-Pakete stehen, die benchmark-definierten Kernworkflows vorhanden sind, Responsive/Permissions/AAL bewiesen sind und Staging-E2E grün ist — ein erster Slice allein ist nicht DONE.
 
 ## Bereits erledigt (vor diesem Tracker)
 

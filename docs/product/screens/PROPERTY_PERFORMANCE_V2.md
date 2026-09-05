@@ -6,7 +6,9 @@
 - Domain: Finance / Debt / Asset Performance
 - Route: zukünftiges Ziel `/properties/:propertyId/investment/performance`
 - Current implementation file(s): Legacy `budget_vs_actual_screen.dart`, `asset_workbook_screen.dart`, `covenants_screen.dart` und Analyseflächen nur als Job-Inventar; kein Cloud-Screen/Contract
-- Planning status: BLOCKED (`P2-D08` / `FINANCE-01`; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01` (Finance-Contract und Engine)
+- Former status: BLOCKED (`P2-D08` / `FINANCE-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), Backend `P2-D08 finance_debt`, `FINANCE-01`, Overview-Summary danach
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md)
 
@@ -117,7 +119,9 @@ Gemischte Währungen werden nie implizit summiert. Valuation und Scenario bleibe
 
 - `NxMetricProvenance`/`NxPeriodSelector` erst in `FINANCE-01` als Shared-UI reviewen.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - vollständiges `P2-D08 finance_debt`: Ledger/Actual, Budget/Forecast, serverberechnete KPI/Variance, Debt/Covenant, Version/Close/Approval, Security.
 - `P2-D09` für freigegebene Reports.
@@ -161,7 +165,9 @@ Gemischte Währungen werden nie implizit summiert. Valuation und Scenario bleibe
 - closed/approved Zustände werden serverseitig erzwungen.
 - ohne `P2-D08` ist Screen nicht implementiert/registriert.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Legacy SQLite/Excel-Workbook-Replik, Client-KPI, Bankintegration, Portfolioaggregation, Schema/RLS/Routercode.
 

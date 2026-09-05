@@ -6,7 +6,9 @@
 - Domain: Portfolio Property / domainübergreifender Objektkontext
 - Route: heute zustandsbasiert über `GlobalPage.properties` plus selektiertes Property und lokale Surface; zukünftige kanonische Basis `/properties/:propertyId/*` ausschließlich über `SHELL-ROUTING-01`
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_slice_screen.dart`, `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/ui/screens/property_detail/property_shell.dart`, `lib/ui/screens/v2/property_detail/property_shell_v2.dart`, `lib/ui/navigation/app_navigation.dart`, `lib/app.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY — Host implementiert; jede weitere Domäne bringt ihre eigene Voraussetzung mit
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: `PRODUCT-SCREEN-MAP-01`, `PRODUCT-UX-FOUNDATION-01` und `UX-FOUNDATION-IMPL-01` liegen auf `origin/main` `3a11b091b1c8565bc15d13267db57a8bcea1b0a9` (verifiziert 2026-08-28); URL-/Back-Verhalten separat `SHELL-ROUTING-01`
 - Related screens: [Property List V2](PROPERTY_LIST_V2.md), [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Asset V2](PROPERTY_ASSET_V2.md), [Property Leasing V2](PROPERTY_LEASING_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md), [Property Documents V2](PROPERTY_DOCUMENTS_V2.md), [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md) mit [Valuation](PROPERTY_VALUATION_V2.md), [Scenarios](PROPERTY_SCENARIOS_V2.md) und [Performance](PROPERTY_PERFORMANCE_V2.md), [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md) mit [Activity](PROPERTY_ACTIVITY_V2.md), [Audit](PROPERTY_AUDIT_V2.md) und [Reports](PROPERTY_REPORTS_V2.md)
 
@@ -299,7 +301,9 @@ Jeder Betrag zeigt Währung; gemischte Währungen werden nicht summiert. Jede Ze
 - `NxWorkspaceSectionNav`: zugängliche, responsive Route-Navigation mit max. sieben Hauptzielen und klarer aktiver Ebene
 - Umsetzung als separates Shared-UI-Inkrement innerhalb `PROPERTY-WORKSPACE-01`; kein verdeckter Designsystem-Rewrite. `NxLiveUpdatesNotice`, `NxListSkeleton`, `NxSplitView`, `NxNotice` kommen aus `UX-FOUNDATION-IMPL-01`.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 | Gap | Exakter Bedarf | Bereich | Schema/RLS/Permission | Separates Paket |
 |---|---|---|---|---|
@@ -370,7 +374,9 @@ Jeder Betrag zeigt Währung; gemischte Währungen werden nicht summiert. Jede Ze
 - Kein Workspace-Render führt ungefragt Create, Archive, Delete, Scenario-Erzeugung oder Cross-Domain-Write aus.
 - Alle sieben Hauptziele und maximal vier Unterziele pro Domain sind auf Desktop, Tablet und Mobile ohne abgeschnittene Controls erreichbar.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Implementierung von Produktcode, Navigation oder Router
 - Property Create/Archive/Delete und Create-Wizard
@@ -415,20 +421,20 @@ Hard invariants: ein Property-Kontext; kein Client-KPI; keine ungeprüfte Permis
 
 Die 15 Specs sind Screen-/Host-Grenzen, nicht 15 Top-Level-Ziele. Verbindlich bleiben höchstens sieben Workspace-Ziele; Investment und Aktivität sind Hosts ihrer Child-Screens.
 
-| Spec | Status | Blocking package / Voraussetzung | Kann parallel implementiert werden mit |
+| Spec | Produkt-Scope | Technische Voraussetzung (prerequisite-first) | Kann parallel implementiert werden mit |
 |---|---|---|---|
-| Property Workspace | APPROVED | keine; UX-Foundation ist gelandet | nach Host-API: Asset, Leasing, Operations, Documents, Investment/Valuation |
-| Property List | APPROVED | Workspace Host-State | Asset; Valuation-Rehost |
-| Property Overview | BLOCKED | `PROPERTY-OVERVIEW-DATA-01` | Backend parallel zu Scenario, Finance, Activity/Audit, Media |
-| Property Asset | APPROVED | Workspace Host | Leasing; Operations; Documents; Valuation |
-| Property Leasing | APPROVED | Workspace Host; Domain-Degraded-Wiring | Asset; Operations; Documents; Valuation |
-| Property Operations | APPROVED | Workspace Host; `MAINTENANCE-PARITY-01`; Property-Teil von `TASKS-NOTIFICATIONS-01` | Leasing; Documents; Valuation |
-| Property Documents | APPROVED | Workspace Host; Property-Teil von `DOCUMENTS-COMPLETE-01` | Leasing; Operations; Valuation |
-| Property Investment Host | APPROVED | Workspace Host; erster Child `VALUATION-REHOST-01` | Documents; Operations |
-| Property Valuation | APPROVED | Investment Host; `VALUATION-REHOST-01`; Domain-Degraded-Wiring | Leasing; Operations; Documents |
-| Property Scenarios | BLOCKED | genehmigter Scenario-Lifecycle-/Versions-/Calculation-Contract (`SCENARIO-VALUATION-01`) | Backend parallel zu Overview, Finance, Activity/Audit, Media |
-| Property Performance | BLOCKED | `P2-D08` / `FINANCE-01` | Backend parallel zu Overview, Scenario, Activity/Audit, Media |
-| Property Activity & Reports Host | BLOCKED | mindestens ein implementierter Child; zuerst voraussichtlich `AUDIT-01` | Hostplanung parallel zu den drei Child-Backends |
-| Property Activity | BLOCKED | permission-gefilterter Activity-Read-/Security-Contract (`PROPERTY-ACTIVITY-01`) | parallel zu Audit und Reports |
-| Property Audit | BLOCKED | sicherer App-Read-Port/DTO/Redaction (`AUDIT-01`) | parallel zu Activity und Reports |
-| Property Reports | BLOCKED | `P2-D09` / `PORTFOLIO-REPORTING-01` | parallel zu Activity und Audit |
+| Property Workspace | COMMITTED | READY — Host implementiert | nach Host-API: Asset, Leasing, Operations, Documents, Investment/Valuation |
+| Property List | COMMITTED | READY; Suche/Lifecycle: PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01`, `PROPERTY-DATA-02` | Asset; Valuation-Rehost |
+| Property Overview | COMMITTED | PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` | Backend parallel zu Scenario, Finance, Activity/Audit, Media |
+| Property Asset | COMMITTED | READY; Lifecycle/Medien: PREREQUISITE REQUIRED — `PROPERTY-DATA-02`, `PROPERTY-MEDIA-DATA-01` | Leasing; Operations; Documents; Valuation |
+| Property Leasing | COMMITTED | READY — Contracts und Panels vorhanden; Domain-Degraded-Wiring begleitet die Registrierung | Asset; Operations; Documents; Valuation |
+| Property Operations | COMMITTED | READY für Aufgaben; Wartung/CapEx: PREREQUISITE REQUIRED — `MAINTENANCE-PARITY-01` | Leasing; Documents; Valuation |
+| Property Documents | COMMITTED | READY — implementiert; Medien: PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` | Leasing; Operations; Valuation |
+| Property Investment Host | COMMITTED | PREREQUISITE REQUIRED — erster Child `VALUATION-REHOST-01` | Documents; Operations |
+| Property Valuation | COMMITTED | PREREQUISITE REQUIRED — `VALUATION-REHOST-01` | Leasing; Operations; Documents |
+| Property Scenarios | COMMITTED | PREREQUISITE REQUIRED — Scenario-Lifecycle-/Versions-/Calculation-Contract (`SCENARIO-VALUATION-01`) | Backend parallel zu Overview, Finance, Activity/Audit, Media |
+| Property Performance | COMMITTED | PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01` | Backend parallel zu Overview, Scenario, Activity/Audit, Media |
+| Property Activity & Reports Host | COMMITTED | PREREQUISITE REQUIRED — erster implementierter Child; zuerst voraussichtlich `AUDIT-01` | Hostplanung parallel zu den drei Child-Backends |
+| Property Activity | COMMITTED | PREREQUISITE REQUIRED — permission-gefilterter Activity-Read-/Security-Contract (`PROPERTY-ACTIVITY-01`) | parallel zu Audit und Reports |
+| Property Audit | COMMITTED | PREREQUISITE REQUIRED — sicherer App-Read-Port/DTO/Redaction (`AUDIT-01`) | parallel zu Activity und Reports |
+| Property Reports | COMMITTED | PREREQUISITE REQUIRED — `P2-D09` / `PORTFOLIO-REPORTING-01` | parallel zu Activity und Audit |

@@ -6,7 +6,9 @@
 - Domain: domainübergreifende Activity Read Model
 - Route: zukünftiges Ziel `/properties/:propertyId/activity/activity`
 - Current implementation file(s): kein Cloud-Screen/Repository; Legacy Overview/Audit nur als Job-Inventar; Realtime-Invalidation-Streams sind keine Historie
-- Planning status: BLOCKED (Activity-Read-/Security-Contract; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `PROPERTY-ACTIVITY-01` (Activity-Read-Model, Taxonomie, Redaction)
+- Former status: BLOCKED (Activity-Read-/Security-Contract; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md), genehmigter Activity-Read-Contract, `PROPERTY-OVERVIEW-DATA-01` für Recent-Activity-Auszug
 - Related screens: [Property Audit V2](PROPERTY_AUDIT_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md)
 
@@ -92,7 +94,9 @@ Keine Fachformulare; Filter validieren Zeitraum serverkompatibel.
 ### New shared component candidate
 - erst nach Activity-/Audit-Abgleich; keine generische Timeline vor Contract.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - vollständiges permission-/entity-gefiltertes Activity Read Model/Repository/DTO, vorgeschlagen `PROPERTY-ACTIVITY-01`.
 - Recent Activity projection für Overview.
@@ -130,7 +134,9 @@ Keine Fachformulare; Filter validieren Zeitraum serverkompatibel.
 - Pagination dupliziert/verliert bei stabiler Reihenfolge keine Events.
 - Overview und Vollscreen verwenden dieselbe Wahrheit.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Audit-Rohpayload, Taskbearbeitung, Kommentare, Notifications, Clientaggregation, Routercode.
 

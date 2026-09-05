@@ -6,7 +6,9 @@
 - Domain: Leasing Operations
 - Route: zukünftige Ziele `/properties/:propertyId/leasing/units`, `/leases/:leaseId?`, `/pipeline/:caseId?`, `/rent-roll`; heute property-scoped Navigation-State
 - Current implementation file(s): `lib/ui/screens/property_detail/leasing/units_panel.dart`, `leases_panel.dart`, `leasing_pipeline_panel.dart`, `rent_roll_panel.dart`, `tenant_detail_view.dart`, `lib/features/leasing_operations/application/leasing_repository.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: READY — Unit-/Lease-/Case-/Rent-Roll-Contracts und Panels vorhanden; PREREQUISITE REQUIRED nur für Suche, Renewal-/Exposure-Projektion und Mietstaffel-Contract
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, `SHELL-ROUTING-01` nur für spätere URLs
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), workspace-weite Tenants/Parties-Surface
 
@@ -199,7 +201,9 @@ Für jeden Unterbereich: idle/initial loading, background refresh, forbidden, re
 
 - keine Leasing-spezifische Komponente globalisieren; Stage-Board bleibt Domain-Komponente.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - vollständige serverseitige Textsuche für Units/Leases/Cases, falls globales Suchversprechen gewünscht; Schema/RLS separat prüfen.
 - serverseitige Lease-Roll-, Vacancy-Exposure- und Renewal-Risk-Projektion für Overview; Vorschlag Teil von `PROPERTY-OVERVIEW-DATA-01`.
@@ -255,7 +259,9 @@ Für jeden Unterbereich: idle/initial loading, background refresh, forbidden, re
 - Ohne `lease.manage` ist keine Leasingmutation ausführbar; ohne `party.read` leakt kein Party-Profil.
 - Realtime ist Invalidation-only und REST/RPC kanonisch.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - globales Tenant-/Party-Verzeichnis redesignen
 - Renewal-Risk-AI, Markt-Demand oder Sentiment

@@ -6,7 +6,9 @@
 - Domain: Platform Audit
 - Route: zukünftiges Ziel `/properties/:propertyId/activity/audit`
 - Current implementation file(s): Legacy Audit Screen/`AuditLogRepo`; Cloud `audit_events` und `audit.read`-RLS in Supabase-Migrations, aber kein App-DTO/Repository/Read-Port
-- Planning status: BLOCKED (`AUDIT-01` App-Read-Port/DTO/Redaction; Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — `AUDIT-01` (App-Read-Port, allowlisted DTO, Redaction)
+- Former status: BLOCKED (`AUDIT-01` App-Read-Port/DTO/Redaction; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md), `AUDIT-01`, `SHELL-ROUTING-01` nur für URL
 - Related screens: [Property Activity V2](PROPERTY_ACTIVITY_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md)
 
@@ -95,7 +97,9 @@ Nur Filter; Zeitraum validiert und begrenzt gemäß Contract. Keine Fachmutation
 ### New shared component candidate
 - `NxSafeDiff` erst nach Securityreview, nicht als beliebiger JSON-Renderer.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `AUDIT-01`: property-gefilterter, keyset-paginierter App-Read-Port/DTO plus Detail, sichere Projektion/Redaktion und Contracttests.
 - Export nur als separates serverseitig autorisiertes Reporting-/Exportpaket.
@@ -138,7 +142,9 @@ Nur Filter; Zeitraum validiert und begrenzt gemäß Contract. Keine Fachmutation
 - Pagination stabil; neue Events erzeugen keine Duplikate.
 - kein lokaler CSV-/Dateisystemexport.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Auditmutation, lokale Exporte, Activity-Kuratierung, SIEM/Admin-Workspace, Routercode.
 
@@ -148,4 +154,4 @@ Nur Filter; Zeitraum validiert und begrenzt gemäß Contract. Keine Fachmutation
 
 ## 21. Implementation handoff
 
-Status bleibt BLOCKED. `AUDIT-01` baut zuerst sicheren DTO/Repository/Adapter samt RLS-/Redactiontests und schließt Allowlist/Redaction/Retention; erst danach folgt Property List/Detail. Legacy liefert Filter-/Split-View-Jobs, nicht Datenpfad/Export. Hard invariants: immutable, least privilege, keine Rohpayload-/Secret-Leaks, Domainrecht separat.
+Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). `AUDIT-01` ist die Voraussetzung und baut prerequisite-first sicheren DTO/Repository/Adapter samt RLS-/Redactiontests und schließt Allowlist/Redaction/Retention; erst danach folgt Property List/Detail. Legacy liefert Filter-/Split-View-Jobs, nicht Datenpfad/Export. Hard invariants: immutable, least privilege, keine Rohpayload-/Secret-Leaks, Domainrecht separat.

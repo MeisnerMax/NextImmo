@@ -6,7 +6,9 @@
 - Domain: Investment / Valuation / Scenario / Financial Performance
 - Route: zukünftige Basis `/properties/:propertyId/investment/*`; heute kein gemeinsamer Cloud-Host
 - Current implementation file(s): `lib/ui/screens/valuations/valuations_screen.dart`, `lib/ui/screens/property_detail/inputs_screen.dart`, `analysis_screen.dart`, `scenarios_screen.dart`, `scenario_versions_screen.dart`
-- Planning status: APPROVED (Implementation-Readiness-Review 2026-08-28)
+- Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
+- Technical readiness: PREREQUISITE REQUIRED — erster Child `VALUATION-REHOST-01`
+- Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `VALUATION-REHOST-01`; spätere Childs `SCENARIO-VALUATION-01`, `FINANCE-01`
 - Related screens: [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Performance V2](PROPERTY_PERFORMANCE_V2.md)
 
@@ -102,7 +104,9 @@ Kein Host-Formular. Dirty-/Submit-Verantwortung bleibt beim Child.
 
 - keiner; vorhandene Workspace-Navigation genügt.
 
-## 14. Backend gaps
+## 14. Prerequisites (COMMITTED, prerequisite-first)
+
+Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - Scenario Lifecycle/Versions: bestehendes `SCENARIO-VALUATION-01`, Schema/RLS/Permissions separat.
 - Financial Performance: `P2-D08` / `FINANCE-01`.
@@ -142,7 +146,9 @@ Kein Host-Formular. Dirty-/Submit-Verantwortung bleibt beim Child.
 - Nicht implementierte Childs sind in Production nicht als kaputte Tabs sichtbar.
 - `propertyId`, Permission und Dirty-State bleiben korrekt.
 
-## 19. Out of scope
+## 19. Non-Goals (REJECTED) und fremde Zuständigkeit
+
+Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Child-Funktionalität, Routerimplementierung, Cross-Domain-Berechnung, automatisches Szenario.
 
