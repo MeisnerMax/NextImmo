@@ -7,7 +7,7 @@
 - Route: zukünftige Ziele `/properties/:propertyId/investment/valuations` und `/valuations/:caseId`; heute `ValuationsScreen(propertyId: ...)` plus nicht vollständig gerouteter Case-Host
 - Current implementation file(s): `lib/ui/screens/valuations/valuations_screen.dart`, `lib/ui/screens/property_detail/widgets/valuation/valuation_section_host.dart`, `lib/features/valuation/application/valuation_repository.dart`, `lib/features/valuation/application/valuation_case_controller.dart`, `lib/features/valuation/domain/valuation_case_dto.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `VALUATION-REHOST-01`; Comparables `P2-D07`
+- Technical readiness (Stand 2026-09-06): READY — `VALUATION-REHOST-01` ist umgesetzt: die Queue ist im Property-Workspace unter `Investment → Bewertung` erreichbar, mit demselben Case-Host, den auch die Szenario-Seite mountet. PREREQUISITE REQUIRED bleibt für Comparables (`P2-D07`/`COMPS-CRITERIA-01`) und die Szenario-Verknüpfung (`SCENARIO-VALUATION-01`)
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), `UX-FOUNDATION-IMPL-01`, `VALUATION-REHOST-01`; Routing separat
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Documents V2](PROPERTY_DOCUMENTS_V2.md)
@@ -135,7 +135,7 @@ Der Screen verwaltet alle Valuation Cases eines Properties und führt einen Case
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-- explizite Property-Valuation-Summary für Overview (`PROPERTY-OVERVIEW-DATA-01`).
+- explizite Property-Valuation-Summary für Overview (`PROPERTY-OVERVIEW-DATA-01`) — **erledigt 2026-09-06**: die Übersicht zeigt Fallzahlen und den Stand der letzten Bearbeitung und drillt in diese Fläche. Einen Wert zeigt sie bewusst nicht; welche Zahl „der" Objektwert ist, entscheidet `METHOD-GOV-01`.
 - Comparables/Comparison Method wartet auf verbleibenden `P2-D07`-/`COMPS-CRITERIA-01`-Contract.
 - Scenario-Verknüpfung und approved scenario input warten auf `SCENARIO-VALUATION-01`.
 - kein neuer Gap für vorhandene Case/Faktor/Report/Variant-Lifecycle-Fläche.
