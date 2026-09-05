@@ -23,10 +23,29 @@ import '../../components/nx_empty_state.dart';
 import '../../components/nx_page_header.dart';
 import '../maintenance/widgets/maintenance_capex_badges.dart';
 
+/// Which half of the panel to render.
+///
+/// `both` is the standalone cloud route, which owns its own page header and
+/// tab bar. The single-section variants exist for the Property Workspace,
+/// where `Betrieb` already supplies the header and the sub-navigation, and
+/// where the two halves are separately permissioned sub-areas
+/// (`PROPERTY_OPERATIONS_V2.md` §8) rather than two tabs of one screen.
+enum PropertyMaintenanceCapexSection { both, maintenance, capex }
+
 class PropertyMaintenanceCapexPanel extends ConsumerStatefulWidget {
-  const PropertyMaintenanceCapexPanel({super.key, required this.propertyId});
+  const PropertyMaintenanceCapexPanel({
+    super.key,
+    required this.propertyId,
+    this.section = PropertyMaintenanceCapexSection.both,
+    this.embedded = false,
+  });
 
   final String propertyId;
+  final PropertyMaintenanceCapexSection section;
+
+  /// Embedded in a host that already provides the page frame: no page header
+  /// and no outer padding, so the panel does not indent twice.
+  final bool embedded;
 
   @override
   ConsumerState<PropertyMaintenanceCapexPanel> createState() =>
@@ -36,17 +55,21 @@ class PropertyMaintenanceCapexPanel extends ConsumerStatefulWidget {
 class _PropertyMaintenanceCapexPanelState
     extends ConsumerState<PropertyMaintenanceCapexPanel>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+  TabController? _tabController;
+
+  bool get _tabbed => widget.section == PropertyMaintenanceCapexSection.both;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    if (_tabbed) {
+      _tabController = TabController(length: 2, vsync: this);
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -59,30 +82,43 @@ class _PropertyMaintenanceCapexPanelState
     final controller = ref.read(provider.notifier);
     _listenForActionFeedback(provider);
 
+    final body = switch (widget.section) {
+      PropertyMaintenanceCapexSection.maintenance => _TicketsTab(
+        state: state,
+        controller: controller,
+      ),
+      PropertyMaintenanceCapexSection.capex => _CapexTab(
+        state: state,
+        controller: controller,
+      ),
+      PropertyMaintenanceCapexSection.both => TabBarView(
+        controller: _tabController,
+        children: <Widget>[
+          _TicketsTab(state: state, controller: controller),
+          _CapexTab(state: state, controller: controller),
+        ],
+      ),
+    };
+
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(widget.embedded ? 0 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const NxPageHeader(title: 'Instandhaltung & CapEx'),
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabs: const <Tab>[
-              Tab(text: 'Tickets'),
-              Tab(text: 'CapEx-Projekte'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: <Widget>[
-                _TicketsTab(state: state, controller: controller),
-                _CapexTab(state: state, controller: controller),
-              ],
-            ),
-          ),
+          if (!widget.embedded) ...<Widget>[
+            const NxPageHeader(title: 'Instandhaltung & CapEx'),
+            if (_tabbed)
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabs: const <Tab>[
+                  Tab(text: 'Tickets'),
+                  Tab(text: 'CapEx-Projekte'),
+                ],
+              ),
+            const SizedBox(height: 16),
+          ],
+          Expanded(child: body),
         ],
       ),
     );
@@ -105,23 +141,24 @@ class _PropertyMaintenanceCapexPanelState
           unawaited(
             showDialog<void>(
               context: context,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('Wurde zwischenzeitlich geändert'),
-                content: const Text(
-                  'Jemand anderes hat diesen Datensatz bearbeitet, während du '
-                  'ihn offen hattest. Lade neu und wiederhole die Änderung.',
-                ),
-                actions: <Widget>[
-                  FilledButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      controller.clearAction();
-                      unawaited(controller.loadAll());
-                    },
-                    child: const Text('Neu laden'),
+              builder:
+                  (dialogContext) => AlertDialog(
+                    title: const Text('Wurde zwischenzeitlich geändert'),
+                    content: const Text(
+                      'Jemand anderes hat diesen Datensatz bearbeitet, während du '
+                      'ihn offen hattest. Lade neu und wiederhole die Änderung.',
+                    ),
+                    actions: <Widget>[
+                      FilledButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          controller.clearAction();
+                          unawaited(controller.loadAll());
+                        },
+                        child: const Text('Neu laden'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
             ),
           );
         case PropertyMaintenanceActionPhase.succeeded:
@@ -156,9 +193,10 @@ class _TicketsTab extends StatelessWidget {
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton.icon(
-            onPressed: controller.canManageTickets
-                ? () => _createTicket(context, controller)
-                : null,
+            onPressed:
+                controller.canManageTickets
+                    ? () => _createTicket(context, controller)
+                    : null,
             icon: const Icon(Icons.add),
             label: const Text('Ticket anlegen'),
           ),
@@ -216,7 +254,9 @@ class _TicketsTab extends StatelessWidget {
                 DataRow(
                   cells: <DataCell>[
                     DataCell(Text(ticket.title)),
-                    DataCell(MaintenanceTicketStatusBadge(status: ticket.status)),
+                    DataCell(
+                      MaintenanceTicketStatusBadge(status: ticket.status),
+                    ),
                     DataCell(
                       MaintenanceTicketPriorityBadge(priority: ticket.priority),
                     ),
@@ -225,23 +265,30 @@ class _TicketsTab extends StatelessWidget {
                               !controller.canManageTickets
                           ? const SizedBox.shrink()
                           : PopupMenuButton<MaintenanceTicketStatus>(
-                              tooltip: 'Status ändern',
-                              onSelected: (target) => unawaited(
-                                _transition(context, controller, ticket, target),
-                              ),
-                              itemBuilder: (context) => <PopupMenuEntry<
-                                MaintenanceTicketStatus
-                              >>[
-                                for (final target
-                                    in ticket.status.allowedNextStatuses)
-                                  PopupMenuItem(
-                                    value: target,
-                                    child: Text(
-                                      maintenanceTicketStatusLabel(target),
-                                    ),
+                            tooltip: 'Status ändern',
+                            onSelected:
+                                (target) => unawaited(
+                                  _transition(
+                                    context,
+                                    controller,
+                                    ticket,
+                                    target,
                                   ),
-                              ],
-                            ),
+                                ),
+                            itemBuilder:
+                                (
+                                  context,
+                                ) => <PopupMenuEntry<MaintenanceTicketStatus>>[
+                                  for (final target
+                                      in ticket.status.allowedNextStatuses)
+                                    PopupMenuItem(
+                                      value: target,
+                                      child: Text(
+                                        maintenanceTicketStatusLabel(target),
+                                      ),
+                                    ),
+                                ],
+                          ),
                     ),
                   ],
                 ),
@@ -293,9 +340,10 @@ class _CapexTab extends StatelessWidget {
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton.icon(
-            onPressed: controller.canManageCapex
-                ? () => _createProject(context, controller)
-                : null,
+            onPressed:
+                controller.canManageCapex
+                    ? () => _createProject(context, controller)
+                    : null,
             icon: const Icon(Icons.add),
             label: const Text('Projekt anlegen'),
           ),
@@ -378,19 +426,22 @@ class _CapexTab extends StatelessWidget {
     }
   }
 
-  Widget _buildTransitionMenu(BuildContext context, CapexProjectSummaryDto project) {
+  Widget _buildTransitionMenu(
+    BuildContext context,
+    CapexProjectSummaryDto project,
+  ) {
     final next = project.status.nextStatus;
     if (next == null) {
       return const SizedBox.shrink();
     }
     final requiresApprove = next == CapexProjectStatus.approved;
-    final allowed = requiresApprove
-        ? controller.canApproveCapex
-        : controller.canManageCapex;
+    final allowed =
+        requiresApprove
+            ? controller.canApproveCapex
+            : controller.canManageCapex;
     return TextButton(
-      onPressed: allowed
-          ? () => unawaited(_transition(context, project, next))
-          : null,
+      onPressed:
+          allowed ? () => unawaited(_transition(context, project, next)) : null,
       child: Text(
         requiresApprove
             ? 'Freigeben (${capexProjectStatusLabel(next)})'
@@ -483,70 +534,80 @@ Future<_TicketFormResult?> _showTicketFormDialog(BuildContext context) async {
 
   return showDialog<_TicketFormResult>(
     context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setState) => AlertDialog(
-        title: const Text('Ticket anlegen'),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextFormField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Titel'),
-                  validator: (value) => (value == null || value.trim().isEmpty)
-                      ? 'Pflichtfeld'
-                      : null,
+    builder:
+        (dialogContext) => StatefulBuilder(
+          builder:
+              (dialogContext, setState) => AlertDialog(
+                title: const Text('Ticket anlegen'),
+                content: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        TextFormField(
+                          controller: titleController,
+                          decoration: const InputDecoration(labelText: 'Titel'),
+                          validator:
+                              (value) =>
+                                  (value == null || value.trim().isEmpty)
+                                      ? 'Pflichtfeld'
+                                      : null,
+                        ),
+                        TextFormField(
+                          controller: descriptionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Beschreibung',
+                          ),
+                          maxLines: 3,
+                        ),
+                        DropdownButtonFormField<MaintenanceTicketPriority>(
+                          value: priority,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Priorität',
+                          ),
+                          items: <DropdownMenuItem<MaintenanceTicketPriority>>[
+                            for (final p in MaintenanceTicketPriority.values)
+                              DropdownMenuItem(
+                                value: p,
+                                child: Text(maintenanceTicketPriorityLabel(p)),
+                              ),
+                          ],
+                          onChanged:
+                              (value) =>
+                                  setState(() => priority = value ?? priority),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Beschreibung'),
-                  maxLines: 3,
-                ),
-                DropdownButtonFormField<MaintenanceTicketPriority>(
-                  value: priority,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Priorität'),
-                  items: <DropdownMenuItem<MaintenanceTicketPriority>>[
-                    for (final p in MaintenanceTicketPriority.values)
-                      DropdownMenuItem(
-                        value: p,
-                        child: Text(maintenanceTicketPriorityLabel(p)),
-                      ),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => priority = value ?? priority),
-                ),
-              ],
-            ),
-          ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      if (!(formKey.currentState?.validate() ?? false)) {
+                        return;
+                      }
+                      Navigator.of(dialogContext).pop(
+                        _TicketFormResult(
+                          title: titleController.text.trim(),
+                          description:
+                              descriptionController.text.trim().isEmpty
+                                  ? null
+                                  : descriptionController.text.trim(),
+                          priority: priority,
+                        ),
+                      );
+                    },
+                    child: const Text('Anlegen'),
+                  ),
+                ],
+              ),
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (!(formKey.currentState?.validate() ?? false)) {
-                return;
-              }
-              Navigator.of(dialogContext).pop(
-                _TicketFormResult(
-                  title: titleController.text.trim(),
-                  description: descriptionController.text.trim().isEmpty
-                      ? null
-                      : descriptionController.text.trim(),
-                  priority: priority,
-                ),
-              );
-            },
-            child: const Text('Anlegen'),
-          ),
-        ],
-      ),
-    ),
   );
 }
 
@@ -570,60 +631,66 @@ Future<_ProjectFormResult?> _showProjectFormDialog(BuildContext context) async {
 
   return showDialog<_ProjectFormResult>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('CapEx-Projekt anlegen'),
-      content: Form(
-        key: formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TextFormField(
-                controller: codeController,
-                decoration: const InputDecoration(labelText: 'Projektcode'),
-                validator: (value) => (value == null || value.trim().isEmpty)
-                    ? 'Pflichtfeld'
-                    : null,
+    builder:
+        (dialogContext) => AlertDialog(
+          title: const Text('CapEx-Projekt anlegen'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextFormField(
+                    controller: codeController,
+                    decoration: const InputDecoration(labelText: 'Projektcode'),
+                    validator:
+                        (value) =>
+                            (value == null || value.trim().isEmpty)
+                                ? 'Pflichtfeld'
+                                : null,
+                  ),
+                  TextFormField(
+                    controller: categoryController,
+                    decoration: const InputDecoration(labelText: 'Kategorie'),
+                  ),
+                  TextFormField(
+                    controller: budgetController,
+                    decoration: const InputDecoration(
+                      labelText: 'Budget (EUR)',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
               ),
-              TextFormField(
-                controller: categoryController,
-                decoration: const InputDecoration(labelText: 'Kategorie'),
-              ),
-              TextFormField(
-                controller: budgetController,
-                decoration: const InputDecoration(labelText: 'Budget (EUR)'),
-                keyboardType: TextInputType.number,
-              ),
-            ],
+            ),
           ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop(
+                  _ProjectFormResult(
+                    projectCode: codeController.text.trim(),
+                    category:
+                        categoryController.text.trim().isEmpty
+                            ? null
+                            : categoryController.text.trim(),
+                    budgetAmount: double.tryParse(
+                      budgetController.text.trim().replaceAll(',', '.'),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Anlegen'),
+            ),
+          ],
         ),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!(formKey.currentState?.validate() ?? false)) {
-              return;
-            }
-            Navigator.of(dialogContext).pop(
-              _ProjectFormResult(
-                projectCode: codeController.text.trim(),
-                category: categoryController.text.trim().isEmpty
-                    ? null
-                    : categoryController.text.trim(),
-                budgetAmount: double.tryParse(
-                  budgetController.text.trim().replaceAll(',', '.'),
-                ),
-              ),
-            );
-          },
-          child: const Text('Anlegen'),
-        ),
-      ],
-    ),
   );
 }
 
@@ -631,25 +698,29 @@ Future<double?> _showAmountDialog(BuildContext context) async {
   final controller = TextEditingController();
   return showDialog<double>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Ist-Betrag (optional)'),
-      content: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Ist-Betrag'),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Überspringen'),
+    builder:
+        (dialogContext) => AlertDialog(
+          title: const Text('Ist-Betrag (optional)'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Ist-Betrag'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Überspringen'),
+            ),
+            FilledButton(
+              onPressed:
+                  () => Navigator.of(dialogContext).pop(
+                    double.tryParse(
+                      controller.text.trim().replaceAll(',', '.'),
+                    ),
+                  ),
+              child: const Text('Übernehmen'),
+            ),
+          ],
         ),
-        FilledButton(
-          onPressed: () => Navigator.of(
-            dialogContext,
-          ).pop(double.tryParse(controller.text.trim().replaceAll(',', '.'))),
-          child: const Text('Übernehmen'),
-        ),
-      ],
-    ),
   );
 }
