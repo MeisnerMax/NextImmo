@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/asset`; heute Property-Detail im Reference Slice
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/domain/property_dto.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY für Stammdaten lesen/bearbeiten; PREREQUISITE REQUIRED — `PROPERTY-DATA-02` (Anlegen/Archivieren/Wiederherstellen), `PROPERTY-MEDIA-DATA-01` (Medien)
+- Technical readiness: READY für Stammdaten lesen/bearbeiten sowie Archivieren/Wiederherstellen (`PROPERTY-DATA-02` gelandet); PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` (Medien)
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), `PROPERTY-CREATE-01` nach `PROPERTY-DATA-02`
@@ -75,7 +75,7 @@ Property Media ist kein versteckter Teil dieses Formulars. Ein zukünftiger Medi
 
 - Voraussetzung: `property.update`; bei bereits geforderter Mutation-Assurance gilt AAL2 unverändert.
 - Formular wird aus einer unveränderlichen Kopie des kanonischen DTOs aufgebaut.
-- `status` ist in V2 read-only; Archive/Restore/Delete werden nicht als Status-Dropdown improvisiert.
+- `status` bleibt im Formular read-only; Archivieren und Wiederherstellen sind **benannte, bestätigte Aktionen** im Property-Kontext-Header, kein Status-Dropdown. Ein Hard-Delete existiert nicht.
 
 ### Speichern
 
@@ -90,9 +90,9 @@ Property Media ist kein versteckter Teil dieses Formulars. Ein zukünftiger Medi
 - ohne Änderungen sofort in Read-Modus.
 - mit Änderungen Bestätigung. „Verwerfen“ setzt exakt auf letzten kanonischen Stand zurück.
 
-### Nicht vorhandene Lifecycle-Aktionen
+### Lifecycle-Aktionen
 
-- Create, Archive, Restore und Delete werden nicht gezeigt und nicht über `update` simuliert. Sie warten auf `PROPERTY-DATA-02`.
+- Archivieren und Wiederherstellen laufen seit `PROPERTY-DATA-02` über den bestehenden auditierten `update`-Contract (DEBT-012-Tombstone) — als benannte Aktion mit Bestätigung, die das Objekt beim Namen nennt und die Wiederherstellbarkeit ausspricht, nie als Status-Dropdown. Anlegen gehört zur Objektliste (`PROPERTY_LIST_V2`). Ein Hard-Delete bleibt ausgeschlossen.
 
 ## 7. Data requirements
 
@@ -100,7 +100,7 @@ Property Media ist kein versteckter Teil dieses Formulars. Ein zukünftiger Medi
 |---|---|---|---|
 | `id`, `workspaceId` | `PropertyDto` | Pflicht / read-only | nie editierbar; IDs standardmäßig nicht als Nutztext |
 | `name` | Property contract | Pflicht / editierbar | getrimmt, Klartext |
-| `status` | Property contract | Pflicht / read-only V2 | `draft`, `active`, `archived` lokalisiert; keine Lifecycle-Aktion |
+| `status` | Property contract | Pflicht / im Formular read-only | `draft`, `active`, `archived` lokalisiert; Wechsel nur über die benannten Lifecycle-Aktionen |
 | `addressLine1` | Property contract | gemäß bestehendem Contract / editierbar | Klartext |
 | `addressLine2` | Property contract | optional / editierbar | leer als „—“ im Read-Modus |
 | `postalCode`, `city`, `country` | Property contract | gemäß bestehendem Contract / editierbar | keine Client-Geocodierung |
@@ -177,7 +177,7 @@ Nicht anwendbar. Der Property-Wechsler gehört zum Host, nicht zu den Stammdaten
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-- `PROPERTY-DATA-02`: Create/Archive/Delete/gegebenenfalls Restore; Schema/RLS/Permission ausdrücklich separat.
+- `PROPERTY-DATA-02`: **gelandet** — `create_property` (Permission `property.create`, admin/manager) plus Archivieren/Wiederherstellen über den bestehenden Tombstone-Pfad. Kein Hard-Delete.
 - `PROPERTY-MEDIA-DATA-01` (Vorschlag): Property-Media/Titelbild mit privatem Storage, Version und Lifecycle.
 - Kein Backend-Gap für `sqft`: Das erste Inkrement zeigt und speichert die Contracteinheit `ft²` unverändert. Eine spätere m²-Migration ist ein separates Datenpaket.
 - kein weiterer Backend-Gap für list/get/update.
@@ -225,7 +225,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 ## 18. Acceptance criteria
 
 - Alle editierbaren Felder stammen aus `PropertyDto`/bestehendem Update-Contract; keine Legacy-Felder werden lokal gespeichert.
-- Status ist read-only; Create/Archive/Restore/Delete sind nicht vorhanden.
+- Status wird nicht frei editiert; Archivieren/Wiederherstellen sind bestätigte Aktionen, ein Hard-Delete existiert nicht.
 - Ein Konflikt verwirft keine Nutzerwerte und überschreibt keinen neueren Serverstand.
 - Read-only- und forbidden-Verhalten entsprechen `property.read`/`property.update` plus Entity-Scope.
 - Realtime überschreibt niemals ein Dirty-Formular.
@@ -252,4 +252,4 @@ Keine für das freigegebene Inkrement. Verbindlich entschieden:
 
 ## 21. Implementation handoff
 
-Rehost des Reference-Slice-Details innerhalb des Workspace-Hosts. Beizubehalten sind Controller-Phasen, Entity-Scope, optimistic version, Mutation-ID, Conflict-Erhalt, AAL2 und Realtime-Readback. Ergänzt werden die bereits im DTO vorhandenen Felder `addressLine2`, `sqft` und `yearBuilt`; `propertyType` und `status` bleiben read-only. Abhängigkeiten: Workspace-Host und gelandete Foundation Shared UI. Erforderlich sind bestehende Reference-Slice-Tests plus neue Dirty-Host-, Gruppen-, Responsive- und negative Permission-E2E-Tests.
+Rehost des Reference-Slice-Details innerhalb des Workspace-Hosts. Beizubehalten sind Controller-Phasen, Entity-Scope, optimistic version, Mutation-ID, Conflict-Erhalt, AAL2 und Realtime-Readback. Ergänzt werden die bereits im DTO vorhandenen Felder `addressLine2`, `sqft` und `yearBuilt`; `propertyType` und `status` bleiben im Formular read-only; der Statuswechsel läuft über die Lifecycle-Aktionen aus `PROPERTY-DATA-02`. Abhängigkeiten: Workspace-Host und gelandete Foundation Shared UI. Erforderlich sind bestehende Reference-Slice-Tests plus neue Dirty-Host-, Gruppen-, Responsive- und negative Permission-E2E-Tests.

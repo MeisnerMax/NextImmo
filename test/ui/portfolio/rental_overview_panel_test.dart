@@ -209,6 +209,14 @@ class _FakeProperties implements PropertyRepository {
   );
 
   @override
+  Future<PropertyRepositoryResult<PropertyDto>> create(
+    PropertyCreateCommand command,
+  ) async => const PropertyRepositoryFailure<PropertyDto>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this screen',
+  );
+
+  @override
   Future<PropertyRepositoryResult<PropertyDto>> update(
     PropertyUpdateCommand command,
   ) async => const PropertyRepositoryFailure<PropertyDto>(

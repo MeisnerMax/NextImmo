@@ -35,22 +35,83 @@ void main() {
       );
     });
 
-    test('increments version exactly once and deduplicates mutation id', () async {
-      final command = _updateCommand(mutationId: 'mutation-1');
+    // PROPERTY-DATA-02: creation is part of the same contract, with the same
+    // idempotency rule and one behaviour of its own -- a new property is a
+    // draft, never active, and never carries a tombstone marker.
+    test(
+      'creates a workspace-scoped draft and deduplicates mutation id',
+      () async {
+        const command = PropertyCreateCommand(
+          context: PropertyCreateContext(
+            workspaceId: 'workspace-a',
+            actorId: 'actor-a',
+            mutationId: 'mutation-create-1',
+            correlationId: 'correlation-create-1',
+          ),
+          draft: PropertyCreateDto(
+            name: 'Neubau',
+            addressLine1: 'Baustelle 1',
+            zip: '10115',
+            city: 'Berlin',
+            country: 'de',
+            propertyType: 'residential',
+            units: 4,
+          ),
+        );
 
-      final first = await repository.update(command);
-      final retry = await repository.update(command);
+        final created = await repository.create(command);
+        final retry = await repository.create(command);
 
-      expect(
-        (first as PropertyRepositorySuccess<PropertyDto>).value.version,
-        2,
-      );
-      expect(
-        (retry as PropertyRepositorySuccess<PropertyDto>).value.version,
-        2,
-      );
-      expect(repository.committedUpdates, 1);
-    });
+        final property =
+            (created as PropertyRepositorySuccess<PropertyDto>).value;
+        expect(property.workspaceId, 'workspace-a');
+        expect(property.status, PropertyStatus.draft);
+        expect(property.version, 1);
+        expect(property.createdBy, 'actor-a');
+        expect(
+          (retry as PropertyRepositorySuccess<PropertyDto>).value.id,
+          property.id,
+          reason: 'a replayed mutation id returns the same property',
+        );
+        expect(repository.committedCreates, 1);
+
+        // The created property is immediately readable in its own workspace and
+        // invisible in another.
+        final readBack = await repository.getById(
+          workspaceId: 'workspace-a',
+          propertyId: property.id,
+        );
+        expect(readBack, isA<PropertyRepositorySuccess<PropertyDto>>());
+        final foreign = await repository.getById(
+          workspaceId: 'workspace-b',
+          propertyId: property.id,
+        );
+        expect(
+          (foreign as PropertyRepositoryFailure<PropertyDto>).kind,
+          PropertyRepositoryFailureKind.notFound,
+        );
+      },
+    );
+
+    test(
+      'increments version exactly once and deduplicates mutation id',
+      () async {
+        final command = _updateCommand(mutationId: 'mutation-1');
+
+        final first = await repository.update(command);
+        final retry = await repository.update(command);
+
+        expect(
+          (first as PropertyRepositorySuccess<PropertyDto>).value.version,
+          2,
+        );
+        expect(
+          (retry as PropertyRepositorySuccess<PropertyDto>).value.version,
+          2,
+        );
+        expect(repository.committedUpdates, 1);
+      },
+    );
 
     test('returns current state for a stale expected version', () async {
       await repository.update(_updateCommand(mutationId: 'mutation-1'));
@@ -122,6 +183,44 @@ class _ContractRepository implements PropertyRepository {
   final Map<String, PropertyDto> _properties;
   final Map<String, PropertyDto> _mutationResults = <String, PropertyDto>{};
   int committedUpdates = 0;
+  int committedCreates = 0;
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> create(
+    PropertyCreateCommand command,
+  ) async {
+    final replayed = _mutationResults[command.context.mutationId];
+    if (replayed != null) {
+      return PropertyRepositorySuccess<PropertyDto>(replayed);
+    }
+    final draft = command.draft;
+    final created = PropertyDto(
+      id: 'created-${_properties.length + 1}',
+      workspaceId: command.context.workspaceId,
+      name: draft.name,
+      addressLine1: draft.addressLine1,
+      addressLine2: draft.addressLine2,
+      zip: draft.zip,
+      city: draft.city,
+      country: draft.country,
+      propertyType: draft.propertyType,
+      units: draft.units,
+      sqft: draft.sqft,
+      yearBuilt: draft.yearBuilt,
+      notes: draft.notes,
+      // The contract fixes this: a new property is a draft, never active.
+      status: PropertyStatus.draft,
+      createdAt: DateTime.utc(2026, 9, 5),
+      updatedAt: DateTime.utc(2026, 9, 5),
+      createdBy: command.context.actorId,
+      updatedBy: command.context.actorId,
+      version: 1,
+    );
+    _properties[created.id] = created;
+    _mutationResults[command.context.mutationId] = created;
+    committedCreates++;
+    return PropertyRepositorySuccess<PropertyDto>(created);
+  }
 
   @override
   Future<PropertyRepositoryResult<PropertyDto>> getById({
@@ -146,7 +245,8 @@ class _ContractRepository implements PropertyRepository {
         .where((property) => property.workspaceId == query.workspaceId)
         .where(
           (property) =>
-              query.includeArchived || property.status != PropertyStatus.archived,
+              query.includeArchived ||
+              property.status != PropertyStatus.archived,
         )
         .take(query.page.limit)
         .toList(growable: false);

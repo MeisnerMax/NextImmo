@@ -7,14 +7,14 @@
 - Route: heutiges Zustandsziel `GlobalPage.properties`; zukünftiges Ziel `/properties`
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_slice_screen.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY für Liste, Keyset und Archivfilter; PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` (serverweite Suche), `PROPERTY-DATA-02` (Lifecycle-Aktionen)
+- Technical readiness: READY für Liste, Keyset, Archivfilter und Anlegen (`PROPERTY-DATA-02` gelandet); PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` (serverweite Suche)
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
-- Dependencies: `UX-FOUNDATION-IMPL-01`; [Property Workspace V2](PROPERTY_WORKSPACE_V2.md); `PROPERTY-DATA-02` nur für spätere Lifecycle-Aktionen
+- Dependencies: `UX-FOUNDATION-IMPL-01`; [Property Workspace V2](PROPERTY_WORKSPACE_V2.md); `PROPERTY-DATA-02` (gelandet) für das Anlegen
 - Related screens: [Property Asset V2](PROPERTY_ASSET_V2.md), [Property Overview V2](PROPERTY_OVERVIEW_V2.md), später `PROPERTY-CREATE-01`
 
 ## 1. Purpose
 
-Die Objektliste ist das belastbare Portfolio-Inventar und der einzige primäre Einstieg in einen Property Workspace. Nutzer finden ein lesbares Property, erkennen Identität und Status und öffnen es. Die Liste ist kein Portfolio-Performance-Dashboard und bietet ohne Backend-Contract weder Create noch Archive/Delete.
+Die Objektliste ist das belastbare Portfolio-Inventar und der einzige primäre Einstieg in einen Property Workspace. Nutzer finden ein lesbares Property, erkennen Identität und Status und öffnen es; mit `property.create` legen sie hier ein neues Objekt als Entwurf an. Die Liste ist kein Portfolio-Performance-Dashboard; Archivieren/Wiederherstellen gehören in den Objektkontext, einen Hard-Delete gibt es nicht.
 
 ## 2. Primary users and jobs
 
@@ -52,7 +52,7 @@ Keine Unit-/Rent-/NOI-/Vacancy-KPI wird pro Zeile aus weiteren Queries synthetis
 - `includeArchived` nur als expliziter Filter; archived Zustand ist read-only.
 - Property öffnen nach `PropertyRepository.getById`/Host-Flow; Listenselektion allein ist nicht kanonischer Detailread.
 - Retry/Refresh liest kanonisch; Realtime invalidiert.
-- Create/Archive/Delete werden nicht angezeigt. Edit erfolgt innerhalb Property Asset.
+- `Objekt anlegen` ist die eine Primäraktion der Seite (`property.create` + AAL2; ohne Berechtigung sichtbar deaktiviert mit erklärendem Tooltip). Das neue Objekt entsteht als Entwurf und wird direkt geöffnet. Archivieren/Wiederherstellen gehören zum Objektkontext, Bearbeiten zu Property Asset. Ein Hard-Delete existiert nicht.
 - Im freigegebenen ersten Inkrement gibt es keine Textsuche. Eine spätere Loaded-set-Suche müsste ausdrücklich `Geladene Ergebnisse filtern` heißen; eine echte Suche benötigt einen neuen Servercontract.
 
 ## 7. Data requirements
@@ -72,7 +72,7 @@ Keine Domain-Fanout-Reads pro Zeile.
 
 - `property.read`; RLS/Entity-Scope bestimmt sichtbare Zeilen.
 - Nutzer ohne Read erhält Forbidden, nicht leere Liste.
-- Create/Archive/Delete-Permissions werden nicht erfunden.
+- Es werden keine Permissions erfunden: `property.create` ist serverseitig katalogisiert und nur an `admin`/`manager` vergeben.
 - Permission-Revoke entfernt Liste/Selektion; Clientfilter ersetzt keine Serverautorität.
 
 ## 9. Realtime / freshness behavior
@@ -85,7 +85,7 @@ Keine Domain-Fanout-Reads pro Zeile.
 
 - initial loading über `NxListSkeleton`
 - background refresh mit sichtbarer Liste
-- empty workspace mit neutralem Text; Create-CTA nur später nach `PROPERTY-DATA-02`
+- empty workspace mit neutralem Text und Create-CTA, sobald die Berechtigung vorliegt
 - ready/paginated/load-more progress/load-more error
 - no-match mit Filterreset
 - forbidden/fatal/recoverable/realtime degraded/session transition
@@ -100,7 +100,7 @@ Keine Domain-Fanout-Reads pro Zeile.
 
 ## 12. Forms and validation
 
-Kein Property-Formular. Filter validieren lediglich zulässige Enums/Textlänge. Create-Wizard separat und blockiert.
+Das einzige Formular ist der Anlegen-Dialog auf genau den Contractfeldern (`PROPERTY-DATA-02`): lokale Validierung spiegelt die Servergrenzen, eine Serverablehnung markiert das benannte Feld und behält alle Eingaben. Filter validieren lediglich zulässige Enums/Textlänge.
 
 ## 13. Shared components
 
@@ -118,7 +118,7 @@ Kein Property-Formular. Filter validieren lediglich zulässige Enums/Textlänge.
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-- `PROPERTY-DATA-02` für Create/Archive/Delete.
+- `PROPERTY-DATA-02` ist **gelandet** (Anlegen serverseitig, Archivieren/Wiederherstellen über den Tombstone-Pfad); ein Hard-Delete bleibt bewusst ausgeschlossen.
 - vollständige serverseitige Property-Suche nach Name/Adresse/PLZ/Ort, falls als Produktfunktion gewünscht; separates Property-Query-Inkrement mit RLS/Indexprüfung.
 - Portfolio-KPIs gehören zu `P2-D09`, nicht in diese Liste.
 
@@ -132,7 +132,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 ## 16. Analytics / audit / history
 
 - Navigationstelemetrie ohne Propertyname/Adresse; reines Lesen erzeugt kein Fachaudit.
-- keine Mutationen auf diesem Screen.
+- Anlegen ist die eine Mutation dieses Screens; sie läuft über den auditierten `create_property`-RPC. Lesen erzeugt weiterhin kein Fachaudit.
 
 ## 17. Test plan
 
@@ -148,7 +148,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 ### Staging E2E
 - Liste → Property → Back erhält Filter/Scroll/Fokus.
 - mehrere Pages ohne Duplikate; Live-Update koalesziert.
-- Read-revoked Nutzer verliert Liste; keine Create/Archive/Delete-Aktion.
+- Read-revoked Nutzer verliert die Liste; ohne `property.create` ist die Anlegen-Aktion deaktiviert, nie heimlich ausführbar.
 - Mobile Karten öffnen korrekt.
 
 ## 18. Acceptance criteria
@@ -157,7 +157,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 - Suche behauptet nie mehr als den geladenen Scope, solange Serversearch fehlt.
 - Empty, no-match und forbidden sind getrennt.
 - Back stellt Filter/Scroll/Fokus wieder her.
-- Create/Archive/Delete sind ohne `PROPERTY-DATA-02` nicht vorhanden.
+- Anlegen erscheint nur mit `property.create` und AAL2; ein Hard-Delete existiert nicht.
 - Realtime ist Invalidation-only; Keyset bleibt stabil.
 
 ## 19. Non-Goals (REJECTED) und fremde Zuständigkeit

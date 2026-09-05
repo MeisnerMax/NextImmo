@@ -84,6 +84,7 @@ class ReferenceSliceState {
     this.liveUpdatesDegraded = false,
     this.includeArchived = false,
     this.loadMoreFailureMessage,
+    this.validationField,
   });
 
   const ReferenceSliceState.loading()
@@ -140,6 +141,11 @@ class ReferenceSliceState {
   /// exception: revoked read access clears the list fail-closed instead.
   final String? loadMoreFailureMessage;
 
+  /// The contract field a server-side validation failure named, when it named
+  /// one. Lets a form point at the rejected input instead of only reporting at
+  /// form level; null unless the last mutation failed validation.
+  final String? validationField;
+
   WorkspaceAccess? get selectedWorkspace {
     final selectedId = selectedWorkspaceId;
     if (selectedId == null) {
@@ -177,6 +183,7 @@ class ReferenceSliceState {
     bool? liveUpdatesDegraded,
     bool? includeArchived,
     Object? loadMoreFailureMessage = _unchanged,
+    Object? validationField = _unchanged,
   }) {
     return ReferenceSliceState(
       authPhase: authPhase ?? this.authPhase,
@@ -230,6 +237,10 @@ class ReferenceSliceState {
           identical(loadMoreFailureMessage, _unchanged)
               ? this.loadMoreFailureMessage
               : loadMoreFailureMessage as String?,
+      validationField:
+          identical(validationField, _unchanged)
+              ? this.validationField
+              : validationField as String?,
     );
   }
 }
@@ -254,6 +265,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
        super(const ReferenceSliceState.loading());
 
   static const propertyReadPermission = 'property.read';
+  static const propertyCreatePermission = 'property.create';
   static const propertyUpdatePermission = 'property.update';
 
   final IdentityAccessRepository _identityRepository;
@@ -268,6 +280,12 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   StreamSubscription<EntitlementInvalidation>? _entitlementSubscription;
   Timer? _entitlementRevalidationTimer;
   PropertyUpdateCommand? _retryCommand;
+
+  /// Mutation/correlation ids per creation attempt, so a resubmit of the same
+  /// attempt reaches the server's idempotency instead of creating a duplicate.
+  /// Cleared on scope changes together with the rest of the workspace state.
+  final Map<String, ({String mutationId, String correlationId})>
+  _createAttempts = <String, ({String mutationId, String correlationId})>{};
   String? _handledSessionKey;
   int _scopeGeneration = 0;
   int _detailGeneration = 0;
@@ -667,6 +685,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     await _stopPropertyInvalidations();
     final generation = ++_scopeGeneration;
     _retryCommand = null;
+    _createAttempts.clear();
     state = state.copyWith(
       workspacePhase: WorkspacePhase.selected,
       selectedWorkspaceId: workspaceId,
@@ -851,6 +870,192 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
           message: result.message,
         );
     }
+  }
+
+  /// Opens a new property (PROPERTY-DATA-02) and makes it the selected one.
+  ///
+  /// The created record is canonical: the server returns it, so no local
+  /// shadow row is invented. On success the property context is ready for the
+  /// new draft and the list carries it without a second read; every failure
+  /// leaves the current selection untouched so the caller can keep the form
+  /// open with the user input intact.
+  ///
+  /// [attemptId] makes the server-side idempotency reachable from the UI. A
+  /// resubmit of the *same* draft after a lost or failed response must reuse
+  /// the previous attempt id, so `create_property` replays the property it
+  /// already committed instead of opening a second one. Callers that mean a
+  /// genuinely new property pass a new id (or none).
+  Future<void> createProperty(
+    PropertyCreateDto draft, {
+    String? reason,
+    String? attemptId,
+  }) async {
+    final access = state.selectedWorkspace;
+    final userId = state.userId;
+    if (access == null ||
+        userId == null ||
+        state.assuranceLevel != AuthenticationAssuranceLevel.aal2 ||
+        !access.allows(propertyCreatePermission)) {
+      state = state.copyWith(
+        mutationPhase: PropertyMutationPhase.forbidden,
+        failureKind: PropertyRepositoryFailureKind.forbidden,
+        versionConflict: null,
+        message: 'Creating properties is not permitted.',
+      );
+      return;
+    }
+
+    final generation = ++_mutationGeneration;
+    final workspaceId = access.workspace.id;
+    state = state.copyWith(
+      mutationPhase: PropertyMutationPhase.submitting,
+      failureKind: null,
+      versionConflict: null,
+      message: null,
+      validationField: null,
+    );
+
+    // A retry of the same attempt must carry the same mutation id, or the
+    // server's replay branch can never fire and a lost response would open a
+    // second property. Ids are minted once per attempt and remembered; a
+    // caller without an attempt id cannot retry, so nothing is remembered for
+    // it and no id is spent on bookkeeping.
+    final ids =
+        attemptId == null
+            ? (mutationId: _idFactory(), correlationId: _idFactory())
+            : _createAttempts.putIfAbsent(
+              attemptId,
+              () => (mutationId: _idFactory(), correlationId: _idFactory()),
+            );
+
+    final result = await _propertyRepository.create(
+      PropertyCreateCommand(
+        context: PropertyCreateContext(
+          workspaceId: workspaceId,
+          actorId: userId,
+          mutationId: ids.mutationId,
+          correlationId: ids.correlationId,
+          reason: reason,
+        ),
+        draft: draft,
+      ),
+    );
+    if (generation != _mutationGeneration ||
+        workspaceId != state.selectedWorkspaceId ||
+        userId != state.userId) {
+      return;
+    }
+
+    switch (result) {
+      case PropertyRepositorySuccess<PropertyDto>():
+        final created = result.value;
+        // The new row belongs at its keyset position (`id ASC`), so it is
+        // inserted in order rather than appended: the list stays a faithful
+        // view of the contract ordering without a full reload.
+        // A list that never loaded (error, forbidden, idle) is not a list the
+        // new row may join: showing it as the single entry would present an
+        // unloaded workspace as a complete one. The property is still selected
+        // and the workspace opens on it; the list keeps its own state and its
+        // retry.
+        final listLoaded = switch (state.propertyListPhase) {
+          PropertyListPhase.error ||
+          PropertyListPhase.forbidden ||
+          PropertyListPhase.idle => false,
+          _ => true,
+        };
+        final summaries = List<PropertySummaryDto>.of(state.properties)
+          ..removeWhere((property) => property.id == created.id);
+        final insertAt = summaries.indexWhere(
+          (property) => property.id.compareTo(created.id) > 0,
+        );
+        final summary = PropertySummaryDto.fromProperty(created);
+        // A draft is only listed here when the loaded page range still covers
+        // its position: appending past the last loaded page would claim a row
+        // the user has not paged to yet.
+        final withinLoadedRange =
+            listLoaded && (insertAt >= 0 || state.nextCursor == null);
+        if (withinLoadedRange) {
+          summaries.insert(
+            insertAt >= 0 ? insertAt : summaries.length,
+            summary,
+          );
+        }
+        _detailGeneration++;
+        // The attempt landed: its ids must not be replayed by a later,
+        // genuinely new creation.
+        if (attemptId != null) {
+          _createAttempts.remove(attemptId);
+        }
+        state = state.copyWith(
+          properties: List<PropertySummaryDto>.unmodifiable(summaries),
+          // A creation says nothing about whether the *list* loaded. A list
+          // parked in error or forbidden keeps that phase -- claiming `ready`
+          // would present a never-loaded workspace as complete and swallow the
+          // retry. Only a genuinely loaded list moves, and it only becomes
+          // `empty` when no further page exists.
+          propertyListPhase: switch (state.propertyListPhase) {
+            PropertyListPhase.error ||
+            PropertyListPhase.forbidden ||
+            PropertyListPhase.idle => state.propertyListPhase,
+            _ =>
+              summaries.isEmpty && state.nextCursor == null
+                  ? PropertyListPhase.empty
+                  : PropertyListPhase.ready,
+          },
+          propertyDetailPhase: PropertyDetailPhase.ready,
+          selectedProperty: created,
+          mutationPhase: PropertyMutationPhase.succeeded,
+        );
+      case PropertyRepositoryFailure<PropertyDto>():
+        state = state.copyWith(
+          mutationPhase:
+              result.kind == PropertyRepositoryFailureKind.forbidden
+                  ? PropertyMutationPhase.forbidden
+                  : PropertyMutationPhase.failed,
+          failureKind: result.kind,
+          versionConflict: null,
+          message: result.message,
+          validationField: result.field,
+        );
+    }
+  }
+
+  /// Archives the selected property (DEBT-012 tombstone) or restores it.
+  ///
+  /// Deliberately not a status dropdown: archiving is a named, confirmed
+  /// action that rides the existing audited `update` contract with the full
+  /// record, so optimistic version, idempotency and the canonical readback all
+  /// behave exactly as for a field edit.
+  Future<void> setSelectedPropertyArchived({
+    required bool archived,
+    String? reason,
+  }) async {
+    final property = state.selectedProperty;
+    if (property == null) {
+      return;
+    }
+    final target = archived ? PropertyStatus.archived : PropertyStatus.active;
+    if (property.status == target) {
+      return;
+    }
+    await updateSelectedProperty(
+      PropertyUpdateDto(
+        name: property.name,
+        addressLine1: property.addressLine1,
+        addressLine2: property.addressLine2,
+        zip: property.zip,
+        city: property.city,
+        country: property.country,
+        propertyType: property.propertyType,
+        units: property.units,
+        sqft: property.sqft,
+        yearBuilt: property.yearBuilt,
+        notes: property.notes,
+        status: target,
+      ),
+      reason: reason,
+      expectedVersion: property.version,
+    );
   }
 
   /// [expectedVersion] is the version the caller's edits are based on — the
@@ -1094,6 +1299,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
   }) async {
     await _stopPropertyInvalidations();
     final generation = ++_scopeGeneration;
+    _createAttempts.clear();
     state = state.copyWith(
       workspacePhase: WorkspacePhase.loading,
       propertyListPhase: PropertyListPhase.idle,

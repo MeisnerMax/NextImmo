@@ -108,3 +108,37 @@ class PropertyUpdateDto {
   final String? notes;
   final PropertyStatus status;
 }
+
+/// The fields a new property carries (PROPERTY-DATA-02).
+///
+/// Deliberately smaller than [PropertyUpdateDto]: `status` is not settable —
+/// a created property always starts as [PropertyStatus.draft], and promoting
+/// it is an explicit, audited update. `version`, ids and actor metadata are
+/// server-owned.
+class PropertyCreateDto {
+  const PropertyCreateDto({
+    required this.name,
+    required this.addressLine1,
+    this.addressLine2,
+    required this.zip,
+    required this.city,
+    required this.country,
+    required this.propertyType,
+    this.units = 0,
+    this.sqft,
+    this.yearBuilt,
+    this.notes,
+  });
+
+  final String name;
+  final String addressLine1;
+  final String? addressLine2;
+  final String zip;
+  final String city;
+  final String country;
+  final String propertyType;
+  final int units;
+  final double? sqft;
+  final int? yearBuilt;
+  final String? notes;
+}

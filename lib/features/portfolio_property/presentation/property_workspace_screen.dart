@@ -14,10 +14,12 @@ import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
+import '../application/property_repository.dart';
 import '../application/property_workspace_host_state.dart';
 import '../domain/property_dto.dart';
 import 'property_asset_panel.dart';
 import 'property_context_header.dart';
+import 'property_create_dialog.dart';
 import 'property_list_view.dart';
 import 'property_workspace_nav.dart';
 
@@ -82,6 +84,38 @@ class _PropertyWorkspaceScreenState
             PropertyMutationPhase.succeeded;
       },
       onRetryUpdate: controller.retryUpdate,
+      // PROPERTY-DATA-02. Both verbs read their outcome from the settled
+      // provider state after the await, never from a widget snapshot that the
+      // consumer rebuild has not delivered yet.
+      canCreateProperty:
+          state.assuranceLevel == AuthenticationAssuranceLevel.aal2 &&
+          (state.selectedWorkspace?.allows(
+                ReferenceSliceController.propertyCreatePermission,
+              ) ??
+              false),
+      onCreateProperty: (draft, {reason, attemptId}) async {
+        await controller.createProperty(
+          draft,
+          reason: reason,
+          attemptId: attemptId,
+        );
+        final next = ref.read(referenceSliceControllerProvider);
+        if (next.mutationPhase == PropertyMutationPhase.succeeded) {
+          return null;
+        }
+        return next.failureKind ==
+                PropertyRepositoryFailureKind.validationFailed
+            ? (next.validationField ?? '')
+            : '';
+      },
+      onSetArchived: (archived, {reason}) async {
+        await controller.setSelectedPropertyArchived(
+          archived: archived,
+          reason: reason,
+        );
+        return ref.read(referenceSliceControllerProvider).mutationPhase ==
+            PropertyMutationPhase.succeeded;
+      },
       // TASK-CENTER-01: `Betrieb → Aufgaben` binds the one task surface with
       // the property preset. Injected here so the view stays pumpable
       // without a provider graph.
@@ -132,6 +166,16 @@ class _PropertyWorkspaceScreenState
   }
 }
 
+/// Persists a new property (PROPERTY-DATA-02). Resolves null on success, the
+/// server-named field of a rejected value, or an empty string for a
+/// form-level failure — the dialog stays open on failure so input survives.
+typedef PropertyCreateSubmitCallback =
+    Future<String?> Function(
+      PropertyCreateDto draft, {
+      String? reason,
+      String? attemptId,
+    });
+
 /// Persists the master-data form; true once the canonical readback landed.
 typedef PropertyWorkspaceUpdate =
     Future<bool> Function(PropertyUpdateDto changes, {int? expectedVersion});
@@ -161,6 +205,9 @@ class PropertyWorkspaceView extends StatefulWidget {
     required this.onRefreshWorkspaces,
     required this.onUpdateProperty,
     required this.onRetryUpdate,
+    this.canCreateProperty = false,
+    this.onCreateProperty,
+    this.onSetArchived,
     this.operationsTasksBuilder,
     this.documentsBuilder,
     this.initialPropertyId,
@@ -184,6 +231,18 @@ class PropertyWorkspaceView extends StatefulWidget {
   final Future<void> Function() onRefreshWorkspaces;
   final PropertyWorkspaceUpdate onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
+
+  /// `property.create` on the membership plus an AAL2 session. Without it the
+  /// action stays visible but disabled with a tooltip naming what it needs.
+  final bool canCreateProperty;
+
+  /// Persists a new property; see [PropertyCreateSubmitCallback].
+  final PropertyCreateSubmitCallback? onCreateProperty;
+
+  /// Archives the open property or restores it over the audited update
+  /// contract (DEBT-012 tombstone). Resolves true once the canonical readback
+  /// landed.
+  final Future<bool> Function(bool archived, {String? reason})? onSetArchived;
 
   /// Builds the embedded task surface of `Betrieb → Aufgaben`. Injected by
   /// the connected screen; a host pumped without it renders a plain
@@ -209,6 +268,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
   String? _lastOpenAttemptId;
   bool _assetEditing = false;
   bool _leaveDialogOpen = false;
+  bool _archiving = false;
 
   /// Exposed for tests: the serializable host state as of the last build.
   @visibleForTesting
@@ -310,6 +370,155 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       _listScrollController?.dispose();
       _listScrollController = null;
     });
+  }
+
+  /// The permitted property-level lifecycle actions for the open property.
+  ///
+  /// Exactly one of archive/restore is offered, decided by the current status,
+  /// and only while the master data is not being edited — a half-finished form
+  /// must not compete with a status change. There is no delete: the tombstone
+  /// is the whole lifecycle (DEBT-012).
+  List<Widget> _lifecycleActions({
+    required bool detailReady,
+    required bool canEdit,
+    required PropertyDto? property,
+  }) {
+    if (!detailReady ||
+        property == null ||
+        _assetEditing ||
+        widget.onSetArchived == null ||
+        _hostState.domain != PropertyWorkspaceDomain.asset) {
+      return const <Widget>[];
+    }
+    final archived = property.status == PropertyStatus.archived;
+    return <Widget>[
+      Tooltip(
+        message:
+            canEdit
+                ? (archived
+                    ? 'Objekt wieder aktiv setzen'
+                    : 'Objekt archivieren; es bleibt wiederherstellbar')
+                : 'Benötigt die Berechtigung (property.update) und eine '
+                    'MFA-bestätigte Sitzung (AAL2).',
+        child: OutlinedButton.icon(
+          key: Key(
+            archived
+                ? 'property-workspace-restore'
+                : 'property-workspace-archive',
+          ),
+          onPressed:
+              canEdit && !_archiving ? () => _setArchived(!archived) : null,
+          icon:
+              _archiving
+                  ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : Icon(
+                    archived
+                        ? Icons.unarchive_outlined
+                        : Icons.inventory_2_outlined,
+                  ),
+          label: Text(archived ? 'Wiederherstellen' : 'Archivieren'),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _openCreateDialog() async {
+    final submit = widget.onCreateProperty;
+    if (submit == null) {
+      return;
+    }
+    await PropertyCreateDialog.show(
+      context,
+      onSubmit:
+          (request) => submit(
+            request.draft,
+            reason: request.reason,
+            attemptId: request.attemptId,
+          ),
+    );
+    if (!mounted) {
+      return;
+    }
+    // A successful creation makes the new draft the selected property, so the
+    // host follows it into the workspace instead of leaving the user on the
+    // list wondering where the object went.
+    final created = widget.state.selectedProperty;
+    if (created != null &&
+        widget.state.propertyDetailPhase == PropertyDetailPhase.ready &&
+        widget.state.mutationPhase == PropertyMutationPhase.succeeded &&
+        !_hostState.isPropertyOpen) {
+      setState(() {
+        _hostState = _hostState.copyWith(
+          openPropertyId: created.id,
+          domain: PropertyWorkspaceDomain.asset,
+          list: _hostState.list.copyWith(focusedPropertyId: created.id),
+        );
+        _listScrollController?.dispose();
+        _listScrollController = null;
+      });
+    }
+  }
+
+  /// Archive and restore are named, confirmed actions rather than a status
+  /// dropdown: the dialog names the object and states the consequence in one
+  /// sentence (Foundation §14). Archiving is the restorable tombstone, never a
+  /// deletion.
+  Future<void> _setArchived(bool archived) async {
+    final handler = widget.onSetArchived;
+    final property = widget.state.selectedProperty;
+    if (handler == null || property == null || _archiving) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            key: const Key('property-archive-dialog'),
+            title: Text(
+              archived ? 'Objekt archivieren?' : 'Objekt wiederherstellen?',
+            ),
+            content: Text(
+              archived
+                  ? 'Das Objekt ${property.name} wird archiviert. Alle Daten '
+                      'bleiben erhalten, das Objekt verschwindet aber aus der '
+                      'aktiven Objektliste und lässt sich jederzeit '
+                      'wiederherstellen.'
+                  : 'Das Objekt ${property.name} wird wieder aktiv und '
+                      'erscheint erneut in der aktiven Objektliste.',
+            ),
+            actions: [
+              TextButton(
+                key: const Key('property-archive-cancel'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                key: const Key('property-archive-confirm'),
+                style:
+                    archived
+                        ? FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onError,
+                        )
+                        : null,
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(archived ? 'Archivieren' : 'Wiederherstellen'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _archiving = true);
+    await handler(archived);
+    if (mounted) {
+      setState(() => _archiving = false);
+    }
   }
 
   Future<void> _backToList() async {
@@ -432,6 +641,10 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       onReload: widget.onReload,
       onSetIncludeArchived: widget.onSetIncludeArchived,
       onRefreshWorkspaces: widget.onRefreshWorkspaces,
+      onCreateProperty:
+          widget.canCreateProperty && widget.onCreateProperty != null
+              ? _openCreateDialog
+              : null,
       onRetryOpen:
           _lastOpenAttemptId == null
               ? null
@@ -493,6 +706,11 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
                 'Objekt',
             onBackToList: _backToList,
             primaryAction: editAction,
+            secondaryActions: _lifecycleActions(
+              detailReady: detailReady,
+              canEdit: canEdit,
+              property: selected,
+            ),
           ),
           if (state.liveUpdatesDegraded) ...[
             const SizedBox(height: AppSpacing.component),

@@ -12,11 +12,13 @@ create extension if not exists pgtap with schema extensions;
 -- the pgTAP suites build their own catalogs per file and an automatic insert
 -- on workspace creation would collide with every one of them.
 --
+-- PROPERTY-DATA-02 added `property.create` (catalog + admin/manager bundle).
+--
 -- This file uses ONLY the seeded catalog (no fixture-owned permission rows),
 -- which is itself part of the proof: the seed is complete enough to run the
 -- real task/notification/search surface for non-admins.
 
-select plan(36);
+select plan(37);
 
 -- ---------------------------------------------------------------------------
 -- Mechanism
@@ -71,12 +73,12 @@ select lives_ok(
 
 select is(
   (select count(*)::integer from public.permissions),
-  29,
-  'the catalog carries exactly the 29 canonical keys'
+  30,
+  'the catalog carries exactly the 30 canonical keys'
 );
 select is(
   (select string_agg(permission.key, ',' order by permission.key) from public.permissions as permission),
-  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,notification.manage,notification.read,party.manage,party.read,property.read,property.update,reporting.generate,search.read,search.reindex,security.manage,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
+  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,notification.manage,notification.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,search.reindex,security.manage,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
   'the catalog keys match the client parity list key for key'
 );
 
@@ -116,7 +118,7 @@ select is(
 );
 select is(
   pg_temp.bundle_of('manager'),
-  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,party.manage,party.read,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
+  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
   'manager: everything operative, no security/notification/reindex administration'
 );
 select is(
@@ -143,9 +145,24 @@ select is(
    join public.permissions as permission on permission.id = role_permission.permission_id
    where role.workspace_id = 'f1000000-0000-0000-0000-000000000001'
      and role.key <> 'admin'
-     and permission.key in ('security.manage', 'notification.manage', 'notification.read', 'search.reindex')),
+     and role.key <> 'manager'
+     and permission.key in ('security.manage', 'notification.manage', 'notification.read', 'search.reindex', 'property.create')),
   0,
-  'security.manage, notification.* and search.reindex stay admin-only'
+  'security.manage, notification.*, search.reindex stay admin-only; property.create reaches manager at most'
+);
+
+-- PROPERTY-DATA-02: opening a new asset is a portfolio decision, so it stops
+-- at manager. Analyst and operations keep property.update for existing assets.
+select is(
+  (select count(*)::integer
+   from public.role_permissions as role_permission
+   join public.roles as role on role.id = role_permission.role_id
+   join public.permissions as permission on permission.id = role_permission.permission_id
+   where role.workspace_id = 'f1000000-0000-0000-0000-000000000001'
+     and role.key in ('analyst', 'operations', 'viewer')
+     and permission.key = 'property.create'),
+  0,
+  'property.create never reaches analyst, operations or viewer'
 );
 
 -- ---------------------------------------------------------------------------
