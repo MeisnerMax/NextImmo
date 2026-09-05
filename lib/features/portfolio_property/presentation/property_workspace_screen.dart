@@ -21,6 +21,7 @@ import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
 import '../../platform_audit_jobs/application/audit_read_port.dart';
 import '../../platform_audit_jobs/application/platform_providers.dart';
+import '../../platform_audit_jobs/presentation/property_activity_panel.dart';
 import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
@@ -244,6 +245,13 @@ class _PropertyWorkspaceScreenState
       // the audit log the whole system has been writing since P1-002.
       activityBuilder:
           (context, propertyId, subArea) => switch (subArea) {
+            // PROPERTY-ACTIVITY-01: the readable chronicle. Listed first
+            // because it is the one a manager opens; the trail is the
+            // follow-up question.
+            PropertyActivitySubArea.activity => PropertyActivityPanel(
+              key: ValueKey<String>('property-activity-panel-$propertyId'),
+              propertyId: propertyId,
+            ),
             PropertyActivitySubArea.audit => PropertyAuditPanel(
               key: ValueKey<String>('property-audit-$propertyId'),
               propertyId: propertyId,
@@ -1401,8 +1409,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
   }
 
   /// `Aktivität` (`PROPERTY_ACTIVITY_REPORTS_V2.md`): what happened to this
-  /// property. Today exactly one child — the audit trail — which still gets
-  /// its chip so the active level stays unambiguous.
+  /// property. Two children with different gates — the readable chronicle on
+  /// `property.read`, the forensic trail on `audit.read` — so a membership
+  /// that may read the property but not the audit log still gets a history.
   Widget _buildActivityDomain(BuildContext context, ReferenceSliceState state) {
     final propertyId = _hostState.openPropertyId!;
     final subAreas = _visibleActivitySubAreas(state);
@@ -1411,7 +1420,8 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         key: Key('property-activity-forbidden'),
         title: 'Kein Zugriff auf die Aktivität',
         description:
-            'Der Aktivitätsbereich benötigt die Berechtigung (audit.read).',
+            'Der Aktivitätsbereich benötigt die Berechtigung (property.read) '
+            'für dieses Objekt.',
         icon: Icons.lock_outline,
       );
     }

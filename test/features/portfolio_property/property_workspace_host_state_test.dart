@@ -52,12 +52,15 @@ void main() {
       expect(investment.domain, PropertyWorkspaceDomain.investment);
       expect(investment.label, 'Investment');
       expect(investment.readPermission, 'valuation.read');
-      // Aktivität: gated by the read permission of its one implemented child,
-      // the audit trail (AUDIT-01).
+      // Aktivität: two children with different gates. Since
+      // PROPERTY-ACTIVITY-01 the readable chronicle needs only property.read,
+      // so the domain opens on that; the forensic trail still hides itself
+      // behind audit.read inside it.
       final activity = registeredPropertyWorkspaceDomains.last;
       expect(activity.domain, PropertyWorkspaceDomain.activity);
       expect(activity.label, 'Aktivität');
-      expect(activity.readPermission, 'audit.read');
+      expect(activity.readPermission, 'property.read');
+      expect(activity.readPermissions, <String>['property.read', 'audit.read']);
       // The registry now covers the binding IA, in its order.
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
@@ -73,6 +76,8 @@ void main() {
         <PropertyWorkspaceDomain>[
           PropertyWorkspaceDomain.overview,
           PropertyWorkspaceDomain.asset,
+          // The chronicle rides on property.read alone.
+          PropertyWorkspaceDomain.activity,
         ],
       );
       expect(
@@ -84,6 +89,7 @@ void main() {
           PropertyWorkspaceDomain.overview,
           PropertyWorkspaceDomain.asset,
           PropertyWorkspaceDomain.leasing,
+          PropertyWorkspaceDomain.activity,
         ],
       );
       expect(

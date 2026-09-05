@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/audit_read_port.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/property_activity_dto.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/domain/audit_event_dto.dart';
@@ -249,4 +250,9 @@ class _FakePort implements AuditReadPort {
     }
     return PlatformRepositorySuccess<AuditEventPage>(page);
   }
+
+  @override
+  Future<PlatformRepositoryResult<PropertyActivityPage>> propertyActivity(
+    PropertyActivityQuery query,
+  ) async => throw UnsupportedError('not used by this test');
 }

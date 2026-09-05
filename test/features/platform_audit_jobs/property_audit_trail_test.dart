@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/audit_read_port.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/property_activity_dto.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/property_audit_controller.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
@@ -406,6 +407,11 @@ class _FakePort implements AuditReadPort {
     queries.add(query);
     return result;
   }
+
+  @override
+  Future<PlatformRepositoryResult<PropertyActivityPage>> propertyActivity(
+    PropertyActivityQuery query,
+  ) async => throw UnsupportedError('not used by this test');
 }
 
 class _FakeGateway implements PlatformSupabaseGateway {
