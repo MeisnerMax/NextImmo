@@ -58,6 +58,9 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   final leasingCases = SupabaseLeasingCaseRepositoryAdapter(client: client);
   final leasingRentRoll = SupabaseRentRollAdapter(client: client);
   final leasingSignals = SupabaseOperationsSignalsAdapter(client: client);
+  final leasingSummary = SupabasePropertyLeasingSummaryAdapter(
+    client: client,
+  );
   final maintenanceTickets = SupabaseMaintenanceTicketRepositoryAdapter(
     client: client,
   );
@@ -107,6 +110,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     leasing.leasingCaseRepositoryProvider.overrideWithValue(leasingCases),
     leasing.leasingCaseSearchProvider.overrideWithValue(leasingCases),
     leasing.rentRollProvider.overrideWithValue(leasingRentRoll),
+    leasing.propertyLeasingSummaryProvider.overrideWithValue(leasingSummary),
     leasing.operationsSignalsProvider.overrideWithValue(leasingSignals),
     leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
       SupabaseLeasingQueryInvalidationAdapter(client: client),

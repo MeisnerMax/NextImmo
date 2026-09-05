@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/app.dart';
 import 'package:neximmo_app/core/config/app_environment.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/leasing_operations/application/leasing_providers.dart';
+import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/leasing_summary_dto.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_query_invalidation_source.dart';
 import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
@@ -45,6 +48,9 @@ void main() {
             _SilentInvalidationSource(),
           ),
           propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
+          propertyLeasingSummaryProvider.overrideWithValue(
+            _RefusingLeasingSummary(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -79,6 +85,9 @@ void main() {
             _SilentInvalidationSource(),
           ),
           propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
+          propertyLeasingSummaryProvider.overrideWithValue(
+            _RefusingLeasingSummary(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -128,6 +137,9 @@ void main() {
             _SilentInvalidationSource(),
           ),
           propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
+          propertyLeasingSummaryProvider.overrideWithValue(
+            _RefusingLeasingSummary(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -182,6 +194,9 @@ void main() {
           // The Objekt surface carries the media gallery
           // (PROPERTY-MEDIA-DATA-01); the port fails closed when unconfigured.
           propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
+          propertyLeasingSummaryProvider.overrideWithValue(
+            _RefusingLeasingSummary(),
+          ),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -424,6 +439,21 @@ class _SilentInvalidationSource implements PlatformQueryInvalidationSource {
   Stream<PlatformQueryInvalidation> watchWorkspace({
     required String workspaceId,
   }) => const Stream<PlatformQueryInvalidation>.empty();
+}
+
+/// The overview's Lease-Roll block reads its own port. The runtime test is
+/// about routing, not leasing, so this refuses the read the way the server
+/// would for a session without `lease.read` — which renders the block's notice
+/// and nothing else.
+class _RefusingLeasingSummary implements PropertyLeasingSummaryPort {
+  @override
+  Future<LeasingRepositoryResult<PropertyLeasingSummaryDto>> read({
+    required String workspaceId,
+    required String propertyId,
+  }) async => const LeasingRepositoryFailure<PropertyLeasingSummaryDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'Leasing access is not permitted',
+  );
 }
 
 class _EmptyPropertyMedia implements PropertyMediaPort {

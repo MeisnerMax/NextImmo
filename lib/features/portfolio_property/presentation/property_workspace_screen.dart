@@ -12,6 +12,7 @@ import '../../../ui/screens/property_detail/leasing/leases_panel.dart';
 import '../../../ui/screens/property_detail/leasing/leasing_pipeline_panel.dart';
 import '../../../ui/screens/property_detail/leasing/rent_roll_panel.dart';
 import '../../../ui/screens/property_detail/leasing/units_panel.dart';
+import '../../leasing_operations/presentation/property_leasing_summary_card.dart';
 import '../../../ui/screens/property_detail/property_documents_panel.dart';
 import '../../../ui/screens/property_detail/property_maintenance_capex_panel.dart';
 import '../../../ui/screens/property_detail/widgets/valuation/property_valuation_panel.dart';
@@ -194,6 +195,12 @@ class _PropertyWorkspaceScreenState
       // registers `Übersicht` at runtime, so the domain and its data source
       // arrive together.
       onLoadPropertyOverview: controller.loadPropertyOverview,
+      // LEASING-SUMMARY-01 fills the overview's Lease-Roll, Expiry and
+      // Rent-Roll slots from one server projection. Injected, so the view
+      // needs no leasing provider to be pumped in a test.
+      leasingSummaryBuilder:
+          (context, propertyId) =>
+              PropertyLeasingSummaryCard(propertyId: propertyId),
       // AUDIT-01 feeds the overview's activity module from the same read port
       // the Aktivität domain uses — one redaction rule, in one place.
       onLoadPropertyActivity:
@@ -337,6 +344,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.leasingBuilder,
     this.onLoadPropertyOverview,
     this.onLoadPropertyActivity,
+    this.leasingSummaryBuilder,
     this.mediaBuilder,
     this.coverUrls = const <String, String>{},
     this.initialPropertyId,
@@ -440,6 +448,12 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// Reads the newest audit events for the overview's activity module
   /// (`AUDIT-01`). Null hides that module; it does not hide the overview.
   final PropertyOverviewActivityLoad? onLoadPropertyActivity;
+
+  /// Builds `Lease Roll & Leerstand` inside `Übersicht`
+  /// (`LEASING-SUMMARY-01`). Null omits the block; it does not hide the
+  /// overview, and it never renders as an exposure of zero.
+  final Widget Function(BuildContext context, String propertyId)?
+  leasingSummaryBuilder;
 
   /// Builds the property's media gallery (`PROPERTY-MEDIA-DATA-01`) inside
   /// `Objekt`. Null omits the section rather than showing an empty one.
@@ -1150,6 +1164,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
               propertyId: _hostState.openPropertyId!,
               onLoad: widget.onLoadPropertyOverview!,
               onLoadActivity: widget.onLoadPropertyActivity,
+              leasingSummaryBuilder: widget.leasingSummaryBuilder,
               availableDomains:
                   _visibleDomains(state).map((entry) => entry.domain).toSet(),
               onOpenDomain: _selectDomain,

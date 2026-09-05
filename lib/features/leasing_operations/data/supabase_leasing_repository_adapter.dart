@@ -4,6 +4,7 @@ import '../application/leasing_repository.dart';
 import '../application/operations_signals_contract.dart';
 import '../domain/lease_dto.dart';
 import '../domain/leasing_case_dto.dart';
+import '../domain/leasing_summary_dto.dart';
 import '../domain/operations_signal_dto.dart';
 import '../domain/rent_roll_dto.dart';
 import '../domain/unit_dto.dart';
@@ -1114,6 +1115,55 @@ class SupabaseRentRollAdapter extends _SupabaseLeasingBase
 /// "acknowledge one entry" (see `operations_signals_contract.dart`'s header).
 /// It still shares the one [LeasingSupabaseGateway] the other four adapters
 /// use, so a workspace still opens one client.
+/// LEASING-SUMMARY-01. One RPC, no arithmetic here.
+///
+/// Every figure is the server's, including the expiry windows and their
+/// labels. The parser below does not sum, divide or fill in: a missing area is
+/// left missing and reported through the coverage counter, and there is no
+/// path in this class that could produce a cross-currency total.
+class SupabasePropertyLeasingSummaryAdapter extends _SupabaseLeasingBase
+    implements PropertyLeasingSummaryPort {
+  SupabasePropertyLeasingSummaryAdapter({required SupabaseClient client})
+    : super(SupabaseLeasingGateway(client));
+
+  SupabasePropertyLeasingSummaryAdapter.withGateway(super.gateway);
+
+  @override
+  Future<LeasingRepositoryResult<PropertyLeasingSummaryDto>> read({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    try {
+      final response = await _gateway.callRpc(
+        'property_leasing_summary',
+        <String, Object?>{
+          'p_workspace_id': workspaceId,
+          'p_property_id': propertyId,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return LeasingRepositorySuccess<PropertyLeasingSummaryDto>(
+          _parseLeasingSummary(_asMap(payload['summary'])),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<PropertyLeasingSummaryDto>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const LeasingRepositoryFailure<PropertyLeasingSummaryDto>(
+        kind: LeasingRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase leasing summary could not be loaded.',
+      );
+    }
+  }
+}
+
 class SupabaseOperationsSignalsAdapter implements OperationsSignalsPort {
   SupabaseOperationsSignalsAdapter({required SupabaseClient client})
     : _gateway = SupabaseLeasingGateway(client);
@@ -1691,6 +1741,71 @@ List<RentRollSnapshotLineDto> _parseEmbeddedLines(Map<String, dynamic> entity) {
   return raw
       .map((line) => _parseRentRollLine(_asMap(line)))
       .toList(growable: false);
+}
+
+PropertyLeasingSummaryDto _parseLeasingSummary(Map<String, dynamic> row) {
+  final units = _asMap(row['units']);
+  final vacancy = _asMap(row['vacancy']);
+  final roll = _asMap(row['lease_roll']);
+  final decisions = _asMap(row['decisions']);
+  final rentRaw = row['rent_roll'];
+  if (rentRaw is! List) {
+    throw const FormatException('Expected a rent roll array.');
+  }
+  return PropertyLeasingSummaryDto(
+    asOf: _requiredDate(row, 'as_of'),
+    units: PropertyLeasingUnits(
+      total: _requiredInt(units, 'total'),
+      occupied: _requiredInt(units, 'occupied'),
+      vacant: _requiredInt(units, 'vacant'),
+      offline: _requiredInt(units, 'offline'),
+      areaSqmTotal: _requiredDouble(units, 'area_sqm_total'),
+      areaSqmOccupied: _requiredDouble(units, 'area_sqm_occupied'),
+      areaSqmVacant: _requiredDouble(units, 'area_sqm_vacant'),
+      unitsWithoutArea: _requiredInt(units, 'units_without_area'),
+    ),
+    vacancy: PropertyLeasingVacancy(
+      // Null stays null: a zero here would claim the vacancy began today.
+      longestVacancyDays: _optionalInt(vacancy['longest_vacancy_days']),
+      vacantWithoutSince: _requiredInt(vacancy, 'vacant_without_since'),
+    ),
+    leaseRoll: PropertyLeaseRoll(
+      active: _requiredInt(roll, 'active'),
+      openEnded: _requiredInt(roll, 'open_ended'),
+      expiredOpen: _requiredInt(roll, 'expired_open'),
+      windows: _parseExpiryWindows(roll['windows']),
+    ),
+    decisions: PropertyLeaseDecisions(
+      windowDays: _requiredInt(decisions, 'window_days'),
+      noticeDue: _requiredInt(decisions, 'notice_due'),
+      renewalOption: _requiredInt(decisions, 'renewal_option'),
+      breakOption: _requiredInt(decisions, 'break_option'),
+    ),
+    rentRoll: rentRaw.map((entry) {
+      final currency = _asMap(entry);
+      return PropertyRentRollCurrency(
+        currencyCode: _requiredString(currency, 'currency_code'),
+        monthlyBase: _requiredDouble(currency, 'monthly_base'),
+        leases: _requiredInt(currency, 'leases'),
+      );
+    }).toList(growable: false),
+  );
+}
+
+List<PropertyLeaseExpiryWindow> _parseExpiryWindows(Object? raw) {
+  if (raw is! List) {
+    throw const FormatException('Expected an expiry window array.');
+  }
+  return raw.map((entry) {
+    final window = _asMap(entry);
+    return PropertyLeaseExpiryWindow(
+      days: _requiredInt(window, 'days'),
+      // The label is the server's wording, carried rather than rebuilt from
+      // `days`, so a client cannot rename a window it did not cut.
+      label: _requiredString(window, 'label'),
+      expiring: _requiredInt(window, 'expiring'),
+    );
+  }).toList(growable: false);
 }
 
 // --- Primitives ------------------------------------------------------------

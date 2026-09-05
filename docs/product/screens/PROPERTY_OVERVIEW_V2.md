@@ -78,6 +78,21 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 | documents | `document.read` | verknüpfte Dokumente, Anforderungen gesamt/überfällig/verzichtet |
 | valuation | `valuation.read` | Fälle gesamt/in Arbeit, letzte Bearbeitung (kein Wert) |
 
+### `Lease Roll & Leerstand` (LEASING-SUMMARY-01, 2026-09-05)
+
+`property_leasing_summary(workspace, property)` füllt drei der oben geplanten KPI-Slots — *Belegung / Leerstand* nach Fläche, *Lease Roll / Expiry Exposure* mit Fensterlabel und *Rent Roll* je Währung. Zwei Gates: entity-scoped `property.read` **und** `lease.read`; wer nur eines hat, bekommt eine benannte Absage statt eines halben Bildes.
+
+| Block | Gelieferte Fakten | Bewusst nicht geliefert |
+|---|---|---|
+| Einheiten & Fläche | Einheiten gesamt/vermietet/leer/gesperrt, Fläche gesamt/vermietet/leer, Einheiten ohne erfasste Fläche | Belegungsquote — „nach Einheit“ und „nach Fläche“ sind verschiedene Zahlen; beide Eingangsgrößen werden veröffentlicht, die Entscheidung bleibt offen |
+| Leerstandsdauer | längster Leerstand in Tagen, leere Einheiten ohne erfassten Beginn | kein „leer seit heute“ für einen fehlenden Beginn |
+| Lease Roll | aktiv, unbefristet, abgelaufen aber aktiv, vier kumulative Fenster (30/90/180/365) mit servergesetztem Label | keine clientseitig geschnittenen Fenster |
+| Fristen | Kündigungs-, Verlängerungs- und Sonderkündigungstermine in 90 Tagen | Renewal Risk — braucht den offenen Signal-Contract |
+| Sollmiete | Monatsbasis je Währung, Vertragszahl je Währung | keine währungsübergreifende Summe |
+
+Die Fläche wird nur dort summiert, wo sie erfasst ist; die Zahl der Einheiten ohne Fläche reist mit der Summe. Erfasst keine einzige Einheit eine Fläche, zeigt die UI einen Strich statt `0 m²`.
+
+
 Eine Sektion ohne Permission liefert `available: false` samt der benötigten Permission und **ohne jede Zahl** — die UI kann daraus kein `0` machen, weil keine da ist. Attention entsteht ausschließlich aus den erlaubten Sektionen, ist server-priorisiert (`critical` → `warning` → `info`, danach feste Typreihenfolge) und trägt keinen Score, den der Client neu interpretieren könnte.
 
 Nicht enthalten und als „noch nicht abgedeckt“ beschriftet: Finanzkennzahlen, Letzte Aktivität, Lease-Roll-/Renewal-Projektion, Belegungsquote.
