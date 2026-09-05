@@ -37,6 +37,8 @@ select functions_are(
     'finance_account_snapshot',
     'finance_command_gate',
     'finance_entry_snapshot',
+    'finance_kpi_definition_snapshot',
+    'finance_kpi_lines_immutable',
     'finance_period_snapshot',
     'finance_reject_closed_period',
     'finish_document_mutation',
