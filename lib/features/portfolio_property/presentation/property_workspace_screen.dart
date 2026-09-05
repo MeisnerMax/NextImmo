@@ -30,6 +30,7 @@ import 'property_asset_panel.dart';
 import 'property_context_header.dart';
 import 'property_create_dialog.dart';
 import 'property_list_view.dart';
+import 'property_media_panel.dart';
 import 'property_overview_panel.dart';
 import 'property_switcher_dialog.dart';
 import 'property_workspace_nav.dart';
@@ -201,6 +202,13 @@ class _PropertyWorkspaceScreenState
                     ? PropertyMaintenanceCapexSection.capex
                     : PropertyMaintenanceCapexSection.maintenance,
           ),
+      // PROPERTY-MEDIA-DATA-01: the gallery lives under the master data, so
+      // the picture of a building is where the rest of its facts are.
+      mediaBuilder:
+          (context, propertyId) => PropertyMediaPanel(
+            key: ValueKey<String>('property-media-$propertyId'),
+            propertyId: propertyId,
+          ),
       // AUDIT-01: `Aktivität → Protokoll` is the first surface that can read
       // the audit log the whole system has been writing since P1-002.
       activityBuilder:
@@ -305,6 +313,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.leasingBuilder,
     this.onLoadPropertyOverview,
     this.onLoadPropertyActivity,
+    this.mediaBuilder,
     this.initialPropertyId,
   });
 
@@ -406,6 +415,10 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// Reads the newest audit events for the overview's activity module
   /// (`AUDIT-01`). Null hides that module; it does not hide the overview.
   final PropertyOverviewActivityLoad? onLoadPropertyActivity;
+
+  /// Builds the property's media gallery (`PROPERTY-MEDIA-DATA-01`) inside
+  /// `Objekt`. Null omits the section rather than showing an empty one.
+  final Widget Function(BuildContext context, String propertyId)? mediaBuilder;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -1129,6 +1142,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
               dirtyRegistry: _dirtyRegistry,
               onUpdate: widget.onUpdateProperty,
               onRetry: widget.onRetryUpdate,
+              mediaBuilder: widget.mediaBuilder,
             );
         }
     }

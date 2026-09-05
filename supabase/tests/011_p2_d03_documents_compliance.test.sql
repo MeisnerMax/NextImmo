@@ -116,10 +116,16 @@ select is(
   52428800::bigint,
   'the documents bucket carries the configured size limit'
 );
+-- Scoped to this bucket's own policies by name prefix. The assertion was
+-- written when documents owned the only bucket; PROPERTY-MEDIA-DATA-01 added a
+-- second one, and this package has no business asserting what another package
+-- puts on the shared table. The whole-table inventory lives in SR-23/SR-24,
+-- where a new bucket has to be acknowledged deliberately.
 select is(
   (select array_agg(policy.polname::text order by policy.polname)
    from pg_policy as policy
-   where policy.polrelid = 'storage.objects'::regclass),
+   where policy.polrelid = 'storage.objects'::regclass
+     and policy.polname like 'documents_bucket_%'),
   array['documents_bucket_insert_document_manage', 'documents_bucket_select_document_read'],
   'storage.objects carries exactly the two document policies'
 );

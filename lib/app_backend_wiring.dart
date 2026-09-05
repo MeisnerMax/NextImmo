@@ -30,6 +30,8 @@ import 'features/maintenance_capex/application/maintenance_capex_providers.dart'
 import 'features/maintenance_capex/data/supabase_maintenance_capex_query_invalidation_adapter.dart';
 import 'features/maintenance_capex/data/supabase_maintenance_capex_repository_adapter.dart';
 import 'features/platform_audit_jobs/application/platform_providers.dart';
+import 'features/portfolio_property/application/property_media_controller.dart';
+import 'features/portfolio_property/data/supabase_property_media_adapter.dart';
 import 'features/platform_audit_jobs/data/supabase_domain_event_consumer_adapter.dart';
 import 'features/platform_audit_jobs/data/supabase_platform_repository_adapter.dart';
 import 'features/reference_slice/application/reference_slice_controller.dart';
@@ -61,6 +63,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   );
   final capexProjects = SupabaseCapexProjectRepositoryAdapter(client: client);
   final platform = SupabasePlatformRepositoryAdapter(client: client);
+  final propertyMedia = SupabasePropertyMediaAdapter(client: client);
   return <Override>[
     // The authenticated reference session is the cloud host's identity.
     workspaceSessionScopeProvider.overrideWith((ref) {
@@ -124,6 +127,8 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     // AUDIT-01: the read port on the same adapter. The audit log is written by
     // the mutations it records, so there is no write port to bind.
     auditReadPortProvider.overrideWithValue(platform),
+    // PROPERTY-MEDIA-DATA-01: metadata over PostgREST plus the private bucket.
+    propertyMediaPortProvider.overrideWithValue(propertyMedia),
     platformQueryInvalidationSourceProvider.overrideWithValue(
       SupabasePlatformQueryInvalidationAdapter(client: client),
     ),
