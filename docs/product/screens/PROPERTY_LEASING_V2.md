@@ -7,7 +7,7 @@
 - Route: zukünftige Ziele `/properties/:propertyId/leasing/units`, `/leases/:leaseId?`, `/pipeline/:caseId?`, `/rent-roll`; heute property-scoped Navigation-State
 - Current implementation file(s): `lib/ui/screens/property_detail/leasing/units_panel.dart`, `leases_panel.dart`, `leasing_pipeline_panel.dart`, `rent_roll_panel.dart`, `tenant_detail_view.dart`, `lib/features/leasing_operations/application/leasing_repository.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY — Unit-/Lease-/Case-/Rent-Roll-Contracts und Panels vorhanden; PREREQUISITE REQUIRED nur für Suche, Renewal-/Exposure-Projektion und Mietstaffel-Contract
+- Technical readiness: READY — im Workspace-Host registriert (2026-09-05): vier Unterbereiche auf den vorhandenen Unit-/Lease-/Case-/Rent-Roll-Contracts, gated `lease.read`; PREREQUISITE REQUIRED nur für Suche, Renewal-/Exposure-Projektion und Mietstaffel-Contract
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, `SHELL-ROUTING-01` nur für spätere URLs
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), workspace-weite Tenants/Parties-Surface

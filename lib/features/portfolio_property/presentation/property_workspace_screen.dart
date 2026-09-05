@@ -8,6 +8,10 @@ import '../../../ui/components/nx_empty_state.dart';
 import '../../../ui/components/nx_list_skeleton.dart';
 import '../../../ui/components/nx_live_updates_notice.dart';
 import '../../../ui/screens/docs/widgets/document_notices.dart';
+import '../../../ui/screens/property_detail/leasing/leases_panel.dart';
+import '../../../ui/screens/property_detail/leasing/leasing_pipeline_panel.dart';
+import '../../../ui/screens/property_detail/leasing/rent_roll_panel.dart';
+import '../../../ui/screens/property_detail/leasing/units_panel.dart';
 import '../../../ui/screens/property_detail/property_documents_panel.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
@@ -132,6 +136,22 @@ class _PropertyWorkspaceScreenState
                   : const SingleChildScrollView(
                     child: DocumentStepUpRequiredState(),
                   ),
+      // PROPERTY_LEASING_V2: the four Welle-3 panels already run on the
+      // `lease.*` cloud contracts, so the domain rehosts them unchanged
+      // instead of rebuilding their behaviour.
+      leasingBuilder:
+          (context, propertyId, subArea) => switch (subArea) {
+            PropertyLeasingSubArea.units => UnitsPanel(propertyId: propertyId),
+            PropertyLeasingSubArea.leases => LeasesPanel(
+              propertyId: propertyId,
+            ),
+            PropertyLeasingSubArea.pipeline => LeasingPipelinePanel(
+              propertyId: propertyId,
+            ),
+            PropertyLeasingSubArea.rentRoll => RentRollPanel(
+              propertyId: propertyId,
+            ),
+          },
       operationsTasksBuilder:
           (context, propertyId) => TaskCenterScreen(
             key: ValueKey<String>('property-operations-tasks-$propertyId'),
@@ -210,6 +230,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.onSetArchived,
     this.operationsTasksBuilder,
     this.documentsBuilder,
+    this.leasingBuilder,
     this.initialPropertyId,
   });
 
@@ -254,6 +275,15 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// connected screen for the same reason as [operationsTasksBuilder].
   final Widget Function(BuildContext context, String propertyId)?
   documentsBuilder;
+
+  /// Builds one sub-area of `Vermietung` (`PROPERTY_LEASING_V2`). Injected by
+  /// the connected screen so the view stays pumpable without a provider graph.
+  final Widget Function(
+    BuildContext context,
+    String propertyId,
+    PropertyLeasingSubArea subArea,
+  )?
+  leasingBuilder;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -817,6 +847,8 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         );
       case PropertyDetailPhase.ready:
         switch (activeDomain) {
+          case PropertyWorkspaceDomain.leasing:
+            return _buildLeasingDomain(context);
           case PropertyWorkspaceDomain.operations:
             return _buildOperationsDomain(context);
           case PropertyWorkspaceDomain.documents:
@@ -831,7 +863,6 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
             );
           case PropertyWorkspaceDomain.overview:
           case PropertyWorkspaceDomain.asset:
-          case PropertyWorkspaceDomain.leasing:
           case PropertyWorkspaceDomain.investment:
           case PropertyWorkspaceDomain.activity:
             return PropertyAssetPanel(
@@ -850,6 +881,88 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
             );
         }
     }
+  }
+
+  /// `Vermietung` (`PROPERTY_LEASING_V2`): the four Welle-3 panels behind one
+  /// sub-navigation. The active sub-area lives in the host state, so leaving
+  /// the domain and coming back lands where the user left it; a selection
+  /// inside a panel is deliberately not carried across domains.
+  Widget _buildLeasingDomain(BuildContext context) {
+    final propertyId = _hostState.openPropertyId!;
+    final builder = widget.leasingBuilder;
+    if (builder == null) {
+      return const SizedBox.shrink();
+    }
+    final active = _activeLeasingSubArea;
+    return Column(
+      key: const Key('property-leasing'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          label: 'Bereiche der Vermietung',
+          child: SingleChildScrollView(
+            key: const Key('property-leasing-sub-nav'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (
+                  var i = 0;
+                  i < PropertyLeasingSubArea.values.length;
+                  i++
+                ) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.xs),
+                  ChoiceChip(
+                    key: Key(
+                      'property-leasing-sub-'
+                      '${PropertyLeasingSubArea.values[i].name}',
+                    ),
+                    label: Text(PropertyLeasingSubArea.values[i].label),
+                    selected: PropertyLeasingSubArea.values[i] == active,
+                    onSelected:
+                        (_) => _selectLeasingSubArea(
+                          PropertyLeasingSubArea.values[i],
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child: KeyedSubtree(
+            // A distinct key per sub-area so each panel gets its own state
+            // instead of inheriting the previous one's scroll and selection.
+            key: ValueKey<String>('property-leasing-${active.name}'),
+            child: builder(context, propertyId, active),
+          ),
+        ),
+      ],
+    );
+  }
+
+  PropertyLeasingSubArea get _activeLeasingSubArea {
+    final remembered = _hostState.subAreaOf(PropertyWorkspaceDomain.leasing);
+    for (final subArea in PropertyLeasingSubArea.values) {
+      if (subArea.name == remembered) {
+        return subArea;
+      }
+    }
+    return PropertyLeasingSubArea.units;
+  }
+
+  void _selectLeasingSubArea(PropertyLeasingSubArea subArea) {
+    if (subArea == _activeLeasingSubArea) {
+      return;
+    }
+    setState(() {
+      _hostState = _hostState.withSubArea(
+        PropertyWorkspaceDomain.leasing,
+        subArea.name,
+      );
+    });
   }
 
   /// `Betrieb` (TASK-CENTER-01): the sub-navigation renders the implemented

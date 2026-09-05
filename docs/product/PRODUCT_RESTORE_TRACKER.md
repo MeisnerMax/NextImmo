@@ -110,7 +110,7 @@ Produkt-Scope und technische Bereitschaft werden getrennt geführt. `COMMITTED` 
 | `PROPERTY_LIST_V2.md` | Einstieg vor Workspace | COMMITTED | READY für Liste, Keyset, Filter und Anlegen (`PROPERTY-DATA-02` gelandet); Volltextsuche: PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` | APPROVED |
 | `PROPERTY_OVERVIEW_V2.md` | Übersicht | COMMITTED | PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` (serverseitige KPI-/Attention-/Freshness-Projektion) | BLOCKED |
 | `PROPERTY_ASSET_V2.md` | Objekt | COMMITTED | READY für Stammdaten und Archivieren/Wiederherstellen (implementiert); Medien: PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` | APPROVED |
-| `PROPERTY_LEASING_V2.md` | Vermietung Host | COMMITTED | READY — Cloud-Contracts und Panels (Flächen/Verträge/Pipeline/Rent Roll) vorhanden; Registrierung im Host ist Implementierungsarbeit | APPROVED |
+| `PROPERTY_LEASING_V2.md` | Vermietung Host | COMMITTED | READY — im Host registriert (2026-09-05): vier Unterbereiche Flächen/Verträge/Pipeline/Rent Roll auf den `lease.*`-Contracts, gated `lease.read` | APPROVED |
 | `PROPERTY_OPERATIONS_V2.md` | Betrieb Host | COMMITTED | READY für Aufgaben (implementiert); Wartung/CapEx: PREREQUISITE REQUIRED — `MAINTENANCE-PARITY-01` | APPROVED |
 | `PROPERTY_DOCUMENTS_V2.md` | Dokumente | COMMITTED | READY (implementiert); Medien bleiben eigenes Paket: PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` | APPROVED |
 | `PROPERTY_INVESTMENT_V2.md` | Investment Host | COMMITTED | PREREQUISITE REQUIRED — erster Child `VALUATION-REHOST-01` | APPROVED |
@@ -146,7 +146,7 @@ Backend-Voraussetzung zuerst, unmittelbar gefolgt von der abhängigen UI und Sta
 
 | Welle | Inhalt | Voraussetzung → abhängige Fläche |
 |---|---|---|
-| P-1 | Objektliste und Objekt-Stammdaten vervollständigen: Lifecycle (Anlegen/Archivieren/Wiederherstellen) **gelandet 2026-09-05**; offen: Objektwechsler, `Vermietung` im Host registrieren | `PROPERTY-DATA-02` ✓ → `PROPERTY-CREATE-01` (erstes Inkrement ✓) und Asset-Lifecycle-Aktionen ✓; vorhandene Leasing-Panels → `Vermietung` |
+| P-1 | Objektliste und Objekt-Stammdaten vervollständigen: Lifecycle (Anlegen/Archivieren/Wiederherstellen) und `Vermietung` im Host **gelandet 2026-09-05**; offen: Objektwechsler | `PROPERTY-DATA-02` ✓ → `PROPERTY-CREATE-01` (erstes Inkrement ✓) und Asset-Lifecycle-Aktionen ✓; vorhandene Leasing-Panels → `Vermietung` ✓ |
 | P-2 | `Übersicht` mit belastbaren KPIs und Attention-Drilldowns | `PROPERTY-OVERVIEW-DATA-01` → `PROPERTY_OVERVIEW_V2` |
 | P-3 | Objektmedien/Titelbild; serverweite Objektsuche in Liste und Objektwechsler | `PROPERTY-MEDIA-DATA-01`; `PROPERTY-LOOKUP-01` |
 | P-4 | `Investment` mit Bewertung, danach Szenarien und Performance | `VALUATION-REHOST-01`; `SCENARIO-VALUATION-01`; `P2-D08` |

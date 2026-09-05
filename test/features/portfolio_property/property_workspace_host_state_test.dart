@@ -17,13 +17,19 @@ void main() {
     });
 
     test('registers exactly the implemented domains: Objekt (A1), '
-        'Betrieb (TASK-CENTER-01) and Dokumente (DOCUMENTS-COMPLETE-01)', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(3));
+        'Vermietung (PROPERTY_LEASING_V2), Betrieb (TASK-CENTER-01) and '
+        'Dokumente (DOCUMENTS-COMPLETE-01)', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(4));
       final asset = registeredPropertyWorkspaceDomains.first;
       expect(asset.domain, PropertyWorkspaceDomain.asset);
       expect(asset.label, 'Objekt');
       expect(asset.readPermission, 'property.read');
-      final operations = registeredPropertyWorkspaceDomains[1];
+      // Leasing: the four Welle-3 panels, all on `lease.read`.
+      final leasing = registeredPropertyWorkspaceDomains[1];
+      expect(leasing.domain, PropertyWorkspaceDomain.leasing);
+      expect(leasing.label, 'Vermietung');
+      expect(leasing.readPermission, 'lease.read');
+      final operations = registeredPropertyWorkspaceDomains[2];
       expect(operations.domain, PropertyWorkspaceDomain.operations);
       expect(operations.label, 'Betrieb');
       // Gated on the read permission of its one implemented child, the
@@ -56,14 +62,24 @@ void main() {
       expect(
         visiblePropertyWorkspaceDomains(<String>{
           'property.read',
-          'task.read',
+          'lease.read',
         }).map((d) => d.domain),
         <PropertyWorkspaceDomain>[
           PropertyWorkspaceDomain.asset,
-          PropertyWorkspaceDomain.operations,
+          PropertyWorkspaceDomain.leasing,
         ],
       );
-      expect(visiblePropertyWorkspaceDomains(<String>{'lease.read'}), isEmpty);
+      expect(
+        visiblePropertyWorkspaceDomains(<String>{
+          'task.read',
+          'document.read',
+        }).map((d) => d.domain),
+        <PropertyWorkspaceDomain>[
+          PropertyWorkspaceDomain.operations,
+          PropertyWorkspaceDomain.documents,
+        ],
+      );
+      expect(visiblePropertyWorkspaceDomains(<String>{'audit.read'}), isEmpty);
       expect(visiblePropertyWorkspaceDomains(const <String>{}), isEmpty);
     });
   });
@@ -113,6 +129,7 @@ void main() {
           'scrollOffset': 12.0,
           'focusedPropertyId': 'property-a',
         },
+        'subAreas': <String, String>{},
       });
       expect(
         state,
