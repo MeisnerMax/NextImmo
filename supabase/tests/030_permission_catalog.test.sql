@@ -18,7 +18,7 @@ create extension if not exists pgtap with schema extensions;
 -- which is itself part of the proof: the seed is complete enough to run the
 -- real task/notification/search surface for non-admins.
 
-select plan(37);
+select plan(39);
 
 -- ---------------------------------------------------------------------------
 -- Mechanism
@@ -73,12 +73,12 @@ select lives_ok(
 
 select is(
   (select count(*)::integer from public.permissions),
-  30,
-  'the catalog carries exactly the 30 canonical keys'
+  33,
+  'the catalog carries exactly the 33 canonical keys'
 );
 select is(
   (select string_agg(permission.key, ',' order by permission.key) from public.permissions as permission),
-  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,notification.manage,notification.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,search.reindex,security.manage,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
+  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,finance.close,finance.manage,finance.read,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,notification.manage,notification.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,search.reindex,security.manage,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
   'the catalog keys match the client parity list key for key'
 );
 
@@ -118,12 +118,12 @@ select is(
 );
 select is(
   pg_temp.bundle_of('manager'),
-  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
+  'audit.read,capex.approve,capex.manage,capex.read,document.manage,document.read,document.verify,finance.close,finance.manage,finance.read,import.manage,import.read,lease.manage,lease.read,maintenance.manage,maintenance.read,party.manage,party.read,property.create,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.approve,valuation.manage,valuation.read,workspace.read',
   'manager: everything operative, no security/notification/reindex administration'
 );
 select is(
   pg_temp.bundle_of('analyst'),
-  'audit.read,capex.read,document.manage,document.read,import.manage,import.read,lease.read,maintenance.read,party.read,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.manage,valuation.read,workspace.read',
+  'audit.read,capex.read,document.manage,document.read,finance.read,import.manage,import.read,lease.read,maintenance.read,party.read,property.read,property.update,reporting.generate,search.read,task.manage,task.read,valuation.manage,valuation.read,workspace.read',
   'analyst: builds valuations and tasks, releases nothing, manages no operations'
 );
 select is(
@@ -133,8 +133,34 @@ select is(
 );
 select is(
   pg_temp.bundle_of('viewer'),
-  'audit.read,document.read,lease.read,property.read,reporting.generate,task.read,valuation.read,workspace.read',
+  'audit.read,document.read,finance.read,lease.read,property.read,reporting.generate,task.read,valuation.read,workspace.read',
   'viewer: reads, never writes'
+);
+
+-- FINANCE-01a: `operations` is the one role with no finance job in the spec's
+-- role table, so it gains nothing here. Asserted rather than assumed, because
+-- "grant the read for symmetry" is exactly how a surface widens by accident.
+select is(
+  (select count(*)::integer
+   from public.role_permissions as role_permission
+   join public.roles as role on role.id = role_permission.role_id
+   join public.permissions as permission on permission.id = role_permission.permission_id
+   where role.workspace_id = 'f1000000-0000-0000-0000-000000000001'
+     and role.key = 'operations'
+     and permission.key like 'finance.%'),
+  0,
+  'operations holds no finance capability at all'
+);
+select is(
+  (select count(*)::integer
+   from public.role_permissions as role_permission
+   join public.roles as role on role.id = role_permission.role_id
+   join public.permissions as permission on permission.id = role_permission.permission_id
+   where role.workspace_id = 'f1000000-0000-0000-0000-000000000001'
+     and role.key in ('analyst', 'viewer')
+     and permission.key in ('finance.manage', 'finance.close')),
+  0,
+  'analyst and viewer read finance but never book or close it'
 );
 
 -- The admin-only capabilities never leak into a non-admin bundle.
