@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/asset`; heute Property-Detail im Reference Slice
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/domain/property_dto.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness (Stand 2026-09-06): READY für Stammdaten, Lifecycle und Medien. `PROPERTY-MEDIA-DATA-01` ist umgesetzt: privater Bucket, entity-gescopte Storage-Policies, auditierte RPCs, Galerie unter den Stammdaten. PREREQUISITE REQUIRED bleibt nur für das Titelbild in Listenzeilen (braucht einen Batch-Signed-URL-Read statt N+1)
+- Technical readiness (Stand 2026-09-06): READY für Stammdaten, Lifecycle und Medien. `PROPERTY-MEDIA-DATA-01` ist umgesetzt: privater Bucket, entity-gescopte Storage-Policies, auditierte RPCs, Galerie unter den Stammdaten. Das Titelbild erscheint auch in den Listenzeilen — ein Read je Seite plus ein Batch-Signing-Call, kein N+1. Offen bleibt nur die Bildreihenfolge per Drag
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), `PROPERTY-CREATE-01` nach `PROPERTY-DATA-02`
