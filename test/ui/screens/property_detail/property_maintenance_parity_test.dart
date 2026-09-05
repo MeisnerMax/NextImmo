@@ -5,7 +5,13 @@ import 'package:neximmo_app/features/identity_access/application/workspace_sessi
 import 'package:neximmo_app/features/maintenance_capex/application/maintenance_capex_providers.dart';
 import 'package:neximmo_app/features/maintenance_capex/application/maintenance_capex_repository.dart';
 import 'package:neximmo_app/features/maintenance_capex/domain/capex_project_dto.dart';
+import 'package:neximmo_app/features/documents_compliance/application/document_providers.dart';
+import 'package:neximmo_app/features/documents_compliance/application/document_repository.dart';
+import 'package:neximmo_app/features/documents_compliance/domain/document_dto.dart';
 import 'package:neximmo_app/features/maintenance_capex/domain/maintenance_ticket_dto.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_providers.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/task_dto.dart';
 import 'package:neximmo_app/ui/screens/property_detail/property_maintenance_capex_panel.dart';
 
 const String _workspace = 'workspace-a';
@@ -323,6 +329,11 @@ Future<void> _pump(
         maintenanceTicketRepositoryProvider.overrideWithValue(ticketFakes),
         capexProjectSearchProvider.overrideWithValue(projectFakes),
         capexProjectRepositoryProvider.overrideWithValue(projectFakes),
+        // The detail carries the record's linked documents and tasks
+        // (PROPERTY-OPERATIONS-LINKS-01); both ports fail closed when
+        // unconfigured, so the harness binds empty ones.
+        documentRepositoryProvider.overrideWithValue(_EmptyDocuments()),
+        taskRepositoryProvider.overrideWithValue(_EmptyTasks()),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -511,4 +522,30 @@ class _ProjectFakes implements CapexProjectSearchPort, CapexProjectRepository {
   Future<MaintenanceCapexRepositoryResult<CapexProjectDto>> transitionStatus(
     TransitionCapexProjectStatusCommand command,
   ) async => throw UnimplementedError();
+}
+
+class _EmptyDocuments implements DocumentRepository {
+  @override
+  Future<DocumentRepositoryResult<DocumentPageResult>> search(
+    DocumentListQuery query,
+  ) async => const DocumentRepositorySuccess<DocumentPageResult>(
+    DocumentPageResult(items: <DocumentDto>[]),
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('not used by the record links read');
+}
+
+class _EmptyTasks implements TaskRepository {
+  @override
+  Future<PlatformRepositoryResult<PlatformPageResult<TaskDto>>> searchTasks(
+    TaskListQuery query,
+  ) async => const PlatformRepositorySuccess<PlatformPageResult<TaskDto>>(
+    PlatformPageResult<TaskDto>(items: <TaskDto>[]),
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('not used by the record links read');
 }

@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/maintenance_capex/application/property_maintenance_capex_controller.dart';
+import '../../../features/maintenance_capex/application/record_links_controller.dart';
+import '../../../features/platform_audit_jobs/domain/platform_entity_type.dart';
 import '../../../features/maintenance_capex/domain/capex_project_dto.dart';
 import '../../../features/maintenance_capex/domain/maintenance_ticket_dto.dart';
 import '../../components/nx_card.dart';
@@ -865,6 +867,13 @@ class _TicketDetail extends StatelessWidget {
               ),
             ],
             const Divider(height: AppSpacing.lg),
+            _RecordLinks(
+              linkRef: RecordLinksRef(
+                entityType: PlatformEntityType.maintenanceTicket,
+                entityId: ticket.id,
+              ),
+            ),
+            const Divider(height: AppSpacing.lg),
             _FactRow(
               label: 'Zuletzt geändert',
               value: _formatDate(ticket.updatedAt),
@@ -1000,6 +1009,13 @@ class _ProjectDetail extends StatelessWidget {
             ),
             _FactRow(label: 'Dienstleister', value: project.contractorPartyId),
             const Divider(height: AppSpacing.lg),
+            _RecordLinks(
+              linkRef: RecordLinksRef(
+                entityType: PlatformEntityType.capexProject,
+                entityId: project.id,
+              ),
+            ),
+            const Divider(height: AppSpacing.lg),
             // Approval comes from the transition, never from an edit — the
             // detail shows it, it does not offer to set it.
             _FactRow(label: 'Freigegeben von', value: project.approvedBy),
@@ -1029,6 +1045,138 @@ class _ProjectDetail extends StatelessWidget {
 
 /// One label/value line. An absent value renders as an em dash rather than
 /// disappearing, so the reader can tell "not set" from "not shown".
+/// The evidence and the follow-up work attached to this record
+/// (`PROPERTY-OPERATIONS-LINKS-01`).
+///
+/// A summary beside a detail, not a second list surface: at most a handful of
+/// each, with the full lists one domain away. Both zones are separately
+/// permissioned and separately loaded, so a membership that may read documents
+/// but not tasks sees the documents and is told about the other rather than
+/// losing both.
+///
+/// Read-only for now. Linking a document and creating a task from here need
+/// the link and task mutations plus a picker; they are named in
+/// `PROPERTY_OPERATIONS_V2.md` §14 rather than faked with a button that
+/// cannot work.
+class _RecordLinks extends ConsumerWidget {
+  const _RecordLinks({required this.linkRef});
+
+  final RecordLinksRef linkRef;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(recordLinksControllerProvider(linkRef));
+    return Column(
+      key: const Key('record-links'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _zone(
+          context,
+          id: 'documents',
+          title: 'Verknüpfte Dokumente',
+          permission: 'document.read',
+          phase: state.documentsPhase,
+          emptyLabel: 'Diesem Datensatz ist noch kein Dokument zugeordnet.',
+          entries: <String>[
+            for (final document in state.documents) document.title,
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        _zone(
+          context,
+          id: 'tasks',
+          title: 'Aufgaben zu diesem Datensatz',
+          permission: 'task.read',
+          phase: state.tasksPhase,
+          emptyLabel: 'Zu diesem Datensatz ist keine Aufgabe offen.',
+          entries: <String>[for (final task in state.tasks) task.title],
+        ),
+      ],
+    );
+  }
+
+  Widget _zone(
+    BuildContext context, {
+    required String id,
+    required String title,
+    required String permission,
+    required RecordLinksZonePhase phase,
+    required String emptyLabel,
+    required List<String> entries,
+  }) {
+    final theme = Theme.of(context);
+    final semantic = context.semanticColors;
+    return Column(
+      key: Key('record-links-$id'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(title, style: theme.textTheme.labelMedium),
+        const SizedBox(height: AppSpacing.xxs),
+        switch (phase) {
+          RecordLinksZonePhase.idle || RecordLinksZonePhase.loading => Text(
+            'Wird geladen …',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: semantic.textSecondary,
+            ),
+          ),
+          // Not permitted is not empty, and the capability is named — the same
+          // rule the overview modules follow.
+          RecordLinksZonePhase.forbidden => Text(
+            'Nicht verfügbar. Benötigt die Berechtigung ($permission).',
+            key: Key('record-links-$id-forbidden'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: semantic.textSecondary,
+            ),
+          ),
+          RecordLinksZonePhase.error => Text(
+            'Konnte nicht geladen werden.',
+            key: Key('record-links-$id-error'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: semantic.textSecondary,
+            ),
+          ),
+          RecordLinksZonePhase.empty => Text(
+            emptyLabel,
+            key: Key('record-links-$id-empty'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: semantic.textSecondary,
+            ),
+          ),
+          RecordLinksZonePhase.ready => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final entry in entries)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        id == 'documents'
+                            ? Icons.description_outlined
+                            : Icons.check_circle_outline,
+                        size: 16,
+                        color: semantic.textSecondary,
+                      ),
+                      const SizedBox(width: AppSpacing.xxs),
+                      Expanded(
+                        child: Text(
+                          entry,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        },
+      ],
+    );
+  }
+}
+
 class _FactRow extends StatelessWidget {
   const _FactRow({
     required this.label,
