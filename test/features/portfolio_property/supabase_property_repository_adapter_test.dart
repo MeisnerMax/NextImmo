@@ -313,9 +313,11 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
   List<Map<String, dynamic>> listResult = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> getResult = <Map<String, dynamic>>[];
   Object? updateResult;
+  Object? createResult;
   Object? listError;
   Object? getError;
   Object? updateError;
+  Object? createError;
 
   String? listWorkspaceId;
   String? listAfterId;
@@ -325,6 +327,18 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
   String? getPropertyId;
   int updateCalls = 0;
   Map<String, Object?>? updateParameters;
+  int createCalls = 0;
+  Map<String, Object?>? createParameters;
+
+  @override
+  Future<Object?> createProperty(Map<String, Object?> parameters) async {
+    createCalls++;
+    createParameters = parameters;
+    if (createError != null) {
+      throw createError!;
+    }
+    return createResult;
+  }
 
   @override
   Future<List<Map<String, dynamic>>> listProperties({

@@ -22,6 +22,7 @@ class PropertyContextHeader extends StatelessWidget {
     required this.domainLabel,
     required this.onBackToList,
     this.primaryAction,
+    this.secondaryActions = const <Widget>[],
   });
 
   /// The summary the header identifies. While a deep-linked property is still
@@ -30,6 +31,11 @@ class PropertyContextHeader extends StatelessWidget {
   final String domainLabel;
   final VoidCallback onBackToList;
   final Widget? primaryAction;
+
+  /// Further permitted property-level actions, e.g. archiving. Rendered
+  /// beside the way back on desktop and tablet; on mobile they follow the
+  /// compact identity row so they never crowd the name.
+  final List<Widget> secondaryActions;
 
   static const String backLabel = 'Objekte';
 
@@ -69,6 +75,7 @@ class PropertyContextHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back, size: 18),
               label: const Text(backLabel),
             ),
+            ...secondaryActions,
           ],
           primaryAction: primaryAction,
         );
@@ -128,7 +135,7 @@ class PropertyContextHeader extends StatelessWidget {
               ],
             ],
           ),
-          if (primaryAction != null)
+          if (primaryAction != null || secondaryActions.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xs,
@@ -136,9 +143,13 @@ class PropertyContextHeader extends StatelessWidget {
                 AppSpacing.xs,
                 AppSpacing.xxs,
               ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: primaryAction,
+              child: Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: <Widget>[
+                  if (primaryAction != null) primaryAction!,
+                  ...secondaryActions,
+                ],
               ),
             ),
         ],

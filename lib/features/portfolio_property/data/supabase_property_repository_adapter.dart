@@ -19,6 +19,8 @@ abstract interface class PropertySupabaseGateway {
   });
 
   Future<Object?> updateProperty(Map<String, Object?> parameters);
+
+  Future<Object?> createProperty(Map<String, Object?> parameters);
 }
 
 class SupabasePropertyGateway implements PropertySupabaseGateway {
@@ -74,6 +76,11 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
   Future<Object?> updateProperty(Map<String, Object?> parameters) {
     return _client.rpc('update_property', params: parameters);
   }
+
+  @override
+  Future<Object?> createProperty(Map<String, Object?> parameters) {
+    return _client.rpc('create_property', params: parameters);
+  }
 }
 
 class SupabasePropertyRepositoryAdapter implements PropertyRepository {
@@ -112,6 +119,42 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       return const PropertyRepositoryFailure<PropertyPageResult>(
         kind: PropertyRepositoryFailureKind.infrastructureFailure,
         message: 'Supabase properties could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> create(
+    PropertyCreateCommand command,
+  ) async {
+    if (_gateway.currentUserId != command.context.actorId) {
+      return const PropertyRepositoryFailure<PropertyDto>(
+        kind: PropertyRepositoryFailureKind.forbidden,
+        message: 'The command actor does not match the authenticated user.',
+      );
+    }
+
+    try {
+      final response = await _gateway.createProperty(
+        _serializeCreateCommand(command),
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final property = _parseProperty(_asMap(payload['property']));
+        if (property.workspaceId != command.context.workspaceId) {
+          throw const FormatException('Created property scope mismatch.');
+        }
+        return PropertyRepositorySuccess<PropertyDto>(property);
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapCreateFailure(_asMap(payload['error']));
+    } catch (_) {
+      return const PropertyRepositoryFailure<PropertyDto>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase property could not be created.',
       );
     }
   }
@@ -212,6 +255,7 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
         return PropertyRepositoryFailure<PropertyDto>(
           kind: PropertyRepositoryFailureKind.validationFailed,
           message: message,
+          field: error['field'] is String ? error['field'] as String : null,
         );
       case 'mutation_conflict':
         return PropertyRepositoryFailure<PropertyDto>(
@@ -247,6 +291,75 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
           message: 'Supabase property could not be updated.',
         );
     }
+  }
+
+  /// Creation has no `expected_version`, so `version_conflict` cannot occur;
+  /// every other contract code maps exactly as it does for an update, and the
+  /// server-named `field` travels with a validation failure.
+  PropertyRepositoryFailure<PropertyDto> _mapCreateFailure(
+    Map<String, dynamic> error,
+  ) {
+    final code = _requiredString(error, 'code');
+    final message =
+        error['message'] is String
+            ? error['message'] as String
+            : 'Property creation failed.';
+    final field = error['field'] is String ? error['field'] as String : null;
+    switch (code) {
+      case 'forbidden':
+        return PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.forbidden,
+          message: message,
+        );
+      case 'validation_failed':
+        return PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.validationFailed,
+          message: message,
+          field: field,
+        );
+      case 'mutation_conflict':
+        return PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.mutationConflict,
+          message: message,
+        );
+      case 'in_progress':
+        return PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.mutationInProgress,
+          message: message,
+        );
+      case 'not_found':
+        return PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.notFound,
+          message: message,
+        );
+      case 'infrastructure_failure':
+      default:
+        return const PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.infrastructureFailure,
+          message: 'Supabase property could not be created.',
+        );
+    }
+  }
+
+  Map<String, Object?> _serializeCreateCommand(PropertyCreateCommand command) {
+    final draft = command.draft;
+    return <String, Object?>{
+      'p_workspace_id': command.context.workspaceId,
+      'p_mutation_id': command.context.mutationId,
+      'p_correlation_id': command.context.correlationId,
+      'p_name': draft.name,
+      'p_address_line1': draft.addressLine1,
+      'p_zip': draft.zip,
+      'p_city': draft.city,
+      'p_country': draft.country,
+      'p_property_type': draft.propertyType,
+      'p_address_line2': draft.addressLine2,
+      'p_units': draft.units,
+      'p_sqft': draft.sqft,
+      'p_year_built': draft.yearBuilt,
+      'p_notes': draft.notes,
+      'p_reason': command.context.reason,
+    };
   }
 
   Map<String, Object?> _serializeCommand(PropertyUpdateCommand command) {

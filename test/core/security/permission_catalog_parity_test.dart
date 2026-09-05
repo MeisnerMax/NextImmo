@@ -16,6 +16,9 @@ const List<String> canonicalServerCatalog = <String>[
   'security.manage',
   'audit.read',
   'property.read',
+  // PROPERTY-DATA-02 added the creation verb (create_property + the
+  // admin/manager role bundle).
+  'property.create',
   'property.update',
   'party.read',
   'party.manage',

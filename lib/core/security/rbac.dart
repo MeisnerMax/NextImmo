@@ -85,6 +85,7 @@ class Permission {
     securityManage,
     auditRead,
     propertyRead,
+    propertyCreate,
     propertyUpdate,
     partyRead,
     partyManage,
@@ -118,7 +119,6 @@ class Permission {
   /// [serverCatalog] members.
   static const Set<String> all = <String>{
     ...serverCatalog,
-    propertyCreate,
     propertyDelete,
     propertyExport,
     scenarioRead,

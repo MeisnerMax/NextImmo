@@ -2869,6 +2869,9 @@ class _FakePropertyRepository implements PropertyRepository {
   final List<PropertyListQuery> listQueries = <PropertyListQuery>[];
   final List<String> detailPropertyIds = <String>[];
   final List<PropertyUpdateCommand> updateCommands = <PropertyUpdateCommand>[];
+  final Queue<PropertyRepositoryResult<PropertyDto>> createResults =
+      Queue<PropertyRepositoryResult<PropertyDto>>();
+  final List<PropertyCreateCommand> createCommands = <PropertyCreateCommand>[];
 
   int get listCalls => listWorkspaceIds.length;
 
@@ -2880,6 +2883,19 @@ class _FakePropertyRepository implements PropertyRepository {
     listQueries.add(query);
     final handler = listHandler;
     return handler == null ? listResult : handler(query);
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> create(
+    PropertyCreateCommand command,
+  ) async {
+    createCommands.add(command);
+    return createResults.isEmpty
+        ? const PropertyRepositoryFailure<PropertyDto>(
+          kind: PropertyRepositoryFailureKind.forbidden,
+          message: 'Property creation is not permitted.',
+        )
+        : createResults.removeFirst();
   }
 
   @override

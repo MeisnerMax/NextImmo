@@ -287,6 +287,7 @@ class _IdentityRepository implements IdentityAccessRepository {
 
 class _PropertyRepository implements PropertyRepository {
   final List<String> detailPropertyIds = <String>[];
+  final List<String> createdNames = <String>[];
   final PropertyDto property = PropertyDto(
     id: 'property-a',
     workspaceId: 'workspace-a',
@@ -321,6 +322,14 @@ class _PropertyRepository implements PropertyRepository {
     return PropertyRepositorySuccess<PropertyPageResult>(
       PropertyPageResult(items: <PropertyDto>[property]),
     );
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyDto>> create(
+    PropertyCreateCommand command,
+  ) async {
+    createdNames.add(command.draft.name);
+    return PropertyRepositorySuccess<PropertyDto>(property);
   }
 
   @override

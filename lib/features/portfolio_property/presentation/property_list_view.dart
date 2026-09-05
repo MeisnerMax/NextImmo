@@ -30,6 +30,7 @@ class PropertyListView extends StatefulWidget {
     required this.onReload,
     required this.onSetIncludeArchived,
     required this.onRefreshWorkspaces,
+    this.onCreateProperty,
     this.scrollController,
     this.restoreFocusPropertyId,
     this.openingPropertyId,
@@ -42,6 +43,12 @@ class PropertyListView extends StatefulWidget {
   final VoidCallback onReload;
   final ValueChanged<bool> onSetIncludeArchived;
   final VoidCallback onRefreshWorkspaces;
+
+  /// Opens the create dialog (PROPERTY-DATA-02). Null while the membership
+  /// lacks `property.create` or the session is below AAL2 -- the action is
+  /// then shown disabled with a tooltip naming what it needs, never hidden as
+  /// if the capability did not exist.
+  final VoidCallback? onCreateProperty;
 
   /// Owned by the host so the offset survives the property round trip.
   final ScrollController? scrollController;
@@ -94,6 +101,19 @@ class _PropertyListViewState extends State<PropertyListView> {
     return ListFilterTemplate(
       title: PropertyListView.title,
       breadcrumbs: PropertyListView.breadcrumbs,
+      primaryAction: Tooltip(
+        message:
+            widget.onCreateProperty == null
+                ? 'Benötigt die Berechtigung (property.create) und eine '
+                    'MFA-bestätigte Sitzung (AAL2).'
+                : 'Neues Objekt als Entwurf anlegen',
+        child: FilledButton.icon(
+          key: const Key('property-list-create'),
+          onPressed: widget.onCreateProperty,
+          icon: const Icon(Icons.add),
+          label: const Text('Objekt anlegen'),
+        ),
+      ),
       contextBar: _buildNotices(state),
       filters: _buildFilterBar(state),
       content: _buildContent(context, state),
@@ -282,11 +302,24 @@ class _PropertyListViewState extends State<PropertyListView> {
   /// create — that waits for `PROPERTY-DATA-02`.
   Widget _buildEmpty(ReferenceSliceState state) {
     if (state.includeArchived) {
-      return const NxEmptyState(
-        key: Key('property-list-empty'),
+      return NxEmptyState(
+        key: const Key('property-list-empty'),
         title: 'Noch keine Objekte',
-        description: 'In diesem Arbeitsbereich sind keine Objekte vorhanden.',
+        description:
+            widget.onCreateProperty == null
+                ? 'In diesem Arbeitsbereich sind keine Objekte vorhanden.'
+                : 'Lege das erste Objekt an, um mit der Bestandsaufnahme zu '
+                    'beginnen.',
         icon: Icons.home_work_outlined,
+        primaryAction:
+            widget.onCreateProperty == null
+                ? null
+                : FilledButton.icon(
+                  key: const Key('property-list-empty-create'),
+                  onPressed: widget.onCreateProperty,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Objekt anlegen'),
+                ),
       );
     }
     return NxEmptyState(
