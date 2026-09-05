@@ -12,15 +12,18 @@ import '../../../ui/theme/app_theme.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../domain/property_dto.dart';
 import 'property_presentation.dart';
+import 'property_search_field.dart';
 
 /// Property List V2 (`PROPERTY_LIST_V2.md`): the portfolio inventory and the
 /// only primary entry into a property workspace.
 ///
 /// Reads exclusively from the `PropertyRepository.list` contract as surfaced
-/// by [ReferenceSliceState]: keyset pages in contract order `id ASC`, one
-/// server-side filter (`includeArchived`), "Weitere laden" instead of infinite
-/// scroll, no text search, no create/archive/delete. A row shows summary data
-/// only — name, location, status — never per-row KPIs.
+/// by [ReferenceSliceState]: keyset pages in contract order `id ASC`, the
+/// archive filter, the workspace-wide text search from `PROPERTY-LOOKUP-01`,
+/// and "Weitere laden" instead of infinite scroll. The search is a server
+/// filter over the whole workspace, never a filter over the pages that happen
+/// to be loaded — that distinction is why it took its own package. A row shows
+/// summary data only — name, location, status — never per-row KPIs.
 class PropertyListView extends StatefulWidget {
   const PropertyListView({
     super.key,
@@ -30,6 +33,7 @@ class PropertyListView extends StatefulWidget {
     required this.onReload,
     required this.onSetIncludeArchived,
     required this.onRefreshWorkspaces,
+    this.onSearch,
     this.onCreateProperty,
     this.scrollController,
     this.restoreFocusPropertyId,
@@ -43,6 +47,11 @@ class PropertyListView extends StatefulWidget {
   final VoidCallback onReload;
   final ValueChanged<bool> onSetIncludeArchived;
   final VoidCallback onRefreshWorkspaces;
+
+  /// Applies the workspace-wide search (`PROPERTY-LOOKUP-01`); an empty term
+  /// drops the filter. Null hides the field rather than showing one that
+  /// would search nothing.
+  final ValueChanged<String>? onSearch;
 
   /// Opens the create dialog (PROPERTY-DATA-02). Null while the membership
   /// lacks `property.create` or the session is below AAL2 -- the action is
@@ -214,6 +223,12 @@ class _PropertyListViewState extends State<PropertyListView> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
       children: [
+        if (widget.onSearch != null)
+          PropertySearchField(
+            value: state.propertySearchTerm,
+            enabled: filterEnabled,
+            onChanged: widget.onSearch!,
+          ),
         FilterChip(
           key: const Key('property-list-archive-filter'),
           label: const Text('Archivierte einbeziehen'),
@@ -295,12 +310,35 @@ class _PropertyListViewState extends State<PropertyListView> {
     }
   }
 
-  /// Empty is honest about what the query covered. The active view cannot
-  /// know whether archived objects exist without a second query, so it offers
-  /// the filter instead of claiming either way; the archive view covers
-  /// everything and therefore states the workspace is empty. Neither offers
-  /// create — that waits for `PROPERTY-DATA-02`.
+  /// Empty is honest about what the query covered. A search that matched
+  /// nothing is not an empty workspace, and the two need different next
+  /// actions — so the search case comes first and offers to drop the term.
+  /// Beyond that, the active view cannot know whether archived objects exist
+  /// without a second query, so it offers the filter instead of claiming
+  /// either way; the archive view covers everything and therefore states the
+  /// workspace is empty.
   Widget _buildEmpty(ReferenceSliceState state) {
+    if (state.hasPropertySearch) {
+      return NxEmptyState(
+        key: const Key('property-list-search-empty'),
+        title: 'Keine Treffer',
+        description:
+            'Kein Objekt in diesem Arbeitsbereich passt zu '
+            '"${state.propertySearchTerm}"'
+            '${state.includeArchived ? '' : '. Archivierte Objekte sind nicht '
+                    'einbezogen'}.',
+        icon: Icons.search_off_outlined,
+        primaryAction:
+            widget.onSearch == null
+                ? null
+                : OutlinedButton.icon(
+                  key: const Key('property-list-search-reset'),
+                  onPressed: () => widget.onSearch!(''),
+                  icon: const Icon(Icons.close),
+                  label: const Text('Suche zurücksetzen'),
+                ),
+      );
+    }
     if (state.includeArchived) {
       return NxEmptyState(
         key: const Key('property-list-empty'),

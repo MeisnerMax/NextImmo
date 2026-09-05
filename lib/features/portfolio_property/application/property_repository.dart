@@ -32,11 +32,21 @@ class PropertyListQuery {
     required this.workspaceId,
     this.page = const PropertyPageRequest(),
     this.includeArchived = false,
+    this.searchTerm,
   });
 
   final String workspaceId;
   final PropertyPageRequest page;
   final bool includeArchived;
+
+  /// Free text over name, address, zip and city (`PROPERTY-LOOKUP-01`). The
+  /// server searches the whole workspace, so a result set is never "the pages
+  /// that happen to be loaded". Null or blank means no text filter.
+  final String? searchTerm;
+
+  /// Whether a text filter is actually in effect. A term of only whitespace
+  /// is not one.
+  bool get hasSearchTerm => (searchTerm?.trim().isNotEmpty) ?? false;
 }
 
 class PropertyPageResult {

@@ -290,6 +290,7 @@ class _FakeGateway implements PropertySupabaseGateway {
     required String? afterId,
     required int limit,
     required bool includeArchived,
+    List<String> searchTerms = const <String>[],
   }) async => <Map<String, dynamic>>[];
 
   @override

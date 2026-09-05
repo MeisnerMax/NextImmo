@@ -12,6 +12,7 @@ abstract interface class PropertySupabaseGateway {
     required String? afterId,
     required int limit,
     required bool includeArchived,
+    List<String> searchTerms = const <String>[],
   });
 
   Future<List<Map<String, dynamic>>> getProperty({
@@ -40,6 +41,7 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
     required String? afterId,
     required int limit,
     required bool includeArchived,
+    List<String> searchTerms = const <String>[],
   }) async {
     var query = _client
         .from('properties')
@@ -47,6 +49,14 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
           'id, workspace_id, name, address_line1, zip, city, status, version',
         )
         .eq('workspace_id', workspaceId);
+    for (final term in searchTerms) {
+      // One filter per term, so PostgREST ANDs them: every term must appear
+      // somewhere in the row. `search_text` is the generated, lower-cased
+      // name/address/zip/city column from PROPERTY-LOOKUP-01; the row-level
+      // policy governs it exactly as it governs the unfiltered list, so a
+      // search can never surface a property the list would have hidden.
+      query = query.ilike('search_text', '%$term%');
+    }
     if (!includeArchived) {
       // Archive is the property tombstone (DEBT-012): archiving sets the
       // deleted_at marker, so active reads exclude tombstoned rows by that
@@ -110,6 +120,7 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
         afterId: query.page.cursor,
         limit: query.page.limit + 1,
         includeArchived: query.includeArchived,
+        searchTerms: propertySearchTerms(query.searchTerm),
       );
       final hasNextPage = rows.length > query.page.limit;
       final pageRows = hasNextPage ? rows.take(query.page.limit) : rows;
@@ -546,6 +557,31 @@ DateTime? _nullableDateTime(Map<String, dynamic> json, String key) {
 
 /// Parses one overview section. An unavailable section carries no counters at
 /// all, so a caller cannot mistake "not permitted" for "none".
+/// Splits a user's query into the terms the search filter ANDs together.
+///
+/// Terms are lower-cased for the generated column, capped at five, and each
+/// one capped in length: a query is a filter, not an opportunity to build an
+/// arbitrarily expensive pattern. `%` and `_` are left in place — they widen
+/// the match, they cannot reach past the row policy, and stripping them would
+/// make a property whose name actually contains one unfindable.
+List<String> propertySearchTerms(String? raw) {
+  final trimmed = raw?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return const <String>[];
+  }
+  final terms = <String>[];
+  for (final token in trimmed.toLowerCase().split(RegExp(r'\s+'))) {
+    if (token.isEmpty) {
+      continue;
+    }
+    terms.add(token.length > 64 ? token.substring(0, 64) : token);
+    if (terms.length == 5) {
+      break;
+    }
+  }
+  return List<String>.unmodifiable(terms);
+}
+
 PropertyOverviewSection _parseSection(Object? raw, String fallbackPermission) {
   final json = _asMap(raw);
   if (json['available'] != true) {

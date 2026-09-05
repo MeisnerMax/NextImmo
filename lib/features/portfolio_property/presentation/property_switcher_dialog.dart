@@ -7,20 +7,23 @@ import '../../../ui/theme/app_theme.dart';
 import '../application/property_repository.dart';
 import '../domain/property_dto.dart';
 import 'property_presentation.dart';
+import 'property_search_field.dart';
 
-/// Loads one keyset page of properties for the switcher.
+/// Loads one keyset page of properties for the switcher, optionally filtered
+/// by the switcher's own search term.
 typedef PropertySwitcherPage =
     Future<PropertyRepositoryResult<PropertyPageResult>> Function({
       String? cursor,
+      String? searchTerm,
     });
 
 /// The property switcher (`PROPERTY_WORKSPACE_V2.md` §6 "Property wechseln").
 ///
-/// A keyset-paginated browse dialog in the contract's own order, never a
-/// filter over the pages the workspace happens to have loaded: presenting a
-/// partial client subset as the searchable universe is exactly the dishonesty
-/// the spec rules out. There is no text search until a server-side one exists
-/// (`PROPERTY-LOOKUP-01`); until then this browses, and says so.
+/// Browses the contract's own order and searches the whole workspace through
+/// `PROPERTY-LOOKUP-01` — never a filter over the pages the workspace happens
+/// to have loaded, which is the dishonesty the spec rules out. The search term
+/// belongs to this dialog: looking a property up here leaves the list behind
+/// it exactly as it was.
 class PropertySwitcherDialog extends StatefulWidget {
   const PropertySwitcherDialog({
     super.key,
@@ -57,6 +60,11 @@ class _PropertySwitcherDialogState extends State<PropertySwitcherDialog> {
   bool _loading = true;
   bool _loadingMore = false;
   String? _error;
+  String _searchTerm = '';
+
+  /// Guards against an out-of-order answer: a slow page for an older term must
+  /// not land on top of a newer one's results.
+  int _requestGeneration = 0;
 
   @override
   void initState() {
@@ -64,10 +72,23 @@ class _PropertySwitcherDialogState extends State<PropertySwitcherDialog> {
     _load();
   }
 
+  /// Applies a new search term, restarting the keyset: a cursor from the
+  /// previous result set is not a position in this one.
+  void _search(String term) {
+    if (term == _searchTerm) {
+      return;
+    }
+    _searchTerm = term;
+    _nextCursor = null;
+    _load();
+  }
+
   Future<void> _load({bool more = false}) async {
     if (more && (_nextCursor == null || _loadingMore)) {
       return;
     }
+    final generation = ++_requestGeneration;
+    final term = _searchTerm;
     setState(() {
       if (more) {
         _loadingMore = true;
@@ -77,8 +98,11 @@ class _PropertySwitcherDialogState extends State<PropertySwitcherDialog> {
       _error = null;
     });
 
-    final result = await widget.loadPage(cursor: more ? _nextCursor : null);
-    if (!mounted) {
+    final result = await widget.loadPage(
+      cursor: more ? _nextCursor : null,
+      searchTerm: term.isEmpty ? null : term,
+    );
+    if (!mounted || generation != _requestGeneration) {
       return;
     }
     setState(() {
@@ -116,11 +140,19 @@ class _PropertySwitcherDialogState extends State<PropertySwitcherDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            PropertySearchField(
+              value: _searchTerm,
+              autofocus: true,
+              label: 'Objekt suchen',
+              onChanged: _search,
+            ),
+            const SizedBox(height: AppSpacing.xs),
             Text(
-              // Honest about the scope: this browses the contract order, it
-              // does not search.
-              'Objekte in der Reihenfolge des Contracts. Eine Suche über alle '
-              'Objekte folgt mit einem eigenen Server-Contract.',
+              // Honest about the scope: the search covers the workspace, the
+              // browse order is the contract's, and archived objects are out.
+              'Sucht über alle Objekte des Arbeitsbereichs; ohne Suchbegriff '
+              'in der Reihenfolge des Contracts. Archivierte Objekte sind '
+              'nicht enthalten.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: AppSpacing.component),
@@ -151,12 +183,24 @@ class _PropertySwitcherDialogState extends State<PropertySwitcherDialog> {
       );
     }
     if (_properties.isEmpty) {
-      return const NxEmptyState(
-        key: Key('property-switcher-empty'),
-        title: 'Keine weiteren Objekte',
-        description: 'In diesem Arbeitsbereich gibt es kein anderes Objekt.',
-        icon: Icons.home_work_outlined,
-      );
+      // A search that matched nothing is not an empty workspace.
+      return _searchTerm.isEmpty
+          ? const NxEmptyState(
+            key: Key('property-switcher-empty'),
+            title: 'Keine weiteren Objekte',
+            description:
+                'In diesem Arbeitsbereich gibt es kein anderes '
+                'Objekt.',
+            icon: Icons.home_work_outlined,
+          )
+          : NxEmptyState(
+            key: const Key('property-switcher-search-empty'),
+            title: 'Keine Treffer',
+            description:
+                'Kein Objekt passt zu "$_searchTerm". Archivierte Objekte '
+                'sind nicht enthalten.',
+            icon: Icons.search_off_outlined,
+          );
     }
     return ListView.builder(
       key: const Key('property-switcher-list'),

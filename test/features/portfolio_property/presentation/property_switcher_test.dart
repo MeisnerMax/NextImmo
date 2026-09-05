@@ -35,9 +35,102 @@ void main() {
         find.byKey(const Key('property-switcher-item-property-c')),
         findsOneWidget,
       );
-      // It browses, and says so rather than pretending to search.
-      expect(find.byType(TextField), findsNothing);
-      expect(find.textContaining('Suche über alle'), findsOneWidget);
+      // It browses in contract order and says exactly what its scope is.
+      expect(calls.searchTerms, <String?>[null]);
+      expect(find.textContaining('über alle Objekte'), findsOneWidget);
+    });
+
+    testWidgets('a search asks the server, not the loaded page', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _pump(tester, calls);
+      await tester.tap(find.byKey(const Key('property-context-switch')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'gamma',
+      );
+      // Debounced: nothing has been asked yet.
+      await tester.pump();
+      expect(calls.searchTerms, <String?>[null]);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(calls.searchTerms, <String?>[null, 'gamma']);
+      expect(
+        find.byKey(const Key('property-switcher-item-property-c')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('property-switcher-item-property-b')),
+        findsNothing,
+        reason: 'the result set is the server answer, not a client filter',
+      );
+    });
+
+    testWidgets('a single character is not sent to the server', (tester) async {
+      final calls = _Calls();
+      await _pump(tester, calls);
+      await tester.tap(find.byKey(const Key('property-context-switch')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'g',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(calls.searchTerms, <String?>[null]);
+      expect(find.textContaining('Mindestens 2 Zeichen'), findsOneWidget);
+    });
+
+    testWidgets('a search with no match says so, and does not claim the '
+        'workspace is empty', (tester) async {
+      final calls = _Calls();
+      await _pump(tester, calls);
+      await tester.tap(find.byKey(const Key('property-context-switch')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'lissabon',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('property-switcher-search-empty')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('property-switcher-empty')), findsNothing);
+    });
+
+    testWidgets('clearing the search restores the browse list at once', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _pump(tester, calls);
+      await tester.tap(find.byKey(const Key('property-context-switch')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'gamma',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('property-search-clear')));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(calls.searchTerms, <String?>[null, 'gamma', null]);
+      expect(
+        find.byKey(const Key('property-switcher-item-property-b')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('pages forward with the keyset cursor', (tester) async {
@@ -186,10 +279,14 @@ void main() {
 
 class _Calls {
   final List<String?> cursors = <String?>[];
+  final List<String?> searchTerms = <String?>[];
   final List<String> opened = <String>[];
   bool openSucceeds = true;
   bool fail = false;
   bool includeCurrent = false;
+
+  /// The one property the scripted search matches.
+  static const String searchMatch = 'property-c';
 }
 
 Future<void> _pump(
@@ -216,12 +313,30 @@ Future<void> _pump(
         onRetryUpdate: () async {},
         onLoadSwitcherPage:
             withSwitcher
-                ? ({String? cursor}) async {
+                ? ({String? cursor, String? searchTerm}) async {
                   calls.cursors.add(cursor);
+                  calls.searchTerms.add(searchTerm);
                   if (calls.fail) {
                     return const PropertyRepositoryFailure<PropertyPageResult>(
                       kind: PropertyRepositoryFailureKind.infrastructureFailure,
                       message: 'Serverfehler.',
+                    );
+                  }
+                  if (searchTerm != null) {
+                    // The server answers the search, not the loaded page: only
+                    // rows that match come back, and there is no next cursor.
+                    return PropertyRepositorySuccess<PropertyPageResult>(
+                      PropertyPageResult(
+                        items:
+                            searchTerm.contains('gamma')
+                                ? <PropertySummaryDto>[
+                                  property(
+                                    id: _Calls.searchMatch,
+                                    name: 'Gamma Center',
+                                  ),
+                                ]
+                                : const <PropertySummaryDto>[],
+                      ),
                     );
                   }
                   if (cursor == null) {

@@ -424,7 +424,7 @@ Die 15 Specs sind Screen-/Host-Grenzen, nicht 15 Top-Level-Ziele. Verbindlich bl
 | Spec | Produkt-Scope | Technische Voraussetzung (prerequisite-first) | Kann parallel implementiert werden mit |
 |---|---|---|---|
 | Property Workspace | COMMITTED | READY — Host implementiert | nach Host-API: Asset, Leasing, Operations, Documents, Investment/Valuation |
-| Property List | COMMITTED | READY; Suche/Lifecycle: PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01`, `PROPERTY-DATA-02` | Asset; Valuation-Rehost |
+| Property List | COMMITTED | READY inkl. Suche und Lifecycle (`PROPERTY-LOOKUP-01`, `PROPERTY-DATA-02` gelandet); Ranking/Diakritik: PREREQUISITE REQUIRED | Asset; Valuation-Rehost |
 | Property Overview | COMMITTED | PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` | Backend parallel zu Scenario, Finance, Activity/Audit, Media |
 | Property Asset | COMMITTED | READY; Lifecycle/Medien: PREREQUISITE REQUIRED — `PROPERTY-DATA-02`, `PROPERTY-MEDIA-DATA-01` | Leasing; Operations; Documents; Valuation |
 | Property Leasing | COMMITTED | READY — Contracts und Panels vorhanden; Domain-Degraded-Wiring begleitet die Registrierung | Asset; Operations; Documents; Valuation |

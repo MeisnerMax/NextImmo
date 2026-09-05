@@ -1644,6 +1644,99 @@ void main() {
       expect(properties.listQueries.last.includeArchived, isFalse);
     });
 
+    // PROPERTY-LOOKUP-01: the search is a server filter. What matters in the
+    // controller is that the term reaches every read of the visible query,
+    // restarts the keyset, and disappears with the scope it belonged to.
+    test('passes the search term to every list query and resets it on '
+        'workspace switch', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      properties.listResult = PropertyRepositorySuccess<PropertyPageResult>(
+        PropertyPageResult(
+          items: <PropertyDto>[_property()],
+          nextCursor: 'property-a',
+        ),
+      );
+
+      await controller.start();
+      expect(controller.state.propertySearchTerm, '');
+      expect(properties.listQueries.single.searchTerm, '');
+
+      await controller.setPropertySearch('  Atlas   Haus  ');
+      expect(
+        controller.state.propertySearchTerm,
+        'Atlas Haus',
+        reason: 'normalized once, in the controller',
+      );
+      expect(properties.listQueries.last.searchTerm, 'Atlas Haus');
+      expect(
+        properties.listQueries.last.page.cursor,
+        isNull,
+        reason: 'a new result set invalidates the old cursor',
+      );
+
+      await controller.loadNextPropertyPage();
+      expect(properties.listQueries.last.searchTerm, 'Atlas Haus');
+      expect(properties.listQueries.last.page.cursor, 'property-a');
+
+      invalidations.emit(
+        const PropertyQueryInvalidation.reconcile(workspaceId: 'workspace-a'),
+      );
+      await _flushEvents();
+      await _flushEvents();
+      expect(
+        properties.listQueries.last.searchTerm,
+        'Atlas Haus',
+        reason:
+            'a realtime reconcile re-reads the query the user is looking '
+            'at, filter included',
+      );
+
+      // The same term after normalization is not a new search.
+      final calls = properties.listCalls;
+      await controller.setPropertySearch('Atlas  Haus');
+      expect(properties.listCalls, calls);
+
+      await controller.setPropertySearch('');
+      expect(controller.state.propertySearchTerm, '');
+      expect(properties.listQueries.last.searchTerm, '');
+
+      await controller.setPropertySearch('Atlas');
+      await controller.selectWorkspace('workspace-a');
+      expect(
+        controller.state.propertySearchTerm,
+        '',
+        reason: 'a new scope starts unfiltered',
+      );
+      expect(properties.listQueries.last.searchTerm, '');
+    });
+
+    test('the switcher search never touches the list search', () async {
+      identity.authenticate();
+      identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
+        <WorkspaceAccess>[
+          _access(permissions: <String>{'property.read'}),
+        ],
+      );
+      await controller.start();
+      await controller.setPropertySearch('Atlas');
+      final before = controller.state;
+
+      await controller.loadPropertyPage(searchTerm: 'Beta');
+
+      expect(properties.listQueries.last.searchTerm, 'Beta');
+      expect(controller.state.propertySearchTerm, 'Atlas');
+      expect(
+        controller.state.properties,
+        same(before.properties),
+        reason: 'the browse read is side-effect free',
+      );
+    });
+
     test('a failed additional page keeps the loaded pages visible', () async {
       identity.authenticate();
       identity.result = IdentityAccessSuccess<List<WorkspaceAccess>>(
