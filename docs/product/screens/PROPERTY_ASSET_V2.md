@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/asset`; heute Property-Detail im Reference Slice
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/domain/property_dto.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY für Stammdaten lesen/bearbeiten sowie Archivieren/Wiederherstellen (`PROPERTY-DATA-02` gelandet); PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` (Medien)
+- Technical readiness (Stand 2026-09-06): READY für Stammdaten, Lifecycle und Medien. `PROPERTY-MEDIA-DATA-01` ist umgesetzt: privater Bucket, entity-gescopte Storage-Policies, auditierte RPCs, Galerie unter den Stammdaten. Das Titelbild erscheint auch in den Listenzeilen — ein Read je Seite plus ein Batch-Signing-Call, kein N+1. Offen bleibt nur die Bildreihenfolge per Drag
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), `PROPERTY-CREATE-01` nach `PROPERTY-DATA-02`
@@ -178,7 +178,19 @@ Nicht anwendbar. Der Property-Wechsler gehört zum Host, nicht zu den Stammdaten
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `PROPERTY-DATA-02`: **gelandet** — `create_property` (Permission `property.create`, admin/manager) plus Archivieren/Wiederherstellen über den bestehenden Tombstone-Pfad. Kein Hard-Delete.
-- `PROPERTY-MEDIA-DATA-01` (Vorschlag): Property-Media/Titelbild mit privatem Storage, Version und Lifecycle.
+- `PROPERTY-MEDIA-DATA-01` ist **gelandet (2026-09-06)**: Tabelle `property_media`, privater Bucket `property-media`, zwei auditierte RPCs, Galerie im Objekt-Bereich.
+
+  Fünf Entscheidungen, die dabei getroffen wurden:
+
+  1. **Keine neuen Permission-Schlüssel.** Medien sind Objekt-Stammdaten: Lesen braucht entity-gescoptes `property.read`, Ändern `property.update`. Eine eigene Capability hätte Rollenbündel, Katalogtest und den Client-Spiegel davon berührt — für etwas, das am Ende ein Feld des Objekts ist.
+  2. **Der Entity-Scope reicht bis zu den Bytes.** Die Storage-Policies lesen Workspace *und* Objekt aus dem Pfad und prüfen dieselbe Regel wie die Metadatenzeile. Eine auf ein Objekt eingeschränkte Mitgliedschaft kann das Foto eines anderen Objekts auch mit geratenem Pfad nicht abrufen. Das ist strenger als der Dokumenten-Bucket, der nur den Workspace prüft.
+  3. **Objekte sind unveränderlich.** Es gibt bewusst keine UPDATE- und keine DELETE-Policy. Ein Bild verschwindet, indem es archiviert und damit nicht mehr ausgeliefert wird; die Bytes räumt ein Betriebsjob ab. Wer ein Objekt überschreiben könnte, könnte Historie unter stabilem Pfad umschreiben.
+  4. **Metadaten folgen echten Bytes.** Die Registrierung prüft, dass unter dem angegebenen Pfad ein Objekt existiert. Deshalb ist die Reihenfolge Upload → Registrierung und nicht umgekehrt: ein fehlgeschlagener Upload hinterlässt ein verwaistes Objekt, die harmlose Richtung.
+  5. **Ein Titelbild, von der Datenbank durchgesetzt.** Ein partieller Unique-Index entscheidet das, nicht der zuletzt schreibende Client.
+
+  Signierte URLs werden bei Bedarf erzeugt (5 Minuten) und **nirgends gespeichert**: für ein privates Objekt ist eine URL ein kurzlebiges Credential, kein Adresswert. Das DTO trägt deshalb einen Pfad.
+
+  **Noch offen und bewusst nicht behauptet:** Die Storage-Policies sind in pgTAP 035 als `authenticated`-Rolle geprüft — also mit genau der Rolle und dem Prädikat, die der Storage-Dienst auswertet. Ein *behavioural* Nachweis über die echte Storage-HTTP-API, wie ihn `SECURITY-STORAGE-AAL-03` für den Dokumenten-Bucket führt, existiert für `property-media` noch nicht. Das ist ein eigenes Inkrement an jenem Skript, kein Nebeneffekt dieses Pakets.
 - Kein Backend-Gap für `sqft`: Das erste Inkrement zeigt und speichert die Contracteinheit `ft²` unverändert. Eine spätere m²-Migration ist ein separates Datenpaket.
 - kein weiterer Backend-Gap für list/get/update.
 

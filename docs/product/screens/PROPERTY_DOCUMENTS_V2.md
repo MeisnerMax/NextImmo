@@ -189,7 +189,7 @@ Zusätzlich:
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `DOCUMENTS-COMPLETE-01`: Registry-Flächen für Typen/Pflichtregeln sowie Paritätsdiff, ohne neue Schema/RLS/Permission still vorauszusetzen.
-- Property Media/Titelbild besitzt keinen vollständigen Cloud-Contract: Vorschlag `PROPERTY-MEDIA-DATA-01`; nicht durch Document category simulieren.
+- Property Media/Titelbild hat seit 2026-09-06 seinen eigenen Contract (`PROPERTY-MEDIA-DATA-01`, eigener privater Bucket und eigene Tabelle). Dokumente bleiben Dokumente: ein Bild wird weiterhin **nicht** über eine Document-Kategorie simuliert.
 - Document-to-data/Lease Abstraction, OCR-/AI-Provenienz und Source-Clause-Links sind spätere Produktidee mit eigenem Extract/Review-Contract.
 - serverseitige Overview-Compliance-Summary für KPI/Attention: `PROPERTY-OVERVIEW-DATA-01`; Requirements selbst sind bereits serverevaluiert.
 

@@ -37,6 +37,7 @@ class PropertyAssetPanel extends StatefulWidget {
     required this.dirtyRegistry,
     required this.onUpdate,
     required this.onRetry,
+    this.mediaBuilder,
   });
 
   final ReferenceSliceState state;
@@ -52,6 +53,11 @@ class PropertyAssetPanel extends StatefulWidget {
   final PropertyWorkspaceDirtyRegistry dirtyRegistry;
   final PropertyAssetUpdate onUpdate;
   final VoidCallback onRetry;
+
+  /// Builds the property's media gallery (`PROPERTY-MEDIA-DATA-01`). Injected
+  /// by the connected host so this panel stays pumpable without a provider
+  /// graph; null simply omits the section.
+  final Widget Function(BuildContext context, String propertyId)? mediaBuilder;
 
   static const String notProvided = 'Nicht hinterlegt';
 
@@ -379,8 +385,18 @@ class _PropertyAssetPanelState extends State<PropertyAssetPanel>
         const SizedBox(height: AppSpacing.component),
         if (editing)
           _buildForm(context, property)
-        else
+        else ...<Widget>[
           _buildRead(context, property),
+          // Media sits under the master data rather than in a domain of its
+          // own: a photo is a property field, and PROPERTY_WORKSPACE_V2 caps
+          // the navigation at seven domains. It is hidden while the form is
+          // open, because an upload during an unsaved edit would be a second
+          // mutation competing with the first.
+          if (widget.mediaBuilder != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.component),
+            widget.mediaBuilder!(context, property.id),
+          ],
+        ],
       ],
     );
   }

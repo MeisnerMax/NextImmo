@@ -22,7 +22,7 @@ create extension if not exists pgtap with schema extensions;
 -- whole schema, so a regression has to be introduced visibly rather than
 -- silently.
 
-select plan(33);
+select plan(34);
 
 -- === Function grant surface, across the entire public schema ============
 
@@ -111,8 +111,8 @@ select is(
    where namespace.nspname = 'public'
      and function.prokind = 'f'
      and function.prosecdef),
-  69,
-  'SR-20: the public SECURITY DEFINER inventory is still 69 -- update this expectation deliberately when it changes'
+  71,
+  'SR-20: the public SECURITY DEFINER inventory is still 71 -- update this expectation deliberately when it changes'
 );
 
 select is(
@@ -441,8 +441,8 @@ select is(
    join pg_class as class on class.oid = policy.polrelid
    join pg_namespace as namespace on namespace.oid = class.relnamespace
    where namespace.nspname in ('public', 'storage', 'realtime')),
-  41,
-  'SR-22: the client-reachable policy inventory is still 41 -- update this expectation deliberately'
+  44,
+  'SR-22: the client-reachable policy inventory is still 44 -- update this expectation deliberately'
 );
 
 -- === SR-23: the document storage surface ================================
@@ -522,14 +522,30 @@ select is(
 
 -- A new policy on storage.objects has to be acknowledged in the pull request
 -- that adds it, exactly like SR-20 for functions and SR-22 for public policies.
+-- Four since PROPERTY-MEDIA-DATA-01 added a second private bucket: one SELECT
+-- and one INSERT per bucket, and still no UPDATE and no DELETE anywhere.
 select is(
   (select count(*)::integer
    from pg_policy as policy
    join pg_class as class on class.oid = policy.polrelid
    join pg_namespace as namespace on namespace.oid = class.relnamespace
    where namespace.nspname = 'storage' and class.relname = 'objects'),
-  2,
-  'SR-23: the storage.objects policy inventory is still 2 -- update this expectation deliberately'
+  4,
+  'SR-23: the storage.objects policy inventory is still 4 -- update this expectation deliberately'
+);
+
+-- SR-24: no bucket may be written twice. Every storage policy in this system
+-- is a SELECT or an INSERT; an UPDATE or DELETE policy would let a client
+-- overwrite or remove bytes under a stable path, which is how a document
+-- version or a property photo would stop being evidence.
+select is(
+  (select array_agg(distinct policy.polcmd::text order by policy.polcmd::text)
+   from pg_policy as policy
+   join pg_class as class on class.oid = policy.polrelid
+   join pg_namespace as namespace on namespace.oid = class.relnamespace
+   where namespace.nspname = 'storage' and class.relname = 'objects'),
+  array['a', 'r'],
+  'SR-24: every storage.objects policy is an INSERT or a SELECT, in every bucket'
 );
 
 -- The workspace prefix parser is the whole isolation story for this bucket: it

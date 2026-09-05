@@ -11,6 +11,9 @@ import 'package:neximmo_app/features/platform_audit_jobs/application/platform_re
 import 'package:neximmo_app/features/platform_audit_jobs/domain/notification_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_media_controller.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_media_port.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_media_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/navigation/app_navigation.dart';
@@ -41,6 +44,7 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -74,6 +78,7 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -122,6 +127,7 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -173,6 +179,9 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          // The Objekt surface carries the media gallery
+          // (PROPERTY-MEDIA-DATA-01); the port fails closed when unconfigured.
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -415,4 +424,19 @@ class _SilentInvalidationSource implements PlatformQueryInvalidationSource {
   Stream<PlatformQueryInvalidation> watchWorkspace({
     required String workspaceId,
   }) => const Stream<PlatformQueryInvalidation>.empty();
+}
+
+class _EmptyPropertyMedia implements PropertyMediaPort {
+  @override
+  Future<PropertyRepositoryResult<List<PropertyMediaDto>>> list({
+    required String workspaceId,
+    required String propertyId,
+    bool includeArchived = false,
+  }) async => const PropertyRepositorySuccess<List<PropertyMediaDto>>(
+    <PropertyMediaDto>[],
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('not used by the runtime test');
 }
