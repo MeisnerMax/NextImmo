@@ -7,7 +7,7 @@
 - Route: zukünftige Ziele `/properties/:propertyId/operations/maintenance`, `/capex`, `/tasks`; heute property-scoped Panels
 - Current implementation file(s): `lib/ui/screens/property_detail/property_maintenance_capex_panel.dart`, `lib/features/maintenance_capex/application/property_maintenance_capex_controller.dart`, `lib/features/maintenance_capex/application/maintenance_capex_repository.dart`, `lib/features/platform_audit_jobs/application/platform_repository.dart`, `lib/features/platform_audit_jobs/domain/task_dto.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY für Aufgaben; PREREQUISITE REQUIRED — `MAINTENANCE-PARITY-01` (Wartung/CapEx-Parität)
+- Technical readiness (Stand 2026-09-06): READY für alle drei Unterbereiche. `MAINTENANCE-PARITY-01` ist umgesetzt: `Wartung` und `CapEx` sind eigene, einzeln berechtigte Unterbereiche mit serverseitigen Filtern, kanonischem Detail und Bearbeiten. PREREQUISITE REQUIRED bleibt für die Verknüpfungsflächen (Dokumente/Aufgaben am Ticket) und Benachrichtigungen — siehe §14
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, bestehende Pakete `MAINTENANCE-PARITY-01` und `TASKS-NOTIFICATIONS-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Documents V2](PROPERTY_DOCUMENTS_V2.md), [Property Activity & Reports V2](PROPERTY_ACTIVITY_REPORTS_V2.md)
@@ -180,7 +180,17 @@ Spezifisch:
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-- `MAINTENANCE-PARITY-01` muss Edit/Delete/Document-/Task-Links/Filter/Notifications gegen den aktuellen Cloud-Contract diffen; Delete ist heute nicht vorhanden und darf nicht als UI-only geplant werden.
+- `MAINTENANCE-PARITY-01` ist **erledigt (2026-09-06)**. Der geforderte Diff gegen den Cloud-Contract, Punkt für Punkt:
+
+  | Fähigkeit | Contract | Umgesetzt |
+  |---|---|---|
+  | Filter (Status, Priorität, CapEx-Status) | `MaintenanceTicketListQuery`, `CapexProjectListQuery` | ja, serverseitig; der Client filtert keine geladene Seite nach |
+  | Detail | `getById` je Aggregat | ja, kanonischer Read per Id statt Listenzeile |
+  | Edit | `update_maintenance_ticket`, `update_capex_project` | ja, nur geänderte Felder (die RPC coalesct je Feld) |
+  | Status/Freigabe | eigene Transition-RPCs | bleibt bei den Transitionen; **kein** zweiter, unauditierter Pfad im Edit-Dialog |
+  | Delete | existiert nicht | **nicht gebaut** — ein UI-only-Delete wäre eine Fähigkeit, die der Server nicht hat |
+  | Dokument-/Task-Verknüpfungen | `document_links` und `PlatformEntityRef` kennen `maintenance_ticket`/`capex_project` | **offen**: eigenes Paket `PROPERTY-OPERATIONS-LINKS-01`; Task-Read ist vorhanden, der Dokument-Read je Entity wartet auf `DOCUMENTS-QUERY-DATA-01` |
+  | Benachrichtigungen | der Emitter kennt heute keine Maintenance-/CapEx-Ereignisse | **offen**: gehört in ein Emitter-Inkrement, nicht in die UI |
 - serverseitige Overview-Aggregate/Priorisierung für Tickets, CapEx und Tasks: `PROPERTY-OVERVIEW-DATA-01`.
 - Ein späterer gemeinsamer Property-Work-Read für direkte Property- sowie Ticket-/CapEx-Tasks wäre ein separates Query-Contract-Inkrement; der aktuelle Screen behauptet diese Zusammenführung nicht.
 - keine Schema/RLS/Permission-Erweiterung wird vorausgesetzt; jede benötigte Änderung ist im jeweiligen Backend-Paket explizit zu entscheiden.
