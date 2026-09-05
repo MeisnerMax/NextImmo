@@ -18,9 +18,9 @@ void main() {
 
     test('registers exactly the implemented domains: Übersicht '
         '(PROPERTY-OVERVIEW-DATA-01), Objekt (A1), Vermietung '
-        '(PROPERTY_LEASING_V2), Betrieb (TASK-CENTER-01) and Dokumente '
-        '(DOCUMENTS-COMPLETE-01)', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(5));
+        '(PROPERTY_LEASING_V2), Betrieb (MAINTENANCE-PARITY-01), Dokumente '
+        '(DOCUMENTS-COMPLETE-01) and Investment (VALUATION-REHOST-01)', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(6));
       // Übersicht leads, because it is the default target once its summary
       // contract exists (PROPERTY_WORKSPACE_V2.md §41).
       final overview = registeredPropertyWorkspaceDomains.first;
@@ -44,15 +44,17 @@ void main() {
       expect(operations.readPermission, 'task.read');
       // Documents: the property-scoped document panel, gated by the screen's
       // own read capability (PROPERTY_DOCUMENTS_V2.md §8).
-      final documents = registeredPropertyWorkspaceDomains.last;
+      final documents = registeredPropertyWorkspaceDomains[4];
       expect(documents.domain, PropertyWorkspaceDomain.documents);
       expect(documents.label, 'Dokumente');
       expect(documents.readPermission, 'document.read');
+      // Investment: gated by the read permission of its one implemented
+      // child, the valuation queue and case surface.
+      final investment = registeredPropertyWorkspaceDomains.last;
+      expect(investment.domain, PropertyWorkspaceDomain.investment);
+      expect(investment.label, 'Investment');
+      expect(investment.readPermission, 'valuation.read');
       // Blocked or not yet implemented domains are absent, not disabled.
-      expect(
-        registeredPropertyWorkspaceDomains.map((d) => d.domain),
-        isNot(contains(PropertyWorkspaceDomain.investment)),
-      );
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
         isNot(contains(PropertyWorkspaceDomain.activity)),

@@ -84,7 +84,11 @@ class PropertyWorkspaceDomainRegistration {
 /// host itself — every module inside it is additionally scoped by its own
 /// domain permission, server-side. It is the first entry because it is the
 /// default target once its contract exists (`PROPERTY_WORKSPACE_V2.md` §41).
-/// `Investment` follows with `VALUATION-REHOST-01`; `Aktivität` stays hidden
+/// `Investment` with `VALUATION-REHOST-01` (`PROPERTY_INVESTMENT_V2.md`): the
+/// property's valuation queue and case surface, rehosted rather than rebuilt,
+/// gated by `valuation.read` — the read permission of its one implemented
+/// child today. `Szenarien` and `Performance` widen the gate when they land.
+/// `Aktivität` stays hidden
 /// until it has at least one implemented child. Registering a domain here is a
 /// deliberate act of the increment that implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
@@ -117,6 +121,11 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     domain: PropertyWorkspaceDomain.documents,
     label: 'Dokumente',
     readPermission: Permission.documentRead,
+  ),
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.investment,
+    label: 'Investment',
+    readPermission: Permission.valuationRead,
   ),
 ];
 
@@ -163,6 +172,35 @@ List<PropertyOperationsSubArea> visiblePropertyOperationsSubAreas(
   Set<String> permissions,
 ) {
   return PropertyOperationsSubArea.values
+      .where((subArea) => permissions.contains(subArea.readPermission))
+      .toList(growable: false);
+}
+
+/// The sub-areas of `Investment` (`PROPERTY_INVESTMENT_V2.md` §1): three
+/// related but independent screens that share only navigation and the property
+/// context. The host groups them; it must never merge valuation factors,
+/// scenario inputs and finance actuals into one cross-domain form.
+///
+/// Only `Bewertung` is implemented (`VALUATION-REHOST-01`). `Szenarien` waits
+/// for `SCENARIO-VALUATION-01` and `Performance` for `FINANCE-01`/`P2-D08`;
+/// both stay absent rather than appearing as empty frames.
+enum PropertyInvestmentSubArea { valuation }
+
+extension PropertyInvestmentSubAreaMeta on PropertyInvestmentSubArea {
+  String get label => switch (this) {
+    PropertyInvestmentSubArea.valuation => 'Bewertung',
+  };
+
+  String get readPermission => switch (this) {
+    PropertyInvestmentSubArea.valuation => Permission.valuationRead,
+  };
+}
+
+/// The investment sub-areas this membership may open, in spec order.
+List<PropertyInvestmentSubArea> visiblePropertyInvestmentSubAreas(
+  Set<String> permissions,
+) {
+  return PropertyInvestmentSubArea.values
       .where((subArea) => permissions.contains(subArea.readPermission))
       .toList(growable: false);
 }

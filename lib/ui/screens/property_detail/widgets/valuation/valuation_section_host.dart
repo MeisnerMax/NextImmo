@@ -104,7 +104,7 @@ class ValuationSectionHost extends ConsumerWidget {
             ref.invalidate(valuationCaseForScenarioProvider(_scenarioRef)),
       ),
       data: (result) => switch (result) {
-        ValuationCaseFound(:final valuationCaseId) => _CaseSection(
+        ValuationCaseFound(:final valuationCaseId) => ValuationCaseSection(
           valuationCaseId: valuationCaseId,
           onJumpToFactor: onJumpToFactor,
         ),
@@ -168,17 +168,29 @@ class ValuationSectionHost extends ConsumerWidget {
   }
 }
 
-class _CaseSection extends ConsumerStatefulWidget {
-  const _CaseSection({required this.valuationCaseId, this.onJumpToFactor});
+/// One valuation case, from its workflow stepper down to factors, results and
+/// variants.
+///
+/// Public because a case is reachable from two directions: the scenario host
+/// above, which finds the case *for a scenario*, and the property workspace's
+/// `Investment` domain, which opens a case picked from the property's queue
+/// (`VALUATION-REHOST-01`). Both mount the same widget on the same case id, so
+/// neither can drift into a second, subtly different case surface.
+class ValuationCaseSection extends ConsumerStatefulWidget {
+  const ValuationCaseSection({
+    super.key,
+    required this.valuationCaseId,
+    this.onJumpToFactor,
+  });
 
   final String valuationCaseId;
   final void Function(String factorId)? onJumpToFactor;
 
   @override
-  ConsumerState<_CaseSection> createState() => _CaseSectionState();
+  ConsumerState<ValuationCaseSection> createState() => _CaseSectionState();
 }
 
-class _CaseSectionState extends ConsumerState<_CaseSection> {
+class _CaseSectionState extends ConsumerState<ValuationCaseSection> {
   /// The factor a missing-value reason pointed at. Held here because the
   /// results and the entry form are two widgets that have to agree on it.
   String? _focusFactorId;
