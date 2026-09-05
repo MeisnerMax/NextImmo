@@ -53,6 +53,7 @@ class PropertyOverviewPanel extends StatefulWidget {
     required this.propertyId,
     required this.onLoad,
     this.onLoadActivity,
+    this.leasingSummaryBuilder,
     this.availableDomains = const <PropertyWorkspaceDomain>{},
     this.onOpenDomain,
   });
@@ -64,6 +65,13 @@ class PropertyOverviewPanel extends StatefulWidget {
   /// overview names what it cannot show, but only where the capability exists
   /// at all.
   final PropertyOverviewActivityLoad? onLoadActivity;
+
+  /// `Lease Roll & Leerstand` (LEASING-SUMMARY-01), injected rather than
+  /// imported so this panel keeps no leasing types and stays pumpable without
+  /// a provider graph. Null leaves the module to the counts it already has:
+  /// an absent builder must never render as an empty exposure.
+  final Widget Function(BuildContext context, String propertyId)?
+  leasingSummaryBuilder;
 
   /// The workspace domains this membership can actually open. A drilldown is
   /// offered only into one of these: a target that is unregistered or
@@ -262,9 +270,15 @@ class _PropertyOverviewPanelState extends State<PropertyOverviewPanel> {
   /// evidence. Wide viewports read them as 3:2, narrow ones as one column in
   /// the same order — never a horizontally scrolling mini-table.
   Widget _body(BuildContext context, PropertyOverviewDto overview) {
+    final leasingSummary = widget.leasingSummaryBuilder;
     final leading = <Widget>[
       _attentionModule(context, overview),
       _leasingModule(overview),
+      // Only when the caller may read the section at all: the exposure block
+      // is the same `lease.read` surface, and offering it beside an
+      // unavailable module would promise a number the server would refuse.
+      if (leasingSummary != null && overview.leasing.available)
+        leasingSummary(context, widget.propertyId),
     ];
     final trailing = <Widget>[
       _operationsModule(overview),

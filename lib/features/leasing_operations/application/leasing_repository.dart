@@ -20,6 +20,7 @@ library;
 
 import '../domain/lease_dto.dart';
 import '../domain/leasing_case_dto.dart';
+import '../domain/leasing_summary_dto.dart';
 import '../domain/rent_roll_dto.dart';
 import '../domain/unit_dto.dart';
 
@@ -468,4 +469,22 @@ abstract interface class RentRollPort {
   Future<LeasingRepositoryResult<RentRollSnapshotDto>> createSnapshot(
     CreateRentRollSnapshotCommand command,
   );
+}
+
+/// The leasing summary of one property (LEASING-SUMMARY-01).
+///
+/// Its own port rather than a method on [RentRollPort]: a rent roll answers
+/// "what is being paid", this answers "how much of the building is let, until
+/// when, and what has to be decided". They share a source table and nothing
+/// else.
+///
+/// The server gates it twice — `property.read` on the entity, then
+/// `lease.read` on the workspace — and computes every figure, so a caller with
+/// only one of the two capabilities is refused rather than shown a partial
+/// picture assembled here.
+abstract interface class PropertyLeasingSummaryPort {
+  Future<LeasingRepositoryResult<PropertyLeasingSummaryDto>> read({
+    required String workspaceId,
+    required String propertyId,
+  });
 }

@@ -18,6 +18,7 @@ import 'property_workspace_fixtures.dart';
 /// membership may not read is visibly different from an empty one, attention
 /// keeps the server's order, and nothing on the surface is computed here.
 void main() {
+  _leasingSummaryTests();
   group('Property overview', () {
     testWidgets('renders the counts the server sent, with their freshness', (
       tester,
@@ -621,12 +622,67 @@ class _Load {
   }
 }
 
+void _leasingSummaryTests() {
+  group('Lease Roll block', () {
+    testWidgets('is rendered when the leasing section is readable', (
+      tester,
+    ) async {
+      final seen = <String>[];
+      await _pump(
+        tester,
+        _Load(overview()),
+        leasingSummaryBuilder: (context, propertyId) {
+          seen.add(propertyId);
+          return const Text('lease-roll', key: Key('lease-roll-stub'));
+        },
+      );
+
+      expect(find.byKey(const Key('lease-roll-stub')), findsOneWidget);
+      expect(seen, <String>['property-a']);
+    });
+
+    testWidgets('is omitted when the caller cannot read leasing at all', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _Load(
+          overview(
+            leasing: const PropertyOverviewSection.unavailable('lease.read'),
+          ),
+        ),
+        leasingSummaryBuilder:
+            (context, propertyId) =>
+                const Text('lease-roll', key: Key('lease-roll-stub')),
+      );
+
+      expect(
+        find.byKey(const Key('lease-roll-stub')),
+        findsNothing,
+        reason: 'offering an exposure block the server would refuse promises '
+            'a number that cannot arrive',
+      );
+    });
+
+    testWidgets('leaves the overview intact when no builder is injected', (
+      tester,
+    ) async {
+      await _pump(tester, _Load(overview()));
+
+      expect(find.byKey(const Key('property-overview')), findsOneWidget);
+      expect(find.byKey(const Key('lease-roll-stub')), findsNothing);
+    });
+  });
+}
+
 Future<void> _pump(
   WidgetTester tester,
   _Load load, {
   Set<PropertyWorkspaceDomain> availableDomains = _allDomains,
   ValueChanged<PropertyWorkspaceDomain>? onOpenDomain,
   PlatformRepositoryResult<AuditEventPage>? activity,
+  Widget Function(BuildContext context, String propertyId)?
+  leasingSummaryBuilder,
   Size viewport = const Size(1440, 900),
 }) async {
   setViewport(tester, viewport);
@@ -636,6 +692,7 @@ Future<void> _pump(
         propertyId: 'property-a',
         onLoad: load.call,
         onLoadActivity: activity == null ? null : (_) async => activity,
+        leasingSummaryBuilder: leasingSummaryBuilder,
         availableDomains: availableDomains,
         onOpenDomain: onOpenDomain,
       ),
