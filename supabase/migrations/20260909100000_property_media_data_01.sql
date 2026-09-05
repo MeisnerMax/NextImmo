@@ -522,6 +522,12 @@ begin
 
   v_now := now();
 
+  -- Serialize per property. Two uploads arriving together would both see "no
+  -- cover yet", both claim it, and the unique index would reject the second
+  -- with a raw error. The lock is transaction-scoped and per property, so it
+  -- costs nothing across properties.
+  perform pg_advisory_xact_lock(hashtextextended(p_property_id::text, 0));
+
   -- New images go last. The order is the operator's, not the upload clock's,
   -- and it stays editable.
   select coalesce(max(media.sort_order), -1) + 1
@@ -753,6 +759,10 @@ begin
 
   v_now := now();
   v_old := private.property_media_snapshot(v_media);
+
+  -- Same lock as the registration path: moving the cover and adding one that
+  -- claims it must not interleave.
+  perform pg_advisory_xact_lock(hashtextextended(p_property_id::text, 0));
 
   if v_cover and not v_media.is_cover then
     update public.property_media
