@@ -34,6 +34,7 @@ class PropertyListView extends StatefulWidget {
     required this.onSetIncludeArchived,
     required this.onRefreshWorkspaces,
     this.onSearch,
+    this.coverUrls = const <String, String>{},
     this.onCreateProperty,
     this.scrollController,
     this.restoreFocusPropertyId,
@@ -52,6 +53,12 @@ class PropertyListView extends StatefulWidget {
   /// drops the filter. Null hides the field rather than showing one that
   /// would search nothing.
   final ValueChanged<String>? onSearch;
+
+  /// Property id to a short-lived signed URL for its cover image
+  /// (`PROPERTY-MEDIA-DATA-01`). Loaded for a whole page at once by the host;
+  /// a property that is absent here shows a neutral placeholder, never a
+  /// broken image.
+  final Map<String, String> coverUrls;
 
   /// Opens the create dialog (PROPERTY-DATA-02). Null while the membership
   /// lacks `property.create` or the session is below AAL2 -- the action is
@@ -444,6 +451,9 @@ class _PropertyListViewState extends State<PropertyListView> {
     return DataTable(
       showCheckboxColumn: false,
       columns: [
+        // The picture column carries no header: a thumbnail needs no label,
+        // and an empty one would still claim a sortable field.
+        const DataColumn(label: SizedBox.shrink()),
         DataColumn(label: column('Name')),
         DataColumn(label: column('Adresse')),
         DataColumn(label: column('Status')),
@@ -455,6 +465,7 @@ class _PropertyListViewState extends State<PropertyListView> {
             key: ValueKey<String>('property-list-row-${property.id}'),
             onSelectChanged: (_) => _open(property.id),
             cells: [
+              DataCell(_PropertyThumbnail(url: widget.coverUrls[property.id])),
               DataCell(
                 Text(
                   property.name,
@@ -558,5 +569,49 @@ class _PropertyListViewState extends State<PropertyListView> {
       return;
     }
     widget.onOpenProperty(propertyId);
+  }
+}
+
+/// The property's cover image, or a neutral placeholder.
+///
+/// Deliberately not an avatar with initials: a building either has a picture
+/// or it does not, and a generated stand-in would read as a photograph at a
+/// glance.
+class _PropertyThumbnail extends StatelessWidget {
+  const _PropertyThumbnail({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = context.semanticColors;
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadiusTokens.sm),
+        child: ColoredBox(
+          color: semantic.surfaceAlt,
+          child:
+              url == null
+                  ? Icon(
+                    Icons.apartment_outlined,
+                    size: 20,
+                    color: semantic.textSecondary,
+                  )
+                  : Image.network(
+                    url!,
+                    fit: BoxFit.cover,
+                    excludeFromSemantics: true,
+                    errorBuilder:
+                        (context, error, stack) => Icon(
+                          Icons.apartment_outlined,
+                          size: 20,
+                          color: semantic.textSecondary,
+                        ),
+                  ),
+        ),
+      ),
+    );
   }
 }

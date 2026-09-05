@@ -8,6 +8,7 @@ import 'property_workspace_fixtures.dart';
 
 void main() {
   _searchTests();
+  _coverTests();
   group('PropertyListView', () {
     testWidgets('shows a skeleton while the first page loads', (tester) async {
       await _pump(
@@ -545,6 +546,48 @@ void _searchTests() {
   });
 }
 
+/// PROPERTY-MEDIA-DATA-01 in the list: a building either has a picture or it
+/// does not. A generated stand-in would read as a photograph at a glance, so
+/// the placeholder is deliberately an icon.
+void _coverTests() {
+  group('PropertyListView covers', () {
+    testWidgets('renders the cover of a property that has one', (tester) async {
+      await _pump(
+        tester,
+        sliceState(),
+        coverUrls: const <String, String>{
+          'property-a': 'https://example.test/cover.jpg',
+        },
+      );
+
+      expect(find.byType(Image), findsOneWidget);
+    });
+
+    testWidgets('a property without a cover shows a placeholder, not a broken '
+        'image', (tester) async {
+      await _pump(tester, sliceState());
+
+      expect(find.byType(Image), findsNothing);
+      expect(find.byIcon(Icons.apartment_outlined), findsOneWidget);
+    });
+
+    testWidgets('the thumbnail does not disturb the row layout', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        sliceState(),
+        coverUrls: const <String, String>{
+          'property-a': 'https://example.test/cover.jpg',
+        },
+        viewport: const Size(390, 844),
+      );
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
 Future<void> _pump(
   WidgetTester tester,
   ReferenceSliceState state, {
@@ -554,6 +597,7 @@ Future<void> _pump(
   VoidCallback? onReload,
   ValueChanged<bool>? onSetIncludeArchived,
   ValueChanged<String>? onSearch,
+  Map<String, String> coverUrls = const <String, String>{},
   VoidCallback? onRetryOpen,
   String? openingPropertyId,
   String? restoreFocusPropertyId,
@@ -568,6 +612,7 @@ Future<void> _pump(
         onReload: onReload ?? () {},
         onSetIncludeArchived: onSetIncludeArchived ?? (_) {},
         onSearch: onSearch,
+        coverUrls: coverUrls,
         onRefreshWorkspaces: () {},
         onRetryOpen: onRetryOpen,
         openingPropertyId: openingPropertyId,

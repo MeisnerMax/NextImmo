@@ -44,6 +44,7 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),
@@ -77,6 +78,7 @@ void main() {
           platformQueryInvalidationSourceProvider.overrideWithValue(
             _SilentInvalidationSource(),
           ),
+          propertyMediaPortProvider.overrideWithValue(_EmptyPropertyMedia()),
         ],
         child: const NexImmoApp(environment: environment),
       ),

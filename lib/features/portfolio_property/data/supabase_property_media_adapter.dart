@@ -28,6 +28,17 @@ abstract interface class PropertyMediaSupabaseGateway {
     required String path,
     required int ttlSeconds,
   });
+
+  Future<List<Map<String, dynamic>>> listCovers({
+    required String workspaceId,
+    required List<String> propertyIds,
+  });
+
+  /// Path to signed URL, for the paths the service could sign.
+  Future<Map<String, String>> createSignedUrls({
+    required List<String> paths,
+    required int ttlSeconds,
+  });
 }
 
 class SupabasePropertyMediaGateway implements PropertyMediaSupabaseGateway {
@@ -88,6 +99,38 @@ class SupabasePropertyMediaGateway implements PropertyMediaSupabaseGateway {
     return _client.storage
         .from(PropertyMediaPort.bucket)
         .createSignedUrl(path, ttlSeconds);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listCovers({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async {
+    final rows = await _client
+        .from('property_media')
+        .select()
+        .eq('workspace_id', workspaceId)
+        .inFilter('property_id', propertyIds)
+        .eq('is_cover', true)
+        .isFilter('deleted_at', null);
+    return rows.map(Map<String, dynamic>.from).toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, String>> createSignedUrls({
+    required List<String> paths,
+    required int ttlSeconds,
+  }) async {
+    // The result variant, not the deprecated one: it distinguishes a path that
+    // could not be signed from one that simply was not asked for, and a cover
+    // whose object is gone must show a placeholder rather than a dead link.
+    final signed = await _client.storage
+        .from(PropertyMediaPort.bucket)
+        .createSignedUrlsResult(paths, ttlSeconds);
+    return <String, String>{
+      for (final entry in signed)
+        if (entry is SignedUrlSuccess) entry.path: entry.signedUrl,
+    };
   }
 }
 
@@ -238,6 +281,62 @@ class SupabasePropertyMediaAdapter implements PropertyMediaPort {
       return const PropertyRepositoryFailure<String>(
         kind: PropertyRepositoryFailureKind.infrastructureFailure,
         message: 'Das Bild ist derzeit nicht abrufbar.',
+      );
+    }
+  }
+
+  @override
+  Future<PropertyRepositoryResult<Map<String, PropertyMediaDto>>> covers({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async {
+    if (propertyIds.isEmpty) {
+      return const PropertyRepositorySuccess<Map<String, PropertyMediaDto>>(
+        <String, PropertyMediaDto>{},
+      );
+    }
+    try {
+      final rows = await _gateway.listCovers(
+        workspaceId: workspaceId,
+        propertyIds: propertyIds,
+      );
+      final covers = <String, PropertyMediaDto>{};
+      for (final row in rows) {
+        final media = _parseMedia(row);
+        covers[media.propertyId] = media;
+      }
+      return PropertyRepositorySuccess<Map<String, PropertyMediaDto>>(
+        Map<String, PropertyMediaDto>.unmodifiable(covers),
+      );
+    } catch (_) {
+      return const PropertyRepositoryFailure<Map<String, PropertyMediaDto>>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'The property covers could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PropertyRepositoryResult<Map<String, String>>> signedUrls({
+    required List<String> storagePaths,
+  }) async {
+    if (storagePaths.isEmpty) {
+      return const PropertyRepositorySuccess<Map<String, String>>(
+        <String, String>{},
+      );
+    }
+    try {
+      final urls = await _gateway.createSignedUrls(
+        paths: storagePaths,
+        ttlSeconds: PropertyMediaPort.signedUrlTtl.inSeconds,
+      );
+      return PropertyRepositorySuccess<Map<String, String>>(
+        Map<String, String>.unmodifiable(urls),
+      );
+    } catch (_) {
+      return const PropertyRepositoryFailure<Map<String, String>>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'Die Bilder sind derzeit nicht abrufbar.',
       );
     }
   }

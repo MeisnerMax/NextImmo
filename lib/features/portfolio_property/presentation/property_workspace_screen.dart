@@ -24,6 +24,7 @@ import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/property_repository.dart';
+import '../application/property_cover_controller.dart';
 import '../application/property_workspace_host_state.dart';
 import '../domain/property_dto.dart';
 import 'property_asset_panel.dart';
@@ -63,6 +64,26 @@ class _PropertyWorkspaceScreenState
     final state = ref.watch(referenceSliceControllerProvider);
     final controller = ref.read(referenceSliceControllerProvider.notifier);
     final workspaceId = state.selectedWorkspace?.workspace.id;
+    final coverUrls =
+        workspaceId == null
+            ? const <String, String>{}
+            : ref.watch(propertyCoverControllerProvider(workspaceId)).urls;
+    if (workspaceId != null && state.properties.isNotEmpty) {
+      // After the frame: this runs during build, and asking for covers is a
+      // read that must not mutate a provider mid-build.
+      final ids = <String>[
+        for (final property in state.properties) property.id,
+      ];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            ref
+                .read(propertyCoverControllerProvider(workspaceId).notifier)
+                .ensure(ids),
+          );
+        }
+      });
+    }
     ref.listen<ReferenceSliceState>(referenceSliceControllerProvider, (
       _,
       next,
@@ -202,6 +223,9 @@ class _PropertyWorkspaceScreenState
                     ? PropertyMaintenanceCapexSection.capex
                     : PropertyMaintenanceCapexSection.maintenance,
           ),
+      // PROPERTY-MEDIA-DATA-01: one read for the whole page's covers, never
+      // one per row.
+      coverUrls: coverUrls,
       // PROPERTY-MEDIA-DATA-01: the gallery lives under the master data, so
       // the picture of a building is where the rest of its facts are.
       mediaBuilder:
@@ -314,6 +338,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.onLoadPropertyOverview,
     this.onLoadPropertyActivity,
     this.mediaBuilder,
+    this.coverUrls = const <String, String>{},
     this.initialPropertyId,
   });
 
@@ -419,6 +444,10 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// Builds the property's media gallery (`PROPERTY-MEDIA-DATA-01`) inside
   /// `Objekt`. Null omits the section rather than showing an empty one.
   final Widget Function(BuildContext context, String propertyId)? mediaBuilder;
+
+  /// Cover images for the loaded list page, keyed by property id. Empty means
+  /// no thumbnails, which the rows render as placeholders.
+  final Map<String, String> coverUrls;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -907,6 +936,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       onSetIncludeArchived: widget.onSetIncludeArchived,
       onRefreshWorkspaces: widget.onRefreshWorkspaces,
       onSearch: widget.onSearchProperties,
+      coverUrls: widget.coverUrls,
       onCreateProperty:
           widget.canCreateProperty && widget.onCreateProperty != null
               ? _openCreateDialog

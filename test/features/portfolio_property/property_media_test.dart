@@ -30,11 +30,10 @@ void main() {
 
       final result = await adapter.register(_command());
 
-      expect(
-        gateway.calls,
-        <String>['upload', 'rpc'],
-        reason: 'a row may never precede the object it points at',
-      );
+      expect(gateway.calls, <String>[
+        'upload',
+        'rpc',
+      ], reason: 'a row may never precede the object it points at');
       expect(result, isA<PropertyRepositorySuccess<PropertyMediaDto>>());
     });
 
@@ -171,6 +170,62 @@ void main() {
       );
     });
 
+    test('covers are read for a whole page in one query', () async {
+      gateway.rows = <Map<String, dynamic>>[_mediaRow(isCover: true)];
+
+      final covers =
+          (await adapter.covers(
+                    workspaceId: 'workspace-a',
+                    propertyIds: <String>['property-a', 'property-b'],
+                  )
+                  as PropertyRepositorySuccess<Map<String, PropertyMediaDto>>)
+              .value;
+
+      expect(
+        gateway.coveredPropertyIds,
+        <String>['property-a', 'property-b'],
+        reason: 'one query for the page, never one per row',
+      );
+      expect(covers.keys, <String>['property-a']);
+      expect(
+        covers['property-a']!.isCover,
+        isTrue,
+        reason: 'a property without a cover is simply absent',
+      );
+    });
+
+    test('an empty page asks nothing', () async {
+      final covers = await adapter.covers(
+        workspaceId: 'workspace-a',
+        propertyIds: const <String>[],
+      );
+
+      expect(
+        covers,
+        isA<PropertyRepositorySuccess<Map<String, PropertyMediaDto>>>(),
+      );
+      expect(gateway.coveredPropertyIds, isNull);
+    });
+
+    test(
+      'several paths are signed in one call, with the agreed lifetime',
+      () async {
+        final urls =
+            (await adapter.signedUrls(
+                      storagePaths: <String>['w/p/a/x.jpg', 'w/p/b/y.jpg'],
+                    )
+                    as PropertyRepositorySuccess<Map<String, String>>)
+                .value;
+
+        expect(gateway.batchSignedPaths, hasLength(2));
+        expect(
+          gateway.signedTtlSeconds,
+          PropertyMediaPort.signedUrlTtl.inSeconds,
+        );
+        expect(urls, hasLength(2));
+      },
+    );
+
     test('the list excludes archived images by default', () async {
       gateway.rows = <Map<String, dynamic>>[_mediaRow()];
 
@@ -181,33 +236,39 @@ void main() {
   });
 
   group('PropertyMediaController', () {
-    test('without property.update the actions are refused with the reason',
-        () async {
-      final port = _FakePort();
-      final controller = _controller(
-        port,
-        permissions: const <String>{'property.read'},
-      );
-      await controller.load();
+    test(
+      'without property.update the actions are refused with the reason',
+      () async {
+        final port = _FakePort();
+        final controller = _controller(
+          port,
+          permissions: const <String>{'property.read'},
+        );
+        await controller.load();
 
-      await controller.makeCover(_media());
+        await controller.makeCover(_media());
 
-      expect(controller.state.actionPhase, PropertyMediaActionPhase.failed);
-      expect(controller.state.actionMessage, contains('property.update'));
-      expect(port.updates, isEmpty);
-    });
+        expect(controller.state.actionPhase, PropertyMediaActionPhase.failed);
+        expect(controller.state.actionMessage, contains('property.update'));
+        expect(port.updates, isEmpty);
+      },
+    );
 
-    test('a signed url is fetched per image and held outside the DTO',
-        () async {
-      final port = _FakePort()..media = <PropertyMediaDto>[_media()];
-      final controller = _controller(port);
+    test(
+      'a signed url is fetched per image and held outside the DTO',
+      () async {
+        final port = _FakePort()..media = <PropertyMediaDto>[_media()];
+        final controller = _controller(port);
 
-      await controller.load();
+        await controller.load();
 
-      expect(controller.state.phase, PropertyMediaPhase.ready);
-      expect(controller.state.signedUrls['media-1'], isNotNull);
-      expect(port.signedPaths, <String>['workspace-a/property-a/m1/front.jpg']);
-    });
+        expect(controller.state.phase, PropertyMediaPhase.ready);
+        expect(controller.state.signedUrls['media-1'], isNotNull);
+        expect(port.signedPaths, <String>[
+          'workspace-a/property-a/m1/front.jpg',
+        ]);
+      },
+    );
 
     test('an image whose url fails still leaves the gallery usable', () async {
       final port =
@@ -327,10 +388,7 @@ RegisterPropertyMediaCommand _command({
   );
 }
 
-Map<String, dynamic> _mediaRow({
-  bool isCover = false,
-  String kind = 'photo',
-}) {
+Map<String, dynamic> _mediaRow({bool isCover = false, String kind = 'photo'}) {
   return <String, dynamic>{
     'id': 'media-1',
     'workspace_id': 'workspace-a',
@@ -371,6 +429,8 @@ class _FakeGateway implements PropertyMediaSupabaseGateway {
   String signedUrl = 'https://example.test/signed';
   int? signedTtlSeconds;
   bool? listedIncludeArchived;
+  List<String>? coveredPropertyIds;
+  List<String>? batchSignedPaths;
 
   @override
   Future<List<Map<String, dynamic>>> listMedia({
@@ -409,6 +469,25 @@ class _FakeGateway implements PropertyMediaSupabaseGateway {
   }) async {
     signedTtlSeconds = ttlSeconds;
     return signedUrl;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listCovers({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async {
+    coveredPropertyIds = propertyIds;
+    return rows;
+  }
+
+  @override
+  Future<Map<String, String>> createSignedUrls({
+    required List<String> paths,
+    required int ttlSeconds,
+  }) async {
+    batchSignedPaths = paths;
+    signedTtlSeconds = ttlSeconds;
+    return <String, String>{for (final path in paths) path: signedUrl};
   }
 }
 
@@ -464,4 +543,8 @@ class _FakePort implements PropertyMediaPort {
     }
     return const PropertyRepositorySuccess<String>('https://example.test/x');
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('not used by this test');
 }

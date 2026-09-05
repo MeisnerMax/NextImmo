@@ -294,4 +294,8 @@ class _FakePort implements PropertyMediaPort {
     }
     return const PropertyRepositorySuccess<String>('https://example.test/x');
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('not used by this test');
 }

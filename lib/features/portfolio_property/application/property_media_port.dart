@@ -90,6 +90,22 @@ abstract interface class PropertyMediaPort {
   Future<PropertyRepositoryResult<String>> signedUrl({
     required String storagePath,
   });
+
+  /// The cover image of each of [propertyIds] that has one, keyed by property.
+  ///
+  /// One query for a whole page, not one per row: a list that fires a read per
+  /// visible property turns a scroll into a thundering herd, and the count it
+  /// would report is the same either way.
+  Future<PropertyRepositoryResult<Map<String, PropertyMediaDto>>> covers({
+    required String workspaceId,
+    required List<String> propertyIds,
+  });
+
+  /// Signs several paths in one call. Paths that cannot be signed are absent
+  /// from the result rather than mapped to an empty string.
+  Future<PropertyRepositoryResult<Map<String, String>>> signedUrls({
+    required List<String> storagePaths,
+  });
 }
 
 /// `{workspace}/{property}/{media}/{filename}` — the bucket's convention,
