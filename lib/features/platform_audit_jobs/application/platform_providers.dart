@@ -12,10 +12,13 @@
 /// Task-Center and Notification-Inbox waves build on. `JobRepository` and
 /// `SearchIndexPort` stay unexposed until their first consuming screen lands
 /// (`IMPORTS-01`, `TASK-QUERY-01`); do not wire what nothing reads.
+/// [auditReadPortProvider] arrives with `AUDIT-01`, whose first consumer is the
+/// property workspace's `Aktivität` domain.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'audit_read_port.dart';
 import 'platform_query_invalidation_source.dart';
 import 'platform_repository.dart';
 
@@ -25,6 +28,10 @@ final taskRepositoryProvider = Provider<TaskRepository>(
 
 final notificationPortProvider = Provider<NotificationPort>(
   (ref) => throw StateError('NotificationPort is not configured.'),
+);
+
+final auditReadPortProvider = Provider<AuditReadPort>(
+  (ref) => throw StateError('AuditReadPort is not configured.'),
 );
 
 final platformQueryInvalidationSourceProvider =

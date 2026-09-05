@@ -121,6 +121,9 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     // is the existing realtime consumer, instantiated here exactly like its
     // party/document/leasing/maintenance siblings.
     notificationPortProvider.overrideWithValue(platform),
+    // AUDIT-01: the read port on the same adapter. The audit log is written by
+    // the mutations it records, so there is no write port to bind.
+    auditReadPortProvider.overrideWithValue(platform),
     platformQueryInvalidationSourceProvider.overrideWithValue(
       SupabasePlatformQueryInvalidationAdapter(client: client),
     ),

@@ -5,10 +5,10 @@
 - Package / screen ID: `AUDIT-01` / `PROPERTY-AUDIT-V2`
 - Domain: Platform Audit
 - Route: zukünftiges Ziel `/properties/:propertyId/activity/audit`
-- Current implementation file(s): Legacy Audit Screen/`AuditLogRepo`; Cloud `audit_events` und `audit.read`-RLS in Supabase-Migrations, aber kein App-DTO/Repository/Read-Port
+- Current implementation file(s): `supabase/migrations/20260908100000_audit_01_property_trail.sql`, `lib/features/platform_audit_jobs/application/audit_read_port.dart`, `lib/features/platform_audit_jobs/domain/audit_event_dto.dart`, `lib/features/platform_audit_jobs/application/property_audit_controller.dart`, `lib/features/platform_audit_jobs/presentation/property_audit_panel.dart`. Legacy Audit Screen/`AuditLogRepo` bleibt unberührt
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `AUDIT-01` (App-Read-Port, allowlisted DTO, Redaction)
-- Former status: BLOCKED (`AUDIT-01` App-Read-Port/DTO/Redaction; Implementation-Readiness-Review 2026-08-28)
+- Technical readiness (Stand 2026-09-06): READY für den Objekt-Trail. `AUDIT-01` ist umgesetzt: `property_audit_events` liefert eine allowlisted, keyset-paginierte Projektion; `Aktivität → Protokoll` rendert sie. PREREQUISITE REQUIRED bleibt für serverseitige Filter (Zeitraum/Aktion/Actor), Actor-Anzeigenamen (`WORKSPACE-DIRECTORY-READ-01`) und die Workspace-weite Auditsicht
+- Former status: BLOCKED (`AUDIT-01` App-Read-Port/DTO/Redaction; Implementation-Readiness-Review 2026-08-28), aufgehoben 2026-09-06
 - Dependencies: [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md), `AUDIT-01`, `SHELL-ROUTING-01` nur für URL
 - Related screens: [Property Activity V2](PROPERTY_ACTIVITY_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md)
 
@@ -54,9 +54,17 @@ Audit bietet autorisierten Nutzern eine forensische, unveränderliche Sicht auf 
 
 App-DTO/Read-Port benötigt: event id, workspace/property, aggregate type/id, action/event type, occurredAt, actor ref/display policy, mutation/correlation id, version/status transition soweit sicher, allowlisted change summary, target ref. Secrets, Tokens, signed URLs, Dokumentinhalte, vollständige Notes/Formpayloads und sensible personenbezogene Daten dürfen nicht geliefert/gerendert werden.
 
+### Umgesetzte Projektion (2026-09-06)
+
+`property_audit_events(workspace, property, cursor, limit)` liefert je Ereignis: `id`, `occurred_at`, `action`, `entity_type`/`entity_id`, `parent_entity_type`/`parent_entity_id`, `actor_type`, `actor_user_id` **oder** `actor_identifier`, `role_key` (die Rolle **zum Zeitpunkt** der Mutation), `source`, `correlation_id`, `mutation_id`, `reason` und `changed_fields`.
+
+`changed_fields` ist der Kern der Redaction: die **Namen** der geänderten Felder, sortiert und über `old_values`/`new_values` dedupliziert — nie die Werte. „Wer hat wann welches Feld geändert" ist die Rechenschaftsfrage; „auf welchen Wert" ist eine eigene Offenlegungsentscheidung, die dieses Paket nicht trifft. `old_values`, `new_values` und `scope_snapshot` verlassen den Server nicht, und das DTO hat kein Feld, in das sie passen würden.
+
+`reason` wird geliefert: es ist die Begründung, die der Handelnde selbst zur Mutation angegeben hat, also Audit-Metadatum und nicht Datensatzinhalt. Ein Protokoll, das das Warum verschweigt, beantwortet die halbe Frage.
+
 ## 8. Permissions and security behavior
 
-- `property.read` plus `audit.read` und serverseitiger Entity-Scope.
+- `property.read` plus `audit.read` und serverseitiger Entity-Scope. **Umgesetzt und in pgTAP 034 belegt:** die Funktion prüft zuerst entity-scoped `property.read`, dann `audit.read`. Ein entity-gescopter Admin kommt über die Audit-Tür **nicht** an den Trail eines Nachbarobjekts; ein Mitglied ohne `audit.read` bekommt eine Meldung, die genau sagt, welche der beiden Berechtigungen fehlt.
 - Targetdrilldown benötigt separate Domain-Read; Auditrecht impliziert nicht Lease-/Document-/Valuation-Read.
 - App verwendet RLS-/Repository-Contract, keinen privilegierten Clientzugriff.
 - Permission-Revoke leert Auditcache/Detail sofort.

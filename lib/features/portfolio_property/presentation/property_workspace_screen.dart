@@ -18,6 +18,7 @@ import '../../../ui/screens/property_detail/widgets/valuation/property_valuation
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
+import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/property_repository.dart';
@@ -183,6 +184,15 @@ class _PropertyWorkspaceScreenState
                     ? PropertyMaintenanceCapexSection.capex
                     : PropertyMaintenanceCapexSection.maintenance,
           ),
+      // AUDIT-01: `Aktivität → Protokoll` is the first surface that can read
+      // the audit log the whole system has been writing since P1-002.
+      activityBuilder:
+          (context, propertyId, subArea) => switch (subArea) {
+            PropertyActivitySubArea.audit => PropertyAuditPanel(
+              key: ValueKey<String>('property-audit-$propertyId'),
+              propertyId: propertyId,
+            ),
+          },
       // VALUATION-REHOST-01: `Investment → Bewertung` rehosts the property's
       // valuation queue and case surface rather than rebuilding either.
       investmentBuilder:
@@ -273,6 +283,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.operationsTasksBuilder,
     this.operationsBuilder,
     this.investmentBuilder,
+    this.activityBuilder,
     this.documentsBuilder,
     this.leasingBuilder,
     this.onLoadPropertyOverview,
@@ -344,6 +355,15 @@ class PropertyWorkspaceView extends StatefulWidget {
     PropertyInvestmentSubArea subArea,
   )?
   investmentBuilder;
+
+  /// Builds one `Aktivität` sub-area (`AUDIT-01`). Injected for the same
+  /// reason as the others; a sub-area without a builder is not offered.
+  final Widget Function(
+    BuildContext context,
+    String propertyId,
+    PropertyActivitySubArea subArea,
+  )?
+  activityBuilder;
 
   /// Builds the `Dokumente` domain (DOCUMENTS-COMPLETE-01). Injected by the
   /// connected screen for the same reason as [operationsTasksBuilder].
@@ -460,6 +480,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
             PropertyWorkspaceDomain.investment =>
               widget.investmentBuilder != null &&
                   _visibleInvestmentSubAreas(state).isNotEmpty,
+            PropertyWorkspaceDomain.activity =>
+              widget.activityBuilder != null &&
+                  _visibleActivitySubAreas(state).isNotEmpty,
             _ => true,
           },
         )
@@ -470,6 +493,12 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     ReferenceSliceState state,
   ) {
     return visiblePropertyInvestmentSubAreas(_permissions(state));
+  }
+
+  List<PropertyActivitySubArea> _visibleActivitySubAreas(
+    ReferenceSliceState state,
+  ) {
+    return visiblePropertyActivitySubAreas(_permissions(state));
   }
 
   /// Where opening a property lands. `Übersicht` where it is available,
@@ -1061,11 +1090,9 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
             );
           case PropertyWorkspaceDomain.investment:
             return _buildInvestmentDomain(context, state);
-          case PropertyWorkspaceDomain.asset:
-          // `Aktivität` is unregistered, so it can only be reached as a
-          // restored host state; falling back to the asset surface keeps that
-          // case on a real surface instead of an empty one.
           case PropertyWorkspaceDomain.activity:
+            return _buildActivityDomain(context, state);
+          case PropertyWorkspaceDomain.asset:
             return PropertyAssetPanel(
               key: const Key('property-asset'),
               state: state,
@@ -1289,6 +1316,76 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         ),
       ],
     );
+  }
+
+  /// `Aktivität` (`PROPERTY_ACTIVITY_REPORTS_V2.md`): what happened to this
+  /// property. Today exactly one child — the audit trail — which still gets
+  /// its chip so the active level stays unambiguous.
+  Widget _buildActivityDomain(BuildContext context, ReferenceSliceState state) {
+    final propertyId = _hostState.openPropertyId!;
+    final subAreas = _visibleActivitySubAreas(state);
+    if (subAreas.isEmpty || widget.activityBuilder == null) {
+      return const NxEmptyState(
+        key: Key('property-activity-forbidden'),
+        title: 'Kein Zugriff auf die Aktivität',
+        description:
+            'Der Aktivitätsbereich benötigt die Berechtigung (audit.read).',
+        icon: Icons.lock_outline,
+      );
+    }
+    final remembered = _hostState.subAreaOf(PropertyWorkspaceDomain.activity);
+    final active = subAreas.firstWhere(
+      (subArea) => subArea.name == remembered,
+      orElse: () => subAreas.first,
+    );
+    return Column(
+      key: const Key('property-activity'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          label: 'Bereiche der Aktivität',
+          child: SingleChildScrollView(
+            key: const Key('property-activity-sub-nav'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < subAreas.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.xs),
+                  ChoiceChip(
+                    key: Key('property-activity-sub-${subAreas[i].name}'),
+                    label: Text(subAreas[i].label),
+                    selected: subAreas[i] == active,
+                    onSelected: (_) => _selectActivitySubArea(subAreas[i]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child: KeyedSubtree(
+            key: ValueKey<String>('property-activity-${active.name}'),
+            child: widget.activityBuilder!(context, propertyId, active),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _selectActivitySubArea(PropertyActivitySubArea subArea) {
+    if (subArea.name ==
+        _hostState.subAreaOf(PropertyWorkspaceDomain.activity)) {
+      return;
+    }
+    setState(() {
+      _hostState = _hostState.withSubArea(
+        PropertyWorkspaceDomain.activity,
+        subArea.name,
+      );
+    });
   }
 
   void _selectInvestmentSubArea(PropertyInvestmentSubArea subArea) {

@@ -16,11 +16,9 @@ void main() {
       ]);
     });
 
-    test('registers exactly the implemented domains: Übersicht '
-        '(PROPERTY-OVERVIEW-DATA-01), Objekt (A1), Vermietung '
-        '(PROPERTY_LEASING_V2), Betrieb (MAINTENANCE-PARITY-01), Dokumente '
-        '(DOCUMENTS-COMPLETE-01) and Investment (VALUATION-REHOST-01)', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(6));
+    test('registers all seven binding domains, each by the increment that '
+        'implemented it', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(7));
       // Übersicht leads, because it is the default target once its summary
       // contract exists (PROPERTY_WORKSPACE_V2.md §41).
       final overview = registeredPropertyWorkspaceDomains.first;
@@ -50,14 +48,20 @@ void main() {
       expect(documents.readPermission, 'document.read');
       // Investment: gated by the read permission of its one implemented
       // child, the valuation queue and case surface.
-      final investment = registeredPropertyWorkspaceDomains.last;
+      final investment = registeredPropertyWorkspaceDomains[5];
       expect(investment.domain, PropertyWorkspaceDomain.investment);
       expect(investment.label, 'Investment');
       expect(investment.readPermission, 'valuation.read');
-      // Blocked or not yet implemented domains are absent, not disabled.
+      // Aktivität: gated by the read permission of its one implemented child,
+      // the audit trail (AUDIT-01).
+      final activity = registeredPropertyWorkspaceDomains.last;
+      expect(activity.domain, PropertyWorkspaceDomain.activity);
+      expect(activity.label, 'Aktivität');
+      expect(activity.readPermission, 'audit.read');
+      // The registry now covers the binding IA, in its order.
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
-        isNot(contains(PropertyWorkspaceDomain.activity)),
+        PropertyWorkspaceDomain.values,
       );
     });
 
@@ -92,7 +96,13 @@ void main() {
           PropertyWorkspaceDomain.documents,
         ],
       );
-      expect(visiblePropertyWorkspaceDomains(<String>{'audit.read'}), isEmpty);
+      expect(
+        visiblePropertyWorkspaceDomains(<String>{
+          'audit.read',
+        }).map((d) => d.domain),
+        <PropertyWorkspaceDomain>[PropertyWorkspaceDomain.activity],
+        reason: 'audit.read opens the activity domain and nothing else',
+      );
       expect(visiblePropertyWorkspaceDomains(const <String>{}), isEmpty);
     });
   });

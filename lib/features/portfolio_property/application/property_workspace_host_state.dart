@@ -88,9 +88,11 @@ class PropertyWorkspaceDomainRegistration {
 /// property's valuation queue and case surface, rehosted rather than rebuilt,
 /// gated by `valuation.read` — the read permission of its one implemented
 /// child today. `Szenarien` and `Performance` widen the gate when they land.
-/// `Aktivität` stays hidden
-/// until it has at least one implemented child. Registering a domain here is a
-/// deliberate act of the increment that implements it — never a placeholder.
+/// `Aktivität` with `AUDIT-01` (`PROPERTY_AUDIT_V2.md`): the property's audit
+/// trail, gated by `audit.read` — the read permission of its one implemented
+/// child. The cross-domain activity timeline widens the gate when
+/// `PROPERTY-ACTIVITY-01` lands. Registering a domain here is a deliberate act
+/// of the increment that implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
 registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
   PropertyWorkspaceDomainRegistration(
@@ -126,6 +128,11 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     domain: PropertyWorkspaceDomain.investment,
     label: 'Investment',
     readPermission: Permission.valuationRead,
+  ),
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.activity,
+    label: 'Aktivität',
+    readPermission: Permission.auditRead,
   ),
 ];
 
@@ -201,6 +208,34 @@ List<PropertyInvestmentSubArea> visiblePropertyInvestmentSubAreas(
   Set<String> permissions,
 ) {
   return PropertyInvestmentSubArea.values
+      .where((subArea) => permissions.contains(subArea.readPermission))
+      .toList(growable: false);
+}
+
+/// The sub-areas of `Aktivität` (`PROPERTY_ACTIVITY_REPORTS_V2.md`): what
+/// happened to this property, and the evidence for it.
+///
+/// Only `Protokoll` is implemented (`AUDIT-01`). The cross-domain activity
+/// timeline waits for `PROPERTY-ACTIVITY-01` and property reports for
+/// `P2-D09`; a realtime invalidation stream is not a history and does not
+/// substitute for either.
+enum PropertyActivitySubArea { audit }
+
+extension PropertyActivitySubAreaMeta on PropertyActivitySubArea {
+  String get label => switch (this) {
+    PropertyActivitySubArea.audit => 'Protokoll',
+  };
+
+  String get readPermission => switch (this) {
+    PropertyActivitySubArea.audit => Permission.auditRead,
+  };
+}
+
+/// The activity sub-areas this membership may open, in spec order.
+List<PropertyActivitySubArea> visiblePropertyActivitySubAreas(
+  Set<String> permissions,
+) {
+  return PropertyActivitySubArea.values
       .where((subArea) => permissions.contains(subArea.readPermission))
       .toList(growable: false);
 }
