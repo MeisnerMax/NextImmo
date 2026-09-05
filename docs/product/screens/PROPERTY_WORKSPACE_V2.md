@@ -392,7 +392,7 @@ Keine offene Material Product Decision für den Host.
 
 Verbindlich geschlossen:
 
-- Der Property-Wechsler startet als keyset-paginierter Browse-Dialog in der festen Contractsortierung; es gibt ohne Serversearch keine globale Textsuche.
+- Der Property-Wechsler startet als keyset-paginierter Browse-Dialog in der festen Contractsortierung; es gibt ohne Serversearch keine globale Textsuche. **Umgesetzt 2026-09-05**: Dialog im Kontext-Header, eigene Serverseiten statt eines Filters über die geladene Liste, Dirty-Gate davor, kanonischer `getById` dahinter.
 - Nicht implementierte Childs werden nicht registriert. Bis `PROPERTY-OVERVIEW-DATA-01` landet, ist `Objekt` der erste Workspace-Screen; bis mindestens ein Activity-Child landet, fehlt das Ziel `Aktivität` in der Laufzeitnavigation.
 - Overview-Endpointform, Activity-Sichtbarkeit und deren Permissions bleiben Blocker der jeweiligen Child-Spec und blockieren den Host nicht.
 - URL-/Back-Serialisierung bleibt sauber als Voraussetzung `SHELL-ROUTING-01` abgegrenzt; der Host implementiert keinen Router-Workaround.

@@ -25,6 +25,7 @@ import 'property_asset_panel.dart';
 import 'property_context_header.dart';
 import 'property_create_dialog.dart';
 import 'property_list_view.dart';
+import 'property_switcher_dialog.dart';
 import 'property_workspace_nav.dart';
 
 /// The `Objekte` destination: Property List V2 in front of the Property
@@ -112,6 +113,11 @@ class _PropertyWorkspaceScreenState
             ? (next.validationField ?? '')
             : '';
       },
+      onLoadSwitcherPage:
+          state.selectedWorkspace == null
+              ? null
+              : ({String? cursor}) =>
+                  controller.loadPropertyPage(cursor: cursor),
       onSetArchived: (archived, {reason}) async {
         await controller.setSelectedPropertyArchived(
           archived: archived,
@@ -227,6 +233,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     required this.onRetryUpdate,
     this.canCreateProperty = false,
     this.onCreateProperty,
+    this.onLoadSwitcherPage,
     this.onSetArchived,
     this.operationsTasksBuilder,
     this.documentsBuilder,
@@ -259,6 +266,10 @@ class PropertyWorkspaceView extends StatefulWidget {
 
   /// Persists a new property; see [PropertyCreateSubmitCallback].
   final PropertyCreateSubmitCallback? onCreateProperty;
+
+  /// Loads one keyset page for the property switcher, straight from the list
+  /// contract. Null hides the switcher (no readable list, no switching).
+  final PropertySwitcherPage? onLoadSwitcherPage;
 
   /// Archives the open property or restores it over the audited update
   /// contract (DEBT-012 tombstone). Resolves true once the canonical readback
@@ -453,6 +464,55 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         ),
       ),
     ];
+  }
+
+  /// Switching properties goes through the same dirty gate as leaving: an
+  /// unsaved form is never torn down silently. The chosen property is then
+  /// opened canonically, exactly like opening from the list, and the domain is
+  /// kept when the new property is readable there.
+  Future<void> _openSwitcher() async {
+    final loadPage = widget.onLoadSwitcherPage;
+    final openId = _hostState.openPropertyId;
+    if (loadPage == null || openId == null || _openingPropertyId != null) {
+      return;
+    }
+    if (!await _confirmLeave()) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final chosen = await PropertySwitcherDialog.show(
+      context,
+      currentPropertyId: openId,
+      loadPage: loadPage,
+    );
+    if (chosen == null || !mounted || chosen == openId) {
+      return;
+    }
+    setState(() {
+      _assetEditing = false;
+      _openingPropertyId = chosen;
+      _lastOpenAttemptId = chosen;
+    });
+    final opened = await widget.onOpenProperty(chosen);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _openingPropertyId = null;
+      if (!opened) {
+        // notFound / forbidden / error: the context falls back to the list,
+        // which renders the distinct state instead of an empty workspace.
+        _hostState = _hostState.copyWith(openPropertyId: null);
+        return;
+      }
+      _hostState = _hostState.copyWith(
+        openPropertyId: chosen,
+        // The domain survives the switch; a selection inside a child does not.
+        list: _hostState.list.copyWith(focusedPropertyId: chosen),
+      );
+    });
   }
 
   Future<void> _openCreateDialog() async {
@@ -736,6 +796,8 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
                 'Objekt',
             onBackToList: _backToList,
             primaryAction: editAction,
+            onSwitchProperty:
+                widget.onLoadSwitcherPage == null ? null : _openSwitcher,
             secondaryActions: _lifecycleActions(
               detailReady: detailReady,
               canEdit: canEdit,

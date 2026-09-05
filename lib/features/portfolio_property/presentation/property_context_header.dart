@@ -23,6 +23,7 @@ class PropertyContextHeader extends StatelessWidget {
     required this.onBackToList,
     this.primaryAction,
     this.secondaryActions = const <Widget>[],
+    this.onSwitchProperty,
   });
 
   /// The summary the header identifies. While a deep-linked property is still
@@ -36,6 +37,10 @@ class PropertyContextHeader extends StatelessWidget {
   /// beside the way back on desktop and tablet; on mobile they follow the
   /// compact identity row so they never crowd the name.
   final List<Widget> secondaryActions;
+
+  /// Opens the property switcher. Null when there is no readable list to
+  /// switch within, in which case no affordance is shown at all.
+  final VoidCallback? onSwitchProperty;
 
   static const String backLabel = 'Objekte';
 
@@ -75,6 +80,13 @@ class PropertyContextHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back, size: 18),
               label: const Text(backLabel),
             ),
+            if (onSwitchProperty != null)
+              OutlinedButton.icon(
+                key: const Key('property-context-switch'),
+                onPressed: onSwitchProperty,
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('Objekt wechseln'),
+              ),
             ...secondaryActions,
           ],
           primaryAction: primaryAction,
@@ -113,6 +125,13 @@ class PropertyContextHeader extends StatelessWidget {
                 onPressed: onBackToList,
                 icon: const Icon(Icons.arrow_back),
               ),
+              if (onSwitchProperty != null)
+                IconButton(
+                  key: const Key('property-context-switch'),
+                  tooltip: 'Objekt wechseln',
+                  onPressed: onSwitchProperty,
+                  icon: const Icon(Icons.swap_horiz),
+                ),
               Expanded(
                 child: Semantics(
                   header: true,

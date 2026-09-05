@@ -146,7 +146,7 @@ Backend-Voraussetzung zuerst, unmittelbar gefolgt von der abhängigen UI und Sta
 
 | Welle | Inhalt | Voraussetzung → abhängige Fläche |
 |---|---|---|
-| P-1 | Objektliste und Objekt-Stammdaten vervollständigen: Lifecycle (Anlegen/Archivieren/Wiederherstellen) und `Vermietung` im Host **gelandet 2026-09-05**; offen: Objektwechsler | `PROPERTY-DATA-02` ✓ → `PROPERTY-CREATE-01` (erstes Inkrement ✓) und Asset-Lifecycle-Aktionen ✓; vorhandene Leasing-Panels → `Vermietung` ✓ |
+| P-1 **abgeschlossen** (2026-09-05) | Lifecycle (Anlegen/Archivieren/Wiederherstellen), `Vermietung` im Host und der Objektwechsler stehen | `PROPERTY-DATA-02` ✓ → `PROPERTY-CREATE-01` (erstes Inkrement ✓) und Asset-Lifecycle-Aktionen ✓; Leasing-Panels → `Vermietung` ✓; Objektwechsler als keyset-paginierter Browse-Dialog ✓ (echte Suche bleibt `PROPERTY-LOOKUP-01`) |
 | P-2 | `Übersicht` mit belastbaren KPIs und Attention-Drilldowns | `PROPERTY-OVERVIEW-DATA-01` → `PROPERTY_OVERVIEW_V2` |
 | P-3 | Objektmedien/Titelbild; serverweite Objektsuche in Liste und Objektwechsler | `PROPERTY-MEDIA-DATA-01`; `PROPERTY-LOOKUP-01` |
 | P-4 | `Investment` mit Bewertung, danach Szenarien und Performance | `VALUATION-REHOST-01`; `SCENARIO-VALUATION-01`; `P2-D08` |
