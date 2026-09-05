@@ -99,7 +99,10 @@ void main() {
 
       expect(calls.drafts, isEmpty);
       expect(find.text('Pflichtfeld'), findsWidgets);
-      expect(find.text('Ganze Zahl ab 0 erforderlich.'), findsOneWidget);
+      expect(
+        find.text('Ganze Zahl zwischen 0 und 2.147.483.647 erforderlich.'),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('property-create-dialog')), findsOneWidget);
     });
 
@@ -278,6 +281,7 @@ void main() {
 class _Calls {
   final List<PropertyCreateDto> drafts = <PropertyCreateDto>[];
   final List<String?> reasons = <String?>[];
+  final List<String?> attemptIds = <String?>[];
   final List<bool> archiveCalls = <bool>[];
 
   /// null = success, '' = form-level failure, otherwise the rejected field.
@@ -305,9 +309,10 @@ Future<void> _pump(
         onUpdateProperty: (_, {expectedVersion}) async => true,
         onRetryUpdate: () async {},
         canCreateProperty: canCreate,
-        onCreateProperty: (draft, {reason}) async {
+        onCreateProperty: (draft, {reason, attemptId}) async {
           calls.drafts.add(draft);
           calls.reasons.add(reason);
+          calls.attemptIds.add(attemptId);
           return calls.failure;
         },
         onSetArchived: (archived, {reason}) async {

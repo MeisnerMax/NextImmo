@@ -138,6 +138,133 @@ void main() {
       );
     });
 
+    // Review finding: a retry has to reach the server's idempotency, or a lost
+    // response duplicates the property. The same attempt id must reuse the
+    // same mutation id; only a genuinely new attempt mints a new one.
+    test('a retry of the same attempt reuses the mutation id', () async {
+      await start();
+      properties.createResults
+        ..add(
+          const PropertyRepositoryFailure<PropertyDto>(
+            kind: PropertyRepositoryFailureKind.infrastructureFailure,
+            message: 'lost response',
+          ),
+        )
+        ..add(
+          PropertyRepositorySuccess<PropertyDto>(_property(id: 'property-b')),
+        );
+
+      await controller.createProperty(_draft(), attemptId: 'attempt-1');
+      await controller.createProperty(_draft(), attemptId: 'attempt-1');
+
+      expect(properties.createCommands, hasLength(2));
+      expect(
+        properties.createCommands[1].context.mutationId,
+        properties.createCommands.first.context.mutationId,
+        reason: 'the server can replay instead of creating a second property',
+      );
+      expect(
+        properties.createCommands[1].context.correlationId,
+        properties.createCommands.first.context.correlationId,
+      );
+    });
+
+    test('a new attempt mints a new mutation id', () async {
+      await start();
+      properties.createResults
+        ..add(
+          PropertyRepositorySuccess<PropertyDto>(_property(id: 'property-b')),
+        )
+        ..add(
+          PropertyRepositorySuccess<PropertyDto>(_property(id: 'property-c')),
+        );
+
+      await controller.createProperty(_draft(), attemptId: 'attempt-1');
+      await controller.createProperty(_draft(), attemptId: 'attempt-2');
+
+      expect(
+        properties.createCommands[1].context.mutationId,
+        isNot(properties.createCommands.first.context.mutationId),
+      );
+    });
+
+    // Review finding: a creation says nothing about whether the list loaded.
+    test('a creation never turns a failed list read into a ready list', () async {
+      await start();
+      // The list read fails, so the list is parked in error with a retry.
+      properties
+          .listResult = const PropertyRepositoryFailure<PropertyPageResult>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'Objekte konnten nicht geladen werden.',
+      );
+      await controller.reloadProperties();
+      expect(controller.state.propertyListPhase, PropertyListPhase.error);
+
+      properties.createResults.add(
+        PropertyRepositorySuccess<PropertyDto>(_property(id: 'property-b')),
+      );
+      await controller.createProperty(_draft());
+
+      expect(controller.state.mutationPhase, PropertyMutationPhase.succeeded);
+      expect(
+        controller.state.propertyListPhase,
+        PropertyListPhase.error,
+        reason:
+            'the failed read still needs its retry; it is not resolved '
+            'by an unrelated successful mutation',
+      );
+      expect(
+        controller.state.properties,
+        isEmpty,
+        reason: 'nothing was loaded, so nothing is claimed',
+      );
+      // Known limitation, deliberately pinned rather than hidden: `message` is
+      // one shared field for list, detail and mutation feedback, so a mutation
+      // clears the list's specific text. The phase survives, so the list still
+      // renders its error state and retry — only with the generic copy.
+      expect(controller.state.message, isNull);
+    });
+
+    test(
+      'a creation outside the loaded range never claims the list is empty',
+      () async {
+        // A cursor exists, so further pages are unread: calling the list empty
+        // would state a falsehood about the workspace.
+        await start(
+          listItems: <PropertyDto>[_property(id: 'property-a')],
+          nextCursor: 'property-a',
+        );
+        properties.createResults.add(
+          PropertyRepositorySuccess<PropertyDto>(_property(id: 'property-z')),
+        );
+        // Archive the one loaded row out of the active view first.
+        properties.detailResult = PropertyRepositorySuccess<PropertyDto>(
+          _property(id: 'property-a'),
+        );
+        await controller.openProperty('property-a');
+        properties.updateResults.add(
+          PropertyRepositorySuccess<PropertyDto>(
+            _property(
+              id: 'property-a',
+              version: 2,
+              status: PropertyStatus.archived,
+            ),
+          ),
+        );
+        await controller.setSelectedPropertyArchived(archived: true);
+        expect(controller.state.properties, isEmpty);
+        expect(controller.state.nextCursor, 'property-a');
+
+        await controller.createProperty(_draft());
+
+        expect(
+          controller.state.propertyListPhase,
+          isNot(PropertyListPhase.empty),
+          reason: 'a further page exists, so the workspace is not empty',
+        );
+      },
+    );
+
     test('refuses to send a creation without property.create', () async {
       await start(
         permissions: const <String>{'property.read', 'property.update'},

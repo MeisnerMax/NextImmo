@@ -14,7 +14,7 @@
 
 ## 1. Purpose
 
-Die Objektliste ist das belastbare Portfolio-Inventar und der einzige primäre Einstieg in einen Property Workspace. Nutzer finden ein lesbares Property, erkennen Identität und Status und öffnen es. Die Liste ist kein Portfolio-Performance-Dashboard und bietet ohne Backend-Contract weder Create noch Archive/Delete.
+Die Objektliste ist das belastbare Portfolio-Inventar und der einzige primäre Einstieg in einen Property Workspace. Nutzer finden ein lesbares Property, erkennen Identität und Status und öffnen es; mit `property.create` legen sie hier ein neues Objekt als Entwurf an. Die Liste ist kein Portfolio-Performance-Dashboard; Archivieren/Wiederherstellen gehören in den Objektkontext, einen Hard-Delete gibt es nicht.
 
 ## 2. Primary users and jobs
 
@@ -100,7 +100,7 @@ Keine Domain-Fanout-Reads pro Zeile.
 
 ## 12. Forms and validation
 
-Kein Property-Formular. Filter validieren lediglich zulässige Enums/Textlänge. Create-Wizard separat und blockiert.
+Das einzige Formular ist der Anlegen-Dialog auf genau den Contractfeldern (`PROPERTY-DATA-02`): lokale Validierung spiegelt die Servergrenzen, eine Serverablehnung markiert das benannte Feld und behält alle Eingaben. Filter validieren lediglich zulässige Enums/Textlänge.
 
 ## 13. Shared components
 
@@ -132,7 +132,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 ## 16. Analytics / audit / history
 
 - Navigationstelemetrie ohne Propertyname/Adresse; reines Lesen erzeugt kein Fachaudit.
-- keine Mutationen auf diesem Screen.
+- Anlegen ist die eine Mutation dieses Screens; sie läuft über den auditierten `create_property`-RPC. Lesen erzeugt weiterhin kein Fachaudit.
 
 ## 17. Test plan
 

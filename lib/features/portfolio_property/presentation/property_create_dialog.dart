@@ -7,10 +7,19 @@ import '../domain/property_dto.dart';
 
 /// Result of the create dialog: the draft plus the reason the actor gave.
 class PropertyCreateRequest {
-  const PropertyCreateRequest({required this.draft, this.reason});
+  const PropertyCreateRequest({
+    required this.draft,
+    required this.attemptId,
+    this.reason,
+  });
 
   final PropertyCreateDto draft;
   final String? reason;
+
+  /// Stable for every resubmit of this dialog, so a retry after a lost or
+  /// failed response reaches the server's idempotency and replays the already
+  /// created property instead of opening a second one.
+  final String attemptId;
 }
 
 /// Persists the draft. Returns the server-named field of a rejected value
@@ -19,6 +28,15 @@ class PropertyCreateRequest {
 /// preserves the user input.
 typedef PropertyCreateSubmit =
     Future<String?> Function(PropertyCreateRequest request);
+
+/// A dialog-local attempt id. Not a security token and never sent as one --
+/// it only has to be stable across this dialog's resubmits and distinct from
+/// other attempts, which the microsecond timestamp plus identity hash gives.
+String _newAttemptId() {
+  final now = DateTime.now().microsecondsSinceEpoch;
+  final salt = identityHashCode(Object());
+  return 'create-$now-$salt';
+}
 
 /// `Objekt anlegen` (PROPERTY-CREATE-01 on the PROPERTY-DATA-02 contract).
 ///
@@ -39,6 +57,9 @@ class PropertyCreateDialog extends StatefulWidget {
   }) {
     return showDialog<void>(
       context: context,
+      // The dialog itself blocks dismissal while a creation is in flight; see
+      // the PopScope below. A barrier tap must not orphan a running mutation.
+      barrierDismissible: false,
       builder: (context) => PropertyCreateDialog(onSubmit: onSubmit),
     );
   }
@@ -65,6 +86,10 @@ class _PropertyCreateDialogState extends State<PropertyCreateDialog> {
   bool _submitting = false;
   String? _formError;
   String? _serverField;
+
+  /// One id for this dialog: every resubmit is the same attempt, and a
+  /// successful creation closes the dialog.
+  final String _attemptId = _newAttemptId();
 
   static final RegExp _normalizedCode = RegExp(r'^[a-z0-9]+([._-][a-z0-9]+)*$');
 
@@ -109,6 +134,7 @@ class _PropertyCreateDialogState extends State<PropertyCreateDialog> {
     final sqft = _sqft.text.trim();
     final yearBuilt = _yearBuilt.text.trim();
     final request = PropertyCreateRequest(
+      attemptId: _attemptId,
       draft: PropertyCreateDto(
         name: _name.text.trim(),
         addressLine1: _addressLine1.text.trim(),
@@ -154,6 +180,15 @@ class _PropertyCreateDialogState extends State<PropertyCreateDialog> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      // A creation in flight must not be dismissed: the command is already on
+      // its way and closing here would hide its outcome.
+      canPop: !_submitting,
+      child: _buildDialog(context),
+    );
+  }
+
+  Widget _buildDialog(BuildContext context) {
     return AlertDialog(
       key: const Key('property-create-dialog'),
       title: const Text('Objekt anlegen'),
@@ -175,8 +210,9 @@ class _PropertyCreateDialogState extends State<PropertyCreateDialog> {
                   const SizedBox(height: AppSpacing.component),
                 ],
                 const Text(
-                  'Das Objekt wird als Entwurf angelegt. Es wird erst aktiv, '
-                  'wenn du den Status in den Stammdaten änderst.',
+                  'Das Objekt wird als Entwurf angelegt. Der Status wird nicht '
+                  'im Formular gesetzt; er ändert sich über die benannten '
+                  'Aktionen im Objektkontext.',
                 ),
                 const SizedBox(height: AppSpacing.component),
                 _field(
@@ -345,8 +381,10 @@ class _PropertyCreateDialogState extends State<PropertyCreateDialog> {
       return 'Pflichtfeld';
     }
     final units = NumberParse.parseIntFlexible(value);
-    if (units == null || units < 0) {
-      return 'Ganze Zahl ab 0 erforderlich.';
+    // Upper bound mirrors the int32 column, so an over-large value is a
+    // field-level rejection instead of a database error the user cannot read.
+    if (units == null || units < 0 || units > 2147483647) {
+      return 'Ganze Zahl zwischen 0 und 2.147.483.647 erforderlich.';
     }
     return null;
   }

@@ -90,7 +90,7 @@ Property Media ist kein versteckter Teil dieses Formulars. Ein zukünftiger Medi
 - ohne Änderungen sofort in Read-Modus.
 - mit Änderungen Bestätigung. „Verwerfen“ setzt exakt auf letzten kanonischen Stand zurück.
 
-### Nicht vorhandene Lifecycle-Aktionen
+### Lifecycle-Aktionen
 
 - Archivieren und Wiederherstellen laufen seit `PROPERTY-DATA-02` über den bestehenden auditierten `update`-Contract (DEBT-012-Tombstone) — als benannte Aktion mit Bestätigung, die das Objekt beim Namen nennt und die Wiederherstellbarkeit ausspricht, nie als Status-Dropdown. Anlegen gehört zur Objektliste (`PROPERTY_LIST_V2`). Ein Hard-Delete bleibt ausgeschlossen.
 

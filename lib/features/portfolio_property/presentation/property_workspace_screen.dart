@@ -93,8 +93,12 @@ class _PropertyWorkspaceScreenState
                 ReferenceSliceController.propertyCreatePermission,
               ) ??
               false),
-      onCreateProperty: (draft, {reason}) async {
-        await controller.createProperty(draft, reason: reason);
+      onCreateProperty: (draft, {reason, attemptId}) async {
+        await controller.createProperty(
+          draft,
+          reason: reason,
+          attemptId: attemptId,
+        );
         final next = ref.read(referenceSliceControllerProvider);
         if (next.mutationPhase == PropertyMutationPhase.succeeded) {
           return null;
@@ -166,7 +170,11 @@ class _PropertyWorkspaceScreenState
 /// server-named field of a rejected value, or an empty string for a
 /// form-level failure — the dialog stays open on failure so input survives.
 typedef PropertyCreateSubmitCallback =
-    Future<String?> Function(PropertyCreateDto draft, {String? reason});
+    Future<String?> Function(
+      PropertyCreateDto draft, {
+      String? reason,
+      String? attemptId,
+    });
 
 /// Persists the master-data form; true once the canonical readback landed.
 typedef PropertyWorkspaceUpdate =
@@ -424,7 +432,12 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     }
     await PropertyCreateDialog.show(
       context,
-      onSubmit: (request) => submit(request.draft, reason: request.reason),
+      onSubmit:
+          (request) => submit(
+            request.draft,
+            reason: request.reason,
+            attemptId: request.attemptId,
+          ),
     );
     if (!mounted) {
       return;

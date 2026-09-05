@@ -132,7 +132,7 @@ Offizielle Evidenz: [VTS Lease](https://www.vts.com/vts-lease), [VTS Produkt-/AI
 | REJECT | MRI General Ledger/Fund Accounting als improvisierte Property-UI | wartet auf `P2-D08`/`P2-D09` |
 | REJECT | Legacy-KPIs und Completion-Proxies | keine Client-Synthese, keine erfundenen NOI/IRR/DSCR/Score-Werte |
 | REJECT | 32 gleichrangige Seiten und automatisch erzeugtes „Basis“-Szenario | gruppierte Domain-IA; keine Cross-Domain-Nebenwirkung |
-| REJECT | Create/Archive/Delete über den Update-Contract | bleibt `PROPERTY-DATA-02` |
+| REJECT | Hard-Delete eines Objekts, oder Archivieren als improvisiertes Status-Dropdown | Archivieren ist seit `PROPERTY-DATA-02` der auditierte, wiederherstellbare Tombstone über den Update-Contract (DEBT-012) und wird als **benannte, bestätigte Aktion** angeboten; Anlegen läuft über die eigene `create_property`-RPC |
 
 ### Legacy-Workspace: behalten, zusammenführen, entfernen, neu konzipieren
 
@@ -200,7 +200,7 @@ Offizielle Evidenz: [VTS Lease](https://www.vts.com/vts-lease), [VTS Produkt-/AI
 ### Bearbeiten
 
 - Bearbeitungsaktionen gehören der aktiven Domain und deren Spec.
-- Global sichtbar ist höchstens „Stammdaten bearbeiten“ bei `property.update`; Create/Archive/Delete werden nicht angeboten.
+- Global sichtbar sind „Stammdaten bearbeiten“ bei `property.update` sowie „Archivieren“/„Wiederherstellen“ als benannte, bestätigte Aktionen (ebenfalls `property.update`, seit `PROPERTY-DATA-02`). Anlegen gehört zur Objektliste und verlangt `property.create`. Ein Hard-Delete wird nicht angeboten.
 - Mutationen bleiben versioniert, idempotent/auditiert gemäß bestehendem Contract und dürfen AAL-Anforderungen nicht abschwächen.
 
 ### Attention-Drilldown
@@ -213,7 +213,7 @@ Offizielle Evidenz: [VTS Lease](https://www.vts.com/vts-lease), [VTS Produkt-/AI
 
 | Datenbereich | Vorhandene Cloud-Quelle | Workspace-Nutzung | Grenze |
 |---|---|---|---|
-| Property | `PropertyRepository.list/getById/update`, `PropertyDto` | Identität, Status, Stammdaten | kein Create/Archive/Delete-Workflow; kein Media |
+| Property | `PropertyRepository.list/getById/create/update`, `PropertyDto` | Identität, Status, Stammdaten, Lifecycle | Anlegen/Archivieren/Wiederherstellen vorhanden (`PROPERTY-DATA-02`); kein Hard-Delete, kein Media |
 | Units / Leases / Cases | jeweilige `Unit*`, `Lease*` und `LeasingCase*` Repository-/Search-Ports | Flächen, Verträge, Pipeline, Tenant-Bezug | Renewal Risk/Exposure nicht vorhanden |
 | Rent Roll | Live-RPC + immutable Snapshots | serverseitige Rohzähler/-summen und Detail | `occupancyRate`-Getter nicht als Overview-KPI |
 | Operations Signals | serverseitige Signal-Query | Attention/Datengüte mit Drilldown | keine clientseitige Neugewichtung |
@@ -307,7 +307,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 
 | Gap | Exakter Bedarf | Bereich | Schema/RLS/Permission | Separates Paket |
 |---|---|---|---|---|
-| Create/Archive/Delete | autorisierte Property-Lifecycle-Aktionen | PropertyRepository | zu prüfen, nicht hier planen | bestehend `PROPERTY-DATA-02` |
+| ~~Create/Archive/Delete~~ **erledigt** | autorisierte Property-Lifecycle-Aktionen | PropertyRepository | `create_property` mit AAL2 und `property.create` (admin/manager); Archivieren/Wiederherstellen über den auditierten Tombstone; kein Hard-Delete | `PROPERTY-DATA-02` gelandet 2026-09-05 |
 | Overview-Projektion | serverautoritatives KPI-/Attention-Modell für Expiries, Vacancy Exposure, Renewal Risk, Aufgaben, Maintenance/CapEx, Compliance, Valuation-Freshness, Activity und Data Quality; Definition, Coverage, `asOf`, Drilldown-Ref | domainübergreifender Read-Contract | expliziter Security-/RLS-Review nötig; keine neue Permission voraussetzen | Vorschlag `PROPERTY-OVERVIEW-DATA-01`, vor Umsetzung in Tracker aufnehmen |
 | Property Media | private Media-Liste, Titelbild, Upload/Version/Lifecycle | Property/Document | explizit zu entscheiden; Documents nicht zweckentfremden | Vorschlag `PROPERTY-MEDIA-DATA-01` |
 | Scenario Lifecycle/Versions | create/duplicate/review/approve/archive, immutable Snapshot, Compare/Rollback | Scenario | vollständig separat spezifizieren | bestehend `SCENARIO-VALUATION-01` / Scenario-Contract |
@@ -323,7 +323,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 - Status wird nie nur über Farbe codiert; Icon/Label und zugänglicher Text sind Pflicht.
 - Touch-Ziele erfüllen Foundation-Mindestgröße; mobile Auswahl benötigt keine Hover-Aktion.
 - Lange Property-Namen/Adressen umbrechen oder ellipsieren mit vollständigem zugänglichem Namen.
-- Destruktive Actions sind bis `PROPERTY-DATA-02` nicht sichtbar.
+- Destruktive Actions sind bestätigungspflichtig, benennen das Objekt und sprechen die Wiederherstellbarkeit aus; ein Hard-Delete existiert nicht.
 
 ## 16. Analytics / audit / history
 
@@ -379,7 +379,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECTED)** sowie Umfänge, die fachlich in eine andere Spec gehören. Alles, was früher wegen Aufwand, fehlendem Backend oder fehlendem Query-Contract hier stand, ist jetzt COMMITTED und mit seiner Voraussetzung in §14 geführt. REJECTED gilt ausschließlich für fremdes Trade Dress und Logos, pixelgenaue Kopien, erfundene KPIs oder Client-Synthese fehlender Serverdaten, unsichere öffentliche Auslieferung und jede Umgehung von AAL/RLS/Entity-Scope.
 
 - Implementierung von Produktcode, Navigation oder Router
-- Property Create/Archive/Delete und Create-Wizard
+- Hard-Delete eines Objekts; der mehrstufige Legacy-Erstellungs-Wizard (das erste Create-Inkrement ist gelandet, weitere Schritte folgen mit ihren eigenen Contracts)
 - neue Schema-, RLS-, Rollen- oder Permission-Definitionen
 - Portfolio-Dashboard, globales Tenant-Verzeichnis oder Admin-Workspace
 - VTS/MRI Trade Dress, proprietäre Assets, Markt-Benchmarks oder AI-Abstraktion
