@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/investment/performance`
 - Current implementation file(s): Legacy `budget_vs_actual_screen.dart`, `asset_workbook_screen.dart`, `covenants_screen.dart` und Analyseflächen nur als Job-Inventar; kein Cloud-Screen/Contract
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01` (Finance-Contract und Engine)
+- Technical readiness: PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01`. Inkrement **FINANCE-01a** ist gelandet (2026-09-06): Kontenplan, Perioden mit Abschluss und property-scoped Ist-Buchungen stehen serverseitig. Offen bleiben die berechneten Größen (KPI-Definitionsversionierung, NOI/Cashflow, Budget/Forecast/Varianz, Debt, Covenants)
 - Former status: BLOCKED (`P2-D08` / `FINANCE-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), Backend `P2-D08 finance_debt`, `FINANCE-01`, Overview-Summary danach
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md)
@@ -38,6 +38,34 @@ Performance verbindet die zentralen finanziellen Ist-, Budget-, Forecast-, Cashf
 4. Budget/Forecast vs Actual mit serverseitigen Varianzen
 5. Debt-Schedules und Covenant-Zustand
 6. Provenienz, Import-/Closing-Status und Reports
+
+## 4a. Umgesetzter Stand — FINANCE-01a (2026-09-06)
+
+Das erste Inkrement liefert bewusst die *langweilige* Schicht: die drei Tabellen, aus denen jede spätere Zahl abgeleitet werden muss.
+
+| Tabelle | Inhalt |
+|---|---|
+| `finance_accounts` | Kontenplan je Workspace: Code, Name, Typ (`income`/`expense`/`asset`/`liability`/`equity`), optionaler Elternknoten, Aktiv-Flag |
+| `finance_periods` | Abrechnungsperioden je Workspace: Jahr, Monat, Status `open`/`closed` mit Abschlusszeitpunkt und Abschließendem |
+| `finance_ledger_entries` | Property-scoped Ist-Buchungen: Konto, Periode, Buchungsdatum, Betrag, Währung, Beschreibung, optional Fläche und Vertrag |
+
+**Was das Inkrement bewusst nicht enthält.** Kein NOI, kein Cashflow, keine Budgetvarianz, keine Covenant-Headroom. Jede dieser Größen ist eine Formel, und §7 verlangt, dass eine *Definitionsversion* mit jeder berechneten Zahl reist, damit sie später reproduzierbar und prüfbar ist. Diese Versionierung ist Inhalt des nächsten Inkrements. Eine „vorläufige NOI" hier hieße, eine Zahl zu veröffentlichen, die niemand nachrechnen kann — genau das, was `PROPERTY_OVERVIEW_V2.md` für Finanz-KPIs ausschließt.
+
+**Drei Regeln, die das Schema erzwingt statt sie zu dokumentieren.**
+
+1. **Eine geschlossene Periode bewegt sich nicht.** Keine Buchung hinein, keine Änderung darin, kein Verschieben heraus. Zusätzlich zum typisierten Refusal der RPC steht ein Constraint-Trigger als Backstop, damit ein künftiger Importpfad die Regel nicht durch Vergessen umgeht. Abschließen ist eine eigene Berechtigung (`finance.close`), weil es der Moment ist, in dem eine Zahl aufhört, vorläufig zu sein. Wiedereröffnen verlangt zwingend einen Grund und landet im Audit.
+2. **Vorläufig sagt es.** Jeder Read meldet, welche der summierten Perioden noch offen sind, plus ein `is_provisional`-Flag. Eine Summe aus abgeschlossenem Quartal und halb gebuchtem laufenden Monat ist nicht falsch, aber vorläufig.
+3. **Währungen verschmelzen nie.** Eine Buchung trägt ihre Währung, der Read gruppiert danach. Es gibt keine Umrechnung in eine Berichtswährung: die bräuchte eine genehmigte Kursquelle mit Kursdatum, und das ist eine eigene Entscheidung, keine, die eine Summe stillschweigend trifft.
+
+**Vorzeichen statt Soll/Haben.** Ein Betrag ist im natürlichen Vorzeichen seines Kontotyps signiert. Debit/Credit-Spalten würden doppelte Buchführung modellieren, die dieses Produkt nicht führt: NexImmo berichtet über das operative Ergebnis eines Eigentümers, es ersetzt keine Buchhaltung. Eine halb implementierte doppelte Buchführung lädt zu einer Bilanzprüfung ein, die nie aufgehen kann.
+
+**Berechtigungen.** Drei Schlüssel, weil sich die drei Handlungen in ihrer Konsequenz unterscheiden: `finance.read` (lesen), `finance.manage` (buchen, Konten und Perioden anlegen), `finance.close` (Periode final erklären oder wieder öffnen). Rollen: admin alles; manager alle drei; analyst und viewer nur `finance.read`; **operations bewusst nichts** — es ist die einzige Rolle ohne Finanzaufgabe in der Rollentabelle, und ein Read „aus Symmetrie" würde die Fläche für niemanden verbreitern.
+
+**Read.** `property_finance_actuals(workspace, property, from_year, from_month, to_year, to_month)` summiert je Konto und Währung über einen Periodenbereich und meldet Abdeckung und Vorläufigkeit. Zwei Gates: entity-scoped `property.read` **und** `finance.read`.
+
+pgTAP 038 (60 Assertions), Rollback 044 (14).
+
+**Nächstes Inkrement (FINANCE-01b):** KPI-Definitionen mit Version, daraus NOI und Cashflow; danach Budget/Forecast mit serverseitiger Varianz, dann Debt und Covenants. Erst danach die Oberfläche `Investment → Performance`.
 
 ## 5. Layout and interaction model
 

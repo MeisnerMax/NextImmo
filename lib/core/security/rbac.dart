@@ -52,6 +52,14 @@ class Permission {
   static const String workspaceManage = 'workspace.manage';
   static const String operationsManage = 'operations.manage';
   static const String reportingGenerate = 'reporting.generate';
+
+  // FINANCE-01a: three keys, because the three actions differ in consequence.
+  // Reading a figure, booking one, and declaring a period final are separate
+  // rights; folding closing into `finance.manage` would let anyone who books
+  // also decide when the books stop moving.
+  static const String financeRead = 'finance.read';
+  static const String financeManage = 'finance.manage';
+  static const String financeClose = 'finance.close';
   static const String reportingApprove = 'reporting.approve';
 
   // PERMISSION-CATALOG-02: typed representations of the remaining server
@@ -111,6 +119,9 @@ class Permission {
     capexManage,
     capexApprove,
     reportingGenerate,
+    financeRead,
+    financeManage,
+    financeClose,
   };
 
   /// The complete client vocabulary: the canonical server catalog plus the

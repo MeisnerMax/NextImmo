@@ -44,6 +44,11 @@ const List<String> canonicalServerCatalog = <String>[
   'capex.manage',
   'capex.approve',
   'reporting.generate',
+  // FINANCE-01a added the ledger foundation: three keys, because reading a
+  // figure, booking one and declaring a period final differ in consequence.
+  'finance.read',
+  'finance.manage',
+  'finance.close',
 ];
 
 void main() {
