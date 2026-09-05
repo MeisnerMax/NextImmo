@@ -13,6 +13,7 @@ import '../../../ui/screens/property_detail/leasing/leasing_pipeline_panel.dart'
 import '../../../ui/screens/property_detail/leasing/rent_roll_panel.dart';
 import '../../../ui/screens/property_detail/leasing/units_panel.dart';
 import '../../../ui/screens/property_detail/property_documents_panel.dart';
+import '../../../ui/screens/property_detail/property_maintenance_capex_panel.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
@@ -166,6 +167,21 @@ class _PropertyWorkspaceScreenState
       // registers `Übersicht` at runtime, so the domain and its data source
       // arrive together.
       onLoadPropertyOverview: controller.loadPropertyOverview,
+      // MAINTENANCE-PARITY-01: `Wartung` and `CapEx` rehost the property-scoped
+      // maintenance/CapEx panel, one sub-area each, because they are
+      // separately permissioned rather than two tabs of one screen.
+      operationsBuilder:
+          (context, propertyId, subArea) => PropertyMaintenanceCapexPanel(
+            key: ValueKey<String>(
+              'property-operations-${subArea.name}-$propertyId',
+            ),
+            propertyId: propertyId,
+            embedded: true,
+            section:
+                subArea == PropertyOperationsSubArea.capex
+                    ? PropertyMaintenanceCapexSection.capex
+                    : PropertyMaintenanceCapexSection.maintenance,
+          ),
       operationsTasksBuilder:
           (context, propertyId) => TaskCenterScreen(
             key: ValueKey<String>('property-operations-tasks-$propertyId'),
@@ -245,6 +261,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.onLoadSwitcherPage,
     this.onSetArchived,
     this.operationsTasksBuilder,
+    this.operationsBuilder,
     this.documentsBuilder,
     this.leasingBuilder,
     this.onLoadPropertyOverview,
@@ -296,6 +313,17 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// placeholder, never a provider error.
   final Widget Function(BuildContext context, String propertyId)?
   operationsTasksBuilder;
+
+  /// Builds one of the other `Betrieb` sub-areas — `Wartung` and `CapEx`
+  /// (`MAINTENANCE-PARITY-01`). Injected for the same reason as the task
+  /// surface. A sub-area whose builder is missing is not offered, so the
+  /// navigation never leads to an empty frame.
+  final Widget Function(
+    BuildContext context,
+    String propertyId,
+    PropertyOperationsSubArea subArea,
+  )?
+  operationsBuilder;
 
   /// Builds the `Dokumente` domain (DOCUMENTS-COMPLETE-01). Injected by the
   /// connected screen for the same reason as [operationsTasksBuilder].
@@ -961,7 +989,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
           case PropertyWorkspaceDomain.leasing:
             return _buildLeasingDomain(context);
           case PropertyWorkspaceDomain.operations:
-            return _buildOperationsDomain(context);
+            return _buildOperationsDomain(context, state);
           case PropertyWorkspaceDomain.documents:
             return KeyedSubtree(
               key: const Key('property-documents'),
@@ -1101,33 +1129,122 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     });
   }
 
-  /// `Betrieb` (TASK-CENTER-01): the sub-navigation renders the implemented
-  /// children only — today exactly `Aufgaben`, kept as a chip so the level
-  /// stays unambiguous, exactly like the domain nav with one target.
-  /// Wartung/CapEx join with `MAINTENANCE-PARITY-01`.
-  Widget _buildOperationsDomain(BuildContext context) {
+  /// `Betrieb` (`PROPERTY_OPERATIONS_V2.md`): disruption, planned investment
+  /// and coordination — `Wartung`, `CapEx`, `Aufgaben`.
+  ///
+  /// The three do not share a permission, so the sub-navigation renders only
+  /// the ones this membership may read *and* this host can build. A member
+  /// with `maintenance.read` but not `task.read` sees Wartung alone; a member
+  /// with none of the three never reaches this domain at all.
+  Widget _buildOperationsDomain(
+    BuildContext context,
+    ReferenceSliceState state,
+  ) {
     final propertyId = _hostState.openPropertyId!;
+    final subAreas = _visibleOperationsSubAreas(state);
+    if (subAreas.isEmpty) {
+      return const NxEmptyState(
+        key: Key('property-operations-forbidden'),
+        title: 'Kein Zugriff auf den Betrieb',
+        description:
+            'Der Betriebsbereich benötigt eine der Berechtigungen '
+            '(maintenance.read), (capex.read) oder (task.read).',
+        icon: Icons.lock_outline,
+      );
+    }
+    final active = _activeOperationsSubArea(subAreas);
     return Column(
       key: const Key('property-operations'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ChoiceChip(
-            key: const Key('property-operations-sub-tasks'),
-            label: const Text('Aufgaben'),
-            selected: true,
-            onSelected: (_) {},
+        Semantics(
+          container: true,
+          label: 'Bereiche des Betriebs',
+          child: SingleChildScrollView(
+            key: const Key('property-operations-sub-nav'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < subAreas.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.xs),
+                  ChoiceChip(
+                    key: Key('property-operations-sub-${subAreas[i].name}'),
+                    label: Text(subAreas[i].label),
+                    selected: subAreas[i] == active,
+                    onSelected: (_) => _selectOperationsSubArea(subAreas[i]),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.component),
         Expanded(
-          child:
-              widget.operationsTasksBuilder?.call(context, propertyId) ??
-              const SizedBox.shrink(),
+          child: KeyedSubtree(
+            // A distinct key per sub-area so each surface keeps its own
+            // filters and scroll instead of inheriting the previous one's.
+            key: ValueKey<String>('property-operations-${active.name}'),
+            child: _operationsBody(context, propertyId, active),
+          ),
         ),
       ],
     );
+  }
+
+  Widget _operationsBody(
+    BuildContext context,
+    String propertyId,
+    PropertyOperationsSubArea subArea,
+  ) {
+    if (subArea == PropertyOperationsSubArea.tasks) {
+      return widget.operationsTasksBuilder?.call(context, propertyId) ??
+          const SizedBox.shrink();
+    }
+    return widget.operationsBuilder?.call(context, propertyId, subArea) ??
+        const SizedBox.shrink();
+  }
+
+  /// The operations sub-areas this membership may read and this host can
+  /// build. Both conditions, because a permitted sub-area without a builder
+  /// would render an empty frame — the thing the registry rule exists to
+  /// prevent.
+  List<PropertyOperationsSubArea> _visibleOperationsSubAreas(
+    ReferenceSliceState state,
+  ) {
+    return visiblePropertyOperationsSubAreas(_permissions(state))
+        .where(
+          (subArea) =>
+              subArea == PropertyOperationsSubArea.tasks
+                  ? widget.operationsTasksBuilder != null
+                  : widget.operationsBuilder != null,
+        )
+        .toList(growable: false);
+  }
+
+  PropertyOperationsSubArea _activeOperationsSubArea(
+    List<PropertyOperationsSubArea> available,
+  ) {
+    final remembered = _hostState.subAreaOf(PropertyWorkspaceDomain.operations);
+    for (final subArea in available) {
+      if (subArea.name == remembered) {
+        return subArea;
+      }
+    }
+    return available.first;
+  }
+
+  void _selectOperationsSubArea(PropertyOperationsSubArea subArea) {
+    if (subArea.name ==
+        _hostState.subAreaOf(PropertyWorkspaceDomain.operations)) {
+      return;
+    }
+    setState(() {
+      _hostState = _hostState.withSubArea(
+        PropertyWorkspaceDomain.operations,
+        subArea.name,
+      );
+    });
   }
 
   PropertySummaryDto? _summaryFromList(

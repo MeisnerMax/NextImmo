@@ -34,6 +34,7 @@ class PropertyWorkspaceDomainRegistration {
     required this.domain,
     required this.label,
     required this.readPermission,
+    this.alternativeReadPermissions = const <String>[],
   });
 
   final PropertyWorkspaceDomain domain;
@@ -45,14 +46,30 @@ class PropertyWorkspaceDomainRegistration {
   /// membership cannot read is hidden from the navigation (Foundation §3);
   /// direct access renders forbidden.
   final String readPermission;
+
+  /// Further capabilities that make the domain visible on their own, because
+  /// they open one of its sub-areas. A domain with several independently
+  /// permissioned sub-areas is visible as soon as *one* of them is readable —
+  /// hiding `Betrieb` from someone who may read maintenance but not tasks
+  /// would withhold work they are entitled to, and showing it to someone who
+  /// may read none of it would be an empty frame. Sub-areas gate themselves
+  /// individually (`PROPERTY_OPERATIONS_V2.md` §8).
+  final List<String> alternativeReadPermissions;
+
+  /// Every capability that makes this domain visible.
+  List<String> get readPermissions => <String>[
+    readPermission,
+    ...alternativeReadPermissions,
+  ];
 }
 
-/// Runtime registry: `Objekt` arrived with wave A1; `Betrieb` with
-/// TASK-CENTER-01, whose only implemented child today is the property-scoped
-/// task surface — its gate is therefore `task.read`, the read permission of
-/// that one child (`PROPERTY_OPERATIONS_V2.md` §8: sub-areas without read are
-/// hidden, and a domain with no readable child would be an empty frame).
-/// `MAINTENANCE-PARITY-01` widens the gate when Wartung/CapEx land.
+/// Runtime registry: `Objekt` arrived with wave A1. `Betrieb` with
+/// TASK-CENTER-01 and, since MAINTENANCE-PARITY-01, all three of its
+/// sub-areas `Wartung / CapEx / Aufgaben`. Each of those carries its own read
+/// permission, so the domain is visible as soon as one of them is readable and
+/// each sub-area hides itself individually (`PROPERTY_OPERATIONS_V2.md` §8:
+/// sub-areas without read are hidden, and a domain with no readable child
+/// would be an empty frame).
 /// `Dokumente` with DOCUMENTS-COMPLETE-01 (`PROPERTY_DOCUMENTS_V2.md`): the
 /// property-scoped document panel on the `documents_compliance` contract,
 /// gated by `document.read` — the spec's own rule (§8: host `property.read`,
@@ -91,6 +108,10 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     domain: PropertyWorkspaceDomain.operations,
     label: 'Betrieb',
     readPermission: Permission.taskRead,
+    alternativeReadPermissions: <String>[
+      Permission.maintenanceRead,
+      Permission.capexRead,
+    ],
   ),
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.documents,
@@ -114,13 +135,45 @@ extension PropertyLeasingSubAreaLabel on PropertyLeasingSubArea {
   };
 }
 
+/// The sub-areas of `Betrieb` (`PROPERTY_OPERATIONS_V2.md` §3/§4), in the
+/// order the spec names them: disruption, planned investment, coordination.
+///
+/// Unlike `Vermietung`, these do *not* share one permission: each is gated by
+/// its own read capability, so a Property Manager without `capex.read` sees
+/// Wartung and Aufgaben and simply never sees CapEx.
+enum PropertyOperationsSubArea { maintenance, capex, tasks }
+
+extension PropertyOperationsSubAreaMeta on PropertyOperationsSubArea {
+  String get label => switch (this) {
+    PropertyOperationsSubArea.maintenance => 'Wartung',
+    PropertyOperationsSubArea.capex => 'CapEx',
+    PropertyOperationsSubArea.tasks => 'Aufgaben',
+  };
+
+  String get readPermission => switch (this) {
+    PropertyOperationsSubArea.maintenance => Permission.maintenanceRead,
+    PropertyOperationsSubArea.capex => Permission.capexRead,
+    PropertyOperationsSubArea.tasks => Permission.taskRead,
+  };
+}
+
+/// The operations sub-areas this membership may open, in spec order. Empty
+/// means the domain itself is not visible.
+List<PropertyOperationsSubArea> visiblePropertyOperationsSubAreas(
+  Set<String> permissions,
+) {
+  return PropertyOperationsSubArea.values
+      .where((subArea) => permissions.contains(subArea.readPermission))
+      .toList(growable: false);
+}
+
 /// The registered domains the given membership may actually see. Missing or
 /// empty permission sets yield an empty navigation (fail closed).
 List<PropertyWorkspaceDomainRegistration> visiblePropertyWorkspaceDomains(
   Set<String> permissions,
 ) {
   return registeredPropertyWorkspaceDomains
-      .where((entry) => permissions.contains(entry.readPermission))
+      .where((entry) => entry.readPermissions.any(permissions.contains))
       .toList(growable: false);
 }
 
