@@ -189,6 +189,8 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
   5. **Ein Titelbild, von der Datenbank durchgesetzt.** Ein partieller Unique-Index entscheidet das, nicht der zuletzt schreibende Client.
 
   Signierte URLs werden bei Bedarf erzeugt (5 Minuten) und **nirgends gespeichert**: für ein privates Objekt ist eine URL ein kurzlebiges Credential, kein Adresswert. Das DTO trägt deshalb einen Pfad.
+
+  **Noch offen und bewusst nicht behauptet:** Die Storage-Policies sind in pgTAP 035 als `authenticated`-Rolle geprüft — also mit genau der Rolle und dem Prädikat, die der Storage-Dienst auswertet. Ein *behavioural* Nachweis über die echte Storage-HTTP-API, wie ihn `SECURITY-STORAGE-AAL-03` für den Dokumenten-Bucket führt, existiert für `property-media` noch nicht. Das ist ein eigenes Inkrement an jenem Skript, kein Nebeneffekt dieses Pakets.
 - Kein Backend-Gap für `sqft`: Das erste Inkrement zeigt und speichert die Contracteinheit `ft²` unverändert. Eine spätere m²-Migration ist ein separates Datenpaket.
 - kein weiterer Backend-Gap für list/get/update.
 
