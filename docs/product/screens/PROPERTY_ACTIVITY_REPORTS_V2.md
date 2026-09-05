@@ -7,7 +7,7 @@
 - Route: zukünftige Basis `/properties/:propertyId/activity/*`
 - Current implementation file(s): Legacy `audit_log_screen.dart`, `reports_screen.dart`; Cloud `lib/features/platform_audit_jobs/` enthält Task-/Event-Infrastruktur, aber keinen Property-Activity-/Audit-Screen
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — erster implementierter Child (`PROPERTY-ACTIVITY-01` oder `AUDIT-01`)
+- Technical readiness (Stand 2026-09-06): READY als Host mit seinem ersten Child `Protokoll` (`AUDIT-01`). PREREQUISITE REQUIRED bleibt für `Aktivität` (`PROPERTY-ACTIVITY-01`) und `Berichte` (`P2-D09`). Vorher: PREREQUISITE REQUIRED — erster implementierter Child (`PROPERTY-ACTIVITY-01` oder `AUDIT-01`)
 - Former status: BLOCKED (kein implementierter Child; zuerst voraussichtlich `AUDIT-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `AUDIT-01`, `PORTFOLIO-REPORTING-01`
 - Related screens: [Property Activity V2](PROPERTY_ACTIVITY_V2.md), [Property Audit V2](PROPERTY_AUDIT_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md)

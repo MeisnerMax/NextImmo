@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../application/audit_read_port.dart';
 import '../application/platform_repository.dart';
+import '../domain/audit_event_dto.dart';
 import '../domain/import_job_dto.dart';
 import '../domain/notification_dto.dart';
 import '../domain/platform_entity_type.dart';
@@ -94,10 +96,7 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
     required PlatformKeysetCursor? after,
     required int limit,
   }) async {
-    var query = _client
-        .from('tasks')
-        .select()
-        .eq('workspace_id', workspaceId);
+    var query = _client.from('tasks').select().eq('workspace_id', workspaceId);
     if (statuses != null && statuses.isNotEmpty) {
       query = query.inFilter('status', statuses);
     }
@@ -309,9 +308,59 @@ class SupabasePlatformGateway implements PlatformSupabaseGateway {
   }
 }
 
+AuditEventDto _parseAuditEvent(Map<String, dynamic> row) {
+  return AuditEventDto(
+    id: _requiredString(row, 'id'),
+    occurredAt: DateTime.parse(_requiredString(row, 'occurred_at')),
+    action: _requiredString(row, 'action'),
+    entityType: _requiredString(row, 'entity_type'),
+    entityId: row['entity_id'] as String?,
+    parentEntityType: row['parent_entity_type'] as String?,
+    parentEntityId: row['parent_entity_id'] as String?,
+    // An unknown actor type degrades to `system`, never to `user`: attributing
+    // a change to a person the server did not name would be worse than
+    // attributing it to the platform.
+    actorType: switch (row['actor_type']) {
+      'user' => AuditActorType.user,
+      'service' => AuditActorType.service,
+      _ => AuditActorType.system,
+    },
+    actorUserId: row['actor_user_id'] as String?,
+    actorIdentifier: row['actor_identifier'] as String?,
+    roleKey: row['role_key'] as String?,
+    source: _requiredString(row, 'source'),
+    correlationId: _requiredString(row, 'correlation_id'),
+    mutationId: row['mutation_id'] as String?,
+    reason: row['reason'] as String?,
+    changedFields: <String>[
+      if (row['changed_fields'] is List)
+        for (final field in row['changed_fields'] as List)
+          if (field is String) field,
+    ],
+  );
+}
+
+AuditEventCursor? _parseAuditCursor(Object? raw) {
+  if (raw is! Map) {
+    return null;
+  }
+  final cursor = _asMap(raw);
+  final occurredAt = cursor['occurred_at'];
+  final id = cursor['id'];
+  if (occurredAt is! String || id is! String) {
+    return null;
+  }
+  return AuditEventCursor(occurredAt: DateTime.parse(occurredAt), id: id);
+}
+
 /// Supabase-backed implementation of the four data-plane DOM-010 ports.
 class SupabasePlatformRepositoryAdapter
-    implements TaskRepository, NotificationPort, JobRepository, SearchIndexPort {
+    implements
+        TaskRepository,
+        NotificationPort,
+        JobRepository,
+        SearchIndexPort,
+        AuditReadPort {
   SupabasePlatformRepositoryAdapter({required SupabaseClient client})
     : _gateway = SupabasePlatformGateway(client);
 
@@ -355,12 +404,13 @@ class SupabasePlatformRepositoryAdapter
           limit: query.page.limit,
           workspaceId: query.workspaceId,
           parse: _parseTask,
-          cursorOf: (task) => PlatformKeysetCursor(
-            // The cursor column must match the active sort; a due-ordered
-            // read never serves a task without a due date.
-            timestamp: sortByDue ? task.dueAt! : task.createdAt,
-            id: task.id,
-          ),
+          cursorOf:
+              (task) => PlatformKeysetCursor(
+                // The cursor column must match the active sort; a due-ordered
+                // read never serves a task without a due date.
+                timestamp: sortByDue ? task.dueAt! : task.createdAt,
+                id: task.id,
+              ),
           workspaceOf: (task) => task.workspaceId,
         ),
       );
@@ -457,8 +507,8 @@ class SupabasePlatformRepositoryAdapter
         'p_generated_key': draft.generatedKey,
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedTask(entity, command.context.workspaceId),
+      parseEntity:
+          (entity) => _parseScopedTask(entity, command.context.workspaceId),
     );
   }
 
@@ -489,12 +539,13 @@ class SupabasePlatformRepositoryAdapter
         },
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedTask(entity, command.context.workspaceId),
-      parseConflictEntity: (entity) => (
-        currentTask: _parseScopedTask(entity, command.context.workspaceId),
-        currentImportJob: null,
-      ),
+      parseEntity:
+          (entity) => _parseScopedTask(entity, command.context.workspaceId),
+      parseConflictEntity:
+          (entity) => (
+            currentTask: _parseScopedTask(entity, command.context.workspaceId),
+            currentImportJob: null,
+          ),
     );
   }
 
@@ -514,12 +565,13 @@ class SupabasePlatformRepositoryAdapter
         'p_correlation_id': command.context.correlationId,
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedTask(entity, command.context.workspaceId),
-      parseConflictEntity: (entity) => (
-        currentTask: _parseScopedTask(entity, command.context.workspaceId),
-        currentImportJob: null,
-      ),
+      parseEntity:
+          (entity) => _parseScopedTask(entity, command.context.workspaceId),
+      parseConflictEntity:
+          (entity) => (
+            currentTask: _parseScopedTask(entity, command.context.workspaceId),
+            currentImportJob: null,
+          ),
     );
   }
 
@@ -544,10 +596,11 @@ class SupabasePlatformRepositoryAdapter
           limit: query.page.limit,
           workspaceId: query.workspaceId,
           parse: _parseNotification,
-          cursorOf: (notification) => PlatformKeysetCursor(
-            timestamp: notification.createdAt,
-            id: notification.id,
-          ),
+          cursorOf:
+              (notification) => PlatformKeysetCursor(
+                timestamp: notification.createdAt,
+                id: notification.id,
+              ),
           workspaceOf: (notification) => notification.workspaceId,
         ),
       );
@@ -560,9 +613,8 @@ class SupabasePlatformRepositoryAdapter
   }
 
   @override
-  Future<PlatformRepositoryResult<NotificationFanOutReceipt>> fanOutNotification(
-    CreateNotificationCommand command,
-  ) {
+  Future<PlatformRepositoryResult<NotificationFanOutReceipt>>
+  fanOutNotification(CreateNotificationCommand command) {
     final draft = command.draft;
     return _executeCommand<NotificationFanOutReceipt>(
       context: command.context,
@@ -628,8 +680,9 @@ class SupabasePlatformRepositoryAdapter
           limit: query.page.limit,
           workspaceId: query.workspaceId,
           parse: _parseImportJob,
-          cursorOf: (job) =>
-              PlatformKeysetCursor(timestamp: job.createdAt, id: job.id),
+          cursorOf:
+              (job) =>
+                  PlatformKeysetCursor(timestamp: job.createdAt, id: job.id),
           workspaceOf: (job) => job.workspaceId,
         ),
       );
@@ -684,8 +737,9 @@ class SupabasePlatformRepositoryAdapter
         'p_mapping': command.draft.mapping,
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedImportJob(entity, command.context.workspaceId),
+      parseEntity:
+          (entity) =>
+              _parseScopedImportJob(entity, command.context.workspaceId),
     );
   }
 
@@ -710,15 +764,17 @@ class SupabasePlatformRepositoryAdapter
         },
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedImportJob(entity, command.context.workspaceId),
-      parseConflictEntity: (entity) => (
-        currentTask: null,
-        currentImportJob: _parseScopedImportJob(
-          entity,
-          command.context.workspaceId,
-        ),
-      ),
+      parseEntity:
+          (entity) =>
+              _parseScopedImportJob(entity, command.context.workspaceId),
+      parseConflictEntity:
+          (entity) => (
+            currentTask: null,
+            currentImportJob: _parseScopedImportJob(
+              entity,
+              command.context.workspaceId,
+            ),
+          ),
     );
   }
 
@@ -742,15 +798,17 @@ class SupabasePlatformRepositoryAdapter
         'p_error_report': evidence.errorReport,
         'p_reason': command.context.reason,
       },
-      parseEntity: (entity) =>
-          _parseScopedImportJob(entity, command.context.workspaceId),
-      parseConflictEntity: (entity) => (
-        currentTask: null,
-        currentImportJob: _parseScopedImportJob(
-          entity,
-          command.context.workspaceId,
-        ),
-      ),
+      parseEntity:
+          (entity) =>
+              _parseScopedImportJob(entity, command.context.workspaceId),
+      parseConflictEntity:
+          (entity) => (
+            currentTask: null,
+            currentImportJob: _parseScopedImportJob(
+              entity,
+              command.context.workspaceId,
+            ),
+          ),
     );
   }
 
@@ -777,8 +835,11 @@ class SupabasePlatformRepositoryAdapter
           limit: query.page.limit,
           workspaceId: query.workspaceId,
           parse: _parseSearchEntry,
-          cursorOf: (entry) =>
-              PlatformKeysetCursor(timestamp: entry.updatedAt, id: entry.id),
+          cursorOf:
+              (entry) => PlatformKeysetCursor(
+                timestamp: entry.updatedAt,
+                id: entry.id,
+              ),
           workspaceOf: (entry) => entry.workspaceId,
         ),
       );
@@ -885,6 +946,51 @@ class SupabasePlatformRepositoryAdapter
     );
   }
 
+  /// AUDIT-01. The projection is the server's: this reads what the RPC chose
+  /// to publish and adds nothing. In particular there is no branch here that
+  /// could reach for `old_values` or `new_values` — the payload does not carry
+  /// them, which is the point.
+  @override
+  Future<PlatformRepositoryResult<AuditEventPage>> propertyAuditEvents(
+    PropertyAuditQuery query,
+  ) async {
+    try {
+      final response = await _gateway
+          .callRpc('property_audit_events', <String, Object?>{
+            'p_workspace_id': query.workspaceId,
+            'p_property_id': query.propertyId,
+            'p_after_occurred_at':
+                query.cursor?.occurredAt.toUtc().toIso8601String(),
+            'p_after_id': query.cursor?.id,
+            'p_limit': query.limit,
+          });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final raw = payload['events'];
+        return PlatformRepositorySuccess<AuditEventPage>(
+          AuditEventPage(
+            events: <AuditEventDto>[
+              if (raw is List)
+                for (final item in raw)
+                  if (item is Map) _parseAuditEvent(_asMap(item)),
+            ],
+            nextCursor: _parseAuditCursor(payload['next_cursor']),
+          ),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<AuditEventPage>(_asMap(payload['error']), null);
+    } catch (_) {
+      return const PlatformRepositoryFailure<AuditEventPage>(
+        kind: PlatformRepositoryFailureKind.infrastructureFailure,
+        message: 'The audit trail could not be loaded.',
+      );
+    }
+  }
+
   Future<PlatformRepositoryResult<T>> _dispatch<T>({
     required String function,
     required Map<String, Object?> parameters,
@@ -921,9 +1027,10 @@ class SupabasePlatformRepositoryAdapter
     // The server's own message is passed through: these are our controlled
     // strings, not arbitrary infrastructure text. Anything thrown from outside
     // that contract lands in the catch above as an infrastructure failure.
-    final message = error['message'] is String
-        ? error['message'] as String
-        : 'Platform command failed.';
+    final message =
+        error['message'] is String
+            ? error['message'] as String
+            : 'Platform command failed.';
     switch (code) {
       case 'not_found':
         return PlatformRepositoryFailure<T>(
@@ -1054,9 +1161,8 @@ PlatformPageResult<T> _page<T>({
   }
   return PlatformPageResult<T>(
     items: items,
-    nextCursor: hasNextPage && items.isNotEmpty
-        ? cursorOf(items.last).encode()
-        : null,
+    nextCursor:
+        hasNextPage && items.isNotEmpty ? cursorOf(items.last).encode() : null,
   );
 }
 
@@ -1073,7 +1179,10 @@ TaskDto _parseTask(Map<String, dynamic> row) {
       TaskPriority.fromWire(row['priority'] as String?),
       'priority',
     ),
-    status: _requiredEnum(TaskStatus.fromWire(row['status'] as String?), 'status'),
+    status: _requiredEnum(
+      TaskStatus.fromWire(row['status'] as String?),
+      'status',
+    ),
     createdAt: _requiredDateTime(row, 'created_at'),
     updatedAt: _requiredDateTime(row, 'updated_at'),
     createdBy: _requiredString(row, 'created_by'),
@@ -1113,12 +1222,14 @@ NotificationFanOutReceipt _parseFanOutReceipt(Map<String, dynamic> entity) {
   if (ids is! List) {
     throw const FormatException('Expected a notification id list.');
   }
-  final notificationIds = ids.map((id) {
-    if (id is! String || id.isEmpty) {
-      throw const FormatException('Expected a non-empty notification id.');
-    }
-    return id;
-  }).toList(growable: false);
+  final notificationIds = ids
+      .map((id) {
+        if (id is! String || id.isEmpty) {
+          throw const FormatException('Expected a non-empty notification id.');
+        }
+        return id;
+      })
+      .toList(growable: false);
   final receipt = NotificationFanOutReceipt(
     kind: _requiredString(entity, 'kind'),
     recipientCount: _requiredInt(entity, 'recipient_count'),
@@ -1299,5 +1410,4 @@ T _requiredEnum<T>(T? value, String key) {
   return value;
 }
 
-String? _formatTimestamp(DateTime? value) =>
-    value?.toUtc().toIso8601String();
+String? _formatTimestamp(DateTime? value) => value?.toUtc().toIso8601String();
