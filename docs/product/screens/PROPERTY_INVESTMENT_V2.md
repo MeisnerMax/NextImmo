@@ -7,7 +7,7 @@
 - Route: zukünftige Basis `/properties/:propertyId/investment/*`; heute kein gemeinsamer Cloud-Host
 - Current implementation file(s): `lib/ui/screens/valuations/valuations_screen.dart`, `lib/ui/screens/property_detail/inputs_screen.dart`, `analysis_screen.dart`, `scenarios_screen.dart`, `scenario_versions_screen.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — erster Child `VALUATION-REHOST-01`
+- Technical readiness (Stand 2026-09-06): READY als Host mit seinem ersten Child. `VALUATION-REHOST-01` ist umgesetzt: `Investment → Bewertung` hostet die property-scoped Bewertungs-Queue und die Case-Fläche. PREREQUISITE REQUIRED bleibt für `Szenarien` (`SCENARIO-VALUATION-01`) und `Performance` (`FINANCE-01`/`P2-D08`) — beide sind abwesend statt leer
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `VALUATION-REHOST-01`; spätere Childs `SCENARIO-VALUATION-01`, `FINANCE-01`
 - Related screens: [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Performance V2](PROPERTY_PERFORMANCE_V2.md)

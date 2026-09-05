@@ -14,6 +14,7 @@ import '../../../ui/screens/property_detail/leasing/rent_roll_panel.dart';
 import '../../../ui/screens/property_detail/leasing/units_panel.dart';
 import '../../../ui/screens/property_detail/property_documents_panel.dart';
 import '../../../ui/screens/property_detail/property_maintenance_capex_panel.dart';
+import '../../../ui/screens/property_detail/widgets/valuation/property_valuation_panel.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
@@ -182,6 +183,15 @@ class _PropertyWorkspaceScreenState
                     ? PropertyMaintenanceCapexSection.capex
                     : PropertyMaintenanceCapexSection.maintenance,
           ),
+      // VALUATION-REHOST-01: `Investment → Bewertung` rehosts the property's
+      // valuation queue and case surface rather than rebuilding either.
+      investmentBuilder:
+          (context, propertyId, subArea) => switch (subArea) {
+            PropertyInvestmentSubArea.valuation => PropertyValuationPanel(
+              key: ValueKey<String>('property-valuation-$propertyId'),
+              propertyId: propertyId,
+            ),
+          },
       operationsTasksBuilder:
           (context, propertyId) => TaskCenterScreen(
             key: ValueKey<String>('property-operations-tasks-$propertyId'),
@@ -262,6 +272,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.onSetArchived,
     this.operationsTasksBuilder,
     this.operationsBuilder,
+    this.investmentBuilder,
     this.documentsBuilder,
     this.leasingBuilder,
     this.onLoadPropertyOverview,
@@ -324,6 +335,15 @@ class PropertyWorkspaceView extends StatefulWidget {
     PropertyOperationsSubArea subArea,
   )?
   operationsBuilder;
+
+  /// Builds one `Investment` sub-area (`VALUATION-REHOST-01`). Injected for the
+  /// same reason as the others; a sub-area without a builder is not offered.
+  final Widget Function(
+    BuildContext context,
+    String propertyId,
+    PropertyInvestmentSubArea subArea,
+  )?
+  investmentBuilder;
 
   /// Builds the `Dokumente` domain (DOCUMENTS-COMPLETE-01). Injected by the
   /// connected screen for the same reason as [operationsTasksBuilder].
@@ -432,11 +452,24 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
   ) {
     return visiblePropertyWorkspaceDomains(_permissions(state))
         .where(
-          (entry) =>
-              entry.domain != PropertyWorkspaceDomain.overview ||
+          (entry) => switch (entry.domain) {
+            // A domain this host cannot build is hidden, not empty — the same
+            // rule the registry applies to an unimplemented one.
+            PropertyWorkspaceDomain.overview =>
               widget.onLoadPropertyOverview != null,
+            PropertyWorkspaceDomain.investment =>
+              widget.investmentBuilder != null &&
+                  _visibleInvestmentSubAreas(state).isNotEmpty,
+            _ => true,
+          },
         )
         .toList(growable: false);
+  }
+
+  List<PropertyInvestmentSubArea> _visibleInvestmentSubAreas(
+    ReferenceSliceState state,
+  ) {
+    return visiblePropertyInvestmentSubAreas(_permissions(state));
   }
 
   /// Where opening a property lands. `Übersicht` where it is available,
@@ -1026,8 +1059,12 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
                   _visibleDomains(state).map((entry) => entry.domain).toSet(),
               onOpenDomain: _selectDomain,
             );
-          case PropertyWorkspaceDomain.asset:
           case PropertyWorkspaceDomain.investment:
+            return _buildInvestmentDomain(context, state);
+          case PropertyWorkspaceDomain.asset:
+          // `Aktivität` is unregistered, so it can only be reached as a
+          // restored host state; falling back to the asset surface keeps that
+          // case on a real surface instead of an empty one.
           case PropertyWorkspaceDomain.activity:
             return PropertyAssetPanel(
               key: const Key('property-asset'),
@@ -1190,6 +1227,81 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         ),
       ],
     );
+  }
+
+  /// `Investment` (`PROPERTY_INVESTMENT_V2.md`): navigation and property
+  /// context around independent screens, nothing more. Today exactly one child
+  /// is implemented, and it still gets its chip so the active level stays
+  /// unambiguous.
+  Widget _buildInvestmentDomain(
+    BuildContext context,
+    ReferenceSliceState state,
+  ) {
+    final propertyId = _hostState.openPropertyId!;
+    final subAreas = _visibleInvestmentSubAreas(state);
+    if (subAreas.isEmpty || widget.investmentBuilder == null) {
+      return const NxEmptyState(
+        key: Key('property-investment-forbidden'),
+        title: 'Kein Zugriff auf Investment',
+        description:
+            'Der Investmentbereich benötigt die Berechtigung '
+            '(valuation.read).',
+        icon: Icons.lock_outline,
+      );
+    }
+    final remembered = _hostState.subAreaOf(PropertyWorkspaceDomain.investment);
+    final active = subAreas.firstWhere(
+      (subArea) => subArea.name == remembered,
+      orElse: () => subAreas.first,
+    );
+    return Column(
+      key: const Key('property-investment'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          label: 'Bereiche von Investment',
+          child: SingleChildScrollView(
+            key: const Key('property-investment-sub-nav'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < subAreas.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.xs),
+                  ChoiceChip(
+                    key: Key('property-investment-sub-${subAreas[i].name}'),
+                    label: Text(subAreas[i].label),
+                    selected: subAreas[i] == active,
+                    onSelected: (_) => _selectInvestmentSubArea(subAreas[i]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        Expanded(
+          child: KeyedSubtree(
+            key: ValueKey<String>('property-investment-${active.name}'),
+            child: widget.investmentBuilder!(context, propertyId, active),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _selectInvestmentSubArea(PropertyInvestmentSubArea subArea) {
+    if (subArea.name ==
+        _hostState.subAreaOf(PropertyWorkspaceDomain.investment)) {
+      return;
+    }
+    setState(() {
+      _hostState = _hostState.withSubArea(
+        PropertyWorkspaceDomain.investment,
+        subArea.name,
+      );
+    });
   }
 
   Widget _operationsBody(

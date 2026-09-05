@@ -316,10 +316,29 @@ void main() {
       expect(opened, isEmpty);
     });
 
-    testWidgets('the valuation module offers no drilldown while Investment is '
-        'unregistered', (tester) async {
-      await _pump(tester, _Load(overview()), onOpenDomain: (_) {});
+    testWidgets('the valuation module drills into Investment where it is '
+        'readable, and nowhere where it is not', (tester) async {
+      final opened = <PropertyWorkspaceDomain>[];
+      await _pump(
+        tester,
+        _Load(overview()),
+        availableDomains: const <PropertyWorkspaceDomain>{
+          ..._allDomains,
+          PropertyWorkspaceDomain.investment,
+        },
+        onOpenDomain: opened.add,
+      );
+      await tester.tap(
+        find.byKey(const Key('property-overview-valuation-open')),
+      );
+      await tester.pump();
+      expect(opened, <PropertyWorkspaceDomain>[
+        PropertyWorkspaceDomain.investment,
+      ]);
 
+      // Without valuation.read the domain is not in the membership's list, so
+      // the module keeps its figures and loses only the affordance.
+      await _pump(tester, _Load(overview()), onOpenDomain: (_) {});
       expect(
         find.byKey(const Key('property-overview-valuation')),
         findsOneWidget,
