@@ -830,10 +830,18 @@ class _PropertyOverviewActivity extends StatefulWidget {
       _PropertyOverviewActivityState();
 }
 
-class _PropertyOverviewActivityState extends State<_PropertyOverviewActivity> {
+/// Kept alive for the same reason as the Lease-Roll block below it: this
+/// module is a child of the overview's `ListView`, which disposes what scrolls
+/// out of view. Without the mixin the audit read would be re-issued every time
+/// the module scrolls back into sight.
+class _PropertyOverviewActivityState extends State<_PropertyOverviewActivity>
+    with AutomaticKeepAliveClientMixin {
   List<AuditEventDto>? _events;
   bool _forbidden = false;
   bool _failed = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -863,6 +871,7 @@ class _PropertyOverviewActivityState extends State<_PropertyOverviewActivity> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final semantic = context.semanticColors;
     final events = _events;

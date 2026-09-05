@@ -521,6 +521,63 @@ void main() {
       );
     });
 
+    testWidgets('does not re-read when it scrolls out of view and back', (
+      tester,
+    ) async {
+      // The card lives in the overview's ListView, which disposes children
+      // that leave the viewport. Its controller is autoDispose, so without a
+      // keep-alive the read fires again on every scroll past it — on a phone,
+      // where the block sits below the fold, that is every single scroll.
+      tester.view.physicalSize = const Size(390, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final port = _StubPort(LeasingRepositorySuccess(_dto()));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            propertyLeasingSummaryProvider.overrideWithValue(port),
+            workspaceSessionScopeProvider.overrideWithValue(
+              WorkspaceSessionScope(
+                workspaceId: 'w1',
+                actorId: 'u1',
+                permissions: const <String>{'property.read', 'lease.read'},
+                mutationsSupported: true,
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: const <Widget>[
+                  SizedBox(height: 1200),
+                  PropertyLeasingSummaryCard(propertyId: 'p1'),
+                  SizedBox(height: 1200),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(ListView), const Offset(0, -1400));
+      await tester.pumpAndSettle();
+      expect(port.reads, 1, reason: 'the first sighting reads once');
+
+      await tester.drag(find.byType(ListView), const Offset(0, -1400));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, 2800));
+      await tester.pumpAndSettle();
+
+      expect(
+        port.reads,
+        1,
+        reason: 'scrolling is not a reason to ask the server again',
+      );
+    });
+
     testWidgets('offers a retry when the read failed', (tester) async {
       await _pumpCard(
         tester,
