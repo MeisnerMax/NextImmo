@@ -459,6 +459,72 @@ void main() {
       expect(find.byKey(const Key('property-overview')), findsOneWidget);
     });
 
+    testWidgets('does not re-read when it scrolls out of view and back', (
+      tester,
+    ) async {
+      // The module is a child of the overview's ListView, which disposes what
+      // leaves the viewport, and it loads in initState. Without a keep-alive
+      // the audit read fires again every time it scrolls back into sight.
+      //
+      // The scroll has to end with the module *visible* again: scrolling away
+      // alone proves nothing, because a disposed widget issues no read either.
+      var reads = 0;
+      await _pump(
+        tester,
+        _Load(overview()),
+        activityLoader: (_) async {
+          reads++;
+          return const PlatformRepositorySuccess<AuditEventPage>(
+            AuditEventPage(events: <AuditEventDto>[]),
+          );
+        },
+        viewport: const Size(390, 500),
+      );
+
+      final list = find.byKey(
+        const PageStorageKey<String>('property-overview-scroll'),
+      );
+      final module = find.byKey(const Key('property-overview-activity'));
+
+      // Gradual drags rather than a jump to a pre-measured offset: the list's
+      // extent grows as lazy children are built, so jumping to a stale
+      // maxScrollExtent lands past the end, gets corrected, and churns the
+      // very element under test.
+      Future<void> scrollBy(double dy) async {
+        for (var moved = 0.0; moved < dy.abs(); moved += 200) {
+          await tester.drag(list, Offset(0, dy.isNegative ? -200 : 200));
+          await tester.pumpAndSettle();
+        }
+      }
+
+      final position = tester
+          .state<ScrollableState>(
+            find.descendant(of: list, matching: find.byType(Scrollable)),
+          )
+          .position;
+      final bottom = position.maxScrollExtent;
+
+      await scrollBy(-(bottom + 400));
+      final afterFirstSighting = reads;
+      expect(afterFirstSighting, 1, reason: 'the first sighting reads once');
+
+      await scrollBy(bottom + 400);
+      expect(
+        module,
+        findsNothing,
+        reason: 'the list really does drop it from the tree',
+      );
+
+      await scrollBy(-(bottom + 400));
+      expect(module, findsOneWidget);
+
+      expect(
+        reads,
+        afterFirstSighting,
+        reason: 'scrolling is not a reason to ask the audit port again',
+      );
+    });
+
     // AUDIT-01 feeds this module from the same read port the Aktivität domain
     // uses, so the overview cannot publish anything the trail withholds.
     testWidgets('the activity module shows the newest events and drills into '
@@ -681,6 +747,7 @@ Future<void> _pump(
   Set<PropertyWorkspaceDomain> availableDomains = _allDomains,
   ValueChanged<PropertyWorkspaceDomain>? onOpenDomain,
   PlatformRepositoryResult<AuditEventPage>? activity,
+  PropertyOverviewActivityLoad? activityLoader,
   Widget Function(BuildContext context, String propertyId)?
   leasingSummaryBuilder,
   Size viewport = const Size(1440, 900),
@@ -691,7 +758,9 @@ Future<void> _pump(
       PropertyOverviewPanel(
         propertyId: 'property-a',
         onLoad: load.call,
-        onLoadActivity: activity == null ? null : (_) async => activity,
+        onLoadActivity:
+            activityLoader ??
+            (activity == null ? null : (_) async => activity),
         leasingSummaryBuilder: leasingSummaryBuilder,
         availableDomains: availableDomains,
         onOpenDomain: onOpenDomain,

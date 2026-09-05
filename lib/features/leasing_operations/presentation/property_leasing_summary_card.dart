@@ -41,13 +41,35 @@ import '../../portfolio_property/presentation/property_presentation.dart';
 import '../application/property_leasing_summary_controller.dart';
 import '../domain/leasing_summary_dto.dart';
 
-class PropertyLeasingSummaryCard extends ConsumerWidget {
+class PropertyLeasingSummaryCard extends ConsumerStatefulWidget {
   const PropertyLeasingSummaryCard({super.key, required this.propertyId});
 
   final String propertyId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PropertyLeasingSummaryCard> createState() =>
+      _PropertyLeasingSummaryCardState();
+}
+
+/// Kept alive on purpose.
+///
+/// The card lives inside the overview's `ListView`, which disposes children
+/// that scroll out of view. Its controller is `autoDispose`, so without this
+/// the state would be dropped and the read re-issued every time an asset
+/// manager scrolls past it and back — on a phone, where the block sits below
+/// the fold, that is every single scroll. The keep-alive is scoped to the
+/// list: switching property changes the provider family key and the old state
+/// is disposed as intended.
+class _PropertyLeasingSummaryCardState
+    extends ConsumerState<PropertyLeasingSummaryCard>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final propertyId = widget.propertyId;
     final state = ref.watch(
       propertyLeasingSummaryControllerProvider(propertyId),
     );
