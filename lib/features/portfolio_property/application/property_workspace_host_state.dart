@@ -58,16 +58,25 @@ class PropertyWorkspaceDomainRegistration {
 /// gated by `document.read` — the spec's own rule (§8: host `property.read`,
 /// screen `document.read`; without it the domain is hidden, never an empty
 /// frame).
+/// `Vermietung` with `PROPERTY_LEASING_V2`: the four Welle-3 panels (Flächen,
+/// Verträge, Pipeline, Rent Roll) already run on the `lease.*` cloud
+/// contracts, so the domain is gated by `lease.read` — the read permission
+/// every one of its sub-areas needs.
 /// `Übersicht` stays unregistered until `PROPERTY-OVERVIEW-DATA-01` lands;
-/// `Vermietung`/`Investment` follow in later implementation packages; `Aktivität` stays hidden until it has at least one implemented
-/// child. Registering a domain here is a deliberate act of the increment that
-/// implements it — never a placeholder.
+/// `Investment` follows with `VALUATION-REHOST-01`; `Aktivität` stays hidden
+/// until it has at least one implemented child. Registering a domain here is a
+/// deliberate act of the increment that implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
 registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.asset,
     label: 'Objekt',
     readPermission: 'property.read',
+  ),
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.leasing,
+    label: 'Vermietung',
+    readPermission: Permission.leaseRead,
   ),
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.operations,
@@ -80,6 +89,21 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     readPermission: Permission.documentRead,
   ),
 ];
+
+/// The sub-areas of `Vermietung` (`PROPERTY_LEASING_V2.md` §4), in reading
+/// order: space → contract → pipeline → rent roll. All four share
+/// `lease.read`, so the domain gate already covers them; a domain may carry at
+/// most four sub-areas.
+enum PropertyLeasingSubArea { units, leases, pipeline, rentRoll }
+
+extension PropertyLeasingSubAreaLabel on PropertyLeasingSubArea {
+  String get label => switch (this) {
+    PropertyLeasingSubArea.units => 'Flächen',
+    PropertyLeasingSubArea.leases => 'Verträge',
+    PropertyLeasingSubArea.pipeline => 'Pipeline',
+    PropertyLeasingSubArea.rentRoll => 'Rent Roll',
+  };
+}
 
 /// The registered domains the given membership may actually see. Missing or
 /// empty permission sets yield an empty navigation (fail closed).
@@ -158,23 +182,35 @@ class PropertyWorkspaceHostState {
     this.openPropertyId,
     this.domain = PropertyWorkspaceDomain.asset,
     this.list = const PropertyListRestoreState(),
+    this.subAreas = const <PropertyWorkspaceDomain, String>{},
   });
 
   /// The property whose workspace is open; null while the list is showing.
   final String? openPropertyId;
 
-  /// The active workspace domain. Wave A1 only ever navigates `asset`
-  /// (`Objekt`) — the default target while `Übersicht` is blocked.
+  /// The active workspace domain. `Objekt` is the default target while
+  /// `Übersicht` waits for `PROPERTY-OVERVIEW-DATA-01`.
   final PropertyWorkspaceDomain domain;
 
   final PropertyListRestoreState list;
 
+  /// The last valid sub-area per domain, keyed by the sub-area id the domain
+  /// defines (spec `PROPERTY_WORKSPACE_V2.md` §3: a domain switch preserves
+  /// `workspaceId`, `propertyId` and each domain's last sub-area). Returning
+  /// to a domain therefore lands where the user left it, while a selected
+  /// record inside that sub-area is deliberately not carried across domains.
+  final Map<PropertyWorkspaceDomain, String> subAreas;
+
   bool get isPropertyOpen => openPropertyId != null;
+
+  /// The remembered sub-area of [domain], or null when it was never visited.
+  String? subAreaOf(PropertyWorkspaceDomain domain) => subAreas[domain];
 
   PropertyWorkspaceHostState copyWith({
     Object? openPropertyId = _unchanged,
     PropertyWorkspaceDomain? domain,
     PropertyListRestoreState? list,
+    Map<PropertyWorkspaceDomain, String>? subAreas,
   }) {
     return PropertyWorkspaceHostState(
       openPropertyId:
@@ -183,6 +219,19 @@ class PropertyWorkspaceHostState {
               : openPropertyId as String?,
       domain: domain ?? this.domain,
       list: list ?? this.list,
+      subAreas: subAreas ?? this.subAreas,
+    );
+  }
+
+  /// Remembers [subArea] as the active one of [domain].
+  PropertyWorkspaceHostState withSubArea(
+    PropertyWorkspaceDomain domain,
+    String subArea,
+  ) {
+    return copyWith(
+      subAreas: Map<PropertyWorkspaceDomain, String>.unmodifiable(
+        <PropertyWorkspaceDomain, String>{...subAreas, domain: subArea},
+      ),
     );
   }
 
@@ -191,19 +240,39 @@ class PropertyWorkspaceHostState {
       'openPropertyId': openPropertyId,
       'domain': domain.name,
       'list': list.toJson(),
+      'subAreas': <String, String>{
+        for (final entry in subAreas.entries) entry.key.name: entry.value,
+      },
     };
   }
 
   @override
   bool operator ==(Object other) {
-    return other is PropertyWorkspaceHostState &&
-        other.openPropertyId == openPropertyId &&
-        other.domain == domain &&
-        other.list == list;
+    if (other is! PropertyWorkspaceHostState ||
+        other.openPropertyId != openPropertyId ||
+        other.domain != domain ||
+        other.list != list ||
+        other.subAreas.length != subAreas.length) {
+      return false;
+    }
+    for (final entry in subAreas.entries) {
+      if (other.subAreas[entry.key] != entry.value) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
-  int get hashCode => Object.hash(openPropertyId, domain, list);
+  int get hashCode => Object.hash(
+    openPropertyId,
+    domain,
+    list,
+    // Order-independent: a map with the same pairs must hash the same.
+    Object.hashAllUnordered(
+      subAreas.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    ),
+  );
 }
 
 /// Contract between the host and the active child surface for unsaved input
