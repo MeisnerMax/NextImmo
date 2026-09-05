@@ -7,6 +7,7 @@ import 'package:neximmo_app/features/identity_access/application/entitlement_inv
 import 'package:neximmo_app/features/portfolio_property/application/property_query_invalidation_source.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 
 void main() {
@@ -2868,6 +2869,12 @@ class _FakePropertyRepository implements PropertyRepository {
   final List<String> listWorkspaceIds = <String>[];
   final List<PropertyListQuery> listQueries = <PropertyListQuery>[];
   final List<String> detailPropertyIds = <String>[];
+  final List<String> overviewPropertyIds = <String>[];
+  PropertyRepositoryResult<PropertyOverviewDto> overviewResult =
+      const PropertyRepositoryFailure<PropertyOverviewDto>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'no overview configured',
+      );
   final List<PropertyUpdateCommand> updateCommands = <PropertyUpdateCommand>[];
   final Queue<PropertyRepositoryResult<PropertyDto>> createResults =
       Queue<PropertyRepositoryResult<PropertyDto>>();
@@ -2896,6 +2903,15 @@ class _FakePropertyRepository implements PropertyRepository {
           message: 'Property creation is not permitted.',
         )
         : createResults.removeFirst();
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    overviewPropertyIds.add(propertyId);
+    return overviewResult;
   }
 
   @override

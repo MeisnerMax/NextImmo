@@ -1,4 +1,5 @@
 import '../domain/property_dto.dart';
+import '../domain/property_overview_dto.dart';
 
 class CommandContext {
   const CommandContext({
@@ -165,6 +166,14 @@ abstract interface class PropertyRepository {
   );
 
   Future<PropertyRepositoryResult<PropertyDto>> getById({
+    required String workspaceId,
+    required String propertyId,
+  });
+
+  /// The server-authoritative overview (PROPERTY-OVERVIEW-DATA-01). Each
+  /// section is permission-scoped on the server; an unreadable one comes back
+  /// unavailable rather than as zeroes. The client never aggregates.
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
     required String workspaceId,
     required String propertyId,
   });

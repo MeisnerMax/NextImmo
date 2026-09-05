@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
 
@@ -153,6 +154,78 @@ ReferenceSliceState detailState({
     versionConflict: versionConflict,
     message: message,
     liveUpdatesDegraded: liveUpdatesDegraded,
+  );
+}
+
+/// A server overview payload. Every section defaults to *available with real
+/// counts*; pass [PropertyOverviewSection.unavailable] to model a membership
+/// that may not read one.
+PropertyOverviewDto overview({
+  String propertyId = 'property-a',
+  DateTime? asOf,
+  PropertyOverviewSection? leasing,
+  PropertyOverviewSection? maintenance,
+  PropertyOverviewSection? capex,
+  PropertyOverviewSection? tasks,
+  PropertyOverviewSection? documents,
+  PropertyOverviewSection? valuation,
+  List<PropertyOverviewAttention> attention =
+      const <PropertyOverviewAttention>[],
+  DateTime? lastValuationUpdatedAt,
+}) {
+  return PropertyOverviewDto(
+    propertyId: propertyId,
+    workspaceId: 'workspace-a',
+    name: 'Atlas House',
+    asOf: asOf ?? DateTime.utc(2026, 9, 6, 8, 15),
+    leasing:
+        leasing ??
+        const PropertyOverviewSection.available(<String, int>{
+          'units_total': 12,
+          'units_occupied': 9,
+          'units_vacant': 3,
+          'units_offline': 0,
+          'leases_active': 9,
+          'leases_ending_90d': 2,
+          'leases_expired_open': 1,
+          'leasing_cases_open': 4,
+        }),
+    maintenance:
+        maintenance ??
+        const PropertyOverviewSection.available(<String, int>{
+          'tickets_open': 5,
+          'tickets_overdue': 2,
+          'tickets_urgent_open': 1,
+        }),
+    capex:
+        capex ??
+        const PropertyOverviewSection.available(<String, int>{
+          'projects_open': 3,
+          'projects_before_approval': 1,
+        }),
+    tasks:
+        tasks ??
+        const PropertyOverviewSection.available(<String, int>{
+          'tasks_open': 7,
+          'tasks_overdue': 0,
+          'tasks_blocked': 1,
+        }),
+    documents:
+        documents ??
+        const PropertyOverviewSection.available(<String, int>{
+          'documents_total': 22,
+          'requirements_total': 6,
+          'requirements_overdue': 1,
+          'requirements_waived': 2,
+        }),
+    valuation:
+        valuation ??
+        const PropertyOverviewSection.available(<String, int>{
+          'cases_total': 2,
+          'cases_open': 1,
+        }),
+    attention: attention,
+    lastValuationUpdatedAt: lastValuationUpdatedAt,
   );
 }
 

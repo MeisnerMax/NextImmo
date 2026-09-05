@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 
 /// PROPERTY-DATA-02 in the controller: creating a property and the named
@@ -426,7 +427,61 @@ void main() {
 
       expect(properties.updateCommands, isEmpty);
     });
+
+    // PROPERTY-OVERVIEW-DATA-01: the summary read is a pure read. It must not
+    // touch the session state, because the overview surface owns its own
+    // loading, stale and error handling per module.
+    test(
+      'the overview read is scoped and leaves the session state alone',
+      () async {
+        await start();
+        properties
+            .overviewResult = PropertyRepositorySuccess<PropertyOverviewDto>(
+          _overview(propertyId: 'property-a'),
+        );
+        final before = controller.state;
+
+        final result = await controller.loadPropertyOverview('property-a');
+
+        expect(result, isA<PropertyRepositorySuccess<PropertyOverviewDto>>());
+        expect(properties.overviewPropertyIds, <String>['property-a']);
+        expect(controller.state, same(before));
+      },
+    );
+
+    test('the overview read is refused without property.read', () async {
+      await start(permissions: const <String>{'property.update'});
+
+      final result = await controller.loadPropertyOverview('property-a');
+
+      expect(
+        (result as PropertyRepositoryFailure<PropertyOverviewDto>).kind,
+        PropertyRepositoryFailureKind.forbidden,
+      );
+      expect(
+        properties.overviewPropertyIds,
+        isEmpty,
+        reason: 'the client never sends a command it knows is not permitted',
+      );
+    });
   });
+}
+
+PropertyOverviewDto _overview({required String propertyId}) {
+  return PropertyOverviewDto(
+    propertyId: propertyId,
+    workspaceId: 'workspace-a',
+    name: 'Atlas House',
+    asOf: DateTime.utc(2026, 9, 6, 8),
+    leasing: const PropertyOverviewSection.available(<String, int>{
+      'units_total': 12,
+    }),
+    maintenance: const PropertyOverviewSection.unavailable('maintenance.read'),
+    capex: const PropertyOverviewSection.unavailable('capex.read'),
+    tasks: const PropertyOverviewSection.unavailable('task.read'),
+    documents: const PropertyOverviewSection.unavailable('document.read'),
+    valuation: const PropertyOverviewSection.unavailable('valuation.read'),
+  );
 }
 
 PropertyCreateDto _draft() {
@@ -509,6 +564,12 @@ class _FakePropertyRepository implements PropertyRepository {
   final List<PropertyCreateCommand> createCommands = <PropertyCreateCommand>[];
   final List<PropertyUpdateCommand> updateCommands = <PropertyUpdateCommand>[];
   final List<String> detailPropertyIds = <String>[];
+  final List<String> overviewPropertyIds = <String>[];
+  PropertyRepositoryResult<PropertyOverviewDto> overviewResult =
+      const PropertyRepositoryFailure<PropertyOverviewDto>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'no overview configured',
+      );
 
   @override
   Future<PropertyRepositoryResult<PropertyPageResult>> list(
@@ -521,6 +582,15 @@ class _FakePropertyRepository implements PropertyRepository {
   ) async {
     createCommands.add(command);
     return createResults.removeFirst();
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    overviewPropertyIds.add(propertyId);
+    return overviewResult;
   }
 
   @override

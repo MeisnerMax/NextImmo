@@ -8,6 +8,7 @@ import '../../identity_access/application/entitlement_invalidation_source.dart';
 import '../../portfolio_property/application/property_query_invalidation_source.dart';
 import '../../portfolio_property/application/property_repository.dart';
 import '../../portfolio_property/domain/property_dto.dart';
+import '../../portfolio_property/domain/property_overview_dto.dart';
 
 const _unchanged = Object();
 
@@ -723,6 +724,29 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       loadMoreFailureMessage: null,
     );
     await _loadFirstPropertyPage(access, generation);
+  }
+
+  /// Reads the server-authoritative overview of [propertyId]
+  /// (PROPERTY-OVERVIEW-DATA-01).
+  ///
+  /// Side-effect free like [loadPropertyPage]: the overview is a projection
+  /// the surface owns, not controller state, so a failed or slow read never
+  /// disturbs the property context around it. Permission scoping happens
+  /// server-side per section; the client neither aggregates nor guesses.
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> loadPropertyOverview(
+    String propertyId,
+  ) async {
+    final access = state.selectedWorkspace;
+    if (access == null || !access.allows(propertyReadPermission)) {
+      return const PropertyRepositoryFailure<PropertyOverviewDto>(
+        kind: PropertyRepositoryFailureKind.forbidden,
+        message: 'Property access is not permitted.',
+      );
+    }
+    return _propertyRepository.overview(
+      workspaceId: access.workspace.id,
+      propertyId: propertyId,
+    );
   }
 
   /// Reads one keyset page for a browse surface (the property switcher).

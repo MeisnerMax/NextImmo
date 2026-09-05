@@ -5,10 +5,10 @@
 - Package / screen ID: `PROPERTY-WORKSPACE-01` / `PROPERTY-OVERVIEW-V2`
 - Domain: domainübergreifende Property-Zusammenfassung
 - Route: zukünftiges Ziel `/properties/:propertyId/overview`; heute zustandsbasiert im Property-Host
-- Current implementation file(s): `lib/ui/screens/property_detail/overview_screen.dart`, `lib/ui/screens/property_detail/overview/overview_view_model.dart`, `lib/ui/screens/property_detail/leasing/operations_overview_panel.dart`, `lib/ui/screens/property_detail/leasing/operations_alerts_panel.dart`
+- Current implementation file(s): `lib/features/portfolio_property/presentation/property_overview_panel.dart`, `lib/features/portfolio_property/domain/property_overview_dto.dart`, `supabase/migrations/20260906100000_property_overview_data_01.sql`. Legacy (nicht übernommen, nur User-Job-Inventar): `lib/ui/screens/property_detail/overview_screen.dart`, `lib/ui/screens/property_detail/overview/overview_view_model.dart`, `lib/ui/screens/property_detail/leasing/operations_overview_panel.dart`, `lib/ui/screens/property_detail/leasing/operations_alerts_panel.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `PROPERTY-OVERVIEW-DATA-01` (serverseitige KPI-/Attention-/Freshness-Projektion)
-- Former status: BLOCKED (`PROPERTY-OVERVIEW-DATA-01`; Implementation-Readiness-Review 2026-08-28)
+- Technical readiness (Stand 2026-09-06): READY für die gezählten Domänenfakten und die serverseitig geordnete Attention-Liste — `PROPERTY-OVERVIEW-DATA-01` ist implementiert und `Übersicht` ist zur Laufzeit registriert. PREREQUISITE REQUIRED bleibt für drei Module: Finanzkennzahlen (`P2-D08`/`FINANCE-01`), Letzte Aktivität (`AUDIT-01`) sowie Lease Roll / Vacancy Exposure / Renewal Risk als vollständige Projektion (`LEASING-SUMMARY-01`). Diese Module sind abwesend und als abwesend beschriftet, nicht geschätzt
+- Former status: BLOCKED (`PROPERTY-OVERVIEW-DATA-01`; Implementation-Readiness-Review 2026-08-28), aufgehoben 2026-09-06
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`, vorgeschlagener Backend-Contract `PROPERTY-OVERVIEW-DATA-01`
 - Related screens: alle Property-Domain-Screens; globales Dashboard ist nicht dieses Overview
 
@@ -64,6 +64,23 @@ Der Screen plant KPI-Slots, aber keine Formel. Ein Slot wird nur gerendert, wenn
 | Financial Performance | NOI/Cashflow/Budget-Varianz mit Periode | zukünftiger `P2-D08`-Contract | Legacy-Formeln oder lokale Inputs |
 
 Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschriftete serverseitige Rohfakten und direkte Signalzeilen anzeigen. Fehlende Slots werden weggelassen oder als „Für diese Kennzahl ist noch keine autoritative Quelle verfügbar“ erklärt; nie als `0`.
+
+### Umgesetzter Stand (2026-09-06)
+
+`property_overview(workspace, property)` liefert `as_of`, die Property-Identität, sechs permission-gescopte Sektionen und eine serverseitig geordnete Attention-Liste. Jede Zahl ist eine gespeicherte Zählung; keine Quote, kein Score, kein Wert.
+
+| Sektion | Permission | Gelieferte Fakten |
+|---|---|---|
+| leasing | `lease.read` | Flächen gesamt/vermietet/leer/nicht vermietbar, Verträge aktiv, Ende in 90 Tagen, abgelaufen aber aktiv, offene Vermietungsfälle |
+| maintenance | `maintenance.read` | offene, überfällige und dringende Tickets |
+| capex | `capex.read` | offene Projekte, Projekte vor Freigabe |
+| tasks | `task.read` | offene, überfällige, blockierte Aufgaben |
+| documents | `document.read` | verknüpfte Dokumente, Anforderungen gesamt/überfällig/verzichtet |
+| valuation | `valuation.read` | Fälle gesamt/in Arbeit, letzte Bearbeitung (kein Wert) |
+
+Eine Sektion ohne Permission liefert `available: false` samt der benötigten Permission und **ohne jede Zahl** — die UI kann daraus kein `0` machen, weil keine da ist. Attention entsteht ausschließlich aus den erlaubten Sektionen, ist server-priorisiert (`critical` → `warning` → `info`, danach feste Typreihenfolge) und trägt keinen Score, den der Client neu interpretieren könnte.
+
+Nicht enthalten und als „noch nicht abgedeckt“ beschriftet: Finanzkennzahlen, Letzte Aktivität, Lease-Roll-/Renewal-Projektion, Belegungsquote.
 
 ## 5. Layout and interaction model
 
@@ -173,6 +190,7 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 
 - Overview besitzt keine globale Suche.
 - Attention ist serverseitig priorisiert; der Client darf lediglich die gelieferten Typen `Alle / Risiken / Chancen / Datenqualität` filtern, ohne Reihenfolge oder Counts neu zu interpretieren.
+- Stand 2026-09-06 gibt es diesen Filter **nicht**: der Server liefert Severity (`critical/warning/info`), aber noch keine Risk-/Opportunity-/Data-Quality-Taxonomie — die ist offene Entscheidung in §20. Einen Filter über eine clientseitig erfundene Taxonomie anzubieten wäre genau die Neuinterpretation, die dieser Punkt verbietet.
 - Optionaler Zeitraumfilter wird erst eingeführt, wenn der Summary-Contract zulässige Fenster und vollständige Neuberechnung serverseitig unterstützt.
 - Filterzustand soll später URL-fähig sein, wird aber nicht vor `SHELL-ROUTING-01` in Routen umgesetzt.
 
@@ -204,13 +222,13 @@ Ohne `PROPERTY-OVERVIEW-DATA-01` kann eine erste UI ausschließlich klar beschri
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-1. `PROPERTY-OVERVIEW-DATA-01`: exakte, permission-gefilterte Summary-/Attention-Projektionen samt Definition, `asOf`, Coverage, Währung, Drilldown und Partial-Error-Semantik. Schema/RLS/Permission-Auswirkung ist offen und separat zu reviewen.
-2. Lease Roll / Vacancy Exposure / Renewal Risk: vollständige serverseitige Projektion; keine Ableitung aus paginierten Units/Leases.
-3. Maintenance-/CapEx-/Task-Summary: priorisierte offene Arbeit ohne Clientzählung.
-4. Document-Compliance-Summary: serverseitige Aggregation der bereits bewerteten Requirements.
-5. Valuation-Summary: expliziter aktueller Case/Report/Freshness-Read statt „erste Zeile ist aktuell“.
-6. Financial KPI: wartet auf `P2-D08` / `FINANCE-01`.
-7. Recent Activity: Audit-App-Read-Port über `AUDIT-01`; kein Direktzugriff auf Tabelle aus UI.
+1. `PROPERTY-OVERVIEW-DATA-01` — **erledigt 2026-09-06.** Permission-gefilterte Summary- und Attention-Projektion mit `as_of`, Drilldown-Ziel je Eintrag und Coverage über `available`/`permission`. Keine neuen Permission-Schlüssel, keine RLS-Änderung: die Funktion ist `security definer` mit `search_path = ''` und prüft `auth.uid()`, AAL2 (`DEC-025`) und entity-scoped `property.read`, danach je Sektion die Domain-Permission.
+2. Lease Roll / Vacancy Exposure / Renewal Risk: vollständige serverseitige Projektion; keine Ableitung aus paginierten Units/Leases. **Offen (`LEASING-SUMMARY-01`).** Geliefert sind bisher nur gezählte Zustände (leer, aktiv, Ende in 90 Tagen), keine Exposure-Kennzahl und kein Renewal-Risiko.
+3. Maintenance-/CapEx-/Task-Summary: priorisierte offene Arbeit ohne Clientzählung. **Erledigt 2026-09-06** als Teil von 1.
+4. Document-Compliance-Summary: serverseitige Aggregation der bereits bewerteten Requirements. **Erledigt 2026-09-06** als Teil von 1.
+5. Valuation-Summary: expliziter aktueller Case/Report/Freshness-Read statt „erste Zeile ist aktuell“. **Teilweise:** Fallzahlen und letzte Bearbeitung stehen; welcher Case/Report autoritativ ist, entscheidet `VALUATION-REHOST-01` zusammen mit `METHOD-GOV-01`.
+6. Financial KPI: wartet auf `P2-D08` / `FINANCE-01`. **Offen.**
+7. Recent Activity: Audit-App-Read-Port über `AUDIT-01`; kein Direktzugriff auf Tabelle aus UI. **Offen.**
 
 ## 15. Accessibility and usability
 
@@ -284,4 +302,6 @@ Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECT
 
 ## 21. Implementation handoff
 
-Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). Die Fläche wird gebaut; `PROPERTY-OVERVIEW-DATA-01` ist ihre Voraussetzung und wird prerequisite-first mit Security-, Definition-, Coverage-, Drilldown- und Freshness-Semantik umgesetzt, unmittelbar gefolgt von dieser Oberfläche. Bis der Contract steht, wird `Übersicht` nicht zur Laufzeit registriert — ein Layout-Skeleton oder einzelne Operations-Signals erfüllen die Acceptance Criteria nicht und rechtfertigen keine Laufzeitregistrierung als `Übersicht`. Erwartete Tests nach Contractfreigabe: Contract-Mapping, Mixed-Permission, Partial Failure, Realtime-Coalescing, responsive Widgettests und die fünf Staging-Journeys. Hard invariant: Der Client visualisiert Fakten; er erfindet keine Asset-Performance.
+Produkt-Scope: COMMITTED (FULL-V2-SCOPE-01). `PROPERTY-OVERVIEW-DATA-01` ist am 2026-09-06 prerequisite-first gelandet, unmittelbar gefolgt von dieser Oberfläche; `Übersicht` ist seitdem zur Laufzeit registriert und das Standardziel nach der Property-Auswahl. Belegt durch pgTAP 032 (40 Assertions: Gate-Reihenfolge, Sektions-Scoping ohne Zahlen, Leak-Kanarienvogel-Property, Attention-Ordnung und Attention-Leak-Test), Rollback 038 sowie Widget-Tests für volle, leere, teilweise, forbidden, module-error, stale-refresh und Step-up-Zustände über fünf Viewports.
+
+Noch nicht erledigt und offen ausgewiesen: die drei Prerequisites aus §14 (Finanz-KPIs, Letzte Aktivität, Lease-Roll-/Renewal-Projektion) sowie die fünf Staging-Journeys. Hard invariant: Der Client visualisiert Fakten; er erfindet keine Asset-Performance.

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 
 void main() {
   group('PropertyRepository contract', () {
@@ -221,6 +222,15 @@ class _ContractRepository implements PropertyRepository {
     committedCreates++;
     return PropertyRepositorySuccess<PropertyDto>(created);
   }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async => const PropertyRepositoryFailure<PropertyOverviewDto>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this screen',
+  );
 
   @override
   Future<PropertyRepositoryResult<PropertyDto>> getById({

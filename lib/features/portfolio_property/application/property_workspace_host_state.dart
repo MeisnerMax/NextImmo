@@ -62,12 +62,21 @@ class PropertyWorkspaceDomainRegistration {
 /// Verträge, Pipeline, Rent Roll) already run on the `lease.*` cloud
 /// contracts, so the domain is gated by `lease.read` — the read permission
 /// every one of its sub-areas needs.
-/// `Übersicht` stays unregistered until `PROPERTY-OVERVIEW-DATA-01` lands;
+/// `Übersicht` with `PROPERTY-OVERVIEW-DATA-01` (`PROPERTY_OVERVIEW_V2.md`):
+/// the server-authoritative summary read, gated by `property.read` like the
+/// host itself — every module inside it is additionally scoped by its own
+/// domain permission, server-side. It is the first entry because it is the
+/// default target once its contract exists (`PROPERTY_WORKSPACE_V2.md` §41).
 /// `Investment` follows with `VALUATION-REHOST-01`; `Aktivität` stays hidden
 /// until it has at least one implemented child. Registering a domain here is a
 /// deliberate act of the increment that implements it — never a placeholder.
 const List<PropertyWorkspaceDomainRegistration>
 registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
+  PropertyWorkspaceDomainRegistration(
+    domain: PropertyWorkspaceDomain.overview,
+    label: 'Übersicht',
+    readPermission: 'property.read',
+  ),
   PropertyWorkspaceDomainRegistration(
     domain: PropertyWorkspaceDomain.asset,
     label: 'Objekt',
@@ -188,8 +197,10 @@ class PropertyWorkspaceHostState {
   /// The property whose workspace is open; null while the list is showing.
   final String? openPropertyId;
 
-  /// The active workspace domain. `Objekt` is the default target while
-  /// `Übersicht` waits for `PROPERTY-OVERVIEW-DATA-01`.
+  /// The active workspace domain. `Übersicht` is the default target where the
+  /// host can serve it; `Objekt` is the fallback (`PROPERTY_WORKSPACE_V2.md`
+  /// §41). The field keeps `asset` as its bare default so a state restored
+  /// without a domain lands on a surface that never needs a summary read.
   final PropertyWorkspaceDomain domain;
 
   final PropertyListRestoreState list;

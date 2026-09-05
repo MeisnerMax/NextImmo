@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/data/supabase_property_repository_adapter.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 
 void main() {
+  _overviewTests();
   group('SupabasePropertyRepositoryAdapter', () {
     late _FakePropertySupabaseGateway gateway;
     late SupabasePropertyRepositoryAdapter repository;
@@ -306,9 +308,264 @@ Map<String, dynamic> _propertyJson({
   };
 }
 
+/// The overview read (`PROPERTY-OVERVIEW-DATA-01`).
+///
+/// The adapter is where a permission-scoped payload could quietly turn into a
+/// zero, so these tests pin the opposite: an unavailable section arrives with
+/// no counters at all, attention keeps the server's order, and an unknown
+/// severity degrades downward instead of escalating itself.
+void _overviewTests() {
+  group('SupabasePropertyRepositoryAdapter.overview', () {
+    late _FakePropertySupabaseGateway gateway;
+    late SupabasePropertyRepositoryAdapter repository;
+
+    setUp(() {
+      gateway = _FakePropertySupabaseGateway();
+      repository = SupabasePropertyRepositoryAdapter.withGateway(gateway);
+    });
+
+    Future<PropertyRepositoryResult<PropertyOverviewDto>> read() {
+      return repository.overview(
+        workspaceId: 'workspace-a',
+        propertyId: 'property-a',
+      );
+    }
+
+    test('maps sections, freshness and attention', () async {
+      gateway.overviewResult = _overviewPayload();
+
+      final result = await read();
+
+      expect(gateway.overviewParameters, <String, Object?>{
+        'p_workspace_id': 'workspace-a',
+        'p_property_id': 'property-a',
+      });
+      final overview =
+          (result as PropertyRepositorySuccess<PropertyOverviewDto>).value;
+      expect(overview.propertyId, 'property-a');
+      expect(overview.asOf, DateTime.utc(2026, 9, 6, 8, 15));
+      expect(overview.leasing.available, isTrue);
+      expect(overview.leasing['units_total'], 12);
+      expect(overview.leasing['units_vacant'], 3);
+      expect(overview.valuation['cases_total'], 2);
+      expect(overview.lastValuationUpdatedAt, DateTime.utc(2026, 8, 30, 10));
+    });
+
+    test(
+      'an unavailable section carries the capability and no counters',
+      () async {
+        gateway.overviewResult = _overviewPayload(
+          maintenance: <String, Object?>{
+            'available': false,
+            'permission': 'maintenance.read',
+          },
+        );
+
+        final overview =
+            (await read() as PropertyRepositorySuccess<PropertyOverviewDto>)
+                .value;
+
+        expect(overview.maintenance.available, isFalse);
+        expect(overview.maintenance.permission, 'maintenance.read');
+        expect(
+          overview.maintenance['tickets_open'],
+          isNull,
+          reason: 'no number exists, so no call site can read one',
+        );
+        expect(overview.maintenance.counters, isEmpty);
+      },
+    );
+
+    test('attention keeps the payload order', () async {
+      gateway.overviewResult = _overviewPayload(
+        attention: <Map<String, Object?>>[
+          <String, Object?>{
+            'type': 'tickets_overdue',
+            'severity': 'critical',
+            'count': 2,
+            'domain': 'operations',
+          },
+          <String, Object?>{
+            'type': 'units_vacant',
+            'severity': 'info',
+            'count': 3,
+            'domain': 'leasing',
+          },
+        ],
+      );
+
+      final overview =
+          (await read() as PropertyRepositorySuccess<PropertyOverviewDto>)
+              .value;
+
+      expect(overview.attention.map((entry) => entry.type), <String>[
+        'tickets_overdue',
+        'units_vacant',
+      ]);
+      expect(
+        overview.attention.first.severity,
+        PropertyAttentionSeverity.critical,
+      );
+      expect(overview.attention.first.count, 2);
+      expect(overview.attention.first.domain, 'operations');
+    });
+
+    test(
+      'an unknown severity degrades to info rather than escalating',
+      () async {
+        gateway.overviewResult = _overviewPayload(
+          attention: <Map<String, Object?>>[
+            <String, Object?>{
+              'type': 'insurance_expired',
+              'severity': 'catastrophic',
+              'count': 1,
+              'domain': 'documents',
+            },
+          ],
+        );
+
+        final overview =
+            (await read() as PropertyRepositorySuccess<PropertyOverviewDto>)
+                .value;
+
+        expect(
+          overview.attention.single.severity,
+          PropertyAttentionSeverity.info,
+        );
+        expect(
+          overview.attention.single.type,
+          'insurance_expired',
+          reason: 'the signal itself stays, only its rank is conservative',
+        );
+      },
+    );
+
+    test('a malformed attention entry is dropped, not guessed at', () async {
+      gateway.overviewResult = _overviewPayload(
+        attention: <Object?>[
+          <String, Object?>{'type': 'tickets_overdue', 'count': 'many'},
+          'nonsense',
+          <String, Object?>{
+            'type': 'tasks_blocked',
+            'severity': 'warning',
+            'count': 1,
+            'domain': 'operations',
+          },
+        ],
+      );
+
+      final overview =
+          (await read() as PropertyRepositorySuccess<PropertyOverviewDto>)
+              .value;
+
+      expect(overview.attention.map((entry) => entry.type), <String>[
+        'tasks_blocked',
+      ]);
+    });
+
+    test('a payload for another workspace is refused', () async {
+      gateway.overviewResult = _overviewPayload(workspaceId: 'workspace-b');
+
+      final result = await read();
+
+      expect(
+        (result as PropertyRepositoryFailure<PropertyOverviewDto>).kind,
+        PropertyRepositoryFailureKind.infrastructureFailure,
+      );
+    });
+
+    test('server refusals map onto their kinds', () async {
+      gateway.overviewResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'forbidden',
+          'message': 'Property access is not permitted',
+        },
+      };
+      expect(
+        (await read() as PropertyRepositoryFailure<PropertyOverviewDto>).kind,
+        PropertyRepositoryFailureKind.forbidden,
+      );
+
+      gateway.overviewResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'not_found',
+          'message': 'Property not found',
+        },
+      };
+      expect(
+        (await read() as PropertyRepositoryFailure<PropertyOverviewDto>).kind,
+        PropertyRepositoryFailureKind.notFound,
+      );
+    });
+
+    test('a transport failure is an infrastructure failure', () async {
+      gateway.overviewError = StateError('offline');
+
+      expect(
+        (await read() as PropertyRepositoryFailure<PropertyOverviewDto>).kind,
+        PropertyRepositoryFailureKind.infrastructureFailure,
+      );
+    });
+  });
+}
+
+Map<String, Object?> _overviewPayload({
+  String workspaceId = 'workspace-a',
+  Map<String, Object?>? maintenance,
+  List<Object?> attention = const <Object?>[],
+}) {
+  return <String, Object?>{
+    'ok': true,
+    'overview': <String, Object?>{
+      'as_of': '2026-09-06T08:15:00Z',
+      'property': <String, Object?>{
+        'id': 'property-a',
+        'workspace_id': workspaceId,
+        'name': 'Atlas House',
+        'status': 'active',
+        'version': 3,
+        'updated_at': '2026-09-05T10:00:00Z',
+      },
+      'leasing': <String, Object?>{
+        'available': true,
+        'units_total': 12,
+        'units_occupied': 9,
+        'units_vacant': 3,
+      },
+      'maintenance':
+          maintenance ??
+          <String, Object?>{
+            'available': true,
+            'tickets_open': 5,
+            'tickets_overdue': 2,
+          },
+      'capex': <String, Object?>{'available': true, 'projects_open': 3},
+      'tasks': <String, Object?>{'available': true, 'tasks_open': 7},
+      'documents': <String, Object?>{
+        'available': true,
+        'requirements_total': 6,
+      },
+      'valuation': <String, Object?>{
+        'available': true,
+        'cases_total': 2,
+        'cases_open': 1,
+        'last_case_updated_at': '2026-08-30T10:00:00Z',
+      },
+      'attention': attention,
+    },
+  };
+}
+
 class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
   @override
   String? currentUserId = 'actor-a';
+
+  Object? overviewResult;
+  Object? overviewError;
+  int overviewCalls = 0;
+  Map<String, Object?>? overviewParameters;
 
   List<Map<String, dynamic>> listResult = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> getResult = <Map<String, dynamic>>[];
@@ -338,6 +595,16 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
       throw createError!;
     }
     return createResult;
+  }
+
+  @override
+  Future<Object?> propertyOverview(Map<String, Object?> parameters) async {
+    overviewCalls++;
+    overviewParameters = parameters;
+    if (overviewError != null) {
+      throw overviewError!;
+    }
+    return overviewResult;
   }
 
   @override

@@ -25,6 +25,7 @@ import 'property_asset_panel.dart';
 import 'property_context_header.dart';
 import 'property_create_dialog.dart';
 import 'property_list_view.dart';
+import 'property_overview_panel.dart';
 import 'property_switcher_dialog.dart';
 import 'property_workspace_nav.dart';
 
@@ -158,6 +159,10 @@ class _PropertyWorkspaceScreenState
               propertyId: propertyId,
             ),
           },
+      // PROPERTY-OVERVIEW-DATA-01: the summary read. Passing it is what
+      // registers `Übersicht` at runtime, so the domain and its data source
+      // arrive together.
+      onLoadPropertyOverview: controller.loadPropertyOverview,
       operationsTasksBuilder:
           (context, propertyId) => TaskCenterScreen(
             key: ValueKey<String>('property-operations-tasks-$propertyId'),
@@ -238,6 +243,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.operationsTasksBuilder,
     this.documentsBuilder,
     this.leasingBuilder,
+    this.onLoadPropertyOverview,
     this.initialPropertyId,
   });
 
@@ -296,6 +302,12 @@ class PropertyWorkspaceView extends StatefulWidget {
   )?
   leasingBuilder;
 
+  /// Reads the server-authoritative overview (`PROPERTY-OVERVIEW-DATA-01`).
+  /// Null means this host cannot serve `Übersicht`, and the domain is then
+  /// hidden rather than shown as an empty frame — the same rule the registry
+  /// applies to unimplemented domains.
+  final PropertyOverviewLoad? onLoadPropertyOverview;
+
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
 }
@@ -321,13 +333,17 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
     final initial = widget.initialPropertyId;
     final state = widget.state;
     if (initial != null) {
-      _hostState = _hostState.copyWith(openPropertyId: initial);
+      _hostState = _hostState.copyWith(
+        openPropertyId: initial,
+        domain: _defaultDomain(state),
+      );
     } else if (state.selectedProperty != null &&
         state.propertyDetailPhase == PropertyDetailPhase.ready) {
       // The context survives leaving and re-entering the destination: the
       // session controller still holds the canonical property.
       _hostState = _hostState.copyWith(
         openPropertyId: state.selectedProperty!.id,
+        domain: _defaultDomain(state),
       );
     }
   }
@@ -371,6 +387,31 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
   Set<String> _permissions(ReferenceSliceState state) =>
       state.selectedWorkspace?.permissions ?? const <String>{};
 
+  /// The domains this host can actually show: registered, readable by the
+  /// membership, and served by this host. `Übersicht` needs a summary reader;
+  /// without one it is hidden, exactly as an unimplemented domain would be.
+  List<PropertyWorkspaceDomainRegistration> _visibleDomains(
+    ReferenceSliceState state,
+  ) {
+    return visiblePropertyWorkspaceDomains(_permissions(state))
+        .where(
+          (entry) =>
+              entry.domain != PropertyWorkspaceDomain.overview ||
+              widget.onLoadPropertyOverview != null,
+        )
+        .toList(growable: false);
+  }
+
+  /// Where opening a property lands. `Übersicht` where it is available,
+  /// `Objekt` otherwise (`PROPERTY_WORKSPACE_V2.md` §41).
+  PropertyWorkspaceDomain _defaultDomain(ReferenceSliceState state) {
+    return _visibleDomains(
+          state,
+        ).any((entry) => entry.domain == PropertyWorkspaceDomain.overview)
+        ? PropertyWorkspaceDomain.overview
+        : PropertyWorkspaceDomain.asset;
+  }
+
   // --- Navigation -------------------------------------------------------------
 
   Future<void> _openFromList(String propertyId) async {
@@ -401,7 +442,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
               : _hostState.list.scrollOffset;
       _hostState = _hostState.copyWith(
         openPropertyId: propertyId,
-        domain: PropertyWorkspaceDomain.asset,
+        domain: _defaultDomain(state),
         list: _hostState.list.copyWith(
           includeArchived: state.includeArchived,
           scrollOffset: offset,
@@ -543,7 +584,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       setState(() {
         _hostState = _hostState.copyWith(
           openPropertyId: created.id,
-          domain: PropertyWorkspaceDomain.asset,
+          domain: _defaultDomain(widget.state),
           list: _hostState.list.copyWith(focusedPropertyId: created.id),
         );
         _listScrollController?.dispose();
@@ -750,7 +791,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         selected != null && selected.id == openId
             ? selected
             : _summaryFromList(state, openId);
-    final domains = visiblePropertyWorkspaceDomains(_permissions(state));
+    final domains = _visibleDomains(state);
     final canEdit = _canEdit(state);
     final detailReady =
         state.propertyDetailPhase == PropertyDetailPhase.ready &&
@@ -842,9 +883,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
         icon: Icons.lock_outline,
       );
     }
-    if (!visiblePropertyWorkspaceDomains(
-      _permissions(state),
-    ).any((d) => d.domain == activeDomain)) {
+    if (!_visibleDomains(state).any((d) => d.domain == activeDomain)) {
       return const NxEmptyState(
         key: Key('property-workspace-forbidden'),
         title: 'Kein Zugriff auf dieses Objekt',
@@ -924,6 +963,31 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
                   const SizedBox.shrink(),
             );
           case PropertyWorkspaceDomain.overview:
+            // DEC-025: the summary read is refused below AAL2. Say so instead
+            // of spending a round trip on a forbidden that would then be
+            // reported as a missing permission.
+            if (state.assuranceLevel != AuthenticationAssuranceLevel.aal2) {
+              return const NxEmptyState(
+                key: Key('property-overview-step-up'),
+                title: 'MFA-Bestätigung erforderlich',
+                description:
+                    'Die Übersicht benötigt eine MFA-bestätigte Sitzung '
+                    '(AAL2).',
+                icon: Icons.verified_user_outlined,
+              );
+            }
+            // The loader is what registers the domain, so it exists whenever
+            // this branch is reachable.
+            return PropertyOverviewPanel(
+              key: ValueKey<String>(
+                'property-overview-${_hostState.openPropertyId}',
+              ),
+              propertyId: _hostState.openPropertyId!,
+              onLoad: widget.onLoadPropertyOverview!,
+              availableDomains:
+                  _visibleDomains(state).map((entry) => entry.domain).toSet(),
+              onOpenDomain: _selectDomain,
+            );
           case PropertyWorkspaceDomain.asset:
           case PropertyWorkspaceDomain.investment:
           case PropertyWorkspaceDomain.activity:

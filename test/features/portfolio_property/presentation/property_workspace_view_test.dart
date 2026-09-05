@@ -2,14 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_workspace_host_state.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/presentation/property_workspace_screen.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 
 import 'property_workspace_fixtures.dart';
 
 void main() {
+  _overviewDomainTests();
   group('PropertyWorkspaceView', () {
     testWidgets('starts on the list and opens a property only after the '
         'canonical read succeeded', (tester) async {
@@ -491,6 +495,119 @@ void main() {
   });
 }
 
+/// `Übersicht` as a workspace domain (`PROPERTY_WORKSPACE_V2.md` §41,
+/// `PROPERTY_OVERVIEW_V2.md` §3): the default landing target once the summary
+/// contract exists — and hidden, not empty, where the host cannot serve it.
+void _overviewDomainTests() {
+  group('Übersicht domain', () {
+    testWidgets('opening a property lands on Übersicht and reads its summary', (
+      tester,
+    ) async {
+      final calls = _Calls()..servesOverview = true;
+      await _pump(tester, sliceState(), calls);
+      _update(tester, detailState());
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+
+      expect(_hostState(tester).domain, PropertyWorkspaceDomain.overview);
+      expect(find.byKey(const Key('property-overview')), findsOneWidget);
+      expect(calls.overviewRequests, <String>['property-a']);
+      // The domain navigation shows Übersicht first and selected.
+      expect(
+        find.byKey(const Key('property-workspace-nav-overview')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a host without a summary reader hides the domain and lands '
+        'on Objekt', (tester) async {
+      final calls = _Calls();
+      await _pump(tester, sliceState(), calls);
+      _update(tester, detailState());
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+
+      expect(_hostState(tester).domain, PropertyWorkspaceDomain.asset);
+      expect(find.byKey(const Key('property-asset')), findsOneWidget);
+      expect(
+        find.byKey(const Key('property-workspace-nav-overview')),
+        findsNothing,
+        reason: 'an unserved domain is absent, never an empty frame',
+      );
+      expect(calls.overviewRequests, isEmpty);
+    });
+
+    testWidgets('a drilldown switches the workspace domain', (tester) async {
+      final calls = _Calls()..servesOverview = true;
+      const permissions = <String>{
+        'property.read',
+        'property.update',
+        'lease.read',
+      };
+      await _pump(tester, sliceState(permissions: permissions), calls);
+      _update(tester, detailState(permissions: permissions));
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('property-overview-leasing-open')));
+      await tester.pumpAndSettle();
+
+      expect(_hostState(tester).domain, PropertyWorkspaceDomain.leasing);
+    });
+
+    testWidgets('below AAL2 it asks for the step-up instead of reading', (
+      tester,
+    ) async {
+      final calls = _Calls()..servesOverview = true;
+      await _pump(
+        tester,
+        sliceState(assuranceLevel: AuthenticationAssuranceLevel.aal1),
+        calls,
+      );
+      _update(
+        tester,
+        detailState(assuranceLevel: AuthenticationAssuranceLevel.aal1),
+      );
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('property-overview-step-up')),
+        findsOneWidget,
+      );
+      expect(
+        calls.overviewRequests,
+        isEmpty,
+        reason: 'DEC-025 refuses the read anyway; do not spend the round trip',
+      );
+    });
+
+    testWidgets('back to the list and in again returns to Übersicht', (
+      tester,
+    ) async {
+      final calls = _Calls()..servesOverview = true;
+      await _pump(tester, sliceState(), calls);
+      _update(tester, detailState());
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('property-workspace-nav-asset')));
+      await tester.pumpAndSettle();
+      expect(_hostState(tester).domain, PropertyWorkspaceDomain.asset);
+
+      await tester.tap(find.byKey(const Key('property-context-back')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.pumpAndSettle();
+
+      expect(
+        _hostState(tester).domain,
+        PropertyWorkspaceDomain.overview,
+        reason: 'opening a property always lands on the default target',
+      );
+    });
+  });
+}
+
 class _Calls {
   final List<String> opened = <String>[];
   final List<PropertyUpdateDto> updates = <PropertyUpdateDto>[];
@@ -498,6 +615,12 @@ class _Calls {
   int closeCalls = 0;
   Future<void>? openResult;
   bool updateSucceeds = true;
+
+  /// Property ids the summary read was asked for. Non-null [servesOverview]
+  /// is what registers `Übersicht` on the host, exactly as the connected
+  /// screen's loader does.
+  final List<String> overviewRequests = <String>[];
+  bool servesOverview = false;
 }
 
 class _Harness extends StatefulWidget {
@@ -546,6 +669,15 @@ class _HarnessState extends State<_Harness> {
         return calls.updateSucceeds;
       },
       onRetryUpdate: () async {},
+      onLoadPropertyOverview:
+          calls.servesOverview
+              ? (propertyId) async {
+                calls.overviewRequests.add(propertyId);
+                return PropertyRepositorySuccess<PropertyOverviewDto>(
+                  overview(propertyId: propertyId),
+                );
+              }
+              : null,
     );
   }
 }

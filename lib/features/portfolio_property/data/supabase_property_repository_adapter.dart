@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/property_repository.dart';
 import '../domain/property_dto.dart';
+import '../domain/property_overview_dto.dart';
 
 abstract interface class PropertySupabaseGateway {
   String? get currentUserId;
@@ -21,6 +22,8 @@ abstract interface class PropertySupabaseGateway {
   Future<Object?> updateProperty(Map<String, Object?> parameters);
 
   Future<Object?> createProperty(Map<String, Object?> parameters);
+
+  Future<Object?> propertyOverview(Map<String, Object?> parameters);
 }
 
 class SupabasePropertyGateway implements PropertySupabaseGateway {
@@ -80,6 +83,11 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
   @override
   Future<Object?> createProperty(Map<String, Object?> parameters) {
     return _client.rpc('create_property', params: parameters);
+  }
+
+  @override
+  Future<Object?> propertyOverview(Map<String, Object?> parameters) {
+    return _client.rpc('property_overview', params: parameters);
   }
 }
 
@@ -190,6 +198,56 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       return const PropertyRepositoryFailure<PropertyDto>(
         kind: PropertyRepositoryFailureKind.infrastructureFailure,
         message: 'Supabase property could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    try {
+      final response = await _gateway.propertyOverview(<String, Object?>{
+        'p_workspace_id': workspaceId,
+        'p_property_id': propertyId,
+      });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final overview = _parseOverview(
+          _asMap(payload['overview']),
+          workspaceId: workspaceId,
+        );
+        return PropertyRepositorySuccess<PropertyOverviewDto>(overview);
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      final error = _asMap(payload['error']);
+      final code = _requiredString(error, 'code');
+      final message =
+          error['message'] is String
+              ? error['message'] as String
+              : 'The property overview could not be loaded.';
+      return switch (code) {
+        'forbidden' => PropertyRepositoryFailure<PropertyOverviewDto>(
+          kind: PropertyRepositoryFailureKind.forbidden,
+          message: message,
+        ),
+        'not_found' => PropertyRepositoryFailure<PropertyOverviewDto>(
+          kind: PropertyRepositoryFailureKind.notFound,
+          message: message,
+        ),
+        _ => const PropertyRepositoryFailure<PropertyOverviewDto>(
+          kind: PropertyRepositoryFailureKind.infrastructureFailure,
+          message: 'The property overview could not be loaded.',
+        ),
+      };
+    } catch (_) {
+      return const PropertyRepositoryFailure<PropertyOverviewDto>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'The property overview could not be loaded.',
       );
     }
   }
@@ -484,4 +542,91 @@ double? _nullableDouble(Map<String, dynamic> json, String key) {
 DateTime? _nullableDateTime(Map<String, dynamic> json, String key) {
   final value = _nullableString(json, key);
   return value == null ? null : DateTime.parse(value);
+}
+
+/// Parses one overview section. An unavailable section carries no counters at
+/// all, so a caller cannot mistake "not permitted" for "none".
+PropertyOverviewSection _parseSection(Object? raw, String fallbackPermission) {
+  final json = _asMap(raw);
+  if (json['available'] != true) {
+    final permission =
+        json['permission'] is String
+            ? json['permission'] as String
+            : fallbackPermission;
+    return PropertyOverviewSection.unavailable(permission);
+  }
+  final counters = <String, int>{};
+  for (final entry in json.entries) {
+    final value = entry.value;
+    if (value is int) {
+      counters[entry.key] = value;
+    }
+  }
+  return PropertyOverviewSection.available(
+    Map<String, int>.unmodifiable(counters),
+  );
+}
+
+/// Attention entries in the order the server sent them. Unknown severities
+/// degrade to [PropertyAttentionSeverity.info]: a new server severity must
+/// never escalate itself in an older client.
+List<PropertyOverviewAttention> _parseAttention(Object? raw) {
+  if (raw is! List) {
+    return const <PropertyOverviewAttention>[];
+  }
+  final entries = <PropertyOverviewAttention>[];
+  for (final item in raw) {
+    if (item is! Map) {
+      continue;
+    }
+    final json = _asMap(item);
+    final type = json['type'];
+    final count = json['count'];
+    if (type is! String || count is! int) {
+      continue;
+    }
+    entries.add(
+      PropertyOverviewAttention(
+        type: type,
+        severity: switch (json['severity']) {
+          'critical' => PropertyAttentionSeverity.critical,
+          'warning' => PropertyAttentionSeverity.warning,
+          _ => PropertyAttentionSeverity.info,
+        },
+        count: count,
+        domain: json['domain'] is String ? json['domain'] as String : null,
+      ),
+    );
+  }
+  return List<PropertyOverviewAttention>.unmodifiable(entries);
+}
+
+PropertyOverviewDto _parseOverview(
+  Map<String, dynamic> json, {
+  required String workspaceId,
+}) {
+  final property = _asMap(json['property']);
+  final parsedWorkspaceId = _requiredString(property, 'workspace_id');
+  if (parsedWorkspaceId != workspaceId) {
+    throw const FormatException('Overview workspace mismatch.');
+  }
+  final valuation = _parseSection(json['valuation'], 'valuation.read');
+  final valuationRaw = _asMap(json['valuation']);
+  return PropertyOverviewDto(
+    propertyId: _requiredString(property, 'id'),
+    workspaceId: parsedWorkspaceId,
+    name: _requiredString(property, 'name'),
+    asOf: DateTime.parse(_requiredString(json, 'as_of')),
+    leasing: _parseSection(json['leasing'], 'lease.read'),
+    maintenance: _parseSection(json['maintenance'], 'maintenance.read'),
+    capex: _parseSection(json['capex'], 'capex.read'),
+    tasks: _parseSection(json['tasks'], 'task.read'),
+    documents: _parseSection(json['documents'], 'document.read'),
+    valuation: valuation,
+    attention: _parseAttention(json['attention']),
+    lastValuationUpdatedAt: _nullableDateTime(
+      valuationRaw,
+      'last_case_updated_at',
+    ),
+  );
 }

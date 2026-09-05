@@ -111,8 +111,8 @@ select is(
    where namespace.nspname = 'public'
      and function.prokind = 'f'
      and function.prosecdef),
-  67,
-  'SR-20: the public SECURITY DEFINER inventory is still 67 -- update this expectation deliberately when it changes'
+  68,
+  'SR-20: the public SECURITY DEFINER inventory is still 68 -- update this expectation deliberately when it changes'
 );
 
 select is(
