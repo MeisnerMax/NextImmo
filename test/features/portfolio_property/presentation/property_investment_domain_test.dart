@@ -46,13 +46,25 @@ const Set<String> _withValuation = <String>{
   'valuation.read',
 };
 
+const Set<String> _withFinance = <String>{
+  'property.read',
+  'property.update',
+  'finance.read',
+};
+
 void main() {
   group('Investment registration', () {
-    test('is gated by the read capability of its one implemented child', () {
+    test('opens for either of its implemented children', () {
       expect(
         visiblePropertyWorkspaceDomains(_withValuation)
             .map((registration) => registration.domain),
         contains(PropertyWorkspaceDomain.investment),
+      );
+      expect(
+        visiblePropertyWorkspaceDomains(_withFinance)
+            .map((registration) => registration.domain),
+        contains(PropertyWorkspaceDomain.investment),
+        reason: 'the figures alone are enough to make the domain worth opening',
       );
       expect(
         visiblePropertyWorkspaceDomains(const <String>{
@@ -62,14 +74,29 @@ void main() {
       );
     });
 
-    test('Bewertung is the only sub-area today', () {
+    test('each sub-area carries its own gate', () {
       expect(visiblePropertyInvestmentSubAreas(_withValuation), <
         PropertyInvestmentSubArea
       >[PropertyInvestmentSubArea.valuation]);
       expect(
+        visiblePropertyInvestmentSubAreas(_withFinance),
+        <PropertyInvestmentSubArea>[PropertyInvestmentSubArea.performance],
+        reason: 'valuation work and financial figures are different rights',
+      );
+      expect(
+        visiblePropertyInvestmentSubAreas(<String>{
+          ..._withValuation,
+          ..._withFinance,
+        }),
+        <PropertyInvestmentSubArea>[
+          PropertyInvestmentSubArea.valuation,
+          PropertyInvestmentSubArea.performance,
+        ],
+      );
+      expect(
         visiblePropertyInvestmentSubAreas(const <String>{'property.read'}),
         isEmpty,
-        reason: 'Szenarien and Performance wait for their own contracts',
+        reason: 'Szenarien waits for its own contract',
       );
     });
   });
@@ -107,6 +134,38 @@ void main() {
       expect(propertyIds, contains('property-a'));
       // The asset edit action belongs to the Objekt domain only.
       expect(find.byKey(const Key('property-workspace-edit')), findsNothing);
+    });
+
+    testWidgets('mounts Performance for a finance reader without valuation', (
+      tester,
+    ) async {
+      final built = <PropertyInvestmentSubArea>[];
+      await _pump(
+        tester,
+        permissions: _withFinance,
+        investmentBuilder: (context, propertyId, subArea) {
+          built.add(subArea);
+          return const SizedBox(key: Key('fake-performance-surface'));
+        },
+      );
+
+      await tester.tap(
+        find.byKey(const Key('property-workspace-nav-investment')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('property-investment-sub-performance')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('property-investment-sub-valuation')),
+        findsNothing,
+        reason: 'a sub-area hides itself; the domain does not go with it',
+      );
+      expect(built, <PropertyInvestmentSubArea>[
+        PropertyInvestmentSubArea.performance,
+      ]);
     });
 
     testWidgets('without valuation.read there is no Investment entry', (

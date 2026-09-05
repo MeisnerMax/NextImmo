@@ -25,7 +25,7 @@ Performance verbindet die zentralen finanziellen Ist-, Budget-, Forecast-, Cashf
 
 ## 3. Entry points and navigation
 
-- Investment → `Performance`, erst nach `P2-D08` und Read-Permission sichtbar.
+- Investment → `Performance`, sichtbar seit FINANCE-01a für Mitglieder mit `finance.read`; die berechneten Bereiche bleiben unregistriert, bis ihr Contract existiert.
 - Overview-KPI/Attention öffnet Property, Periode, Metrik und Drilldownscope aus dem Servercontract.
 - lokale Bereiche `Übersicht`, `Ergebnis & Cashflow`, `Budget & Forecast`, `Debt & Covenants` (maximal vier).
 - Bericht öffnen wechselt zu Property Reports mit freigegebener Report-ID.
@@ -66,6 +66,22 @@ Das erste Inkrement liefert bewusst die *langweilige* Schicht: die drei Tabellen
 pgTAP 038 (60 Assertions), Rollback 044 (14).
 
 **Nächstes Inkrement (FINANCE-01b):** KPI-Definitionen mit Version, daraus NOI und Cashflow; danach Budget/Forecast mit serverseitiger Varianz, dann Debt und Covenants. Erst danach die Oberfläche `Investment → Performance`.
+
+## 4b. Oberfläche `Ergebnis` (2026-09-06)
+
+`Investment → Performance` ist registriert, gated auf `finance.read`, und zeigt den Teil von `Ergebnis & Cashflow`, den das Ledger-Fundament ehrlich bedienen kann: die **gebuchten Ist-Werte je Konto und Währung**.
+
+Der Screen sagt selbst, was er nicht beantwortet. Ein Hinweis unter den Zahlen nennt NOI, Cashflow, Budgetabweichung und Covenants als bewusst fehlend, mit dem Grund (eine berechnete Zahl muss ihre Definitionsversion mitführen) und dem Paket, das sie liefert (`FINANCE-01b`). Ein Leser, der eine NOI erwartet und keine findet, erfährt das auf dem Bildschirm und nicht erst in einer Spec.
+
+Drei Regeln setzt die Oberfläche durch:
+
+1. **Keine Ergebniszeile.** Erträge und Aufwendungen stehen als getrennte Summen je Währung; nichts zieht das eine vom anderen ab. Eine Zwischensumme **innerhalb** einer Kontoklasse in **einer** Währung ist eine Summe gleichartiger Dinge und braucht keine Version — deshalb gibt es die, und die Differenz nicht.
+2. **Währungen verschmelzen nie.** Ein Abschnitt je Währung, keine Umrechnung.
+3. **Vorläufig sagt es.** Solange eine einbezogene Periode offen ist, trägt der Screen einen Hinweis mit der Zahl offener Perioden; darunter listet er jede einbezogene Periode mit ihrem Status.
+
+Die drei anderen geplanten Unterbereiche (`Übersicht`, `Budget & Forecast`, `Debt & Covenants`) sind **nicht** registriert. Ein leerer Tab wäre ein Versprechen ohne Deckung.
+
+Client: `lib/features/finance_ledger/` (DTO, Port, Adapter, Controller, Panel). Tests: `test/features/finance_ledger/property_finance_test.dart` (23) plus die erweiterten Investment-Host-Tests.
 
 ## 5. Layout and interaction model
 
