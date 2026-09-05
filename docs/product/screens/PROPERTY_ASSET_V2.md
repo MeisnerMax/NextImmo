@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/asset`; heute Property-Detail im Reference Slice
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_property_detail_panel.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/domain/property_dto.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness (Stand 2026-09-06): READY für Stammdaten, Lifecycle und Medien. `PROPERTY-MEDIA-DATA-01` ist umgesetzt: privater Bucket, entity-gescopte Storage-Policies, auditierte RPCs, Galerie unter den Stammdaten. Das Titelbild erscheint auch in den Listenzeilen — ein Read je Seite plus ein Batch-Signing-Call, kein N+1. Offen bleibt nur die Bildreihenfolge per Drag
+- Technical readiness (Stand 2026-09-06): READY für Stammdaten, Lifecycle und Medien. `PROPERTY-MEDIA-DATA-01` ist umgesetzt: privater Bucket, entity-gescopte Storage-Policies, auditierte RPCs, Galerie unter den Stammdaten. Das Titelbild erscheint auch in den Listenzeilen — ein Read je Seite plus ein Batch-Signing-Call, kein N+1. Der behavioural Storage-Nachweis über die echte HTTP-API ist seit 2026-09-06 geführt. Offen bleibt nur die Bildreihenfolge per Drag
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Workspace V2](PROPERTY_WORKSPACE_V2.md), `UX-FOUNDATION-IMPL-01`
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), `PROPERTY-CREATE-01` nach `PROPERTY-DATA-02`
@@ -190,7 +190,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 
   Signierte URLs werden bei Bedarf erzeugt (5 Minuten) und **nirgends gespeichert**: für ein privates Objekt ist eine URL ein kurzlebiges Credential, kein Adresswert. Das DTO trägt deshalb einen Pfad.
 
-  **Noch offen und bewusst nicht behauptet:** Die Storage-Policies sind in pgTAP 035 als `authenticated`-Rolle geprüft — also mit genau der Rolle und dem Prädikat, die der Storage-Dienst auswertet. Ein *behavioural* Nachweis über die echte Storage-HTTP-API, wie ihn `SECURITY-STORAGE-AAL-03` für den Dokumenten-Bucket führt, existiert für `property-media` noch nicht. Das ist ein eigenes Inkrement an jenem Skript, kein Nebeneffekt dieses Pakets.
+  **Behavioural nachgewiesen (2026-09-06):** Der Nachweis über die echte Storage-HTTP-API existiert jetzt — `test/integration/supabase_property_media_storage_integration_test.dart`, ausgeführt von `tool/verify_storage_aal_03.ps1`. Mit echten GoTrue-Sessions, ohne `service_role`. Geprüft werden: anonymer Zugriff, aal1 mit vollen Rechten, dieselbe Identität nach MFA-Erhöhung, `property.read` ohne `property.update`, fremder Workspace, neun Pfadvarianten, kein Überschreiben und kein Löschen. Die tragende Aussage ist der Entity-Scope: eine Identität mit *beiden* Berechtigungen, auf Objekt 1 eingeschränkt, liest und schreibt dort erfolgreich — und wird auf Objekt 2 desselben Workspace abgewiesen. Diese Kombination aus Erfolg und Abweisung schließt jede andere Erklärung als den Scope aus.
 - Kein Backend-Gap für `sqft`: Das erste Inkrement zeigt und speichert die Contracteinheit `ft²` unverändert. Eine spätere m²-Migration ist ein separates Datenpaket.
 - kein weiterer Backend-Gap für list/get/update.
 
