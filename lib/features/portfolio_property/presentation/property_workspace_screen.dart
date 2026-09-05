@@ -18,6 +18,8 @@ import '../../../ui/screens/property_detail/widgets/valuation/property_valuation
 import '../../../ui/theme/app_theme.dart';
 import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
+import '../../platform_audit_jobs/application/audit_read_port.dart';
+import '../../platform_audit_jobs/application/platform_providers.dart';
 import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
@@ -59,6 +61,7 @@ class _PropertyWorkspaceScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(referenceSliceControllerProvider);
     final controller = ref.read(referenceSliceControllerProvider.notifier);
+    final workspaceId = state.selectedWorkspace?.workspace.id;
     ref.listen<ReferenceSliceState>(referenceSliceControllerProvider, (
       _,
       next,
@@ -169,6 +172,20 @@ class _PropertyWorkspaceScreenState
       // registers `Übersicht` at runtime, so the domain and its data source
       // arrive together.
       onLoadPropertyOverview: controller.loadPropertyOverview,
+      // AUDIT-01 feeds the overview's activity module from the same read port
+      // the Aktivität domain uses — one redaction rule, in one place.
+      onLoadPropertyActivity:
+          workspaceId == null
+              ? null
+              : (propertyId) => ref
+                  .read(auditReadPortProvider)
+                  .propertyAuditEvents(
+                    PropertyAuditQuery(
+                      workspaceId: workspaceId,
+                      propertyId: propertyId,
+                      limit: 5,
+                    ),
+                  ),
       // MAINTENANCE-PARITY-01: `Wartung` and `CapEx` rehost the property-scoped
       // maintenance/CapEx panel, one sub-area each, because they are
       // separately permissioned rather than two tabs of one screen.
@@ -287,6 +304,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.documentsBuilder,
     this.leasingBuilder,
     this.onLoadPropertyOverview,
+    this.onLoadPropertyActivity,
     this.initialPropertyId,
   });
 
@@ -384,6 +402,10 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// hidden rather than shown as an empty frame — the same rule the registry
   /// applies to unimplemented domains.
   final PropertyOverviewLoad? onLoadPropertyOverview;
+
+  /// Reads the newest audit events for the overview's activity module
+  /// (`AUDIT-01`). Null hides that module; it does not hide the overview.
+  final PropertyOverviewActivityLoad? onLoadPropertyActivity;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -1084,6 +1106,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
               ),
               propertyId: _hostState.openPropertyId!,
               onLoad: widget.onLoadPropertyOverview!,
+              onLoadActivity: widget.onLoadPropertyActivity,
               availableDomains:
                   _visibleDomains(state).map((entry) => entry.domain).toSet(),
               onOpenDomain: _selectDomain,

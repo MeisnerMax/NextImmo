@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_workspace_host_state.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/application/platform_repository.dart';
+import 'package:neximmo_app/features/platform_audit_jobs/domain/audit_event_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/presentation/property_overview_panel.dart';
 
@@ -456,6 +458,88 @@ void main() {
       expect(find.byKey(const Key('property-overview')), findsOneWidget);
     });
 
+    // AUDIT-01 feeds this module from the same read port the Aktivität domain
+    // uses, so the overview cannot publish anything the trail withholds.
+    testWidgets('the activity module shows the newest events and drills into '
+        'the trail', (tester) async {
+      final opened = <PropertyWorkspaceDomain>[];
+      await _pump(
+        tester,
+        _Load(overview()),
+        availableDomains: const <PropertyWorkspaceDomain>{
+          ..._allDomains,
+          PropertyWorkspaceDomain.activity,
+        },
+        onOpenDomain: opened.add,
+        activity: PlatformRepositorySuccess<AuditEventPage>(
+          AuditEventPage(
+            events: <AuditEventDto>[
+              AuditEventDto(
+                id: 'event-1',
+                occurredAt: DateTime.utc(2026, 9, 5, 8),
+                action: 'property.updated',
+                entityType: 'property',
+                actorType: AuditActorType.user,
+                source: 'rpc',
+                correlationId: 'correlation-1',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('property-overview-activity')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.byKey(const Key('property-overview-activity')),
+        findsOneWidget,
+      );
+      expect(find.text('Objekt geändert'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('property-overview-activity-open')),
+      );
+      await tester.pump();
+      expect(opened, <PropertyWorkspaceDomain>[
+        PropertyWorkspaceDomain.activity,
+      ]);
+    });
+
+    testWidgets('without audit.read the activity module names the capability, '
+        'and the rest of the overview is unaffected', (tester) async {
+      await _pump(
+        tester,
+        _Load(overview()),
+        activity: const PlatformRepositoryFailure<AuditEventPage>(
+          kind: PlatformRepositoryFailureKind.forbidden,
+          message: 'Audit access is not permitted',
+        ),
+      );
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('property-overview-activity')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.byKey(const Key('property-overview-activity-forbidden')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('audit.read'), findsOneWidget);
+      expect(find.text('Flächen gesamt'), findsOneWidget);
+    });
+
+    testWidgets('without a reader the module is absent, not empty', (
+      tester,
+    ) async {
+      await _pump(tester, _Load(overview()));
+
+      expect(find.byKey(const Key('property-overview-activity')), findsNothing);
+    });
+
     testWidgets('what is not covered yet is named, not faked', (tester) async {
       await _pump(tester, _Load(overview()));
       await tester.scrollUntilVisible(
@@ -542,6 +626,7 @@ Future<void> _pump(
   _Load load, {
   Set<PropertyWorkspaceDomain> availableDomains = _allDomains,
   ValueChanged<PropertyWorkspaceDomain>? onOpenDomain,
+  PlatformRepositoryResult<AuditEventPage>? activity,
   Size viewport = const Size(1440, 900),
 }) async {
   setViewport(tester, viewport);
@@ -550,6 +635,7 @@ Future<void> _pump(
       PropertyOverviewPanel(
         propertyId: 'property-a',
         onLoad: load.call,
+        onLoadActivity: activity == null ? null : (_) async => activity,
         availableDomains: availableDomains,
         onOpenDomain: onOpenDomain,
       ),

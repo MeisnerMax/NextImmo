@@ -9,6 +9,9 @@ import '../../../ui/components/nx_list_skeleton.dart';
 import '../../../ui/components/nx_notice.dart';
 import '../../../ui/components/nx_section_header.dart';
 import '../../../ui/theme/app_theme.dart';
+import '../../platform_audit_jobs/application/platform_repository.dart';
+import '../../platform_audit_jobs/domain/audit_event_dto.dart';
+import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../application/property_repository.dart';
 import '../application/property_workspace_host_state.dart';
 import '../domain/property_overview_dto.dart';
@@ -17,6 +20,12 @@ import 'property_presentation.dart';
 /// Loads the overview for the open property.
 typedef PropertyOverviewLoad =
     Future<PropertyRepositoryResult<PropertyOverviewDto>> Function(
+      String propertyId,
+    );
+
+/// Loads the newest few audit events for the open property (`AUDIT-01`).
+typedef PropertyOverviewActivityLoad =
+    Future<PlatformRepositoryResult<AuditEventPage>> Function(
       String propertyId,
     );
 
@@ -43,12 +52,18 @@ class PropertyOverviewPanel extends StatefulWidget {
     super.key,
     required this.propertyId,
     required this.onLoad,
+    this.onLoadActivity,
     this.availableDomains = const <PropertyWorkspaceDomain>{},
     this.onOpenDomain,
   });
 
   final String propertyId;
   final PropertyOverviewLoad onLoad;
+
+  /// Reads the last few audit events (`AUDIT-01`). Null hides the module: the
+  /// overview names what it cannot show, but only where the capability exists
+  /// at all.
+  final PropertyOverviewActivityLoad? onLoadActivity;
 
   /// The workspace domains this membership can actually open. A drilldown is
   /// offered only into one of these: a target that is unregistered or
@@ -201,6 +216,13 @@ class _PropertyOverviewPanelState extends State<PropertyOverviewPanel> {
             const SizedBox(height: AppSpacing.component),
           ],
           _body(context, overview),
+          if (widget.onLoadActivity != null) ...[
+            _PropertyOverviewActivity(
+              propertyId: widget.propertyId,
+              onLoad: widget.onLoadActivity!,
+              onOpenActivity: _drilldown(PropertyWorkspaceDomain.activity),
+            ),
+          ],
           const SizedBox(height: AppSpacing.component),
           _coverageNotice(),
         ],
@@ -608,9 +630,9 @@ class _PropertyOverviewPanelState extends State<PropertyOverviewPanel> {
       icon: Icons.info_outline,
       title: 'Noch nicht abgedeckt',
       message:
-          'Finanzkennzahlen (NOI, Cashflow, Budgetabweichung) und die '
-          'Objekt-Historie erscheinen hier, sobald ihre Server-Contracts '
-          'stehen. Bis dahin werden sie nicht geschätzt.',
+          'Finanzkennzahlen (NOI, Cashflow, Budgetabweichung) erscheinen hier, '
+          'sobald ihr Server-Contract steht. Bis dahin werden sie nicht '
+          'geschätzt.',
     );
   }
 
@@ -767,6 +789,145 @@ class _PropertyOverviewPanelState extends State<PropertyOverviewPanel> {
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// `Letzte Aktivität` — the newest few audit events for this property.
+///
+/// It reads the audit port rather than a second projection inside the overview
+/// read. One redaction rule, in one place: whatever the trail may show, this
+/// shows the same, and it cannot drift into publishing values the trail
+/// withholds. The full history is one drilldown away.
+class _PropertyOverviewActivity extends StatefulWidget {
+  const _PropertyOverviewActivity({
+    required this.propertyId,
+    required this.onLoad,
+    this.onOpenActivity,
+  });
+
+  final String propertyId;
+  final PropertyOverviewActivityLoad onLoad;
+  final VoidCallback? onOpenActivity;
+
+  @override
+  State<_PropertyOverviewActivity> createState() =>
+      _PropertyOverviewActivityState();
+}
+
+class _PropertyOverviewActivityState extends State<_PropertyOverviewActivity> {
+  List<AuditEventDto>? _events;
+  bool _forbidden = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    final requested = widget.propertyId;
+    final result = await widget.onLoad(requested);
+    if (!mounted || requested != widget.propertyId) {
+      return;
+    }
+    setState(() {
+      switch (result) {
+        case PlatformRepositorySuccess<AuditEventPage>(:final value):
+          _events = value.events;
+          _forbidden = false;
+          _failed = false;
+        case PlatformRepositoryFailure<AuditEventPage>(:final kind):
+          _events = null;
+          _forbidden = kind == PlatformRepositoryFailureKind.forbidden;
+          _failed = !_forbidden;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic = context.semanticColors;
+    final events = _events;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.component),
+      child: NxCard(
+        key: const Key('property-overview-activity'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NxSectionHeader(
+              title: 'Letzte Aktivität',
+              compact: true,
+              actions: <Widget>[
+                if (widget.onOpenActivity != null && !_forbidden)
+                  TextButton.icon(
+                    key: const Key('property-overview-activity-open'),
+                    onPressed: widget.onOpenActivity,
+                    icon: const Icon(Icons.arrow_forward, size: 16),
+                    label: const Text('Öffnen'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            if (_forbidden)
+              // Same rule as every other module: not permitted is not empty,
+              // and the capability is named.
+              Text(
+                'Nicht verfügbar. Benötigt die Berechtigung (audit.read).',
+                key: const Key('property-overview-activity-forbidden'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: semantic.textSecondary,
+                ),
+              )
+            else if (_failed)
+              Text(
+                'Die letzten Ereignisse konnten nicht geladen werden.',
+                key: const Key('property-overview-activity-error'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: semantic.textSecondary,
+                ),
+              )
+            else if (events == null)
+              const NxListSkeleton(rows: 3, rowHeight: 32)
+            else if (events.isEmpty)
+              Text(
+                'Für dieses Objekt wurde noch keine Änderung protokolliert.',
+                key: const Key('property-overview-activity-empty'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: semantic.textSecondary,
+                ),
+              )
+            else
+              for (final event in events)
+                Padding(
+                  key: Key('property-overview-activity-${event.id}'),
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          auditActionLabel(event.action),
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        formatAuditTimestamp(event.occurredAt),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: semantic.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+          ],
+        ),
       ),
     );
   }
