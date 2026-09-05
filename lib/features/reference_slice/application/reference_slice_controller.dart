@@ -84,6 +84,7 @@ class ReferenceSliceState {
     this.recoveryFactor,
     this.liveUpdatesDegraded = false,
     this.includeArchived = false,
+    this.propertySearchTerm = '',
     this.loadMoreFailureMessage,
     this.validationField,
   });
@@ -132,9 +133,20 @@ class ReferenceSliceState {
   final bool liveUpdatesDegraded;
 
   /// Whether the property list query surfaces tombstoned (archived) rows.
-  /// The single server-side list filter the contract offers; reset on every
-  /// workspace switch so a new scope always starts from the active view.
+  /// Reset on every workspace switch so a new scope always starts from the
+  /// active view.
   final bool includeArchived;
+
+  /// The free-text filter the server applies over name, address, zip and city
+  /// (`PROPERTY-LOOKUP-01`). Empty means no text filter. It is a *server*
+  /// filter: the result is the workspace's matches, never a filter over the
+  /// pages that happen to be loaded. Reset on every workspace switch.
+  final String propertySearchTerm;
+
+  /// Whether a text filter is in effect, which the list needs in order to tell
+  /// "no property matches this search" from "this workspace has no
+  /// properties" — two empty lists with different next actions.
+  bool get hasPropertySearch => propertySearchTerm.isNotEmpty;
 
   /// A failed *additional* page load. Unlike a first-page failure this keeps
   /// the already loaded pages visible ([propertyListPhase] stays `ready`) and
@@ -183,6 +195,7 @@ class ReferenceSliceState {
     Object? recoveryFactor = _unchanged,
     bool? liveUpdatesDegraded,
     bool? includeArchived,
+    String? propertySearchTerm,
     Object? loadMoreFailureMessage = _unchanged,
     Object? validationField = _unchanged,
   }) {
@@ -234,6 +247,7 @@ class ReferenceSliceState {
               : recoveryFactor as TotpFactor?,
       liveUpdatesDegraded: liveUpdatesDegraded ?? this.liveUpdatesDegraded,
       includeArchived: includeArchived ?? this.includeArchived,
+      propertySearchTerm: propertySearchTerm ?? this.propertySearchTerm,
       loadMoreFailureMessage:
           identical(loadMoreFailureMessage, _unchanged)
               ? this.loadMoreFailureMessage
@@ -679,6 +693,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         versionConflict: null,
         message: 'Workspace access is not available.',
         includeArchived: false,
+        propertySearchTerm: '',
         loadMoreFailureMessage: null,
       );
       return;
@@ -700,6 +715,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       versionConflict: null,
       message: null,
       includeArchived: false,
+      propertySearchTerm: '',
       loadMoreFailureMessage: null,
     );
     await _loadFirstPropertyPage(access, generation);
@@ -749,14 +765,18 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     );
   }
 
-  /// Reads one keyset page for a browse surface (the property switcher).
+  /// Reads one keyset page for a browse-and-search surface (the property
+  /// switcher).
   ///
   /// Deliberately side-effect free: it changes no controller state, so the
   /// list the user came from keeps its pages, cursor, filter and selection
-  /// while another page is browsed. Archived properties stay out — a switcher
-  /// offers working contexts, and the archive view is the list's own filter.
+  /// while another property is looked up. [searchTerm] is the switcher's own
+  /// search and never touches the list's. Archived properties stay out — a
+  /// switcher offers working contexts, and the archive view is the list's own
+  /// filter.
   Future<PropertyRepositoryResult<PropertyPageResult>> loadPropertyPage({
     String? cursor,
+    String? searchTerm,
   }) async {
     final access = state.selectedWorkspace;
     if (access == null || !access.allows(propertyReadPermission)) {
@@ -769,6 +789,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       PropertyListQuery(
         workspaceId: access.workspace.id,
         page: PropertyPageRequest(cursor: cursor),
+        searchTerm: searchTerm,
       ),
     );
   }
@@ -794,6 +815,32 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     await _loadFirstPropertyPage(access, generation);
   }
 
+  /// Applies the workspace-wide text search (`PROPERTY-LOOKUP-01`).
+  ///
+  /// Like the archive filter, a change restarts the keyset from the first
+  /// page: a cursor taken from a different result set is not a valid position
+  /// in this one. Normalized here rather than at the call site so a trailing
+  /// space or a double space never counts as a new search and never spends a
+  /// round trip.
+  Future<void> setPropertySearch(String term) async {
+    final access = state.selectedWorkspace;
+    final normalized = term.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (access == null || state.propertySearchTerm == normalized) {
+      return;
+    }
+    final generation = ++_scopeGeneration;
+    state = state.copyWith(
+      propertySearchTerm: normalized,
+      propertyListPhase: PropertyListPhase.loading,
+      properties: const <PropertySummaryDto>[],
+      nextCursor: null,
+      failureKind: null,
+      message: null,
+      loadMoreFailureMessage: null,
+    );
+    await _loadFirstPropertyPage(access, generation);
+  }
+
   Future<void> loadNextPropertyPage() async {
     final access = state.selectedWorkspace;
     final cursor = state.nextCursor;
@@ -806,6 +853,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     }
     final generation = _scopeGeneration;
     final includeArchived = state.includeArchived;
+    final searchTerm = state.propertySearchTerm;
     state = state.copyWith(
       propertyListPhase: PropertyListPhase.loading,
       failureKind: null,
@@ -817,6 +865,9 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
         workspaceId: access.workspace.id,
         page: PropertyPageRequest(cursor: cursor),
         includeArchived: includeArchived,
+        // The next page has to come from the same result set the cursor was
+        // taken from, so the filter travels with it.
+        searchTerm: searchTerm,
       ),
     );
     if (generation != _scopeGeneration ||
@@ -1362,6 +1413,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       versionConflict: null,
       message: null,
       includeArchived: false,
+      propertySearchTerm: '',
       loadMoreFailureMessage: null,
     );
     final result = await _identityRepository.listWorkspaceAccesses(
@@ -1416,6 +1468,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       PropertyListQuery(
         workspaceId: access.workspace.id,
         includeArchived: state.includeArchived,
+        searchTerm: state.propertySearchTerm,
       ),
     );
     if (generation != _scopeGeneration ||
@@ -1613,6 +1666,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       versionConflict: null,
       message: null,
       includeArchived: false,
+      propertySearchTerm: '',
       loadMoreFailureMessage: null,
     );
   }
@@ -1804,6 +1858,7 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
       PropertyListQuery(
         workspaceId: workspaceId,
         includeArchived: state.includeArchived,
+        searchTerm: state.propertySearchTerm,
       ),
     );
     final detailFuture =

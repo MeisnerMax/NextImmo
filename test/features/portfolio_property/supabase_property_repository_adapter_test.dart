@@ -5,6 +5,7 @@ import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 
 void main() {
+  _searchTests();
   _overviewTests();
   group('SupabasePropertyRepositoryAdapter', () {
     late _FakePropertySupabaseGateway gateway;
@@ -308,6 +309,79 @@ Map<String, dynamic> _propertyJson({
   };
 }
 
+/// The workspace-wide search (`PROPERTY-LOOKUP-01`).
+///
+/// The adapter turns a user's query into the terms the filter ANDs together.
+/// Everything it does there is a bound: lower-cased for the generated column,
+/// five terms at most, each capped in length. What it deliberately does not do
+/// is strip pattern characters — they widen the match, they cannot reach past
+/// the row policy, and removing them would make a property whose name contains
+/// one impossible to find.
+void _searchTests() {
+  group('propertySearchTerms', () {
+    test('splits on whitespace and lower-cases', () {
+      expect(propertySearchTerms('Atlas   HAUS'), <String>['atlas', 'haus']);
+    });
+
+    test('a blank query is no filter at all', () {
+      expect(propertySearchTerms(null), isEmpty);
+      expect(propertySearchTerms('   '), isEmpty);
+    });
+
+    test('caps the number of terms', () {
+      expect(propertySearchTerms('a b c d e f g'), <String>[
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+      ]);
+    });
+
+    test('caps the length of a term', () {
+      expect(propertySearchTerms('x' * 200).single.length, 64);
+    });
+
+    test('keeps pattern characters instead of dropping them', () {
+      expect(propertySearchTerms('50%'), <String>['50%']);
+    });
+  });
+
+  group('SupabasePropertyRepositoryAdapter.list search', () {
+    late _FakePropertySupabaseGateway gateway;
+    late SupabasePropertyRepositoryAdapter repository;
+
+    setUp(() {
+      gateway = _FakePropertySupabaseGateway();
+      repository = SupabasePropertyRepositoryAdapter.withGateway(gateway);
+    });
+
+    test('passes the tokenized term to the gateway', () async {
+      await repository.list(
+        const PropertyListQuery(
+          workspaceId: 'workspace-a',
+          searchTerm: 'Atlas Berlin',
+        ),
+      );
+
+      expect(gateway.listSearchTerms, <String>['atlas', 'berlin']);
+      expect(
+        gateway.listWorkspaceId,
+        'workspace-a',
+        reason: 'a search is still workspace-scoped',
+      );
+    });
+
+    test('no term means no filter', () async {
+      await repository.list(
+        const PropertyListQuery(workspaceId: 'workspace-a'),
+      );
+
+      expect(gateway.listSearchTerms, isEmpty);
+    });
+  });
+}
+
 /// The overview read (`PROPERTY-OVERVIEW-DATA-01`).
 ///
 /// The adapter is where a permission-scoped payload could quietly turn into a
@@ -580,6 +654,7 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
   String? listAfterId;
   int? listLimit;
   bool? listIncludeArchived;
+  List<String>? listSearchTerms;
   String? getWorkspaceId;
   String? getPropertyId;
   int updateCalls = 0;
@@ -613,6 +688,7 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
     required String? afterId,
     required int limit,
     required bool includeArchived,
+    List<String> searchTerms = const <String>[],
   }) async {
     if (listError != null) {
       throw listError!;
@@ -621,6 +697,7 @@ class _FakePropertySupabaseGateway implements PropertySupabaseGateway {
     listAfterId = afterId;
     listLimit = limit;
     listIncludeArchived = includeArchived;
+    listSearchTerms = searchTerms;
     return listResult;
   }
 

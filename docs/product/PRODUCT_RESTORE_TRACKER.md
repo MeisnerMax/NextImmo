@@ -91,7 +91,7 @@ Bereits geführte Pakete, die diese Flächen zusätzlich berühren: `SHELL-ROUTI
 | VALUATION-CURRENCY-01 | `VALUATION-METHOD-CONTRACT-01`; Case-Währung und freigegebene FX-Policy | todo (FUTURE) | blocked(contract/data) | — |
 | VALUATION-ACTUALS-01 | P2-D08; periodisierte Objekt-Ist-/Plan-Daten als Valuation-Quelle | todo (FUTURE) | blocked(data/contract) | — |
 | VALUATION-OPEX-01 | `VALUATION-ACTUALS-01`; kategorisierte Operating-Plan-/Ist-Daten und Umlagefähigkeit | todo (FUTURE) | blocked(data/contract) | — |
-| PROPERTY-LOOKUP-01 | serverweite Property-Suche (Name/Adresse/PLZ/Ort) für Objektliste, Property-Wechsler und Entity Picker; ersetzt die ehrliche paginierte Browse-Auswahl | committed (Scope beschlossen FULL-V2-SCOPE-01) | committed — prerequisite-first (Technical readiness: PREREQUISITE REQUIRED — Such-/Index-Contract + RLS-/Index-Review) | — |
+| PROPERTY-LOOKUP-01 | serverweite Property-Suche (Name/Adresse/PLZ/Ort) für Objektliste, Property-Wechsler und Entity Picker; ersetzt die ehrliche paginierte Browse-Auswahl | committed (Scope beschlossen FULL-V2-SCOPE-01) | implemented (2026-09-06, `feature/property-lookup-01`): generierte `search_text`-Spalte + Trigram-Index, kein neuer Lesepfad (die Suche filtert den bestehenden RLS-Read, Entity-Scope inklusive); Liste und Objektwechsler suchen serverweit; pgTAP 033 (24) und Rollback 039. Offen: Relevanz-Ranking, Diakritikfaltung, Entity Picker | todo |
 | FINANCE-01 (Ledger, Budgets, BvA-Aufteilung, Covenants, Asset Workbook) | P2-D08 finance_debt | blocked(P2-D08) | — | — |
 | PORTFOLIO-REPORTING-01 (Portfolios, Detail+Analytics+Quality, ESG, Report Templates, Dashboard) | P2-D09 reporting_analytics | blocked(P2-D09) | — | — |
 | COMPS-CRITERIA-01 (Comps, Criteria Check, Criteria Sets, Compare) | P2-D07-Rest | blocked(P2-D07) | — | — |
@@ -107,7 +107,7 @@ Produkt-Scope und technische Bereitschaft werden getrennt geführt. `COMMITTED` 
 | Spec | IA-Ebene | Produkt-Scope | Technische Bereitschaft | Früherer Status |
 |---|---|---|---|---|
 | `PROPERTY_WORKSPACE_V2.md` | Workspace Host | COMMITTED | READY — Host implementiert; wächst mit jeder Domain | APPROVED |
-| `PROPERTY_LIST_V2.md` | Einstieg vor Workspace | COMMITTED | READY für Liste, Keyset, Filter und Anlegen (`PROPERTY-DATA-02` gelandet); Volltextsuche: PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` | APPROVED |
+| `PROPERTY_LIST_V2.md` | Einstieg vor Workspace | COMMITTED | READY für Liste, Keyset, Filter, Anlegen und serverweite Suche (`PROPERTY-DATA-02`, `PROPERTY-LOOKUP-01` gelandet); Ranking/Diakritik: PREREQUISITE REQUIRED | APPROVED |
 | `PROPERTY_OVERVIEW_V2.md` | Übersicht | COMMITTED | READY für die gezählten Domänenfakten und die serverseitige Attention-Ordnung (`PROPERTY-OVERVIEW-DATA-01` gelandet); Finanz-KPIs: PREREQUISITE REQUIRED — `P2-D08`/`FINANCE-01`; Letzte Aktivität: PREREQUISITE REQUIRED — `AUDIT-01`; Lease-Roll-/Renewal-Projektion: PREREQUISITE REQUIRED — `LEASING-SUMMARY-01` | APPROVED |
 | `PROPERTY_ASSET_V2.md` | Objekt | COMMITTED | READY für Stammdaten und Archivieren/Wiederherstellen (implementiert); Medien: PREREQUISITE REQUIRED — `PROPERTY-MEDIA-DATA-01` | APPROVED |
 | `PROPERTY_LEASING_V2.md` | Vermietung Host | COMMITTED | READY — im Host registriert (2026-09-05): vier Unterbereiche Flächen/Verträge/Pipeline/Rent Roll auf den `lease.*`-Contracts, gated `lease.read` | APPROVED |
@@ -148,7 +148,7 @@ Backend-Voraussetzung zuerst, unmittelbar gefolgt von der abhängigen UI und Sta
 |---|---|---|
 | P-1 **abgeschlossen** (2026-09-05) | Lifecycle (Anlegen/Archivieren/Wiederherstellen), `Vermietung` im Host und der Objektwechsler stehen | `PROPERTY-DATA-02` ✓ → `PROPERTY-CREATE-01` (erstes Inkrement ✓) und Asset-Lifecycle-Aktionen ✓; Leasing-Panels → `Vermietung` ✓; Objektwechsler als keyset-paginierter Browse-Dialog ✓ (echte Suche bleibt `PROPERTY-LOOKUP-01`) |
 | P-2 **abgeschlossen** (2026-09-06) | `Übersicht` ist Standardziel des Hosts: gezählte Domänenfakten, serverseitig geordnete Attention mit Drilldown, `Stand`-Zeile | `PROPERTY-OVERVIEW-DATA-01` ✓ → `PROPERTY_OVERVIEW_V2` ✓. Weiterhin offen und offen ausgewiesen: Finanz-KPIs (`P2-D08`), Letzte Aktivität (`AUDIT-01`), Lease-Roll-/Renewal-Projektion (`LEASING-SUMMARY-01`) |
-| P-3 | Objektmedien/Titelbild; serverweite Objektsuche in Liste und Objektwechsler | `PROPERTY-MEDIA-DATA-01`; `PROPERTY-LOOKUP-01` |
+| P-3 (Suche ✓, Medien offen) | Objektmedien/Titelbild; serverweite Objektsuche in Liste und Objektwechsler | `PROPERTY-LOOKUP-01` ✓ → Liste und Objektwechsler suchen serverweit ✓; `PROPERTY-MEDIA-DATA-01` → Objektmedien (offen) |
 | P-4 | `Investment` mit Bewertung, danach Szenarien und Performance | `VALUATION-REHOST-01`; `SCENARIO-VALUATION-01`; `P2-D08` |
 | P-5 | `Aktivität` mit Timeline, Audit und Berichten | `PROPERTY-ACTIVITY-01`; `AUDIT-01`; `P2-D09` |
 

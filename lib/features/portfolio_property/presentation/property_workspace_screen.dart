@@ -117,8 +117,11 @@ class _PropertyWorkspaceScreenState
       onLoadSwitcherPage:
           state.selectedWorkspace == null
               ? null
-              : ({String? cursor}) =>
-                  controller.loadPropertyPage(cursor: cursor),
+              : ({String? cursor, String? searchTerm}) => controller
+                  .loadPropertyPage(cursor: cursor, searchTerm: searchTerm),
+      // PROPERTY-LOOKUP-01: the list search. The switcher keeps its own term,
+      // so looking a property up there never disturbs the list behind it.
+      onSearchProperties: controller.setPropertySearch,
       onSetArchived: (archived, {reason}) async {
         await controller.setSelectedPropertyArchived(
           archived: archived,
@@ -236,6 +239,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     required this.onRefreshWorkspaces,
     required this.onUpdateProperty,
     required this.onRetryUpdate,
+    this.onSearchProperties,
     this.canCreateProperty = false,
     this.onCreateProperty,
     this.onLoadSwitcherPage,
@@ -263,6 +267,11 @@ class PropertyWorkspaceView extends StatefulWidget {
   final Future<void> Function() onReload;
   final Future<void> Function(bool value) onSetIncludeArchived;
   final Future<void> Function() onRefreshWorkspaces;
+
+  /// Applies the workspace-wide property search (`PROPERTY-LOOKUP-01`); an
+  /// empty term drops the filter. Null hides the field, so a host that cannot
+  /// search never shows an input that would do nothing.
+  final Future<void> Function(String term)? onSearchProperties;
   final PropertyWorkspaceUpdate onUpdateProperty;
   final Future<void> Function() onRetryUpdate;
 
@@ -772,6 +781,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       onReload: widget.onReload,
       onSetIncludeArchived: widget.onSetIncludeArchived,
       onRefreshWorkspaces: widget.onRefreshWorkspaces,
+      onSearch: widget.onSearchProperties,
       onCreateProperty:
           widget.canCreateProperty && widget.onCreateProperty != null
               ? _openCreateDialog

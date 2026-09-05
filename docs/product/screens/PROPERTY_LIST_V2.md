@@ -7,7 +7,7 @@
 - Route: heutiges Zustandsziel `GlobalPage.properties`; zukünftiges Ziel `/properties`
 - Current implementation file(s): `lib/features/reference_slice/presentation/reference_slice_screen.dart`, `lib/features/reference_slice/application/reference_slice_controller.dart`, `lib/features/portfolio_property/application/property_repository.dart`, `lib/features/portfolio_property/data/supabase_property_repository_adapter.dart`
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: READY für Liste, Keyset, Archivfilter und Anlegen (`PROPERTY-DATA-02` gelandet); PREREQUISITE REQUIRED — `PROPERTY-LOOKUP-01` (serverweite Suche)
+- Technical readiness (Stand 2026-09-06): READY für Liste, Keyset, Archivfilter, Anlegen (`PROPERTY-DATA-02`) und die serverweite Textsuche (`PROPERTY-LOOKUP-01`). PREREQUISITE REQUIRED bleibt für Relevanz-Ranking und diakritik-unabhängige Treffer (`unaccent`), siehe §20
 - Former status: APPROVED (Implementation-Readiness-Review 2026-08-28)
 - Dependencies: `UX-FOUNDATION-IMPL-01`; [Property Workspace V2](PROPERTY_WORKSPACE_V2.md); `PROPERTY-DATA-02` (gelandet) für das Anlegen
 - Related screens: [Property Asset V2](PROPERTY_ASSET_V2.md), [Property Overview V2](PROPERTY_OVERVIEW_V2.md), später `PROPERTY-CREATE-01`
@@ -53,7 +53,7 @@ Keine Unit-/Rent-/NOI-/Vacancy-KPI wird pro Zeile aus weiteren Queries synthetis
 - Property öffnen nach `PropertyRepository.getById`/Host-Flow; Listenselektion allein ist nicht kanonischer Detailread.
 - Retry/Refresh liest kanonisch; Realtime invalidiert.
 - `Objekt anlegen` ist die eine Primäraktion der Seite (`property.create` + AAL2; ohne Berechtigung sichtbar deaktiviert mit erklärendem Tooltip). Das neue Objekt entsteht als Entwurf und wird direkt geöffnet. Archivieren/Wiederherstellen gehören zum Objektkontext, Bearbeiten zu Property Asset. Ein Hard-Delete existiert nicht.
-- Im freigegebenen ersten Inkrement gibt es keine Textsuche. Eine spätere Loaded-set-Suche müsste ausdrücklich `Geladene Ergebnisse filtern` heißen; eine echte Suche benötigt einen neuen Servercontract.
+- Die Textsuche ist seit `PROPERTY-LOOKUP-01` (2026-09-06) **serverseitig** und deckt den ganzen Arbeitsbereich ab: Name, beide Adresszeilen, PLZ und Ort. Sie ist kein Filter über die geladenen Seiten — genau diese Unehrlichkeit war der Grund, sie bis zum Servercontract zurückzuhalten. Ein Filterwechsel startet das Keyset neu.
 
 ## 7. Data requirements
 
@@ -93,9 +93,10 @@ Keine Domain-Fanout-Reads pro Zeile.
 
 ## 11. Search / filter / sort
 
-- Einziger serverseitiger Listenfilter ist `includeArchived`; ein eigener Statusfilter wird nicht angeboten.
-- Keine Textsuche im ersten Inkrement; vollständige Suche benötigt Backend-Gap.
-- Defaultsortierung ist exakt der bestehende Contract `id ASC`; keine clientseitige Umsortierung oder Portfolio-Rangliste.
+- Serverseitige Listenfilter sind `includeArchived` und die Textsuche aus `PROPERTY-LOOKUP-01`; ein eigener Statusfilter wird nicht angeboten.
+- Die Suche ist debounced, verlangt mindestens zwei Zeichen (kürzere Begriffe treffen fast alles und können den Trigram-Index nicht nutzen) und wird sofort zurückgesetzt, wenn das Feld geleert wird — einen Filter zu entfernen ist keine Suche.
+- Suchbegriff und Archivfilter kombinieren sich; jede Änderung startet das Keyset neu, weil ein Cursor aus einer anderen Ergebnismenge dort keine gültige Position ist.
+- Defaultsortierung ist exakt der bestehende Contract `id ASC`, auch mit Suchbegriff: eine Relevanzsortierung, die der Server nicht erklären kann, wäre schlechter als eine, die man vorhersagen kann.
 - Filter werden beim Detail-Back erhalten, beim Workspacewechsel zurückgesetzt; URL später.
 
 ## 12. Forms and validation
@@ -109,7 +110,7 @@ Das einzige Formular ist der Anlegen-Dialog auf genau den Contractfeldern (`PROP
 
 ### Small extensions needed
 - Listenselektion/Scroll/Filter als serialisierbarer Hoststate.
-- Loaded-set-Suche ehrlich benennen.
+- `PropertySearchField` (Debounce, Mindestlänge, sofortiges Zurücksetzen) — im Property-Feature, geteilt von Liste und Objektwechsler.
 
 ### New shared component candidate
 - keiner.
@@ -119,7 +120,7 @@ Das einzige Formular ist der Anlegen-Dialog auf genau den Contractfeldern (`PROP
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
 - `PROPERTY-DATA-02` ist **gelandet** (Anlegen serverseitig, Archivieren/Wiederherstellen über den Tombstone-Pfad); ein Hard-Delete bleibt bewusst ausgeschlossen.
-- vollständige serverseitige Property-Suche nach Name/Adresse/PLZ/Ort, falls als Produktfunktion gewünscht; separates Property-Query-Inkrement mit RLS/Indexprüfung.
+- `PROPERTY-LOOKUP-01` ist **gelandet** (2026-09-06): generierte `search_text`-Spalte über Name/Adresse/PLZ/Ort plus Trigram-Index. Bewusst kein neuer Lesepfad — die Suche filtert den bestehenden RLS-Read, also kann sie per Konstruktion keine Zeile zeigen, die die Liste verborgen hätte (Entity-Scope inklusive).
 - Portfolio-KPIs gehören zu `P2-D09`, nicht in diese Liste.
 
 ## 15. Accessibility and usability
@@ -154,7 +155,7 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
 ## 18. Acceptance criteria
 
 - Liste nutzt ausschließlich Property list/get und erzeugt keine Domain-N+1-Queries.
-- Suche behauptet nie mehr als den geladenen Scope, solange Serversearch fehlt.
+- Die Suche deckt den ganzen Arbeitsbereich ab und sagt das; sie behauptet nie mehr als ihr Scope, und ein Treffer, den die Liste verbergen würde, ist ausgeschlossen.
 - Empty, no-match und forbidden sind getrennt.
 - Back stellt Filter/Scroll/Fokus wieder her.
 - Anlegen erscheint nur mit `property.create` und AAL2; ein Hard-Delete existiert nicht.
@@ -168,7 +169,13 @@ Ab FULL-V2-SCOPE-01, 2026-09-04 stehen hier **nur noch echte Nicht-Ziele (REJECT
 
 ## 20. Open decisions
 
-Keine für das freigegebene Inkrement. Verbindlich entschieden: keine Textsuche und unveränderte Contractsortierung `id ASC`. Eine spätere vollständige Suche ist ein separates Property-Query-Paket und keine Voraussetzung dieser Spec.
+Verbindlich entschieden: unveränderte Contractsortierung `id ASC`, auch mit Suchbegriff.
+
+Offen und bewusst nicht in `PROPERTY-LOOKUP-01` enthalten:
+
+- **Relevanz-Ranking.** Braucht eine Definition, die der Server erklären kann, sowie eine Entscheidung über den Umgang mit Keyset-Pagination. Bis dahin ist die Reihenfolge vorhersagbar statt scheinbar klug.
+- **Diakritik- und Umlautfaltung** („Strasse" findet „Straße"). `unaccent` ist nicht immutable und kann eine generierte Spalte nicht ohne Wrapper tragen; das ist eine eigene, zu reviewende Entscheidung.
+- **Suche über weitere Felder** (Eigentümer, Flurstück, Notar). Diese Felder existieren auf `properties`, gehören aber fachlich zu anderen Suchszenarien und würden die Namenssuche verwässern.
 
 ## 21. Implementation handoff
 

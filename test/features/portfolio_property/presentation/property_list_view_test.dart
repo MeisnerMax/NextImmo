@@ -7,6 +7,7 @@ import 'package:neximmo_app/features/reference_slice/application/reference_slice
 import 'property_workspace_fixtures.dart';
 
 void main() {
+  _searchTests();
   group('PropertyListView', () {
     testWidgets('shows a skeleton while the first page loads', (tester) async {
       await _pump(
@@ -391,6 +392,159 @@ void main() {
   });
 }
 
+/// The workspace-wide search (`PROPERTY-LOOKUP-01`) on the list.
+///
+/// The distinction the whole package exists for is pinned here: the term goes
+/// to the server, and an empty result set is reported as "no match for this
+/// search", never as "this workspace has no properties".
+void _searchTests() {
+  group('PropertyListView search', () {
+    testWidgets('is absent when the host cannot search', (tester) async {
+      await _pump(tester, sliceState());
+
+      expect(find.byKey(const Key('property-search-field')), findsNothing);
+    });
+
+    testWidgets('submits the term once typing pauses', (tester) async {
+      final submitted = <String>[];
+      await _pump(tester, sliceState(), onSearch: submitted.add);
+
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'atlas',
+      );
+      await tester.pump();
+      expect(submitted, isEmpty, reason: 'debounced, not per keystroke');
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(submitted, <String>['atlas']);
+    });
+
+    testWidgets('does not submit a single character', (tester) async {
+      final submitted = <String>[];
+      await _pump(tester, sliceState(), onSearch: submitted.add);
+
+      await tester.enterText(
+        find.byKey(const Key('property-search-field')),
+        'a',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(submitted, isEmpty);
+      expect(find.textContaining('Mindestens 2 Zeichen'), findsOneWidget);
+    });
+
+    testWidgets('clearing drops the filter immediately', (tester) async {
+      final submitted = <String>[];
+      await _pump(
+        tester,
+        sliceState(propertySearchTerm: 'atlas'),
+        onSearch: submitted.add,
+      );
+
+      await tester.tap(find.byKey(const Key('property-search-clear')));
+      await tester.pump();
+
+      expect(submitted, <String>[
+        '',
+      ], reason: 'removing a filter is not a search and must not wait');
+    });
+
+    testWidgets('an empty result under a search says so, and offers to reset', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      await _pump(
+        tester,
+        sliceState(
+          listPhase: PropertyListPhase.empty,
+          properties: const <PropertySummaryDto>[],
+          propertySearchTerm: 'lissabon',
+        ),
+        onSearch: submitted.add,
+      );
+
+      expect(
+        find.byKey(const Key('property-list-search-empty')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('property-list-empty')),
+        findsNothing,
+        reason: 'no match is not an empty workspace',
+      );
+      expect(find.byKey(const Key('property-list-no-match')), findsNothing);
+      // The term is named in the empty state, not only echoed in the input.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('property-list-search-empty')),
+          matching: find.textContaining('lissabon'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('property-list-search-reset')));
+      await tester.pump();
+      expect(submitted, <String>['']);
+    });
+
+    testWidgets('an empty result without a search keeps the archive hint', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        sliceState(
+          listPhase: PropertyListPhase.empty,
+          properties: const <PropertySummaryDto>[],
+        ),
+        onSearch: (_) {},
+      );
+
+      expect(find.byKey(const Key('property-list-no-match')), findsOneWidget);
+      expect(find.byKey(const Key('property-list-search-empty')), findsNothing);
+    });
+
+    testWidgets('an external reset clears the input', (tester) async {
+      await _pump(
+        tester,
+        sliceState(propertySearchTerm: 'atlas'),
+        onSearch: (_) {},
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('property-search-field')))
+            .controller
+            ?.text,
+        'atlas',
+      );
+
+      // A workspace switch clears the term on the state; the field follows.
+      await _pump(tester, sliceState(), onSearch: (_) {});
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('property-search-field')))
+            .controller
+            ?.text,
+        '',
+      );
+    });
+
+    for (final viewport in const <Size>[Size(390, 844), Size(1440, 900)]) {
+      testWidgets('has no overflow at $viewport', (tester) async {
+        await _pump(
+          tester,
+          sliceState(propertySearchTerm: 'atlas'),
+          onSearch: (_) {},
+          viewport: viewport,
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const Key('property-search-field')), findsOneWidget);
+      });
+    }
+  });
+}
+
 Future<void> _pump(
   WidgetTester tester,
   ReferenceSliceState state, {
@@ -399,6 +553,7 @@ Future<void> _pump(
   VoidCallback? onLoadMore,
   VoidCallback? onReload,
   ValueChanged<bool>? onSetIncludeArchived,
+  ValueChanged<String>? onSearch,
   VoidCallback? onRetryOpen,
   String? openingPropertyId,
   String? restoreFocusPropertyId,
@@ -412,6 +567,7 @@ Future<void> _pump(
         onLoadMore: onLoadMore ?? () {},
         onReload: onReload ?? () {},
         onSetIncludeArchived: onSetIncludeArchived ?? (_) {},
+        onSearch: onSearch,
         onRefreshWorkspaces: () {},
         onRetryOpen: onRetryOpen,
         openingPropertyId: openingPropertyId,

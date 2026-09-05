@@ -306,6 +306,13 @@ try {
     throw 'Source fingerprint or database invariants are invalid.'
   }
 
+  # --extension is not cosmetic. A schema-filtered pg_dump omits CREATE
+  # EXTENSION entirely, so an index built on an extension-provided operator
+  # class -- PROPERTY-LOOKUP-01's trigram index on properties.search_text --
+  # cannot be rebuilt from the archive: pg_restore fails with "operator class
+  # extensions.gin_trgm_ops does not exist". Naming the extension here keeps
+  # the archive self-sufficient instead of moving that dependency into a
+  # runbook step someone has to remember during a recovery.
   docker exec -i $container pg_dump `
     -U postgres -d $sourceDatabase -Fc --no-owner --no-acl `
     --schema=public `
@@ -313,6 +320,7 @@ try {
     --schema=auth `
     --schema=extensions `
     --schema=supabase_migrations `
+    --extension=pg_trgm `
     -f $containerDump
   Assert-NativeSuccess 'logical_dump'
 

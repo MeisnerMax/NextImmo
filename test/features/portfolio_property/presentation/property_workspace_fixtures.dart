@@ -97,6 +97,7 @@ ReferenceSliceState sliceState({
   List<PropertySummaryDto>? properties,
   String? nextCursor,
   bool includeArchived = false,
+  String propertySearchTerm = '',
   String? loadMoreFailureMessage,
   PropertyDetailPhase detailPhase = PropertyDetailPhase.idle,
   PropertyDto? selectedProperty,
@@ -125,6 +126,7 @@ ReferenceSliceState sliceState({
     message: message,
     liveUpdatesDegraded: liveUpdatesDegraded,
     includeArchived: includeArchived,
+    propertySearchTerm: propertySearchTerm,
     loadMoreFailureMessage: loadMoreFailureMessage,
   );
 }
