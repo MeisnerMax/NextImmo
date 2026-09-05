@@ -254,6 +254,11 @@ class _FakeGateway implements PropertySupabaseGateway {
   @override
   String? currentUserId = 'actor-a';
 
+  Object? overviewResult;
+  Object? overviewError;
+  int overviewCalls = 0;
+  Map<String, Object?>? overviewParameters;
+
   Object? createResult;
   Object? createError;
   int createCalls = 0;
@@ -267,6 +272,16 @@ class _FakeGateway implements PropertySupabaseGateway {
       throw createError!;
     }
     return createResult;
+  }
+
+  @override
+  Future<Object?> propertyOverview(Map<String, Object?> parameters) async {
+    overviewCalls++;
+    overviewParameters = parameters;
+    if (overviewError != null) {
+      throw overviewError!;
+    }
+    return overviewResult;
   }
 
   @override

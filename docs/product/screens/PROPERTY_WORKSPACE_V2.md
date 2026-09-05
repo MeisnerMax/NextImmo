@@ -38,7 +38,7 @@ Er ist kein Dashboard mit nachgebauten Kennzahlen und kein Multi-Domain-Formular
 
 ## 3. Entry points and navigation
 
-- Primärer Einstieg ist `Objekte` → Auswahl einer Property. Sobald der blockierte Overview-Contract implementiert ist, ist `Übersicht` das Standardziel; die erste freigegebene Implementierungswelle fällt bis dahin auf `Objekt` zurück und registriert kein leeres Overview-Ziel.
+- Primärer Einstieg ist `Objekte` → Auswahl einer Property. Seit `PROPERTY-OVERVIEW-DATA-01` (2026-09-06) ist `Übersicht` das Standardziel; ein Host ohne Summary-Read fällt auf `Objekt` zurück und registriert kein leeres Overview-Ziel.
 - Bestehende Property-Deep-Links zu Units, Leases, Pipeline, Rent Roll, Operations, Maintenance und Documents müssen zukünftig im selben Property-Kontext landen.
 - Der Header zeigt auf jeder Unterfläche Property-Name, Ort/Adresse, Status und den Rückweg `Objekte`; ein Property-Wechsler darf optional aus dem bestehenden paginierten Property-Contract lesen.
 - Ein Wechsel der Hauptdomäne bewahrt `workspaceId`, `propertyId` und pro Domäne den letzten gültigen Unterbereich. Eine selektierte Unit, ein Lease, Dokument oder Case wird nur innerhalb der zugehörigen Domäne bewahrt.
@@ -64,7 +64,7 @@ Zukünftige, nicht in diesem Paket zu implementierende Route-Familie:
 
 | Ebene 1 | Unterflächen, maximal vier je Gruppe | Begründung aus User Job und Contract | Status |
 |---|---|---|---|
-| Übersicht | keine Tabs; priorisierte Module mit Drilldown | Orientierung und nächste Aktion, keine zweite Arbeitsoberfläche | eigener Screen; Aggregat-Contract fehlt teilweise |
+| Übersicht | keine Tabs; priorisierte Module mit Drilldown | Orientierung und nächste Aktion, keine zweite Arbeitsoberfläche | eigener Screen; implementiert 2026-09-06 auf `PROPERTY-OVERVIEW-DATA-01`. Finanz- und Activity-Module fehlen weiterhin und sind als fehlend beschriftet |
 | Objekt | Stammdaten; später Medien | stabile Identität getrennt von operativen und Investment-Annahmen | Property list/get/update vorhanden; Media fehlt |
 | Vermietung | Flächen; Verträge & Mieter; Pipeline; Rent Roll | durchgängiger Space-to-Lease-Job auf einem `lease.*`-Contract | Cloud-Contracts und Panels vorhanden |
 | Betrieb | Wartung; CapEx; Aufgaben | Tagesgeschäft und Maßnahmen; Tasks verknüpfen andere Domains | Maintenance/CapEx/Task-Contracts vorhanden; Property-Task-UI fehlt |
@@ -405,7 +405,7 @@ Verbindlich geschlossen:
 2. Asset-Stammdaten aus dem Reference Slice rehosten und Konflikt-/Realtime-Verhalten unverändert sichern.
 3. Vorhandene Leasing-Panels im Host rehosten und Responsive-/State-Verhalten normalisieren.
 4. Parallel vorhandene Pakete `MAINTENANCE-PARITY-01`, `DOCUMENTS-COMPLETE-01`, `TASKS-NOTIFICATIONS-01` und `VALUATION-REHOST-01` property-scoped anschließen.
-5. `PROPERTY-OVERVIEW-DATA-01` separat spezifizieren/implementieren; erst danach Overview-UI und das Laufzeitziel `Übersicht` gegen genau diesen Contract registrieren.
+5. `PROPERTY-OVERVIEW-DATA-01` separat spezifizieren/implementieren; erst danach Overview-UI und das Laufzeitziel `Übersicht` gegen genau diesen Contract registrieren. **Erledigt 2026-09-06:** Contract, UI und Laufzeitregistrierung sind gelandet, `Übersicht` ist Standardziel.
 6. Erst nach ihren Contracts: `SCENARIO-VALUATION-01`, `FINANCE-01`, `AUDIT-01`, `PORTFOLIO-REPORTING-01`, Property Media.
 7. `SHELL-ROUTING-01` integriert kanonische URLs und Browser-History separat; kein Child baut einen Router-Workaround.
 

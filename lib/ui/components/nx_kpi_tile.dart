@@ -30,6 +30,8 @@ class NxKpiTile extends StatelessWidget {
     this.status,
     this.trailing,
     this.delta,
+    this.onTap,
+    this.semanticsHint,
   });
 
   final String label;
@@ -50,13 +52,23 @@ class NxKpiTile extends StatelessWidget {
   /// because a delta genuinely *is* the status signal.
   final String? delta;
 
+  /// Drilldown into the surface that owns the figure. Null leaves the tile a
+  /// plain figure with no button semantics — a card that navigates announces
+  /// itself, one that does not must not pretend to.
+  final VoidCallback? onTap;
+
+  /// What the drilldown opens, announced after label and value. Only
+  /// meaningful together with [onTap].
+  final String? semanticsHint;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final semantic = context.semanticColors;
 
-    return NxCard(
-      variant: NxCardVariant.kpi,
+    final tile = NxCard(
+      variant: onTap == null ? NxCardVariant.kpi : NxCardVariant.interactive,
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -113,6 +125,10 @@ class NxKpiTile extends StatelessWidget {
         ],
       ),
     );
+    if (onTap == null) {
+      return tile;
+    }
+    return Semantics(button: true, hint: semanticsHint, child: tile);
   }
 }
 
@@ -133,12 +149,11 @@ class NxKpiRow extends StatelessWidget {
         final total = constraints.maxWidth;
         // Never squeeze more than two tiles onto a tablet width — that is
         // what forced the value text to shrink in the first place.
-        final maxColumns = total < 640 ? 1 : (total < 1100 ? 2 : children.length);
-        final columns = children.length < maxColumns
-            ? children.length
-            : maxColumns;
-        final width =
-            (total - (columns - 1) * AppSpacing.component) / columns;
+        final maxColumns =
+            total < 640 ? 1 : (total < 1100 ? 2 : children.length);
+        final columns =
+            children.length < maxColumns ? children.length : maxColumns;
+        final width = (total - (columns - 1) * AppSpacing.component) / columns;
 
         return Wrap(
           spacing: AppSpacing.component,

@@ -8,6 +8,7 @@ import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/screens/portfolio/rental_overview_panel.dart';
 
@@ -197,6 +198,15 @@ class _FakeProperties implements PropertyRepository {
     PropertyListQuery query,
   ) async => PropertyRepositorySuccess<PropertyPageResult>(
     PropertyPageResult(items: properties),
+  );
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async => const PropertyRepositoryFailure<PropertyOverviewDto>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this screen',
   );
 
   @override

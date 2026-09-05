@@ -11,6 +11,7 @@ import 'package:neximmo_app/features/platform_audit_jobs/application/platform_re
 import 'package:neximmo_app/features/platform_audit_jobs/domain/notification_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/navigation/app_navigation.dart';
 import 'package:neximmo_app/ui/shell/app_scaffold.dart';
@@ -132,10 +133,11 @@ void main() {
     expect(find.byType(AppScaffold), findsOneWidget);
     expect(find.byType(Sidebar), findsOneWidget);
     expect(find.text('Atlas House'), findsWidgets);
-    // The deep link lands in the Property Workspace (host + `Objekt`) after
+    // The deep link lands in the Property Workspace (host + `Übersicht`) after
     // the canonical getById, without any Navigator push.
     expect(find.byKey(const Key('property-workspace')), findsOneWidget);
-    expect(find.byKey(const Key('property-asset')), findsOneWidget);
+    expect(find.byKey(const Key('property-overview')), findsOneWidget);
+    expect(properties.overviewPropertyIds, <String>['property-a']);
     expect(navigator.canPop(), isFalse);
   });
 
@@ -191,12 +193,23 @@ void main() {
       reason: 'exactly one canonical getById before the workspace shows',
     );
     expect(find.byKey(const Key('property-workspace')), findsOneWidget);
-    expect(find.byKey(const Key('property-asset')), findsOneWidget);
+    // PROPERTY-OVERVIEW-DATA-01: the workspace lands on `Übersicht`, which
+    // reads the summary contract for exactly the opened property.
+    expect(find.byKey(const Key('property-overview')), findsOneWidget);
+    expect(properties.overviewPropertyIds, <String>['property-a']);
     expect(find.byKey(const Key('property-list')), findsNothing);
     expect(find.text('Atlas House'), findsWidgets);
     expect(find.byType(AppScaffold), findsOneWidget);
     expect(find.byType(Sidebar), findsOneWidget);
     expect(navigator.canPop(), isFalse, reason: 'state-first, no push');
+
+    // And `Objekt` is one domain switch away, on the same open property.
+    await tester.tap(find.byKey(const Key('property-workspace-nav-asset')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('property-asset')), findsOneWidget);
+    expect(properties.detailPropertyIds, <String>[
+      'property-a',
+    ], reason: 'a domain switch re-reads nothing');
     expect(tester.takeException(), isNull);
   });
 }
@@ -306,6 +319,37 @@ class _PropertyRepository implements PropertyRepository {
     version: 1,
   );
 
+  /// Property ids the overview read was asked for. `Übersicht` is the default
+  /// landing domain, so the connected host must reach exactly this contract.
+  final List<String> overviewPropertyIds = <String>[];
+
+  @override
+  Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
+    required String workspaceId,
+    required String propertyId,
+  }) async {
+    overviewPropertyIds.add(propertyId);
+    return PropertyRepositorySuccess<PropertyOverviewDto>(
+      PropertyOverviewDto(
+        propertyId: propertyId,
+        workspaceId: workspaceId,
+        name: property.name,
+        asOf: DateTime.utc(2026, 9, 6, 8),
+        leasing: const PropertyOverviewSection.available(<String, int>{
+          'units_total': 12,
+          'units_vacant': 2,
+        }),
+        maintenance: const PropertyOverviewSection.unavailable(
+          'maintenance.read',
+        ),
+        capex: const PropertyOverviewSection.unavailable('capex.read'),
+        tasks: const PropertyOverviewSection.unavailable('task.read'),
+        documents: const PropertyOverviewSection.unavailable('document.read'),
+        valuation: const PropertyOverviewSection.unavailable('valuation.read'),
+      ),
+    );
+  }
+
   @override
   Future<PropertyRepositoryResult<PropertyDto>> getById({
     required String workspaceId,
@@ -340,7 +384,6 @@ class _PropertyRepository implements PropertyRepository {
   }
 }
 
-
 // PERMISSION-CATALOG-02: the notification bell is part of the standard shell
 // for every member (the own feed needs no permission), so the runtime harness
 // binds an empty platform notification surface like the real wiring does.
@@ -354,9 +397,8 @@ class _EmptyNotificationPort implements NotificationPort {
   }
 
   @override
-  Future<PlatformRepositoryResult<NotificationFanOutReceipt>> fanOutNotification(
-    CreateNotificationCommand command,
-  ) async {
+  Future<PlatformRepositoryResult<NotificationFanOutReceipt>>
+  fanOutNotification(CreateNotificationCommand command) async {
     throw UnsupportedError('not part of the runtime harness');
   }
 

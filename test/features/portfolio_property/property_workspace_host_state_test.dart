@@ -16,20 +16,27 @@ void main() {
       ]);
     });
 
-    test('registers exactly the implemented domains: Objekt (A1), '
-        'Vermietung (PROPERTY_LEASING_V2), Betrieb (TASK-CENTER-01) and '
-        'Dokumente (DOCUMENTS-COMPLETE-01)', () {
-      expect(registeredPropertyWorkspaceDomains, hasLength(4));
-      final asset = registeredPropertyWorkspaceDomains.first;
+    test('registers exactly the implemented domains: Übersicht '
+        '(PROPERTY-OVERVIEW-DATA-01), Objekt (A1), Vermietung '
+        '(PROPERTY_LEASING_V2), Betrieb (TASK-CENTER-01) and Dokumente '
+        '(DOCUMENTS-COMPLETE-01)', () {
+      expect(registeredPropertyWorkspaceDomains, hasLength(5));
+      // Übersicht leads, because it is the default target once its summary
+      // contract exists (PROPERTY_WORKSPACE_V2.md §41).
+      final overview = registeredPropertyWorkspaceDomains.first;
+      expect(overview.domain, PropertyWorkspaceDomain.overview);
+      expect(overview.label, 'Übersicht');
+      expect(overview.readPermission, 'property.read');
+      final asset = registeredPropertyWorkspaceDomains[1];
       expect(asset.domain, PropertyWorkspaceDomain.asset);
       expect(asset.label, 'Objekt');
       expect(asset.readPermission, 'property.read');
       // Leasing: the four Welle-3 panels, all on `lease.read`.
-      final leasing = registeredPropertyWorkspaceDomains[1];
+      final leasing = registeredPropertyWorkspaceDomains[2];
       expect(leasing.domain, PropertyWorkspaceDomain.leasing);
       expect(leasing.label, 'Vermietung');
       expect(leasing.readPermission, 'lease.read');
-      final operations = registeredPropertyWorkspaceDomains[2];
+      final operations = registeredPropertyWorkspaceDomains[3];
       expect(operations.domain, PropertyWorkspaceDomain.operations);
       expect(operations.label, 'Betrieb');
       // Gated on the read permission of its one implemented child, the
@@ -44,7 +51,7 @@ void main() {
       // Blocked or not yet implemented domains are absent, not disabled.
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
-        isNot(contains(PropertyWorkspaceDomain.overview)),
+        isNot(contains(PropertyWorkspaceDomain.investment)),
       );
       expect(
         registeredPropertyWorkspaceDomains.map((d) => d.domain),
@@ -57,7 +64,10 @@ void main() {
         visiblePropertyWorkspaceDomains(<String>{
           'property.read',
         }).map((d) => d.domain),
-        <PropertyWorkspaceDomain>[PropertyWorkspaceDomain.asset],
+        <PropertyWorkspaceDomain>[
+          PropertyWorkspaceDomain.overview,
+          PropertyWorkspaceDomain.asset,
+        ],
       );
       expect(
         visiblePropertyWorkspaceDomains(<String>{
@@ -65,6 +75,7 @@ void main() {
           'lease.read',
         }).map((d) => d.domain),
         <PropertyWorkspaceDomain>[
+          PropertyWorkspaceDomain.overview,
           PropertyWorkspaceDomain.asset,
           PropertyWorkspaceDomain.leasing,
         ],
