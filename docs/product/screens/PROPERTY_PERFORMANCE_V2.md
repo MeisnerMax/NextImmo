@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/investment/performance`
 - Current implementation file(s): Legacy `budget_vs_actual_screen.dart`, `asset_workbook_screen.dart`, `covenants_screen.dart` und Analyseflächen nur als Job-Inventar; kein Cloud-Screen/Contract
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01`. Inkrement **FINANCE-01a** ist gelandet (2026-09-06): Kontenplan, Perioden mit Abschluss und property-scoped Ist-Buchungen stehen serverseitig. Offen bleiben die berechneten Größen (KPI-Definitionsversionierung, NOI/Cashflow, Budget/Forecast/Varianz, Debt, Covenants)
+- Technical readiness: PREREQUISITE REQUIRED — `P2-D08` / `FINANCE-01`. Gelandet (2026-09-06): **FINANCE-01a** (Kontenplan, Perioden mit Abschluss, property-scoped Ist-Buchungen) und **FINANCE-01b** (versionierte KPI-Definitionen und die daraus berechneten Zahlen). Offen bleiben Budget/Forecast mit Varianz, Debt und Covenants — sowie die Oberfläche für die berechneten Zahlen
 - Former status: BLOCKED (`P2-D08` / `FINANCE-01`; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Investment Host V2](PROPERTY_INVESTMENT_V2.md), Backend `P2-D08 finance_debt`, `FINANCE-01`, Overview-Summary danach
 - Related screens: [Property Overview V2](PROPERTY_OVERVIEW_V2.md), [Property Valuation V2](PROPERTY_VALUATION_V2.md), [Property Scenarios V2](PROPERTY_SCENARIOS_V2.md), [Property Reports V2](PROPERTY_REPORTS_V2.md)
@@ -82,7 +82,29 @@ Drei Regeln setzt die Oberfläche durch:
 Die drei anderen geplanten Unterbereiche (`Übersicht`, `Budget & Forecast`, `Debt & Covenants`) sind **nicht** registriert. Ein leerer Tab wäre ein Versprechen ohne Deckung.
 
 Client: `lib/features/finance_ledger/` (DTO, Port, Adapter, Controller, Panel). Tests: `test/features/finance_ledger/property_finance_test.dart` (23) plus die erweiterten Investment-Host-Tests.
+## 4c. Umgesetzter Stand — FINANCE-01b: versionierte KPI-Definitionen (2026-09-06)
 
+`FINANCE-01a` hat bewusst nichts berechnet, weil §7 verlangt, dass eine **Definitionsversion** mit jeder berechneten Zahl reist. Dieses Inkrement ist diese Versionierung — und damit die ersten Zahlen, die es überhaupt geben darf.
+
+**Eine Definition ist Daten, keine Programmlogik.** NexImmo kann nicht wissen, welche Konten *Ihres* Kontenplans Betriebsaufwand sind. Eine fest verdrahtete NOI wäre eine Vermutung über fremde Buchhaltung im Gewand einer Produktfunktion, und der erste Workspace mit abweichendem Kontenplan bekäme eine selbstbewusst falsche Zahl. Eine Definition ist deshalb ein Workspace-Datensatz: Schlüssel, Name und Zeilen. **Nichts wird geseedet.** Ein Workspace ohne Definitionen bekommt keine KPIs — die ehrliche Antwort auf „hier wurde noch nicht gesagt, was NOI bedeutet".
+
+**Eine Definition ist unveränderlich; eine Änderung ist eine neue Version.** Ließe sie sich in place bearbeiten, wäre eine im letzten Quartal berechnete Zahl heute nicht mehr reproduzierbar, und das Audit hielte eine Bedeutungsänderung fest, ohne die Zahl festzuhalten. Deshalb schreibt `create_finance_kpi_definition` immer eine neue Version, `activate_finance_kpi_definition` entscheidet, welche gilt, und **kein** Kommando ändert Zeilen. Ein Trigger lehnt UPDATE und DELETE auf Zeilen auch für einen Direktschreiber ab. Eine zurückgezogene Version bleibt lesbar — eine unter ihr veröffentlichte Zahl muss erklärbar bleiben.
+
+**Genau eine Version je Schlüssel ist aktiv**, erzwungen durch einen partiellen Unique-Index. Sonst hätte „die aktuelle Definition von NOI" keine Antwort.
+
+**Zeilen.** Jede Zeile benennt entweder **ein Konto** oder **eine ganze Kontoklasse** und was der Treffer bewirkt: `add`, `subtract` oder `exclude`. Beide Formen gibt es, weil beide der Realität entsprechen: „alle Erträge minus alle Betriebsaufwendungen" ist eine Klassenregel, die weiterträgt, wenn ein Konto neu angelegt wird; „außer Konto 5900" ist die Ausnahme, auf der jemand besteht. Trifft eine Kontozeile und eine Klassenzeile denselben Beleg, **gewinnt die Kontozeile** — die spezifische Regel ist die bewusst geschriebene —, und ein Beleg zählt genau einmal, nie einmal je passender Zeile. `exclude` existiert, weil die Ausnahme sonst nur als zweite Zeile mit entgegengesetztem Vorzeichen ausdrückbar wäre, die die erste zufällig aufhebt: Arithmetik, die funktioniert, die aber nach einem halben Jahr niemand mehr zurücklesen kann.
+
+**Berechtigung.** Definitionen verwalten ist `finance.close`, nicht `finance.manage`. Das überrascht, bis man vergleicht, was beide tun: `finance.manage` bucht eine Zahl; eine Definition zu ändern ändert, was **jede** veröffentlichte Zahl bedeutet, rückwirkend für jeden künftigen Read. Das gehört zum Akt des Für-endgültig-Erklärens — dem Periodenabschluss — und nicht zum täglichen Buchen.
+
+**Was die Berechnung ist und bewusst nicht ist.** Vorzeichenbehaftete Summe der Belege, die die Zeilen erfassen, je Objekt, je Währung, über einen Periodenbereich. Addition und Subtraktion bereits gebuchter Beträge — keine Kurse, keine Umlagen, keine Abgrenzungen, keine Annualisierung, kein Wert je Quadratmeter. Jede davon braucht eine eigene Entscheidung (Kursquelle mit Kursdatum, Umlageschlüssel, Konvention für Teilperioden), und eine davon innerhalb einer Summe zu erfinden ist der Weg, auf dem eine plausible Zahl unbelegbar wird.
+
+Folglich weiterhin **keine währungsübergreifende Zahl**: ein KPI wird je Währung berechnet, wie die Ist-Werte, aus denen er stammt.
+
+**Antwortform.** Jeder Wert trägt `kpi_key`, `definition_id`, `definition_version`, Name, Währung und die Zahl der Belege dahinter. Zusätzlich meldet die Antwort `active_definitions`: eine leere Werteliste bei null aktiven Definitionen heißt „es wurde nichts definiert", bei positiver Zahl „definiert, aber nichts gebucht, das passt". Das sind verschiedene Antworten, und eine Oberfläche muss die richtige geben können.
+
+pgTAP 039 (46 Assertions), Rollback 045 (13).
+
+**Noch offen:** Budget/Forecast mit serverseitiger Varianz, Debt und Covenants — und die Oberfläche, die diese Zahlen zeigt.
 ## 5. Layout and interaction model
 
 - Desktop: KPI-Reihe, danach Zeitreihen/Variance-Tabelle und Detaildrilldown; 3:2 wo Liste/Detail.
