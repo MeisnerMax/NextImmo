@@ -289,8 +289,11 @@ class _AccountRow extends StatelessWidget {
   }
 }
 
-/// Label left, amount right, wrapping to two lines on a phone rather than
-/// overflowing or shrinking the figure.
+/// Label left, amount right.
+///
+/// The amount is the non-flexible child, so `Row` gives it its full intrinsic
+/// width and the label takes what is left and wraps. That ordering is the
+/// point: on a narrow screen a long account name loses a line, never a digit.
 class _AmountRow extends StatelessWidget {
   const _AmountRow({
     required this.fieldKey,
@@ -319,34 +322,23 @@ class _AmountRow extends StatelessWidget {
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final children = <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(label, style: labelStyle),
-                    if (caption != null)
-                      Text(caption!, style: theme.textTheme.bodySmall),
-                  ],
-                ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: labelStyle),
+                  if (caption != null)
+                    Text(caption!, style: theme.textTheme.bodySmall),
+                ],
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                value,
-                style: labelStyle,
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ];
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            );
-          },
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(value, style: labelStyle, textAlign: TextAlign.right),
+          ],
         ),
       ),
     );
