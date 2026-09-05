@@ -725,6 +725,30 @@ class ReferenceSliceController extends StateNotifier<ReferenceSliceState> {
     await _loadFirstPropertyPage(access, generation);
   }
 
+  /// Reads one keyset page for a browse surface (the property switcher).
+  ///
+  /// Deliberately side-effect free: it changes no controller state, so the
+  /// list the user came from keeps its pages, cursor, filter and selection
+  /// while another page is browsed. Archived properties stay out — a switcher
+  /// offers working contexts, and the archive view is the list's own filter.
+  Future<PropertyRepositoryResult<PropertyPageResult>> loadPropertyPage({
+    String? cursor,
+  }) async {
+    final access = state.selectedWorkspace;
+    if (access == null || !access.allows(propertyReadPermission)) {
+      return const PropertyRepositoryFailure<PropertyPageResult>(
+        kind: PropertyRepositoryFailureKind.forbidden,
+        message: 'Property access is not permitted.',
+      );
+    }
+    return _propertyRepository.list(
+      PropertyListQuery(
+        workspaceId: access.workspace.id,
+        page: PropertyPageRequest(cursor: cursor),
+      ),
+    );
+  }
+
   /// Switches the single contract-backed list filter. A change restarts the
   /// keyset from the first page — a cursor from the other filter view is not
   /// a valid position in this one.
