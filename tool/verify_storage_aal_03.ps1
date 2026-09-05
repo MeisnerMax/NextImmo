@@ -74,3 +74,16 @@ flutter test --no-pub `
 if ($LASTEXITCODE -ne 0) {
   throw 'SECURITY-STORAGE-AAL-03 storage integration test failed.'
 }
+
+# The property-media bucket is a second private bucket with stricter policies
+# (entity-scoped read and write, no update policy, no delete policy). It gets
+# its own run rather than sharing the file above: the two buckets answer to
+# different permissions, and one file asserting both would make a failure
+# ambiguous about which boundary moved.
+flutter test --no-pub `
+  test/integration/supabase_property_media_storage_integration_test.dart `
+  "--dart-define=SUPABASE_URL=$apiUrl" `
+  "--dart-define=SUPABASE_PUBLISHABLE_KEY=$publishableKey"
+if ($LASTEXITCODE -ne 0) {
+  throw 'PROPERTY-MEDIA-DATA-01 storage integration test failed.'
+}
