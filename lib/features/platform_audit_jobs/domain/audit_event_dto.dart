@@ -44,8 +44,14 @@ class AuditEventDto {
   final String entityType;
   final String? entityId;
 
-  /// How a child record reaches its property. A unit or lease change carries
-  /// the property here, which is what puts it in the property's trail.
+  /// The audit baseline's parent reference, and the trail's scope predicate.
+  ///
+  /// It is stamped by very few writers: today only property media and the
+  /// notification emitter set it, which is why the property trail covers the
+  /// property record and its pictures and no child domain. The readable
+  /// chronicle (PROPERTY-ACTIVITY-01) does not rely on it — it resolves a
+  /// record's property through the source aggregate instead, and so reaches
+  /// history that was written before any parent was recorded.
   final String? parentEntityType;
   final String? parentEntityId;
 

@@ -73,6 +73,8 @@ select functions_are(
     'platform_command_gate',
     'prepare_audit_event',
     'properties_apply_delete_marker',
+    'property_activity_rows',
+    'property_activity_taxonomy',
     'property_media_command_gate',
     'property_media_path_property',
     'property_media_path_workspace',

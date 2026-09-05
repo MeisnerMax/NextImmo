@@ -130,9 +130,13 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     readPermission: Permission.valuationRead,
   ),
   PropertyWorkspaceDomainRegistration(
+    // Since PROPERTY-ACTIVITY-01 the chronicle needs only `property.read`,
+    // so the domain opens for anyone who may read the property; `Protokoll`
+    // still hides itself behind `audit.read` inside it.
     domain: PropertyWorkspaceDomain.activity,
     label: 'Aktivität',
-    readPermission: Permission.auditRead,
+    readPermission: Permission.propertyRead,
+    alternativeReadPermissions: <String>[Permission.auditRead],
   ),
 ];
 
@@ -219,14 +223,20 @@ List<PropertyInvestmentSubArea> visiblePropertyInvestmentSubAreas(
 /// timeline waits for `PROPERTY-ACTIVITY-01` and property reports for
 /// `P2-D09`; a realtime invalidation stream is not a history and does not
 /// substitute for either.
-enum PropertyActivitySubArea { audit }
+enum PropertyActivitySubArea { activity, audit }
 
 extension PropertyActivitySubAreaMeta on PropertyActivitySubArea {
   String get label => switch (this) {
+    PropertyActivitySubArea.activity => 'Aktivität',
     PropertyActivitySubArea.audit => 'Protokoll',
   };
 
+  /// The two children are gated differently on purpose. The chronicle needs
+  /// only `property.read`, because every row it shows was already filtered
+  /// against the domain permission it belongs to. The forensic trail needs
+  /// `audit.read` on top, because it reports which fields changed.
   String get readPermission => switch (this) {
+    PropertyActivitySubArea.activity => Permission.propertyRead,
     PropertyActivitySubArea.audit => Permission.auditRead,
   };
 }

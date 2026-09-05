@@ -5,13 +5,16 @@ import 'package:neximmo_app/features/portfolio_property/presentation/property_wo
 
 import 'property_workspace_fixtures.dart';
 
-/// `Aktivität` as a workspace domain (AUDIT-01,
+/// `Aktivität` as a workspace domain (AUDIT-01, PROPERTY-ACTIVITY-01,
 /// `PROPERTY_ACTIVITY_REPORTS_V2.md`).
 ///
-/// The domain exists to answer "what happened to this property". Its first and
-/// only child today is the audit trail, so the rule under test is the same one
-/// every other domain follows: it appears when something inside it can be
-/// opened, and stays absent otherwise — never as an empty frame.
+/// The domain answers "what happened to this property" through two children
+/// with deliberately different gates. `Aktivität` is the readable chronicle
+/// and needs only `property.read`, because every row it shows was already
+/// filtered against the domain permission it belongs to. `Protokoll` is the
+/// forensic trail and needs `audit.read` on top, because it reports which
+/// fields changed. The rule under test is the one every domain follows: it
+/// appears when something inside it can be opened, never as an empty frame.
 Future<void> _pump(
   WidgetTester tester, {
   required Set<String> permissions,
@@ -48,7 +51,7 @@ const Set<String> _withAudit = <String>{
 
 void main() {
   group('Aktivität registration', () {
-    test('is gated by the read capability of its one implemented child', () {
+    test('opens for either of its two children', () {
       expect(
         visiblePropertyWorkspaceDomains(
           _withAudit,
@@ -59,24 +62,39 @@ void main() {
         visiblePropertyWorkspaceDomains(const <String>{
           'property.read',
         }).map((registration) => registration.domain),
+        contains(PropertyWorkspaceDomain.activity),
+        reason: 'the chronicle alone is enough to make the domain worth '
+            'opening',
+      );
+      expect(
+        visiblePropertyWorkspaceDomains(
+          const <String>{},
+        ).map((registration) => registration.domain),
         isNot(contains(PropertyWorkspaceDomain.activity)),
+        reason: 'fail closed on an empty permission set',
       );
     });
 
-    test('Protokoll is the only sub-area today', () {
+    test('each child carries its own gate', () {
       expect(visiblePropertyActivitySubAreas(_withAudit), <
         PropertyActivitySubArea
-      >[PropertyActivitySubArea.audit]);
+      >[PropertyActivitySubArea.activity, PropertyActivitySubArea.audit]);
       expect(
         visiblePropertyActivitySubAreas(const <String>{'property.read'}),
-        isEmpty,
-        reason: 'the cross-domain timeline waits for PROPERTY-ACTIVITY-01',
+        <PropertyActivitySubArea>[PropertyActivitySubArea.activity],
+        reason: 'the chronicle needs no audit rights',
+      );
+      expect(
+        visiblePropertyActivitySubAreas(const <String>{'audit.read'}),
+        <PropertyActivitySubArea>[PropertyActivitySubArea.audit],
+        reason: 'and the trail needs no property.read of its own here — the '
+            'server still requires it',
       );
     });
   });
 
   group('Aktivität domain', () {
-    testWidgets('mounts the injected audit surface under its own chip', (
+    testWidgets('mounts both children, each under its own chip', (
       tester,
     ) async {
       final built = <PropertyActivitySubArea>[];
@@ -98,31 +116,52 @@ void main() {
 
       expect(find.byKey(const Key('property-activity')), findsOneWidget);
       expect(
+        find.byKey(const Key('property-activity-sub-activity')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const Key('property-activity-sub-audit')),
         findsOneWidget,
       );
       expect(find.byKey(const Key('fake-audit-surface')), findsOneWidget);
-      expect(built, <PropertyActivitySubArea>[PropertyActivitySubArea.audit]);
+      expect(
+        built,
+        <PropertyActivitySubArea>[PropertyActivitySubArea.activity],
+        reason: 'the chronicle is the landing child, not the trail',
+      );
       expect(propertyIds, contains('property-a'));
       expect(find.byKey(const Key('property-workspace-edit')), findsNothing);
     });
 
-    testWidgets('without audit.read there is no Aktivität entry', (
+    testWidgets('without audit.read the chronicle is still offered', (
       tester,
     ) async {
+      final built = <PropertyActivitySubArea>[];
       await _pump(
         tester,
         permissions: fullPermissions,
-        activityBuilder:
-            (context, propertyId, subArea) =>
-                const SizedBox(key: Key('fake-audit-surface')),
+        activityBuilder: (context, propertyId, subArea) {
+          built.add(subArea);
+          return const SizedBox(key: Key('fake-audit-surface'));
+        },
       );
 
       expect(
         find.byKey(const Key('property-workspace-nav-activity')),
-        findsNothing,
+        findsOneWidget,
       );
-      expect(find.text('Aktivität'), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('property-workspace-nav-activity')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('property-activity-sub-audit')),
+        findsNothing,
+        reason: 'the trail hides itself; the domain does not disappear with it',
+      );
+      expect(built, <PropertyActivitySubArea>[PropertyActivitySubArea.activity]);
     });
 
     testWidgets('a host that cannot build it does not offer it', (

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../application/audit_read_port.dart';
 import '../application/platform_repository.dart';
 import '../domain/audit_event_dto.dart';
+import '../domain/property_activity_dto.dart';
 import '../domain/import_job_dto.dart';
 import '../domain/notification_dto.dart';
 import '../domain/platform_entity_type.dart';
@@ -337,6 +338,75 @@ AuditEventDto _parseAuditEvent(Map<String, dynamic> row) {
         for (final field in row['changed_fields'] as List)
           if (field is String) field,
     ],
+  );
+}
+
+PropertyActivityPage _parseActivityPage(Map<String, dynamic> payload) {
+  final rawEvents = payload['events'];
+  final rawDomains = payload['visible_domains'];
+  final visible = <PropertyActivityDomain>{};
+  final unknown = <String>[];
+  if (rawDomains is List) {
+    for (final entry in rawDomains) {
+      if (entry is! String) {
+        continue;
+      }
+      final domain = propertyActivityDomainFromWire(entry);
+      if (domain == null) {
+        // A newer server knows a domain this build cannot label. Reporting the
+        // raw key keeps the coverage line honest; dropping it would understate
+        // what the timeline actually covers.
+        unknown.add(entry);
+      } else {
+        visible.add(domain);
+      }
+    }
+  }
+  return PropertyActivityPage(
+    events: <PropertyActivityEventDto>[
+      if (rawEvents is List)
+        for (final item in rawEvents)
+          if (item is Map) _parseActivityEvent(_asMap(item)),
+    ],
+    asOf: _requiredDateTime(payload, 'as_of'),
+    visibleDomains: visible,
+    unknownDomainKeys: unknown,
+    actorNamesVisible: payload['actor_names_visible'] == true,
+    nextCursor: _parseActivityCursor(payload['next_cursor']),
+  );
+}
+
+PropertyActivityEventDto _parseActivityEvent(Map<String, dynamic> row) {
+  final domainKey = _optionalString(row, 'domain');
+  return PropertyActivityEventDto(
+    id: _requiredString(row, 'id'),
+    occurredAt: _requiredDateTime(row, 'occurred_at'),
+    eventKey: _requiredString(row, 'event_key'),
+    entityType: _requiredString(row, 'entity_type'),
+    action: _requiredString(row, 'action'),
+    domain: domainKey == null ? null : propertyActivityDomainFromWire(domainKey),
+    domainKey: domainKey,
+    entityId: _optionalString(row, 'entity_id'),
+    // An unknown actor type reads as `system`, matching the audit parser: a
+    // change with an unrecognised author is still not a person's.
+    actorType: switch (row['actor_type']) {
+      'user' => AuditActorType.user,
+      'service' => AuditActorType.service,
+      _ => AuditActorType.system,
+    },
+    actorIsSelf: row['actor_is_self'] == true,
+    actorUserId: _optionalString(row, 'actor_user_id'),
+  );
+}
+
+PropertyActivityCursor? _parseActivityCursor(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  final row = _asMap(value);
+  return PropertyActivityCursor(
+    occurredAt: _requiredDateTime(row, 'occurred_at'),
+    id: _requiredString(row, 'id'),
   );
 }
 
@@ -987,6 +1057,51 @@ class SupabasePlatformRepositoryAdapter
       return const PlatformRepositoryFailure<AuditEventPage>(
         kind: PlatformRepositoryFailureKind.infrastructureFailure,
         message: 'The audit trail could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PlatformRepositoryResult<PropertyActivityPage>> propertyActivity(
+    PropertyActivityQuery query,
+  ) async {
+    try {
+      final response = await _gateway
+          .callRpc('property_activity', <String, Object?>{
+            'p_workspace_id': query.workspaceId,
+            'p_property_id': query.propertyId,
+            // Null, not an empty array: an empty list would ask the server for
+            // "no domains" and return an empty timeline for every caller.
+            'p_domains': query.domains.isEmpty
+                ? null
+                : query.domains
+                      .map(propertyActivityDomainToWire)
+                      .toList(growable: false),
+            'p_from': query.from?.toUtc().toIso8601String(),
+            'p_to': query.to?.toUtc().toIso8601String(),
+            'p_after_occurred_at':
+                query.cursor?.occurredAt.toUtc().toIso8601String(),
+            'p_after_id': query.cursor?.id,
+            'p_limit': query.limit,
+          });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return PlatformRepositorySuccess<PropertyActivityPage>(
+          _parseActivityPage(payload),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<PropertyActivityPage>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const PlatformRepositoryFailure<PropertyActivityPage>(
+        kind: PlatformRepositoryFailureKind.infrastructureFailure,
+        message: 'Die Aktivität konnte nicht geladen werden.',
       );
     }
   }

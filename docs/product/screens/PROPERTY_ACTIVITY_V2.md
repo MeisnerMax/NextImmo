@@ -7,7 +7,7 @@
 - Route: zukünftiges Ziel `/properties/:propertyId/activity/activity`
 - Current implementation file(s): kein Cloud-Screen/Repository; Legacy Overview/Audit nur als Job-Inventar; Realtime-Invalidation-Streams sind keine Historie
 - Planning status: COMMITTED (FULL-V2-SCOPE-01, 2026-09-04)
-- Technical readiness: PREREQUISITE REQUIRED — `PROPERTY-ACTIVITY-01` (Activity-Read-Model, Taxonomie, Redaction)
+- Technical readiness: READY — `PROPERTY-ACTIVITY-01` implementiert (2026-09-06): `property_activity`-RPC mit Taxonomie, Per-Row-Domainberechtigung und Coverage-Aussage; im Host als `Aktivität → Aktivität` registriert. PREREQUISITE REQUIRED bleibt für Volltextsuche, Actor-Anzeigenamen und Retention
 - Former status: BLOCKED (Activity-Read-/Security-Contract; Implementation-Readiness-Review 2026-08-28)
 - Dependencies: [Property Activity & Reports Host V2](PROPERTY_ACTIVITY_REPORTS_V2.md), genehmigter Activity-Read-Contract, `PROPERTY-OVERVIEW-DATA-01` für Recent-Activity-Auszug
 - Related screens: [Property Audit V2](PROPERTY_AUDIT_V2.md), [Property Operations V2](PROPERTY_OPERATIONS_V2.md)
@@ -98,9 +98,37 @@ Keine Fachformulare; Filter validieren Zeitraum serverkompatibel.
 
 Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie sind Teil des verbindlichen V2-Zielbildes und werden gebaut — prerequisite-first, unmittelbar gefolgt von der abhängigen Oberfläche und Staging-E2E. Eine fehlende technische Voraussetzung nimmt die Produktfähigkeit **nicht** mehr aus dem Scope; sie bestimmt nur die Reihenfolge. Der Produkt-Scope (COMMITTED) und die technische Bereitschaft (READY / PREREQUISITE REQUIRED) werden getrennt geführt.
 
-- vollständiges permission-/entity-gefiltertes Activity Read Model/Repository/DTO, vorgeschlagen `PROPERTY-ACTIVITY-01`.
+- vollständiges permission-/entity-gefiltertes Activity Read Model/Repository/DTO: **GELIEFERT** als `PROPERTY-ACTIVITY-01` (2026-09-06).
 - Recent Activity projection für Overview.
 - Schema/RLS/Permission und Retention explizit separat entscheiden.
+
+## 14a. Umgesetzter Stand (2026-09-06)
+
+`property_activity(workspace, property, domains, from, to, cursor, limit)` liefert eine keyset-paginierte Chronik, neueste zuerst.
+
+**Wie ein Kindrecord sein Objekt erreicht.** `audit_events` führt `parent_entity_type`/`parent_entity_id`, aber von den zwölf Migrationen, die Auditzeilen schreiben, setzen nur Objektbilder und der Notification-Emitter einen Parent. Jede Änderung an Fläche, Vertrag, Ticket, CapEx-Projekt, Dokument oder Bewertungsfall wird ohne Objektbezug auditiert — genau deshalb zeigt das Protokoll eines Objekts heute nur Objekt- und Bildereignisse. `private.property_activity_rows` löst das Objekt daher beim **Lesen** über das Quellaggregat auf (`units.property_id`, `leases.property_id`, `document_links` für Dokumente und so weiter). Das erreicht auch bereits geschriebene Historie und ändert keinen Schreibpfad.
+
+**Was eine Zeile sagen darf.** Keine Werte, keine geänderten Feldnamen, kein `reason`. Feldnamen sind Sache des Protokolls und seines `audit.read`-Gates; `reason` ist Freitext und nach §7 ausgeschlossen.
+
+**Sichtbarkeit je Zeile.** Jede Zeile wird gegen die Domainberechtigung ihres Entity-Typs gefiltert — serverseitig, nicht im Client. Ein Entity-Typ, den die Taxonomie nicht kennt, wird verworfen (fail closed) statt geraten.
+
+| Entity-Typ | Bereich | Berechtigung |
+|---|---|---|
+| `property`, `property_media` | Objekt | `property.read` |
+| `unit`, `lease`, `leasing_case`, `rent_roll_snapshot` | Vermietung | `lease.read` |
+| `maintenance_ticket` | Wartung | `maintenance.read` |
+| `capex_project` | CapEx | `capex.read` |
+| `task` | Aufgaben | `task.read` |
+| `document`, `document_version`, `document_link`, `required_document` | Dokumente | `document.read` |
+| `valuation_case` | Bewertung | `valuation.read` |
+
+**Coverage statt Zählung.** Die Antwort nennt die Bereiche, die der Aufrufer sehen darf. Sie nennt **nicht**, wie viele Ereignisse zurückgehalten wurden: eine Zahl über fremde Datensätze ist selbst eine Offenlegung.
+
+**Actor.** Immer der Actor-Typ und ob es der Leser selbst war. Die Actor-User-ID reist nur für Aufrufer mit `audit.read`, die sie ohnehin über das Protokoll sähen. Anzeigenamen bleiben offen.
+
+**Bewusst nicht getan:** `property_audit_events` wurde **nicht** erweitert. Ob `audit.read` allein die geänderten Felder eines Vertrags offenlegen darf, ist die Entscheidung, die §8 dem Security-Review vorbehält; sie hier still zu treffen wäre ein Nebeneffekt statt einer Entscheidung.
+
+pgTAP 037 (35 Assertions), Rollback 043 (12).
 
 ## 15. Accessibility and usability
 
