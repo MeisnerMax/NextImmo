@@ -189,7 +189,8 @@ Diese Voraussetzungen sind seit FULL-V2-SCOPE-01, 2026-09-04 **COMMITTED**: Sie 
   | Edit | `update_maintenance_ticket`, `update_capex_project` | ja, nur geänderte Felder (die RPC coalesct je Feld) |
   | Status/Freigabe | eigene Transition-RPCs | bleibt bei den Transitionen; **kein** zweiter, unauditierter Pfad im Edit-Dialog |
   | Delete | existiert nicht | **nicht gebaut** — ein UI-only-Delete wäre eine Fähigkeit, die der Server nicht hat |
-  | Dokument-/Task-Verknüpfungen | `document_links` und `PlatformEntityRef` kennen `maintenance_ticket`/`capex_project` | **offen**: eigenes Paket `PROPERTY-OPERATIONS-LINKS-01`; Task-Read ist vorhanden, der Dokument-Read je Entity wartet auf `DOCUMENTS-QUERY-DATA-01` |
+  | Dokument-/Task-Verknüpfungen (lesen) | `DocumentListQuery` filtert nach Entity, `TaskListQuery` nimmt eine `PlatformEntityRef` | **erledigt 2026-09-06** (`PROPERTY-OPERATIONS-LINKS-01`): Ticket- und Projektdetail zeigen die verknüpften Dokumente und die Aufgaben zu genau diesem Datensatz. Zwei getrennt berechtigte, getrennt geladene Zonen — eine fehlende Berechtigung kostet nur ihre eigene Zone und nennt sich beim Namen |
+  | Dokument-/Task-Verknüpfungen (schreiben) | Link- und Task-Create-Contracts existieren | **offen**: Verknüpfen und „Aufgabe zu diesem Ticket anlegen" brauchen einen Auswahldialog; bis dahin kein Button, der nichts kann |
   | Benachrichtigungen | der Emitter kennt heute keine Maintenance-/CapEx-Ereignisse | **offen**: gehört in ein Emitter-Inkrement, nicht in die UI |
 - serverseitige Overview-Aggregate/Priorisierung für Tickets, CapEx und Tasks: `PROPERTY-OVERVIEW-DATA-01`.
 - Ein späterer gemeinsamer Property-Work-Read für direkte Property- sowie Ticket-/CapEx-Tasks wäre ein separates Query-Contract-Inkrement; der aktuelle Screen behauptet diese Zusammenführung nicht.
