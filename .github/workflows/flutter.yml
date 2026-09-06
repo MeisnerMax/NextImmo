@@ -109,6 +109,14 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      # First, because it is hermetic: the gate guard replaces `npx` with a
+      # shim and needs no stack, no credentials and no reset. A regression in
+      # the staging deployment gate therefore fails in seconds instead of after
+      # a full database boot. It earned its place on 2026-09-06, when that gate
+      # stopped a deployment and printed nothing at all.
+      - name: Test the staging migration history gate
+        shell: bash
+        run: ./tool/test_staging_history_gate_guard.sh
       # package.json is the single source of truth for the CLI version. It used
       # to be repeated here as a literal, which let the two drift silently.
       - name: Read the pinned Supabase CLI version

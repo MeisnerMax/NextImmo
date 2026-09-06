@@ -98,8 +98,12 @@ reset, so they are destructive to local dev data and mirror what CI runs — see
 ./tool/verify_p2_d01_integration.ps1 … ./tool/verify_p2_d06_integration.ps1, ./tool/verify_p2_d05a_integration.ps1
 ./tool/verify_storage_aal_03.ps1
 ./tool/verify_p2_x01_property_cutover.ps1 / ./tool/verify_p2_x01_domain_cutover.ps1
+./tool/test_staging_history_gate_guard.sh   # bash, hermetic: no stack, no reset
 ```
-All of these are local-only; none runs against staging (21 scripts in the `database` job today).
+All of these are local-only; none runs against staging (22 scripts in the `database` job today).
+The last one is the odd member of the set: it is bash rather than PowerShell and needs no
+Supabase stack at all, because it drives `tool/staging_migration_history_gate.sh` against an
+`npx` shim. It therefore runs *first* in the job, before the reset.
 
 CI (`.github/workflows/flutter.yml`) has four jobs: `verify` (pub get, analyze, test, build web),
 `marketing` (marketing site build), `supply_chain` (gitleaks secret scan, `npm audit`) and
