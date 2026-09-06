@@ -29,6 +29,10 @@ name: Supabase Staging Synthetic Data
 #
 #   inventory  reads and reports only. Never writes. Safe to run at any time,
 #              and the way to see what a seed would be walking into.
+#   prune-roles removes a role the documented model does not have and nobody
+#              holds. Refuses on anything else. Added because the first
+#              inventory found `property_manager` on staging, copied from a
+#              test fixture during manual provisioning.
 #   seed       applies supabase/fixtures/demo_properties.sql — the same file
 #              the local runner uses, so what is tested locally is what runs
 #              here. It is additive and it no-ops on a second run.
@@ -63,6 +67,7 @@ on:
         options:
           - inventory
           - seed
+          - prune-roles
 
 permissions:
   contents: read
@@ -218,8 +223,17 @@ jobs:
           # else, and in particular never the golden property.
           npx supabase db query --linked -f supabase/fixtures/demo_properties.sql
 
+      - name: Prune roles outside the documented model
+        if: ${{ inputs.mode == 'prune-roles' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # Removes only a role that is not one of the five and that nobody
+          # holds. Everything else it names and leaves alone.
+          npx supabase db query --linked -f supabase/fixtures/staging_prune_roles.sql
+
       - name: Inventory — after (read-only)
-        if: ${{ inputs.mode == 'seed' }}
+        if: ${{ inputs.mode != 'inventory' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
