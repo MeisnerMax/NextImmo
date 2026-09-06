@@ -39,9 +39,31 @@ Sämtliche As-of-Berechnungen der Leasing-Schicht filtern auf `status = 'active'
 Status **zum Stichtag** (`20260730120000:761-765`). Ein im Juli beendeter Vertrag trägt zu einer
 Abrechnung für März **null** bei.
 
-Das ist der stillere, aber gefährlichere Blocker: eine Nebenkostenabrechnung ist per Definition
-eine Rückschau auf einen abgeschlossenen Zeitraum. Ohne Stichtagsauflösung liefert jede
-Abrechnung für eine vergangene Periode falsche Zahlen, ohne dass irgendetwas fehlschlägt.
+**Einordnung, damit die Dringlichkeit stimmt:** heute rechnet dadurch nichts falsch. Der einzige
+Aufrufer, `OperationsOverviewController.asOfDate`, sendet immer **heute**
+(`operations_overview_controller.dart:159-162`), und für den heutigen Stichtag ist die Filterung
+auf `status = 'active'` korrekt. B-2 ist also ein **latenter** Defekt: er schlägt in dem Moment
+zu, in dem die erste Abrechnung eine vergangene Periode liest — und dann still, weil die Datums-
+filter greifen und nur der Statusfilter die Zeilen entfernt.
+
+Der Vorteil daran: eine korrekte Stichtagsauflösung lässt sich heute **ohne Regressionsrisiko**
+einziehen, weil keine Live-Fläche einen vergangenen Stichtag anfragt. Deshalb steht V-1 vorn —
+nicht als Feuerwehreinsatz, sondern weil es später nicht mehr gefahrlos geht.
+
+Zwei Fragen sind dabei **auseinanderzuhalten**, und die zweite wird in V-1 ausdrücklich nicht
+mitentschieden:
+
+1. *Zählt ein Vertrag, der heute nicht mehr `active` ist, für einen vergangenen Stichtag?*
+   Ja — wenn er `active` erreicht hatte und sein Wirkungszeitraum den Stichtag deckt. `end_date`
+   wird beim Übergang nach `ended` **nicht** angepasst; es gibt stattdessen `move_out_date` und
+   `ended_at`. Welches Datum die Mietpflicht beendet, ist damit eine eigene, konservativ zu
+   dokumentierende Festlegung.
+2. *Zählt ein `active`-Vertrag jenseits seines `end_date`?* Diese Frage ist heute **von zwei
+   Flächen unterschiedlich beantwortet**: `property_leasing_summary` weist sie als `expired_open`
+   aus und zählt sie, `private.rent_roll_unit_rows` schliesst sie über
+   `end_date >= p_as_of_date` aus. Diese Divergenz besteht seit P2-D05b und ist eine
+   Produktentscheidung (eine deutsche Miete läuft nach Fristablauf oft kraft Gesetzes weiter) —
+   sie gehört nicht still in ein Stichtagspaket.
 
 ### B-3 · Das KPI-Modell kann NOI, aber prinzipiell keine Quotienten
 
