@@ -367,12 +367,20 @@ stehen:
    den `end_date`-Ausschluss zu entfernen brach **keine einzige** Assertion der Suite — er war
    nie abgedeckt. Genau diese Stille hat die Divergenz eine Release lang leben lassen. pgTAP 041
    (24) und Rollback 047 (12) decken jetzt beide Richtungen ab.
-2. `property_leasing_summary` behält sein Verhalten, bekommt aber den **fehlenden
-   `start_date`-Filter**: heute zählt dort auch ein Vertrag mit, der noch gar nicht begonnen hat.
-   Das ist ein Defekt, keine Entscheidung, und war bis zu dieser Analyse unbemerkt.
-3. `operations_signals.lease_expiry` verliert den Vertrag heute genau an dem Tag, an dem er
-   handlungsbedürftig wird (`end_date >= current_date`). Das ist die Fristenleiter, die den Fall
-   am dringendsten zeigen müsste.
+2. ~~`property_leasing_summary` bekommt den fehlenden `start_date`-Filter.~~ **Erledigt mit
+   `LEASING-ASOF-01b`** (Migration 51). Der Rent Roll fragt jetzt dieselbe Funktion; die
+   `lease_roll`-Zähler bleiben bewusst unverändert, weil sie **Verträge** zählen und nicht Geld:
+   ein unterschriebener Vertrag, der nächsten Monat beginnt, ist ein echter aktiver Vertrag —
+   seine Miete als diesen Monats Einnahme auszuweisen ist er nicht.
+3. ~~`operations_signals.lease_expiry` verliert den Vertrag am Tag der Handlungsbedürftigkeit.~~
+   **Erledigt mit `LEASING-ASOF-01b`** — über einen **eigenen Signaltyp** `lease_expired_open`
+   statt eines negativen `lease_expiry`. Die Leiter bedeutet weiter „eine Entscheidung steht an",
+   der neue Typ bedeutet „eine Entscheidung wurde nicht getroffen"; beides in einen Schlüssel zu
+   pressen ergäbe „läuft in −400 Tagen ab" und entwertete die 30/90/180-Schweregrade. Unbegrenzt
+   und `critical`, wie `property_overview` denselben Fall schon behandelt — und quittierbar, mit
+   eigenem Schlüssel, damit „läuft bald ab" wegzuklicken nicht auch „ist abgelaufen" wegklickt.
+   Was die Meldung ausdrücklich **nicht** behauptet: was das Gesetz daraus gemacht hat. Ob ein
+   Mietverhältnis kraft Gesetzes weiterläuft, steht nicht in dieser Datenbank.
 4. **Neu aufgefallen bei V-1:** `rent_roll_snapshots` trägt **keinen Regelmarker**. Ein Snapshot
    von vor Migration 50 und einer von danach rechnen nach unterschiedlichen Regeln, und nichts
    auf der Zeile sagt das — bei einem Objekt mit einem über `end_date` hinaus laufenden Vertrag
