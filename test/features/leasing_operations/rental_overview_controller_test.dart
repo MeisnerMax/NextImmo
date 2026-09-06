@@ -215,6 +215,9 @@ PropertySummaryDto _property(String id, String name, String city) =>
   city: city,
   status: PropertyStatus.active,
   version: 1,
+  propertyType: 'residential',
+  country: 'de',
+  units: 4,
 );
 
 UnitSummaryDto _unit(String id, String propertyId, UnitStatus status) =>

@@ -20,6 +20,7 @@ class NxCard extends StatefulWidget {
     this.variant = NxCardVariant.standard,
     this.onTap,
     this.padding,
+    this.autofocus = false,
   });
 
   final Widget child;
@@ -27,12 +28,27 @@ class NxCard extends StatefulWidget {
   final VoidCallback? onTap;
   final EdgeInsetsGeometry? padding;
 
+  /// Takes focus on mount. Used to restore the keyboard position after a
+  /// round trip into a detail view — the same job the table row's icon button
+  /// does with its own `autofocus`. Only meaningful on an interactive card.
+  final bool autofocus;
+
   @override
   State<NxCard> createState() => _NxCardState();
 }
 
 class _NxCardState extends State<NxCard> {
   bool _hovered = false;
+
+  /// Keyboard focus gets the same treatment as hover.
+  ///
+  /// The [InkWell] below was always focusable — it builds a
+  /// `FocusableActionDetector` — but `hoverColor` is transparent and no
+  /// `focusColor` was set, so a card reached by Tab looked exactly like one
+  /// that was not. The design system asks for a visible focus state; this is
+  /// where it was missing. Reusing the hover stroke rather than inventing a
+  /// second signal keeps one affordance instead of two.
+  bool _focused = false;
 
   bool get _interactive =>
       widget.variant == NxCardVariant.interactive && widget.onTap != null;
@@ -50,7 +66,7 @@ class _NxCardState extends State<NxCard> {
               : (compact ? 12 : AppSpacing.cardPadding),
         );
     final borderRadius = BorderRadius.circular(AppRadiusTokens.lg);
-    final highlighted = _interactive && _hovered;
+    final highlighted = _interactive && (_hovered || _focused);
 
     final decoration = BoxDecoration(
       // Fill and top-edge highlight in one gradient: BoxDecoration takes
@@ -98,6 +114,8 @@ class _NxCardState extends State<NxCard> {
             onTap: widget.onTap,
             borderRadius: borderRadius,
             hoverColor: Colors.transparent,
+            autofocus: widget.autofocus,
+            onFocusChange: (focused) => setState(() => _focused = focused),
             child: Padding(padding: resolvedPadding, child: widget.child),
           ),
         ),

@@ -157,6 +157,9 @@ void main() {
           'includeArchived': false,
           'scrollOffset': 12.0,
           'focusedPropertyId': 'property-a',
+          // The view mode is restorable state, not a widget-local flag: coming
+          // back from a property must land in the view it was left in.
+          'viewMode': 'cards',
         },
         'subAreas': <String, String>{},
       });

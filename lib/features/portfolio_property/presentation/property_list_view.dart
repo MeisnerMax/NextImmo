@@ -6,11 +6,14 @@ import '../../../ui/components/nx_empty_state.dart';
 import '../../../ui/components/nx_list_skeleton.dart';
 import '../../../ui/components/nx_live_updates_notice.dart';
 import '../../../ui/components/nx_notice.dart';
+import '../../../ui/components/nx_responsive_grid.dart';
 import '../../../ui/components/nx_status_badge.dart';
 import '../../../ui/templates/list_filter_template.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
+import '../application/property_workspace_host_state.dart';
 import '../domain/property_dto.dart';
+import 'property_card.dart';
 import 'property_presentation.dart';
 import 'property_search_field.dart';
 
@@ -40,7 +43,17 @@ class PropertyListView extends StatefulWidget {
     this.restoreFocusPropertyId,
     this.openingPropertyId,
     this.onRetryOpen,
+    this.viewMode,
+    this.onSetViewMode,
   });
+
+  /// Cards or table. Null lets the view keep the choice itself, which is what
+  /// a test or a standalone embedding wants; the workspace host passes the
+  /// restorable value so returning from a property lands in the same view it
+  /// was left in.
+  final PropertyListViewMode? viewMode;
+
+  final ValueChanged<PropertyListViewMode>? onSetViewMode;
 
   final ReferenceSliceState state;
   final ValueChanged<String> onOpenProperty;
@@ -90,6 +103,23 @@ class PropertyListView extends StatefulWidget {
 }
 
 class _PropertyListViewState extends State<PropertyListView> {
+  /// Used only when the host does not drive the mode.
+  PropertyListViewMode _localViewMode = PropertyListViewMode.cards;
+
+  PropertyListViewMode get _viewMode => widget.viewMode ?? _localViewMode;
+
+  void _setViewMode(PropertyListViewMode mode) {
+    if (mode == _viewMode) {
+      return;
+    }
+    final notify = widget.onSetViewMode;
+    if (notify != null) {
+      notify(mode);
+    } else {
+      setState(() => _localViewMode = mode);
+    }
+  }
+
   @override
   void didUpdateWidget(covariant PropertyListView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -242,6 +272,12 @@ class _PropertyListViewState extends State<PropertyListView> {
           selected: state.includeArchived,
           onSelected: filterEnabled ? widget.onSetIncludeArchived : null,
         ),
+        // In the wrapping row rather than the trailing slot: the trailing slot
+        // does not wrap, and a labelled segmented button next to the loaded
+        // count overflows a phone by about 170px. Here it simply moves onto
+        // the next line with the filters, which is also where a reader looks
+        // for controls.
+        _buildViewModeToggle(context),
       ],
     );
   }
@@ -394,13 +430,16 @@ class _PropertyListViewState extends State<PropertyListView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: NxDataTableShell(
-            key: const Key('property-list-table'),
-            minTableWidth: 640,
-            verticalController: widget.scrollController,
-            mobileChild: _buildCards(context, properties),
-            child: _buildDataTable(context, properties),
-          ),
+          child:
+              _viewMode == PropertyListViewMode.cards
+                  ? _buildCardGrid(context, properties)
+                  : NxDataTableShell(
+                    key: const Key('property-list-table'),
+                    minTableWidth: 640,
+                    verticalController: widget.scrollController,
+                    mobileChild: _buildCards(context, properties),
+                    child: _buildDataTable(context, properties),
+                  ),
         ),
         if (loadMoreFailure != null) ...[
           const SizedBox(height: AppSpacing.component),
@@ -511,6 +550,69 @@ class _PropertyListViewState extends State<PropertyListView> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
               : const Icon(Icons.chevron_right),
+    );
+  }
+
+  /// The card view.
+  ///
+  /// One scroll view, one grid, no nested scrolling: the grid sizes itself
+  /// from the width it is handed, so it works inside the same scroll
+  /// controller the table uses and the restored offset keeps meaning.
+  Widget _buildCardGrid(
+    BuildContext context,
+    List<PropertySummaryDto> properties,
+  ) {
+    return SingleChildScrollView(
+      key: const Key('property-list-card-grid'),
+      controller: widget.scrollController,
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: NxResponsiveGrid(
+        maxColumns: 4,
+        children: <Widget>[
+          for (final property in properties)
+            PropertyCard(
+              key: Key('property-card-${property.id}'),
+              property: property,
+              coverUrl: widget.coverUrls[property.id],
+              autofocus: widget.restoreFocusPropertyId == property.id,
+              opening: widget.openingPropertyId == property.id,
+              onOpen:
+                  widget.openingPropertyId == null
+                      ? () => _open(property.id)
+                      : null,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewModeToggle(BuildContext context) {
+    // Below the phone breakpoint the labels come off. Two labelled segments
+    // plus the archive chip make the filter bar a line taller than a 320px
+    // screen has to spare, and the icons carry the same meaning — the tooltip
+    // keeps the word available to anyone who needs it, including a screen
+    // reader.
+    final compact = MediaQuery.sizeOf(context).width < 480;
+    return SegmentedButton<PropertyListViewMode>(
+      key: const Key('property-list-view-mode'),
+      showSelectedIcon: false,
+      segments: <ButtonSegment<PropertyListViewMode>>[
+        ButtonSegment<PropertyListViewMode>(
+          value: PropertyListViewMode.cards,
+          icon: const Icon(Icons.grid_view_outlined),
+          label: compact ? null : const Text('Karten'),
+          tooltip: 'Karten',
+        ),
+        ButtonSegment<PropertyListViewMode>(
+          value: PropertyListViewMode.table,
+          icon: const Icon(Icons.table_rows_outlined),
+          label: compact ? null : const Text('Tabelle'),
+          tooltip: 'Tabelle',
+        ),
+      ],
+      selected: <PropertyListViewMode>{_viewMode},
+      onSelectionChanged:
+          (selection) => _setViewMode(selection.first),
     );
   }
 

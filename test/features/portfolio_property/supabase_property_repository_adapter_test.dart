@@ -244,6 +244,12 @@ Map<String, dynamic> _propertySummaryJson({
     'city': 'Berlin',
     'status': status,
     'version': version,
+    // All three are `not null` on the row and are now selected. The parser
+    // requires them, which is why a fixture that omits one turns into a
+    // failure rather than a summary with silently missing facts.
+    'property_type': 'mixed_use',
+    'country': 'de',
+    'units': 8,
   };
 }
 

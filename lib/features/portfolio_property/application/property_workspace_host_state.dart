@@ -272,15 +272,28 @@ List<PropertyWorkspaceDomainRegistration> visiblePropertyWorkspaceDomains(
 /// a property context opens and reapplies it on the way back so filter,
 /// pagination anchor, scroll position and keyboard focus survive the round
 /// trip (spec `PROPERTY_LIST_V2.md` §3/§18).
+/// How the property list presents its rows.
+///
+/// Part of the restorable host state rather than a widget-local flag: coming
+/// back from a property must land in the same view the reader left, and
+/// `SHELL-ROUTING-01` will later put this state into the URL, where a view
+/// mode belongs.
+enum PropertyListViewMode { cards, table }
+
 class PropertyListRestoreState {
   const PropertyListRestoreState({
     this.includeArchived = false,
     this.scrollOffset = 0,
     this.focusedPropertyId,
+    this.viewMode = PropertyListViewMode.cards,
   });
 
   /// The single contract-backed list filter.
   final bool includeArchived;
+
+  /// Cards by default. The table is the denser view and stays one click away;
+  /// the card view is the one that shows the building.
+  final PropertyListViewMode viewMode;
 
   /// Vertical scroll offset of the list viewport at the time the property
   /// was opened.
@@ -293,6 +306,7 @@ class PropertyListRestoreState {
     bool? includeArchived,
     double? scrollOffset,
     Object? focusedPropertyId = _unchanged,
+    PropertyListViewMode? viewMode,
   }) {
     return PropertyListRestoreState(
       includeArchived: includeArchived ?? this.includeArchived,
@@ -301,6 +315,7 @@ class PropertyListRestoreState {
           identical(focusedPropertyId, _unchanged)
               ? this.focusedPropertyId
               : focusedPropertyId as String?,
+      viewMode: viewMode ?? this.viewMode,
     );
   }
 
@@ -309,6 +324,7 @@ class PropertyListRestoreState {
       'includeArchived': includeArchived,
       'scrollOffset': scrollOffset,
       'focusedPropertyId': focusedPropertyId,
+      'viewMode': viewMode.name,
     };
   }
 
@@ -317,12 +333,13 @@ class PropertyListRestoreState {
     return other is PropertyListRestoreState &&
         other.includeArchived == includeArchived &&
         other.scrollOffset == scrollOffset &&
-        other.focusedPropertyId == focusedPropertyId;
+        other.focusedPropertyId == focusedPropertyId &&
+        other.viewMode == viewMode;
   }
 
   @override
   int get hashCode =>
-      Object.hash(includeArchived, scrollOffset, focusedPropertyId);
+      Object.hash(includeArchived, scrollOffset, focusedPropertyId, viewMode);
 }
 
 /// Serializable host state of the properties destination: which property

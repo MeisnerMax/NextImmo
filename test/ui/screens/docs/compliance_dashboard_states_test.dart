@@ -553,6 +553,9 @@ class _FakePropertyDirectory implements PropertyRepository {
                 city: 'Berlin',
                 status: PropertyStatus.active,
                 version: 1,
+                propertyType: 'residential',
+                country: 'de',
+                units: 4,
               ),
             )
             .toList(growable: false),
