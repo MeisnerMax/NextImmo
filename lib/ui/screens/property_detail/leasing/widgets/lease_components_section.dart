@@ -161,10 +161,7 @@ class LeaseComponentsSection extends StatelessWidget {
       _ComponentTotalRow(total: total),
       const SizedBox(height: 8),
       Text(
-        total == null
-            ? 'Die erfassten Bestandteile lauten auf verschiedene Währungen '
-                  'und werden deshalb nicht summiert.'
-            : _absenceExplanation,
+        total == null ? _noTotalExplanation(resolved) : _absenceExplanation,
         style: theme.textTheme.bodySmall,
       ),
       if (inceptionNote) ...<Widget>[
@@ -177,6 +174,27 @@ class LeaseComponentsSection extends StatelessWidget {
         ),
       ],
     ];
+  }
+
+  /// Why there is no total, in the words of the reason there is none. A single
+  /// catch-all sentence would have named the currency case for a lease whose
+  /// real problem is that net and gross amounts cannot be added.
+  static String _noTotalExplanation(LeaseComponentsAsOfDto resolved) {
+    final currencies = resolved.components
+        .map((c) => c.currencyCode)
+        .toSet();
+    if (currencies.length > 1) {
+      return 'Die erfassten Bestandteile lauten auf verschiedene Währungen '
+          'und werden deshalb nicht summiert.';
+    }
+    if (resolved.components.any(
+      (c) => c.vatMode == LeaseComponentVatMode.unknown,
+    )) {
+      return 'Für mindestens einen Bestandteil ist die Steuerbehandlung '
+          'unbekannt, deshalb wird nicht summiert.';
+    }
+    return 'Netto- und Bruttobeträge stehen nebeneinander. Eine Summe daraus '
+        'wäre weder das eine noch das andere, deshalb wird nicht summiert.';
   }
 
   static const String _absenceExplanation =
@@ -305,7 +323,7 @@ class _ComponentRow extends StatelessWidget {
 class _ComponentTotalRow extends StatelessWidget {
   const _ComponentTotalRow({required this.total});
 
-  final ({double amount, String currencyCode})? total;
+  final ({double amount, String currencyCode, bool isNet})? total;
 
   @override
   Widget build(BuildContext context) {
@@ -316,7 +334,11 @@ class _ComponentTotalRow extends StatelessWidget {
         Expanded(
           flex: 3,
           child: Text(
-            'Summe der erfassten Bestandteile',
+            // The label carries the qualifier rather than a footnote: a net
+            // total read as a payable one is off by the tax rate.
+            resolved != null && resolved.isNet
+                ? 'Summe der erfassten Bestandteile (netto)'
+                : 'Summe der erfassten Bestandteile',
             style: theme.textTheme.titleSmall,
           ),
         ),

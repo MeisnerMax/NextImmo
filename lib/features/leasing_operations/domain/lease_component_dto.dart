@@ -166,16 +166,37 @@ class LeaseComponentsAsOfDto {
     return null;
   }
 
-  /// Sum of the recorded components, and the currency they share.
+  /// Sum of the recorded components, the currency they share, and whether the
+  /// figure is a net one.
   ///
-  /// Null when the components disagree on currency. Summing across currencies
-  /// produces a number that looks authoritative and means nothing, which is the
-  /// mistake the rest of this codebase already declines to make.
-  ({double amount, String currencyCode})? get recordedTotal {
+  /// Null whenever the sum would not correspond to anything, which is three
+  /// cases rather than the obvious one:
+  ///
+  ///   * the components disagree on **currency** — a total across currencies
+  ///     looks authoritative and means nothing;
+  ///   * some are `net` and some are not. A net amount is payable *plus* tax
+  ///     and an exempt or gross amount is payable as it stands, so adding them
+  ///     produces a figure that is neither. This is the case that is easy to
+  ///     miss, because every individual number in the column is correct;
+  ///   * any component's VAT mode is [LeaseComponentVatMode.unknown], where
+  ///     this build cannot say how the amount relates to tax at all.
+  ///
+  /// When every component is `net` the sum is still useful — it is simply a net
+  /// total, and [isNet] says so, so the label can too.
+  ({double amount, String currencyCode, bool isNet})? get recordedTotal {
     if (components.isEmpty) {
       return null;
     }
     final currency = components.first.currencyCode;
+    final netCount = components
+        .where((c) => c.vatMode == LeaseComponentVatMode.net)
+        .length;
+    final unknownVat = components.any(
+      (c) => c.vatMode == LeaseComponentVatMode.unknown,
+    );
+    if (unknownVat || (netCount != 0 && netCount != components.length)) {
+      return null;
+    }
     var total = 0.0;
     for (final component in components) {
       if (component.currencyCode != currency) {
@@ -183,6 +204,10 @@ class LeaseComponentsAsOfDto {
       }
       total += component.amount;
     }
-    return (amount: total, currencyCode: currency);
+    return (
+      amount: total,
+      currencyCode: currency,
+      isNet: netCount == components.length,
+    );
   }
 }
