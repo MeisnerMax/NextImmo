@@ -337,3 +337,127 @@ begin
   return jsonb_build_object('ok', true, 'entity', to_jsonb(v_new));
 end;
 $function$;
+
+-- -----------------------------------------------------------------------------
+-- The read answers the way every other read answers
+-- -----------------------------------------------------------------------------
+--
+-- Migration 54 shipped `lease_components_as_of` as a set-returning function
+-- that raises on refusal. Every other public read in this schema —
+-- `property_overview`, `rent_roll_live`, `property_leasing_summary`,
+-- `property_activity` — returns a jsonb envelope with a typed `error.code`.
+--
+-- That is not a style preference either. A raised exception reaches the client
+-- as a PostgREST error whose only machine-readable part is the SQLSTATE, so an
+-- adapter would have to special-case 42501 and 22023 for this one read while
+-- every sibling read gets `forbidden` and `validation_failed` handed to it.
+-- The first person to add a third refusal reason would have had to remember
+-- that, and would not have.
+--
+-- The envelope also gives the as-of date somewhere to live. It was previously
+-- implicit — the caller had to remember what it asked for — and a set of
+-- amounts without the date they were true on is exactly the misreading
+-- LEASING-ASOF-01 exists to prevent.
+--
+-- The return type changes, so this is a drop and recreate rather than a
+-- replace. Reverting the migration restores migration 54's version, since the
+-- rollback replays the history rather than running a down script.
+
+drop function if exists public.lease_components_as_of(uuid, date, uuid, uuid);
+
+create function public.lease_components_as_of(
+  p_workspace_id uuid,
+  p_as_of date default null,
+  p_lease_id uuid default null,
+  p_property_id uuid default null
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+declare
+  v_as_of date := coalesce(p_as_of, current_date);
+  v_components jsonb;
+begin
+  if p_workspace_id is null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed', 'message', 'Workspace is required',
+        'field', 'workspaceId'
+      )
+    );
+  end if;
+
+  if not private.has_workspace_permission(p_workspace_id, 'lease.read') then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'forbidden', 'message', 'Not permitted to read leases'
+      )
+    );
+  end if;
+
+  -- One of the two scopes, never neither: an unscoped read would return every
+  -- component in the workspace, which is the client-side-full-dataset shape
+  -- the programme forbids.
+  if p_lease_id is null and p_property_id is null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message', 'Either a lease or a property must be given',
+        'field', 'scope'
+      )
+    );
+  end if;
+
+  select coalesce(jsonb_agg(component_row order by component_row ->> 'valid_from'), '[]'::jsonb)
+  into v_components
+  from (
+    select jsonb_build_object(
+      'id', component.id,
+      'lease_id', lease.id,
+      'property_id', lease.property_id,
+      'component_type', component.component_type,
+      'amount', component.amount,
+      'currency_code', component.currency_code,
+      'vat_mode', component.vat_mode,
+      'vat_rate_percent', component.vat_rate_percent,
+      'valid_from', component.valid_from,
+      'valid_to', component.valid_to,
+      'version', component.version
+    ) as component_row
+    from public.lease_components as component
+    join public.leases as lease
+      on lease.workspace_id = component.workspace_id
+     and lease.id = component.lease_id
+    where component.workspace_id = p_workspace_id
+      and (p_lease_id is null or component.lease_id = p_lease_id)
+      and (p_property_id is null or lease.property_id = p_property_id)
+      and component.validity @> v_as_of
+      and private.lease_is_effective_on(
+        lease.status, lease.start_date, lease.end_date,
+        lease.move_out_date, lease.ended_at, v_as_of
+      )
+  ) as rows;
+
+  -- An empty list is a real answer, not an error: where no component covers
+  -- the date there is nothing recorded, and DEC-029 forbids turning that into
+  -- a zero here or anywhere above.
+  return jsonb_build_object(
+    'ok', true,
+    'entity', jsonb_build_object(
+      'as_of_date', v_as_of,
+      'components', v_components
+    )
+  );
+end;
+$function$;
+
+revoke all on function public.lease_components_as_of(uuid, date, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.lease_components_as_of(uuid, date, uuid, uuid)
+  to authenticated;

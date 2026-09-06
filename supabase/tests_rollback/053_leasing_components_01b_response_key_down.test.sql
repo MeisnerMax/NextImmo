@@ -14,7 +14,7 @@ create extension if not exists pgtap with schema extensions;
 -- like this one. A revert that kept half the change would leave the schema in
 -- a state no migration describes, which is worse than either version.
 
-select plan(8);
+select plan(10);
 
 create or replace function pg_temp.body_of(p_schema text, p_name text)
 returns text
@@ -38,6 +38,19 @@ select ok(
 select ok(
   pg_temp.body_of('private', 'apply_lease_component_update') like '%''data''%',
   'and so does the shared write path');
+
+select has_function('public', 'lease_components_as_of',
+  'the as-of read survives -- 01b dropped and recreated it, so a revert that '
+  'left it missing would take the whole read contract with it');
+
+select isnt(
+  (select pg_get_function_result(function.oid) from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'public' and function.proname = 'lease_components_as_of'),
+  'jsonb',
+  'and it is back to returning a set: 01b changed the return type, which is '
+  'why it had to drop and recreate rather than replace, and the revert has to '
+  'undo both halves');
 
 -- The wrappers were never touched by 01b and must be untouched by its revert.
 select has_function('public', 'update_lease_component',

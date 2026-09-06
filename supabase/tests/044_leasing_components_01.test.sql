@@ -22,7 +22,7 @@ create extension if not exists pgtap with schema extensions;
 -- a single day must not. A half-open range is what separates them, and an
 -- inclusive one would have failed the first while passing the second.
 
-select plan(40);
+select plan(42);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -254,6 +254,15 @@ select ok(
    where namespace.nspname = 'public' and function.proname = 'lease_components_as_of'),
   'it is security definer, so the permission check inside it is the boundary'
 );
+select is(
+  (select pg_get_function_result(function.oid) from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'public' and function.proname = 'lease_components_as_of'),
+  'jsonb',
+  'and it answers in the same envelope as every other public read, so a '
+  'refusal arrives as a typed code rather than as a SQLSTATE the adapter has '
+  'to special-case'
+);
 
 create or replace function pg_temp.as_user(p_user uuid, p_statement text)
 returns jsonb
@@ -275,42 +284,64 @@ begin
 end;
 $$;
 
-select throws_ok($$
-  select pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-03-15')$inner$)
-$$, '22023', null,
-  'an unscoped read is refused: returning every component in the workspace is '
-  'the client-side-full-dataset shape the brief forbids');
-
-select throws_ok($$
-  select pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000002',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-03-15',
-      'c1700000-0000-0000-0000-000000000001'::uuid)$inner$)
-$$, '42501', null,
-  'and so is a read by someone with no membership in the workspace');
+create or replace function pg_temp.components_of(
+  p_user uuid, p_as_of text, p_lease uuid
+)
+returns jsonb
+language sql
+as $$
+  select pg_temp.as_user(p_user, format(
+    $q$select public.lease_components_as_of(
+      %L::uuid, %L::date, %L::uuid)$q$,
+    'c1100000-0000-0000-0000-000000000001', p_as_of, p_lease));
+$$;
 
 select is(
   pg_temp.as_user(
     'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(sum(amount)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-03-15',
-      'c1700000-0000-0000-0000-000000000001'::uuid)$inner$),
+    $inner$select public.lease_components_as_of(
+      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-03-15')
+      #> '{error,code}'$inner$),
+  to_jsonb('validation_failed'::text),
+  'an unscoped read is refused: returning every component in the workspace is '
+  'the client-side-full-dataset shape the brief forbids');
+
+select is(
+  pg_temp.components_of(
+    'c1200000-0000-0000-0000-000000000002', '2026-03-15',
+    'c1700000-0000-0000-0000-000000000001') #> '{error,code}',
+  to_jsonb('forbidden'::text),
+  'and so is a read by someone with no membership in the workspace');
+
+select is(
+  (select to_jsonb(sum((component ->> 'amount')::numeric))
+   from jsonb_array_elements(
+     pg_temp.components_of(
+       'c1200000-0000-0000-0000-000000000001', '2026-03-15',
+       'c1700000-0000-0000-0000-000000000001') #> '{entity,components}'
+   ) as component),
   to_jsonb(1090::numeric),
   'on a date inside both periods the read returns base rent and heating '
   'advance, and nothing else'
 );
 
 select is(
-  pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-11-15',
-      'c1700000-0000-0000-0000-000000000001'::uuid)
-      where component_type = 'base_rent'$inner$),
+  pg_temp.components_of(
+    'c1200000-0000-0000-0000-000000000001', '2026-03-15',
+    'c1700000-0000-0000-0000-000000000001') #> '{entity,as_of_date}',
+  to_jsonb('2026-03-15'::text),
+  'the answer names the date it is true on -- a set of amounts without it is '
+  'the misreading LEASING-ASOF-01 exists to prevent'
+);
+
+select is(
+  (select to_jsonb(count(*))
+   from jsonb_array_elements(
+     pg_temp.components_of(
+       'c1200000-0000-0000-0000-000000000001', '2026-11-15',
+       'c1700000-0000-0000-0000-000000000001') #> '{entity,components}'
+   ) as component
+   where component ->> 'component_type' = 'base_rent'),
   to_jsonb(0),
   'after the last base-rent period ends the read returns no base rent -- a '
   'gap is a gap (DEC-029), not a zero and not the flat column'
@@ -321,11 +352,12 @@ select is(
 -- date the open-ended heating advance is still there, so the read works and
 -- base rent alone is missing.
 select is(
-  pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-11-15',
-      'c1700000-0000-0000-0000-000000000001'::uuid)$inner$),
+  (select to_jsonb(count(*))
+   from jsonb_array_elements(
+     pg_temp.components_of(
+       'c1200000-0000-0000-0000-000000000001', '2026-11-15',
+       'c1700000-0000-0000-0000-000000000001') #> '{entity,components}'
+   ) as component),
   to_jsonb(1),
   'and the read is not simply empty on that date: the open-ended heating '
   'advance still reports, so the missing base rent is a gap and not a failure'
@@ -343,20 +375,22 @@ insert into public.lease_components (
 );
 
 select is(
-  pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-03-15',
-      'c1700000-0000-0000-0000-000000000002'::uuid)$inner$),
+  (select to_jsonb(count(*))
+   from jsonb_array_elements(
+     pg_temp.components_of(
+       'c1200000-0000-0000-0000-000000000001', '2026-03-15',
+       'c1700000-0000-0000-0000-000000000002') #> '{entity,components}'
+   ) as component),
   to_jsonb(1),
   'a lease that has since ended still reports for a date it covered');
 
 select is(
-  pg_temp.as_user(
-    'c1200000-0000-0000-0000-000000000001',
-    $inner$select to_jsonb(count(*)) from public.lease_components_as_of(
-      'c1100000-0000-0000-0000-000000000001'::uuid, date '2026-09-15',
-      'c1700000-0000-0000-0000-000000000002'::uuid)$inner$),
+  (select to_jsonb(count(*))
+   from jsonb_array_elements(
+     pg_temp.components_of(
+       'c1200000-0000-0000-0000-000000000001', '2026-09-15',
+       'c1700000-0000-0000-0000-000000000002') #> '{entity,components}'
+   ) as component),
   to_jsonb(0),
   'but not for a date after it ended, even though its component is open-ended '
   '-- the component outliving the lease is the second form of the as-of defect'
