@@ -18,6 +18,7 @@
 ///     creating another.
 library;
 
+import '../domain/lease_component_dto.dart';
 import '../domain/lease_dto.dart';
 import '../domain/leasing_case_dto.dart';
 import '../domain/leasing_summary_dto.dart';
@@ -279,6 +280,99 @@ class CreateRentRollSnapshotCommand {
   final String? currencyCode;
 }
 
+/// Reads the components in force on one date.
+///
+/// Exactly one of [leaseId] and [propertyId] is given; the server refuses a
+/// call that scopes neither, because an unscoped read would return every
+/// component in the workspace — the client-side-full-dataset shape the
+/// programme forbids.
+class LeaseComponentListQuery {
+  const LeaseComponentListQuery({
+    required this.workspaceId,
+    required this.asOfDate,
+    this.leaseId,
+    this.propertyId,
+  }) : assert(
+         (leaseId == null) != (propertyId == null),
+         'scope the read to exactly one of a lease or a property',
+       );
+
+  final String workspaceId;
+  final DateTime asOfDate;
+  final String? leaseId;
+  final String? propertyId;
+}
+
+/// Adds a component to a lease.
+///
+/// No currency: the server reads it from the lease, so a caller cannot
+/// introduce a mismatch. Nothing here is optional that the server treats as
+/// required.
+class CreateLeaseComponentCommand {
+  const CreateLeaseComponentCommand({
+    required this.context,
+    required this.leaseId,
+    required this.componentType,
+    required this.validFrom,
+    required this.amount,
+    this.validTo,
+    this.vatMode = LeaseComponentVatMode.exempt,
+    this.vatRatePercent,
+    this.note,
+  });
+
+  final LeasingCommandContext context;
+  final String leaseId;
+  final LeaseComponentType componentType;
+  final DateTime validFrom;
+  final DateTime? validTo;
+  final double amount;
+  final LeaseComponentVatMode vatMode;
+  final double? vatRatePercent;
+  final String? note;
+}
+
+/// Changes an existing component.
+///
+/// [changes] carries only the fields the caller touched, keyed the way the
+/// server names them (`validFrom`, `validTo`, `amount`, `vatMode`,
+/// `vatRatePercent`, `note`). An unknown key is refused by the server rather
+/// than ignored, so a typo surfaces instead of reporting a change that never
+/// happened.
+class UpdateLeaseComponentCommand {
+  const UpdateLeaseComponentCommand({
+    required this.context,
+    required this.componentId,
+    required this.expectedVersion,
+    required this.changes,
+  });
+
+  final LeasingCommandContext context;
+  final String componentId;
+  final int expectedVersion;
+  final Map<String, Object?> changes;
+}
+
+/// Ends a component on a date.
+///
+/// Its own command rather than an update with a `validTo`, because ending a
+/// component and correcting its end date are different events and the audit
+/// trail says so. A component is never deleted: what a tenant paid until March
+/// is a fact about March.
+class CloseLeaseComponentCommand {
+  const CloseLeaseComponentCommand({
+    required this.context,
+    required this.componentId,
+    required this.expectedVersion,
+    required this.validTo,
+  });
+
+  final LeasingCommandContext context;
+  final String componentId;
+  final int expectedVersion;
+  final DateTime validTo;
+}
+
 // --- Results ---------------------------------------------------------------
 
 enum LeasingRepositoryFailureKind {
@@ -487,4 +581,31 @@ abstract interface class PropertyLeasingSummaryPort {
     required String workspaceId,
     required String propertyId,
   });
+}
+
+/// Time-versioned rent components (LEASING-COMPONENTS-01).
+///
+/// Its own port rather than methods on [LeaseSearchPort]: a lease read answers
+/// "what contract is this", a component read answers "what was payable on this
+/// date", and the second has a date parameter the first has no use for.
+///
+/// The read never falls back. Where no component covers the date, the result
+/// simply has no row of that type — see `lease_component_dto.dart` for why an
+/// empty answer must not be turned into a zero here or anywhere above.
+abstract interface class LeaseComponentPort {
+  Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
+    LeaseComponentListQuery query,
+  );
+
+  Future<LeasingRepositoryResult<LeaseComponentDto>> create(
+    CreateLeaseComponentCommand command,
+  );
+
+  Future<LeasingRepositoryResult<LeaseComponentDto>> update(
+    UpdateLeaseComponentCommand command,
+  );
+
+  Future<LeasingRepositoryResult<LeaseComponentDto>> close(
+    CloseLeaseComponentCommand command,
+  );
 }

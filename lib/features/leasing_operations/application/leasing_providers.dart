@@ -51,6 +51,11 @@ final rentRollProvider = Provider<RentRollPort>(
   (ref) => throw StateError('RentRollPort is not configured.'),
 );
 
+/// LEASING-COMPONENTS-01.
+final leaseComponentProvider = Provider<LeaseComponentPort>(
+  (ref) => throw StateError('LeaseComponentPort is not configured.'),
+);
+
 /// LEASING-SUMMARY-01.
 final propertyLeasingSummaryProvider = Provider<PropertyLeasingSummaryPort>(
   (ref) => throw StateError('PropertyLeasingSummaryPort is not configured.'),

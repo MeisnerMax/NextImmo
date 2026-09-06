@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
 import 'package:neximmo_app/features/leasing_operations/data/supabase_leasing_repository_adapter.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/leasing_case_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/rent_roll_dto.dart';
@@ -1022,6 +1023,259 @@ void main() {
         reason: 'the rent roll additionally applies the term window',
       );
       expect(lease.coversDate(DateTime(2026, 7, 1)), isTrue);
+    });
+  });
+
+  group('lease component adapter', () {
+    LeasingCommandContext context() => const LeasingCommandContext(
+      workspaceId: _workspaceId,
+      actorId: 'aa000000-0000-0000-0000-000000000001',
+      mutationId: 'mm000000-0000-0000-0000-000000000001',
+      correlationId: 'cc000000-0000-0000-0000-000000000001',
+    );
+
+    Map<String, dynamic> row({
+      String id = 'k1',
+      String type = 'base_rent',
+      double amount = 1000.0,
+      String currency = 'EUR',
+      String vatMode = 'exempt',
+      Object? vatRate,
+      Object? validTo,
+    }) => <String, dynamic>{
+      'id': id,
+      'lease_id': 'l1',
+      'property_id': 'p1',
+      'component_type': type,
+      'amount': amount,
+      'currency_code': currency,
+      'vat_mode': vatMode,
+      'vat_rate_percent': vatRate,
+      'valid_from': '2026-01-01',
+      'valid_to': validTo,
+      'version': 1,
+    };
+
+    Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readWith(
+      _FakeGateway gateway,
+    ) => SupabaseLeaseComponentAdapter.withGateway(gateway).readAsOf(
+      LeaseComponentListQuery(
+        workspaceId: _workspaceId,
+        asOfDate: DateTime(2026, 3, 15),
+        leaseId: 'l1',
+      ),
+    );
+
+    test('parses the envelope, including the date it is true on', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            'as_of_date': '2026-03-15',
+            'components': <Map<String, dynamic>>[row()],
+          },
+        };
+
+      final result = await readWith(gateway);
+
+      final value = (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
+          .value;
+      // The date travels with the answer rather than being remembered by the
+      // caller: amounts without it are the misreading LEASING-ASOF-01 removes.
+      expect(value.asOfDate, DateTime(2026, 3, 15));
+      expect(value.components.single.amount, 1000.0);
+      expect(value.components.single.isOpenEnded, isTrue);
+      expect(gateway.calls.single.function, 'lease_components_as_of');
+    });
+
+    test('a refusal arrives as a typed code, not as an exception', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': false,
+          'error': <String, dynamic>{
+            'code': 'forbidden',
+            'message': 'Not permitted to read leases',
+          },
+        };
+
+      final result = await readWith(gateway);
+
+      expect(
+        (result as LeasingRepositoryFailure<LeaseComponentsAsOfDto>).kind,
+        LeasingRepositoryFailureKind.forbidden,
+        reason:
+            'this is what LEASING-COMPONENTS-01b bought: while the read raised '
+            'instead of answering, the adapter could only report an '
+            'infrastructure failure and the screen could not say why',
+      );
+    });
+
+    test('an unfamiliar type is kept and labelled, not dropped', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            'as_of_date': '2026-03-15',
+            'components': <Map<String, dynamic>>[
+              row(id: 'k9', type: 'garden_levy', amount: 25.0),
+            ],
+          },
+        };
+
+      final result = await readWith(gateway);
+
+      final component =
+          (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
+              .value
+              .components
+              .single;
+      // Dropping it would understate what a tenant pays; throwing would break
+      // a whole contract view over one row a newer server sent.
+      expect(component.componentType, LeaseComponentType.unknown);
+      expect(component.rawTypeKey, 'garden_levy');
+      expect(component.amount, 25.0);
+    });
+
+    test('an empty answer is a success, not a failure', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            'as_of_date': '2026-11-15',
+            'components': <Map<String, dynamic>>[],
+          },
+        };
+
+      final result = await readWith(gateway);
+
+      final value = (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
+          .value;
+      expect(value.components, isEmpty);
+      // DEC-029: nothing recorded is not nothing owed, so there is no total to
+      // report and no zero to invent.
+      expect(value.recordedTotal, isNull);
+      expect(value.ofType(LeaseComponentType.baseRent), isNull);
+    });
+
+    test('create sends the wire keys and reads the entity back', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': row(id: 'k2', type: 'heating_advance', amount: 90.0),
+        };
+      final adapter = SupabaseLeaseComponentAdapter.withGateway(gateway);
+
+      final result = await adapter.create(
+        CreateLeaseComponentCommand(
+          context: context(),
+          leaseId: 'l1',
+          componentType: LeaseComponentType.heatingAdvance,
+          validFrom: DateTime(2026, 1, 1),
+          amount: 90,
+        ),
+      );
+
+      expect(result, isA<LeasingRepositorySuccess<LeaseComponentDto>>());
+      final call = gateway.calls.single;
+      expect(call.function, 'create_lease_component');
+      expect(call.parameters['p_component_type'], 'heating_advance');
+      // Never sent: the server reads it from the lease, so a caller cannot
+      // introduce a mismatch.
+      expect(call.parameters.containsKey('p_currency_code'), isFalse);
+    });
+
+    test('an unknown type is refused before it reaches the server', () async {
+      final gateway = _FakeGateway();
+      final adapter = SupabaseLeaseComponentAdapter.withGateway(gateway);
+
+      final result = await adapter.create(
+        CreateLeaseComponentCommand(
+          context: context(),
+          leaseId: 'l1',
+          componentType: LeaseComponentType.unknown,
+          validFrom: DateTime(2026, 1, 1),
+          amount: 10,
+        ),
+      );
+
+      expect(
+        (result as LeasingRepositoryFailure<LeaseComponentDto>).kind,
+        LeasingRepositoryFailureKind.validationFailed,
+      );
+      expect(
+        gateway.calls,
+        isEmpty,
+        reason: 'the enum is owned here, so the reason stays legible',
+      );
+    });
+
+    test('closing is its own call, not an update with an end date', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': row(id: 'k2', validTo: '2026-04-30'),
+        };
+      final adapter = SupabaseLeaseComponentAdapter.withGateway(gateway);
+
+      await adapter.close(
+        CloseLeaseComponentCommand(
+          context: context(),
+          componentId: 'k2',
+          expectedVersion: 1,
+          validTo: DateTime(2026, 4, 30),
+        ),
+      );
+
+      // Ending a component and correcting its end date are different events,
+      // and the audit trail says so — which it can only do if the client calls
+      // the command that means it.
+      expect(gateway.calls.single.function, 'close_lease_component');
+    });
+
+    test('a net amount without a rate has no gross figure', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            'as_of_date': '2026-03-15',
+            'components': <Map<String, dynamic>>[
+              row(id: 'n1', vatMode: 'net'),
+              row(id: 'n2', vatMode: 'net', vatRate: 19.0, amount: 100.0),
+            ],
+          },
+        };
+
+      final result = await readWith(gateway);
+      final components =
+          (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
+              .value
+              .components;
+
+      // Null rather than the net amount: returning it would present a net
+      // figure as a gross one, which is the quiet kind of wrong.
+      expect(components.first.grossMonthly, isNull);
+      expect(components.last.grossMonthly, closeTo(119, 0.001));
+    });
+
+    test('components in different currencies are not summed', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            'as_of_date': '2026-03-15',
+            'components': <Map<String, dynamic>>[
+              row(id: 'c1', amount: 100.0),
+              row(id: 'c2', amount: 50.0, currency: 'CHF'),
+            ],
+          },
+        };
+
+      final result = await readWith(gateway);
+      final value = (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
+          .value;
+
+      // A total across currencies looks authoritative and means nothing.
+      expect(value.recordedTotal, isNull);
     });
   });
 }
