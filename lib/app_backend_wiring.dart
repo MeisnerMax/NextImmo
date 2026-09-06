@@ -70,6 +70,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   final platform = SupabasePlatformRepositoryAdapter(client: client);
   final propertyMedia = SupabasePropertyMediaAdapter(client: client);
   final financeLedger = SupabaseFinanceLedgerAdapter(client: client);
+  final financeKpis = SupabaseFinanceKpisAdapter(client: client);
   return <Override>[
     // The authenticated reference session is the cloud host's identity.
     workspaceSessionScopeProvider.overrideWith((ref) {
@@ -115,6 +116,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     leasing.rentRollProvider.overrideWithValue(leasingRentRoll),
     leasing.propertyLeasingSummaryProvider.overrideWithValue(leasingSummary),
     propertyFinanceActualsProvider.overrideWithValue(financeLedger),
+    propertyFinanceKpisProvider.overrideWithValue(financeKpis),
     leasing.operationsSignalsProvider.overrideWithValue(leasingSignals),
     leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
       SupabaseLeasingQueryInvalidationAdapter(client: client),

@@ -13,3 +13,7 @@ import 'finance_ledger_port.dart';
 final propertyFinanceActualsProvider = Provider<PropertyFinanceActualsPort>(
   (ref) => throw StateError('PropertyFinanceActualsPort is not configured.'),
 );
+
+final propertyFinanceKpisProvider = Provider<PropertyFinanceKpisPort>(
+  (ref) => throw StateError('PropertyFinanceKpisPort is not configured.'),
+);

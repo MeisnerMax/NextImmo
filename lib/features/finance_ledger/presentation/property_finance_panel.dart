@@ -35,6 +35,7 @@ import '../../../ui/theme/app_theme.dart';
 import '../../portfolio_property/presentation/property_presentation.dart';
 import '../application/property_finance_controller.dart';
 import '../domain/finance_actuals_dto.dart';
+import 'property_finance_kpi_section.dart';
 
 /// German label for an account class.
 String financeAccountTypeLabel(FinanceAccountType type, String rawKey) {
@@ -104,8 +105,12 @@ class _PropertyFinancePanelState extends ConsumerState<PropertyFinancePanel> {
         return ListView(
           key: const Key('property-finance-empty-view'),
           padding: const EdgeInsets.all(AppSpacing.component),
-          children: const <Widget>[
-            NxEmptyState(
+          children: <Widget>[
+            // Still mounted with no bookings: a workspace can have definitions
+            // and an empty ledger, and "nothing defined" is a different thing
+            // to say than "nothing booked".
+            PropertyFinanceKpiSection(propertyId: widget.propertyId),
+            const NxEmptyState(
               key: Key('property-finance-empty'),
               title: 'Noch nichts gebucht',
               description:
@@ -114,19 +119,28 @@ class _PropertyFinancePanelState extends ConsumerState<PropertyFinancePanel> {
                   'erfasst.',
               icon: Icons.receipt_long_outlined,
             ),
-            SizedBox(height: AppSpacing.component),
-            _ScopeNotice(),
+            const SizedBox(height: AppSpacing.component),
+            const _ScopeNotice(),
           ],
         );
       case PropertyFinancePhase.ready:
-        return _Statement(actuals: state.actuals!, onReload: controller.load);
+        return _Statement(
+          propertyId: widget.propertyId,
+          actuals: state.actuals!,
+          onReload: controller.load,
+        );
     }
   }
 }
 
 class _Statement extends StatelessWidget {
-  const _Statement({required this.actuals, required this.onReload});
+  const _Statement({
+    required this.propertyId,
+    required this.actuals,
+    required this.onReload,
+  });
 
+  final String propertyId;
   final PropertyFinanceActualsDto actuals;
   final VoidCallback onReload;
 
@@ -168,6 +182,9 @@ class _Statement extends StatelessWidget {
           ),
         ],
         const SizedBox(height: AppSpacing.component),
+        // FINANCE-01b: the computed figures lead, because they are what the
+        // screen is opened for; the accounts they were computed from follow.
+        PropertyFinanceKpiSection(propertyId: propertyId),
         for (final currency in actuals.currencies) ...[
           _CurrencySection(actuals: actuals, currencyCode: currency),
           const SizedBox(height: AppSpacing.component),
