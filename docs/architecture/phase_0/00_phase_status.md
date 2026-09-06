@@ -175,7 +175,7 @@ Status: `done`.
 |---|---|---|
 | RISK-QA-001 | Golden-Master-Fixtures fehlen teilweise | vor Adapter-/Migrationswechsel einfrieren |
 | RISK-QA-004 | Kryptografische Backup-Authentizitaet fehlt | lokaler PostgreSQL-Drill prueft Hash, atomaren Restore, Journal-basierte Crash-Recovery (`tool/test_p1_014_crash_recovery.ps1`) und Cleanup; AEAD/HMAC und Remote-Artefaktspeicher bleiben fuer P1-014 offen |
-| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 28 pgTAP-Dateien (>1296 Pruefungen), 33 Rollback-Pruefungen (30 in CI replayed), Concurrency- und reale Clientpruefungen laufen lokal und in CI |
+| RISK-QA-005 | PostgreSQL-/RLS-Vertraege koennen bei Erweiterungen regressieren | 39 pgTAP-Dateien (1773 Pruefungen), 44 Rollback-Dateien (42 in der CI-Kette replayed), Concurrency- und reale Clientpruefungen laufen lokal und in CI. Stand 2026-09-06, `main` = `4dc416e`; die Zahlen altern mit jedem Paket — massgeblich ist der `database`-Job, nicht diese Zeile |
 | RISK-QA-006 | Web-Interop kann bei SDK-Wechsel regressieren | `package:web`-Migration abgeschlossen; Analyzer und Web-Build sind CI-Gates |
 | RISK-QA-007 | Responsive Screenshot-Goldens sind ausserhalb des Referenzschnitts begrenzt | P1-010 besitzt Phone-/Tablet-/Desktop-Baselines; weitere Kern-Screens schrittweise aufnehmen |
 | RISK-QA-008 | Referenzschnitt hat noch keine verbindlichen Performance-Budgets oder repraesentativen Lastprofile | vor Gate-Abnahme Budgets und Datenmengen definieren und reproduzierbare Query-/Clientprofile messen |
