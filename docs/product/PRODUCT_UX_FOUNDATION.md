@@ -167,6 +167,12 @@ Separate follow-up packages (own approval): `SHELL-ROUTING-01` (URL sync/back/fo
 
 ## 20. Amendments
 
+- **AMD-002 (2026-09-06, Owner-Beobachtung an der laufenden Oberflaeche):** „Man scrollt oft in Boxen statt den Screen." Der Befund ist berechtigt und §15 ist mitschuldig: die Regel *„targeted scroll regions (never whole-page `SingleChildScrollView`)"* schuetzt vor einem echten Fehler — einer Seite, die als Ganzes wegrollt und dabei Kopf und Filter mitnimmt —, sie sagt aber nirgends, **wie viele** solcher Regionen eine Seite haben darf. Ohne Obergrenze addiert jedes Paket gutgläubig seine eigene, und das Ergebnis ist genau die Verschachtelung, die der Owner sieht.
+
+  **Ergaenzung zu §15, ab sofort bindend fuer neue Screens:** pro sichtbarer Flaeche ist **genau eine** primaere Scrollregion zulaessig — die, die den Inhalt traegt. Eine zweite ist nur erlaubt, wenn sie eine andere Achse bedient (die horizontal scrollende Tabellenschale) oder in einer eigenen Ebene liegt (Drawer, Dialog, Sheet). Verschachteltes Scrollen **auf derselben Achse** ist ein Defekt, kein Stilmittel. Sind mehrere Blöcke zu lang, wird die Seite gegliedert (Abschnitte, Tabs, Paginierung) statt in mehrere Fenster zerlegt.
+
+  **Bestandsscreens werden hier nicht nachgezogen.** Der Owner hat den Punkt ausdruecklich in den grossen UI-Umbau gestellt, und ein flaechendeckender Umbau der Scrollarchitektur waehrend des laufenden Domain-Ausbaus wuerde jedes offene Paket anfassen. Die Regel gilt fuer Neubau ab heute; der Bestand ist Gegenstand des Umbaus. Damit der Punkt dort nicht verloren geht: **er ist Aufnahmekriterium des Umbaus, nicht optionaler Feinschliff** — ein Screen gilt erst als umgebaut, wenn er diese Ergaenzung erfuellt.
+
 - **AMD-001 (2026-08-28, beschlossen mit `ADMIN-MEMBERS-V2`):** Sidebar-Destination `GlobalPage.adminUsers` wird von „Benutzer" auf **„Mitglieder"** umbenannt (Label + Titel in `appNavigationGroups`; `routeKey` `setup_administration.users`, Route `/members`, Permission-Mapping und Gruppenzuordnung unverändert). Implementierung reitet auf Paket A1 von `ADMIN-AREA-01` (`docs/product/screens/admin_members.md`).
 
 ---
