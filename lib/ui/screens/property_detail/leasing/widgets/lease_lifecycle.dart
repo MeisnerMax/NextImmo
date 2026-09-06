@@ -21,6 +21,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../../../features/leasing_operations/domain/lease_dto.dart';
+import '../../../../../features/leasing_operations/domain/rent_roll_dto.dart';
 import '../../../../components/responsive_constraints.dart';
 import 'leasing_badges.dart';
 
@@ -276,4 +277,29 @@ String formatLeaseMoney(double? amount, String? currency) {
     return '${amount.toStringAsFixed(2)} (Währung nicht hinterlegt)';
   }
   return '${amount.toStringAsFixed(2)} $currency';
+}
+
+
+/// RENT-ROLL-RULE-01: how a set of rent-roll figures names the rule that
+/// produced it.
+///
+/// Three states, and they are not interchangeable:
+///
+///   * **a known version** — named plainly, `Regel v2`;
+///   * **no version at all** — a snapshot frozen before the marker existed, or
+///     a server that does not publish one. It is labelled "nicht
+///     gekennzeichnet" rather than assumed to be rule 1: migration 50 opened a
+///     second era and nothing on such a row says which side of it the figures
+///     fall on;
+///   * **a version this build does not know** — the number is still shown,
+///     because a database ahead of the web build is a normal state here, and
+///     the honest reading is "newer than I can name", not "the current rule".
+String ruleVersionLabel(int? version) {
+  if (version == null) {
+    return 'Regelversion nicht gekennzeichnet';
+  }
+  if (RentRollEffectivenessRule.forVersion(version) == null) {
+    return 'Regel v$version (diesem Client unbekannt)';
+  }
+  return 'Regel v$version';
 }

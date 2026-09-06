@@ -184,6 +184,7 @@ RentRollLiveDto _live({
   offlineUnitCount: 0,
   effectiveLeaseCount: occupied,
   lines: const <RentRollLiveLineDto>[],
+  effectivenessRuleVersion: 2,
   totalBaseRentMonthly: rent,
   totalRentMonthly: rent,
 );

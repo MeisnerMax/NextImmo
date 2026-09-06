@@ -18,6 +18,13 @@
 ///     DEC-011, the currencies found are named instead;
 ///   * a missing occupancy rate at zero units, shown as "—" rather than 0 %.
 ///
+/// A fourth joined the family with RENT-ROLL-RULE-01: two snapshots of the same
+/// property for the same reporting date can differ because the rule deciding
+/// which leases count changed, not because the rent did. Every set of figures
+/// on this page therefore names the rule that produced it, and a snapshot whose
+/// rule is not the current one says so next to the figures rather than in a
+/// tooltip.
+///
 /// V9.1 points 3 and 4 dissolve here: the lines carry unit, status and lease
 /// count instead of blanks, and both tables live in an `NxDataTableShell` that
 /// scrolls instead of overflowing to the right.
@@ -375,7 +382,8 @@ class _LiveView extends StatelessWidget {
                 title: 'Aktueller Stand',
                 description:
                     'Stichtag ${formatLeaseDate(live.asOfDate)} · jetzt '
-                    'gerechnet aus Einheiten und wirksamen Verträgen',
+                    'gerechnet aus Einheiten und wirksamen Verträgen · '
+                    '${ruleVersionLabel(live.effectivenessRuleVersion)}',
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -629,6 +637,19 @@ class _HistorySection extends StatelessWidget {
                                 'Erzeugt ${formatLeaseDate(snapshot.generatedAt)}',
                                 style: theme.textTheme.bodySmall,
                               ),
+                              // In the row itself, not behind a tap: the list
+                              // is where two totals get compared, and
+                              // comparing them across a rule change is the
+                              // mistake this label exists to prevent.
+                              Text(
+                                ruleVersionLabel(
+                                  snapshot.effectivenessRuleVersion,
+                                ),
+                                key: Key(
+                                  'rent-roll-history-rule-${snapshot.id}',
+                                ),
+                                style: theme.textTheme.bodySmall,
+                              ),
                               Text(
                                 formatLeaseMoney(
                                   snapshot.totalRentMonthly,
@@ -734,15 +755,25 @@ class _SnapshotDetail extends StatelessWidget {
         if (snapshot == null) {
           return const SizedBox.shrink();
         }
-        return _SnapshotView(snapshot: snapshot);
+        return _SnapshotView(
+          snapshot: snapshot,
+          // The rule the server applies now, when the live read has answered.
+          // Comparing the two is what the marker is for, so the page makes the
+          // comparison instead of leaving it to the reader.
+          liveRuleVersion: state.live?.effectivenessRuleVersion,
+        );
     }
   }
 }
 
 class _SnapshotView extends StatelessWidget {
-  const _SnapshotView({required this.snapshot});
+  const _SnapshotView({required this.snapshot, required this.liveRuleVersion});
 
   final RentRollSnapshotDto snapshot;
+
+  /// The rule the server applies now, or null when the live read has not
+  /// answered or the server publishes no version.
+  final int? liveRuleVersion;
 
   @override
   Widget build(BuildContext context) {
@@ -760,7 +791,8 @@ class _SnapshotView extends StatelessWidget {
                     'Snapshot vom ${formatLeaseDate(snapshot.asOfDate)}',
                 description:
                     'Erzeugt am ${formatLeaseDate(snapshot.generatedAt)} · '
-                    'eingefroren, nicht bearbeitbar',
+                    'eingefroren, nicht bearbeitbar · '
+                    '${ruleVersionLabel(snapshot.effectivenessRuleVersion)}',
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -817,6 +849,16 @@ class _SnapshotView extends StatelessWidget {
         if (outsideTerm.isNotEmpty) ...<Widget>[
           const SizedBox(height: AppSpacing.component),
           _OutsideTermNotice(count: outsideTerm.length),
+        ],
+        if (_RuleVersionNotice.isWorthShowing(
+          snapshotVersion: snapshot.effectivenessRuleVersion,
+          liveVersion: liveRuleVersion,
+        )) ...<Widget>[
+          const SizedBox(height: AppSpacing.component),
+          _RuleVersionNotice(
+            snapshotVersion: snapshot.effectivenessRuleVersion,
+            liveVersion: liveRuleVersion,
+          ),
         ],
         const SizedBox(height: AppSpacing.component),
         NxCard(
@@ -921,8 +963,75 @@ class _OutsideTermNotice extends StatelessWidget {
   }
 }
 
+/// RENT-ROLL-RULE-01: the snapshot in view was not computed under the rule that
+/// is in force now.
+///
+/// This is the failure the package exists to prevent. A reader comparing a
+/// frozen total with the current one, or with another snapshot, reads the
+/// difference as a rent movement. Between rule 1 and rule 2 it may be nothing
+/// of the sort: a lease running past its planned end counts under rule 2 and
+/// did not under rule 1, so the same property on the same date produces two
+/// different, both correct, totals.
+///
+/// The notice deliberately does not offer to "fix" the snapshot. A frozen
+/// document has no edit path (AGG-007) and should not: the figures were true
+/// under the rule that produced them. The remedy is a new snapshot, which the
+/// page already offers, and the notice says so rather than implying the old one
+/// is wrong.
+class _RuleVersionNotice extends StatelessWidget {
+  const _RuleVersionNotice({
+    required this.snapshotVersion,
+    required this.liveVersion,
+  });
+
+  final int? snapshotVersion;
+  final int? liveVersion;
+
+  /// Whether there is anything to say.
+  ///
+  /// Silent when the snapshot names the same rule the server applies now --
+  /// the ordinary case, where the header line already carries the version and
+  /// a banner would be noise. Silent too when the live rule is unknown: with
+  /// nothing to compare against, a warning would be an assertion this build
+  /// cannot support.
+  static bool isWorthShowing({
+    required int? snapshotVersion,
+    required int? liveVersion,
+  }) {
+    if (liveVersion == null) {
+      return false;
+    }
+    return snapshotVersion != liveVersion;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unlabelled = snapshotVersion == null;
+    return _Notice(
+      key: const Key('rent-roll-snapshot-rule-notice'),
+      title: unlabelled
+          ? 'Dieser Snapshot nennt keine Regelversion'
+          : 'Andere Regelversion als der aktuelle Stand',
+      body: unlabelled
+          ? 'Er wurde eingefroren, bevor Snapshots die Berechnungsregel '
+                'festhielten. Welche der beiden Regeln galt, steht nirgends auf '
+                'der Zeile — deshalb wird hier nichts behauptet. Der aktuelle '
+                'Stand rechnet nach ${ruleVersionLabel(liveVersion)}. Ein '
+                'Vergleich mit diesem Snapshot kann eine Regeländerung zeigen '
+                'statt einer Mietänderung; ein neuer Snapshot ist gekennzeichnet.'
+          : 'Dieser Snapshot rechnet nach '
+                '${ruleVersionLabel(snapshotVersion)}, der aktuelle Stand nach '
+                '${ruleVersionLabel(liveVersion)}. Ein Unterschied zwischen '
+                'beiden kann daher aus der geänderten Regel stammen und nicht '
+                'aus der Miete. Der Snapshot bleibt gültig — er war unter '
+                'seiner Regel richtig; für eine vergleichbare Zahl wird ein '
+                'neuer eingefroren.',
+    );
+  }
+}
+
 class _Notice extends StatelessWidget {
-  const _Notice({required this.title, required this.body});
+  const _Notice({required this.title, required this.body, super.key});
 
   final String title;
   final String body;

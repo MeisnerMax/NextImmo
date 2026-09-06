@@ -187,6 +187,160 @@ void main() {
     expect(find.text('Stellplatz / Sonstiges'), findsWidgets);
   });
 
+  // -------------------------------------------------------------------------
+  // RENT-ROLL-RULE-01. Two snapshots of the same property for the same date can
+  // differ because the rule changed, not the rent, so every set of figures says
+  // which rule produced it — and the page makes the comparison itself.
+  // -------------------------------------------------------------------------
+
+  testWidgets('every set of figures names the rule that produced it', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[_snapshot('s1')],
+    );
+
+    // Live header, and the history row — the list is where totals get compared.
+    expect(find.textContaining('Regel v2'), findsWidgets);
+    expect(find.byKey(const Key('rent-roll-history-rule-s1')), findsOneWidget);
+  });
+
+  testWidgets('a snapshot from before the marker says so instead of claiming '
+      'a rule', (tester) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[
+        _snapshot('s1', effectivenessRuleVersion: null),
+      ],
+    );
+
+    expect(
+      find.text('Regelversion nicht gekennzeichnet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a rule this build does not know is shown as unknown, not as the '
+      'current one', (tester) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[
+        _snapshot('s1', effectivenessRuleVersion: 99),
+      ],
+    );
+
+    expect(
+      find.text('Regel v99 (diesem Client unbekannt)'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a snapshot under the current rule needs no warning', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[_snapshot('s1')],
+      snapshot: _snapshot(
+        's1',
+        lines: <RentRollSnapshotLineDto>[_line('l1', 'A-01')],
+      ),
+    );
+
+    await tester.tap(find.text('Stichtag 31.03.2026'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('rent-roll-snapshot-rule-notice')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a snapshot computed under an older rule warns where the figures '
+      'are', (tester) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[
+        _snapshot('s1', effectivenessRuleVersion: 1),
+      ],
+      snapshot: _snapshot(
+        's1',
+        effectivenessRuleVersion: 1,
+        lines: <RentRollSnapshotLineDto>[_line('l1', 'A-01')],
+      ),
+    );
+
+    await tester.tap(find.text('Stichtag 31.03.2026'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('rent-roll-snapshot-rule-notice')),
+      findsOneWidget,
+    );
+    // The snapshot is not called wrong: it was right under its own rule.
+    expect(
+      find.textContaining('kann daher aus der geänderten Regel stammen'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an unlabelled snapshot warns without claiming which rule it '
+      'used', (tester) async {
+    await _pump(
+      tester,
+      live: _live(),
+      snapshots: <RentRollSnapshotDto>[
+        _snapshot('s1', effectivenessRuleVersion: null),
+      ],
+      snapshot: _snapshot(
+        's1',
+        effectivenessRuleVersion: null,
+        lines: <RentRollSnapshotLineDto>[_line('l1', 'A-01')],
+      ),
+    );
+
+    await tester.tap(find.text('Stichtag 31.03.2026'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Dieser Snapshot nennt keine Regelversion'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('with no live rule to compare against, nothing is asserted', (
+    tester,
+  ) async {
+    // A database older than RENT-ROLL-RULE-01 publishes no live version. A
+    // warning here would be a claim this build cannot support.
+    await _pump(
+      tester,
+      live: _live(effectivenessRuleVersion: null),
+      snapshots: <RentRollSnapshotDto>[
+        _snapshot('s1', effectivenessRuleVersion: null),
+      ],
+      snapshot: _snapshot(
+        's1',
+        effectivenessRuleVersion: null,
+        lines: <RentRollSnapshotLineDto>[_line('l1', 'A-01')],
+      ),
+    );
+
+    await tester.tap(find.text('Stichtag 31.03.2026'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('rent-roll-snapshot-rule-notice')),
+      findsNothing,
+    );
+  });
+
   for (final size in const <Size>[
     Size(390, 844),
     Size(1024, 768),
@@ -268,6 +422,7 @@ RentRollLiveDto _live({
   int occupiedUnitCount = 1,
   int offlineUnitCount = 0,
   double? total = 1100,
+  int? effectivenessRuleVersion = 2,
 }) => RentRollLiveDto(
   workspaceId: workspaceId,
   propertyId: propertyId,
@@ -283,6 +438,7 @@ RentRollLiveDto _live({
   totalAncillaryChargesMonthly: total == null ? null : 100,
   totalParkingOtherChargesMonthly: total == null ? null : 0,
   totalRentMonthly: total,
+  effectivenessRuleVersion: effectivenessRuleVersion,
   lines: lines ?? <RentRollLiveLineDto>[_liveLine('A-01')],
 );
 
@@ -306,6 +462,7 @@ RentRollLiveLineDto _liveLine(
 
 RentRollSnapshotDto _snapshot(
   String id, {
+  int? effectivenessRuleVersion = 2,
   List<RentRollSnapshotLineDto> lines = const <RentRollSnapshotLineDto>[],
 }) => RentRollSnapshotDto(
   id: id,
@@ -325,6 +482,7 @@ RentRollSnapshotDto _snapshot(
   totalRentMonthly: 1100,
   createdAt: DateTime.utc(2026, 4, 1),
   createdBy: 'actor-1',
+  effectivenessRuleVersion: effectivenessRuleVersion,
   lines: lines,
 );
 

@@ -98,6 +98,7 @@ select functions_are(
     'reject_protected_column_update',
     'reject_rent_roll_change',
     'rent_roll_currencies',
+    'rent_roll_effectiveness_rule_version',
     'rent_roll_snapshot_document',
     'rent_roll_snapshot_header',
     'rent_roll_unit_currencies',

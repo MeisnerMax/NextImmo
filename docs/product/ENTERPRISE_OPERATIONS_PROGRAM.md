@@ -381,13 +381,55 @@ stehen:
    eigenem Schlüssel, damit „läuft bald ab" wegzuklicken nicht auch „ist abgelaufen" wegklickt.
    Was die Meldung ausdrücklich **nicht** behauptet: was das Gesetz daraus gemacht hat. Ob ein
    Mietverhältnis kraft Gesetzes weiterläuft, steht nicht in dieser Datenbank.
-4. **Neu aufgefallen bei V-1:** `rent_roll_snapshots` trägt **keinen Regelmarker**. Ein Snapshot
-   von vor Migration 50 und einer von danach rechnen nach unterschiedlichen Regeln, und nichts
-   auf der Zeile sagt das — bei einem Objekt mit einem über `end_date` hinaus laufenden Vertrag
-   springt die Zahl, ohne dass sich die Miete geändert hätte. Dieselbe Klasse wie die
-   FINANCE-01b-Lehre „keine berechnete Größe ohne Definitionsversion". Nicht in V-1 mitgelöst,
-   weil es eine Spalte, eine Festlegung für die bestehenden Zeilen und eine Anzeige braucht.
-   Heute unterscheidet sie nur `generated_at`.
+4. ~~`rent_roll_snapshots` trägt keinen Regelmarker.~~ **Erledigt mit `RENT-ROLL-RULE-01`**
+   (Migration 52). Aufgefallen bei V-1: ein Snapshot von vor Migration 50 und einer von danach
+   rechnen nach unterschiedlichen Regeln, und nichts auf der Zeile sagt das — bei einem Objekt
+   mit einem über `end_date` hinaus laufenden Vertrag springt die Zahl, ohne dass sich die Miete
+   geändert hätte. Dieselbe Klasse wie die FINANCE-01b-Lehre „keine berechnete Größe ohne
+   Definitionsversion“.
+
+   **Form: eine Ganzzahl, kein Definitionsobjekt.** FINANCE-01b ist der Hauspräzedenzfall und
+   wird bewusst *nicht* kopiert. Eine KPI-Definition ist eine Tabelle, weil sie *dem Workspace*
+   gehört — NexImmo kann nicht wissen, welche Konten eines fremden Kontenplans Betriebskosten
+   sind. Vertragswirksamkeit ist das Gegenteil: NexImmos eigene Regel, in jedem Workspace
+   dieselbe, in `private.lease_is_effective_on` ausgedrückt und nur durch eine Migration
+   änderbar. Ein Definitionsobjekt dafür wäre eine Tabelle, die niemand beschreiben darf, und
+   würde eine Konfigurierbarkeit vorspiegeln, die es nicht gibt und nicht geben soll — ein
+   Rent Roll, der je Workspace etwas anderes bedeutet, wäre portfolioweit nicht vergleichbar.
+   Die Zahl lebt an genau einer Stelle: `private.rent_roll_effectiveness_rule_version()`,
+   direkt neben der Regel, die sie benennt.
+
+   **Bestandszeilen bleiben ungekennzeichnet — und das ist der eigentliche Befund.** Geprüft
+   statt angenommen: Tabelle, beide Rent-Roll-Helfer und `create_rent_roll_snapshot` stammen
+   sämtlich aus Migration 21 und wurden bis Migration 49 von keiner Migration ersetzt;
+   `public.lease_status` hat nie einen Wert gewonnen oder verloren. Bis 49 gab es also genau
+   **eine** Regel. Migration 50 eröffnete die zweite — und ein Snapshot aus dem Fenster
+   zwischen 50 und 52 trägt nichts, was ihn von einer Regel-1-Zeile unterscheidet. Postgres
+   protokolliert weder, wann eine Funktion entstand, noch wann eine Migration angewandt wurde.
+   Das Fenster ist leer, wo alle Migrationen in einem Durchlauf ankommen (CI, `db reset`), aber
+   nicht allgemein, weil Web-Build und Datenbank Staging über getrennte Pipelines erreichen und
+   die Datenbank von Hand ausgelöst wird. Alle Zeilen pauschal auf 1 zu stempeln hätte eine
+   bestimmte Behauptung über einen unbestimmten Sachverhalt geschrieben — ausgerechnet in der
+   Spalte, die existiert, damit eine Zahl nicht mehr behauptet, als sie tragen kann. Die Spalte
+   ist deshalb nullable, die Migration schreibt nichts, und **null heißt: die Regel wurde nicht
+   festgehalten**, nicht „Regel 1“. Dasselbe Muster wie die Null-Summen bei gemischten Währungen.
+
+   **Default und expliziter Writer zugleich**, weil sie unterschiedlich versagen:
+   `create_rent_roll_snapshot` nennt die Version ausdrücklich, weil dort die Regel angewandt
+   wird — Zahlen und Etikett entstehen in einem INSERT und können nicht auseinanderlaufen; der
+   Spalten-Default fängt den Writer ab, der es vergisst, und liefert die aktuelle Version statt
+   der Null, die „vor dem Marker entstanden“ bedeutet. Der Default wird **nach** dem Hinzufügen
+   der Spalte gesetzt, sonst hätte `add column ... default ...` genau die stille Stempelung
+   erzeugt, die oben ausgeschlossen wird.
+
+   **Anzeige:** `RentRollSnapshotDto.effectivenessRuleVersion` und
+   `RentRollLiveDto.effectivenessRuleVersion` sind Pflichtparameter (nullable), nach dem Vorbild
+   von `FinanceKpiValue.definitionVersion`; der Rent Roll zeigt die Regel im Live-Header, im
+   Snapshot-Header und in jeder Zeile der Snapshot-Liste, und warnt bei den Zahlen, wenn ein
+   geöffneter Snapshot unter einer anderen Regel entstand. Eine Version, die der Client nicht
+   kennt, wird als unbekannt ausgewiesen statt als die aktuelle — die Datenbank kann dem Build
+   voraus sein. `rent_roll_live` nennt seine Regel ebenfalls, weil sonst genau der Vergleich
+   nicht möglich ist, um den es geht. pgTAP 043 (24) und Rollback 049 (13).
 
 ### Was weiterhin dem Owner gehört
 
