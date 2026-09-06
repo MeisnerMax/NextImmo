@@ -14,7 +14,7 @@ create extension if not exists pgtap with schema extensions;
 --   * a computed value carries its definition version, is per currency, and
 --     says whether the periods behind it are final.
 
-select plan(46);
+select plan(48);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -282,6 +282,27 @@ select is(
 );
 
 
+select is(
+  (select public.create_finance_kpi_definition(
+    'f1000000-0000-0000-0000-000000000001', 'noi', 'Net Operating Income',
+    ('[{"account_type": "expense", "effect": "add"},'
+     '{"account_type": "expense", "effect": "subtract"}]')::jsonb,
+    'f8000000-0000-0000-0000-00000000000a', 'f9000000-0000-0000-0000-00000000000a'
+  ) -> 'error' ->> 'field'),
+  'lines',
+  'a class named twice would contradict itself, and "the account line wins" '
+  'would have no single answer'
+);
+select is(
+  (select public.create_finance_kpi_definition(
+    'f1000000-0000-0000-0000-000000000001', 'noi', 'Net Operating Income',
+    ('[{"account_id": "f6000000-0000-0000-0000-000000000003", "effect": "add"},'
+     '{"account_id": "f6000000-0000-0000-0000-000000000003", "effect": "exclude"}]')::jsonb,
+    'f8000000-0000-0000-0000-00000000000b', 'f9000000-0000-0000-0000-00000000000b'
+  ) -> 'error' ->> 'field'),
+  'lines',
+  'and so would an account named twice'
+);
 select is(
   (select public.create_finance_kpi_definition(
     'f1000000-0000-0000-0000-000000000001', 'noi', 'Net Operating Income',

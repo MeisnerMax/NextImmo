@@ -182,6 +182,18 @@ create table public.finance_kpi_definition_lines (
 
 create index finance_kpi_definition_lines_definition_idx
   on public.finance_kpi_definition_lines (workspace_id, definition_id);
+
+-- One line per target within a definition. Without these a definition could
+-- hold two lines naming the same account with opposite effects, and the
+-- "account line wins" rule would then pick one of them arbitrarily — the same
+-- figure could differ between two reads because the planner chose a different
+-- row. A definition that contradicts itself is not a definition.
+create unique index finance_kpi_definition_lines_account_unique
+  on public.finance_kpi_definition_lines (definition_id, account_id)
+  where account_id is not null;
+create unique index finance_kpi_definition_lines_class_unique
+  on public.finance_kpi_definition_lines (definition_id, account_type)
+  where account_type is not null;
 create index finance_kpi_definition_lines_account_idx
   on public.finance_kpi_definition_lines (workspace_id, account_id)
   where account_id is not null;
@@ -431,6 +443,28 @@ begin
 
     v_count := v_count + 1;
   end loop;
+
+  -- Named twice in one definition, the two lines would contradict each other
+  -- and "the account line wins" would have no single answer. The unique
+  -- indexes make it impossible; this check makes the refusal typed.
+  if (
+    select count(*) <> count(distinct line ->> 'account_id')
+    from jsonb_array_elements(p_lines) as line
+    where line ->> 'account_id' is not null
+  ) or (
+    select count(*) <> count(distinct line ->> 'account_type')
+    from jsonb_array_elements(p_lines) as line
+    where line ->> 'account_type' is not null
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message', 'A definition names each account and each class once',
+        'field', 'lines'
+      )
+    );
+  end if;
 
   v_request_hash := extensions.digest(
     convert_to(
