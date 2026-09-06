@@ -102,9 +102,29 @@ Gemeinsame Lücke aller 16 Contract-Flächen: **kein Screen außer dem Reference
 | DocumentsScreen (4-Tab-Host) | legacy-basic | MERGE(documents-workspace; Registry-Flächen contract-basiert neu, dann Host + `documentsRequestedTabProvider` löschen) |
 | Legacy Typen/Pflichtregeln-Tabs | legacy-basic | REBUILD (als Registry-Flächen des Workspaces; Server-Mutationen existieren) |
 | Maintenance Legacy-Board (2899 LOC) | legacy-solid | MERGE(maintenance-tickets-panel; Featureliste harvesten: Edit/Delete/Links/Notifications/Filter) |
-| Property Maintenance Legacy (3915 LOC) | legacy-solid | REMOVE (vor Löschung: Bauteilzustand + Gewährleistung gegen Wave-4-Panels diffen — einzige evtl. nicht re-homten Features) |
+| Property Maintenance Legacy (3915 LOC) | legacy-solid | REMOVE — Diff durchgeführt 2026-09-06, siehe „Diff-Ergebnis" unten. `Bauteilzustand` ist ein unpersistierter Prototyp und stirbt ersatzlos; `Gewährleistung` ist eine echte, noch **nicht** re-homte Sicht und braucht vor der Löschung einen Kategoriefilter im Ticket-Read |
 | Contractors Legacy | legacy-solid | REMOVE (Modell bewusst aufgegeben; Rating-Konzept hängt an Satelliten-Frage) |
 | UsersScreen (Legacy-Admin) | legacy-solid | REMOVE (nach Harvest von Rollenfilter/Zeilenlayout; Klartext-Startpasswort-Dialog stirbt ersatzlos) |
+
+### Diff-Ergebnis: `Bauteilzustand` und `Gewährleistung` (2026-09-06)
+
+Die Karte hat diese beiden als „einzige evtl. nicht re-homte Features" geparkt. Der Diff ist jetzt gemacht, mit zwei sehr verschiedenen Antworten.
+
+**`Bauteilzustand` — kein Feature, ein Prototyp. Stirbt ersatzlos.**
+
+`maintenance_screen.dart` hält den Zustand in `final Map<String, _BauteilStatusEntry> _bauteilStatus = {}` — einem gewöhnlichen Feld im Widget-State. Die Map wird an genau zwei Stellen berührt: bei der Deklaration und in `putIfAbsent`. Sie wird **nie geladen und nie geschrieben**, es gibt kein Repository, keine Tabelle, keine Spalte. Die dreizehn Bauteile starten bei jedem Öffnen auf `gut`; eine Änderung im Dialog (`entry.status = selectedStatus`) überlebt die Navigation nicht.
+
+Es ist also nichts zu re-homen: kein Datensatz geht verloren, kein Verhalten. Was verloren ginge, ist die **Idee** eines Bauteil-Zustandsregisters — und die ist als neue Fähigkeit zu behandeln, mit eigenem Contract (Bauteilkatalog, Zustandsskala, Prüfintervalle, Historie), nicht als Rehost.
+
+**`Gewährleistung` — echte Sicht auf echte Daten, noch nicht re-homt.**
+
+Der Tab filtert die geladenen Tickets auf `category == 'warranty'` (plus abgeschlossene Aufträge) und bietet „Gewährleistung erfassen" als Anlegen mit vorbelegter Kategorie. Die Daten sind gewöhnliche `maintenance_tickets`; `category` ist eine echte, gepflegte Spalte, die die V2-Commands schreiben und lesen.
+
+Das V2-Panel `Betrieb → Wartung` kann diese Sicht heute **nicht** herstellen: sein Listen-Read filtert serverseitig nach `status`, nicht nach `category`. Die Kategorie ist speicher- und editierbar, aber nicht filterbar.
+
+**Konsequenz für die Löschreihenfolge:** Vor dem Entfernen des Legacy-Screens braucht der Ticket-Read einen serverseitigen Kategoriefilter (plus die Filterfläche im Panel). Das ist ein kleines Vorpaket, keine offene Frage mehr. Ohne es verliert das Produkt die Fähigkeit, Gewährleistungen als Gruppe zu sehen — und `Software_Goal.txt` Feature 4.3 („Überwachung von Gewährleistungsfristen und Mängelansprüchen") verlangt sie ausdrücklich.
+
+**Nicht Teil dieses Diffs, aber beim Nachlesen aufgefallen:** `Software_Goal.txt` führt `Nebenkostenabrechnung`, `Energieausweis` und `Versicherung` ausschließlich als **Dokumentenkategorien**, nicht als Workflows. Die V2-Dokumentenfläche deckt das ab; es fehlt hier nichts.
 
 ### Orphans (sofort löschbar, eigenes Hygiene-Paket)
 `search_screen.dart` · `v2/dashboard_screen_v2.dart` (2238 LOC Parallel-Modelle) · `v2/property_detail/property_shell_v2.dart` · `security/security_gate.dart` + `security/lock_screen.dart` (+ toter `_buildPage`-Ast inkl. Task-Timer) · `properties/create_property_dialog.dart` (nach Helper-Umzug) · `portfolio/portfolio_pack_screen.dart` · `property_detail/operations_overview_screen.dart` + `operations_alerts_screen.dart` (+ `operations_detail_support.dart` falls dann referenzlos)
