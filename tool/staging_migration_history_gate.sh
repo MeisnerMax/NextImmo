@@ -30,7 +30,33 @@ if [ "$mode" != "before" ] && [ "$mode" != "after" ]; then
   exit 1
 fi
 
-list_json="$(npx supabase migration list --linked --output-format json 2>/dev/null)"
+# The CLI stderr is captured rather than discarded, and `set -e` is lifted for
+# exactly this one command. Both matter, and the second one is why a staging
+# deployment once stopped with no message at all: under `set -e` a failing
+# command substitution kills the script *here*, before the "not readable as
+# JSON" branch below can say anything, and `2>/dev/null` had already thrown
+# away the reason. A gate that fails closed must still say what it saw.
+stderr_file="$(mktemp)"
+trap 'rm -f "$stderr_file"' EXIT
+
+set +e
+list_json="$(npx supabase migration list --linked --output-format json 2>"$stderr_file")"
+list_status=$?
+set -e
+
+if [ "$list_status" -ne 0 ] || [ -z "$list_json" ]; then
+  echo "::error::'supabase migration list --linked' failed (exit $list_status); refusing to continue with an unknown state." >&2
+  if [ -s "$stderr_file" ]; then
+    echo "CLI output was:" >&2
+    # Redacted before printing. GitHub masks registered secrets on its own,
+    # but this script also runs locally, and a connection error can carry URI
+    # credentials. The whole userinfo goes, not just the password: the role
+    # name is no help in diagnosing a connection failure, and a rule with
+    # fewer moving parts is a rule that still redacts next year.
+    sed -E -e 's#://[^@[:space:]]*@#://***@#g' -e 's#password=[^[:space:]]*#password=***#gI' "$stderr_file" | sed 's/^/  /' >&2
+  fi
+  exit 1
+fi
 
 if ! printf '%s' "$list_json" | jq -e '.migrations | type == "array"' >/dev/null 2>&1; then
   echo "::error::Migration history is not readable as JSON; refusing to continue with an unknown state." >&2
