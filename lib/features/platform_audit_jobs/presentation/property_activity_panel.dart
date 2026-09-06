@@ -81,6 +81,7 @@ String _entityLabel(String entityType) {
     'required_document' => 'Dokumentanforderung',
     'valuation_case' => 'Bewertungsfall',
     'finance_ledger_entry' => 'Buchung',
+    'lease_component' => 'Mietbestandteil',
     _ => entityType,
   };
 }
@@ -128,6 +129,9 @@ String? propertyActivityVerb(String entityType, String action) {
     'archived' => 'archiviert',
     'restore' => 'wiederhergestellt',
     'retire' => 'stillgelegt',
+    // LEASING-COMPONENTS-01 ends a component instead of deleting it, and
+    // says so with its own action rather than reusing `update`.
+    'close' => 'beendet',
     'supersede' => 'ersetzt',
     // Three spellings for the same event, from three domains that each chose
     // their own word for it.
