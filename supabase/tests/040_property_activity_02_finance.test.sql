@@ -49,10 +49,15 @@ select is(
   'the workspace-level finance records stay out: none of them carries a '
   'property_id, so no single property can honestly claim the event'
 );
+-- An inventory rather than a delta, in the manner of SR-20 and SR-22: a
+-- package that adds an entity type has to move this number in its own pull
+-- request, which puts the new type's domain and read gate in front of a
+-- reviewer. 15 after PROPERTY-ACTIVITY-02 added the ledger entry; 16 since
+-- PROPERTY-ACTIVITY-03 added the rent component.
 select is(
   (select count(*)::integer from private.property_activity_taxonomy()),
-  15,
-  'exactly one entity type was added'
+  16,
+  'the taxonomy inventory is still 16 -- update this expectation deliberately'
 );
 
 -- ---------------------------------------------------------------------------
