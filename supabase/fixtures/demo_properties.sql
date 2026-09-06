@@ -321,10 +321,11 @@ begin
     'inseriert', null, null, 'Besichtigungen laufen', null, 'Demo-Fixture'
   ), 'Einheit WE-05') ->> 'id')::uuid;
 
-  -- Siehe Kopf: `vacancy_since` kennt kein Kommando, weil Rueckdatieren keine
-  -- fachliche Handlung ist. Ohne diesen einen direkten Schreibzugriff koennte
-  -- die Fixture nur "leer seit heute" zeigen und die Leerstandsdauer bliebe
-  -- unbeweisbar.
+  -- Rueckdatierungsblock 1 von 2 (siehe Kopf). `create_unit` hat
+  -- `vacancy_since` bereits auf heute gestempelt; ein *frueheres* Datum bietet
+  -- kein Kommando an, weil Rueckdatieren keine fachliche Handlung ist. Ohne
+  -- diesen direkten Schreibzugriff koennte die Fixture nur "leer seit heute"
+  -- zeigen und jede Leerstandsdauer bliebe unbeweisbar.
   update public.units
   set vacancy_since = v_heute - 95,
       vacancy_reason = 'Auszug Vormieter, Neuvermietung laeuft'
@@ -408,6 +409,8 @@ begin
     'Vormieter zum Quartalsende ausgezogen.', 'Demo-Fixture'
   ), 'Einheit GE-02') ->> 'id')::uuid;
 
+  -- Rueckdatierungsblock 2 von 2, gleiche Begruendung wie bei WE-05. Dieser
+  -- hier traegt die laengste Leerstandsdauer des Kontorhauses.
   update public.units
   set vacancy_since = v_heute - 40,
       vacancy_reason = 'Vormieter ausgezogen, Nachvermietung laeuft'
