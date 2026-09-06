@@ -62,6 +62,7 @@
 2. Lines als Quell-/Drilldown-Tabelle
 3. immutable Snapshots und Snapshot-Detail
 4. Snapshot erstellen bei `lease.manage`
+5. Regelversion an jeder Zahlengruppe (`RENT-ROLL-RULE-01`)
 
 ## 5. Layout and interaction model
 
@@ -115,6 +116,24 @@
 - Live-Read zeigt ausschließlich servergelieferte Counts, Totals und Lines.
 - `occupancyRate` als lokaler DTO-Getter darf nicht als autoritative Property-KPI promoted werden.
 - Snapshot-Erzeugung bei `lease.manage`; Snapshot ist immutable und erhält serverseitigen Stand.
+- **Regelversion (`RENT-ROLL-RULE-01`, Folgearbeit 4 aus DEC-027).** `LEASING-ASOF-01` hat
+  geändert, welche Verträge in einen Rent Roll zählen. Zwei Snapshots desselben Objekts zum
+  selben Stichtag können sich deshalb unterscheiden, ohne dass sich die Miete geändert hat.
+  Jede Zahlengruppe nennt daher die Regel, unter der sie entstanden ist — Live-Header,
+  Snapshot-Header und **jede Zeile der Snapshot-Liste**, weil dort verglichen wird. Drei
+  Zustände, die nicht ineinander übersetzt werden dürfen:
+  - **bekannte Version** → `Regel v2`;
+  - **keine Version** → `Regelversion nicht gekennzeichnet`. Nicht „Regel 1“: der Snapshot
+    entstand, bevor der Marker existierte, und auf welcher Seite von Migration 50 er liegt,
+    steht nirgends auf der Zeile;
+  - **unbekannte Version** → `Regel v99 (diesem Client unbekannt)`. Web-Build und Datenbank
+    erreichen eine Umgebung über getrennte Pipelines, eine Datenbank kann also voraus sein.
+    Die Zahl wird gezeigt, nie auf die aktuelle Regel gerundet.
+- Weicht die Regel eines geöffneten Snapshots von der aktuellen ab, steht ein Hinweis **bei den
+  Zahlen**, nicht in einem Tooltip. Er nennt den Snapshot ausdrücklich **nicht** falsch — unter
+  seiner Regel war er richtig — und verweist auf einen neuen Snapshot als Abhilfe, weil ein
+  eingefrorenes Dokument keinen Editierpfad hat (AGG-007). Kennt der Server keine Live-Regel,
+  erscheint kein Hinweis: ohne Vergleichsgröße wäre er eine Behauptung.
 - gemischte Währungen werden getrennt und ehrlich dargestellt.
 
 ### Search / load more
@@ -129,8 +148,8 @@
 | Unit | `UnitDto`, `UnitRepository`/`UnitSearchPort` | id/propertyId, Kennung/Name, Typ/Fläche, Status, Offline-Grund, version/timestamps | Property; Leases; Cases |
 | Lease | `LeaseDto`, `LeaseRepository`/`LeaseSearchPort` | id/propertyId/unitId/tenantPartyId, Status, Termine, Mietwerte/Währung, version/timestamps gemäß DTO | Unit; Party; Rent Roll |
 | Leasing Case | `LeasingCaseDto`, `LeasingCaseRepository`/`LeasingCaseSearchPort` | id/propertyId, caseName, Status, Source, openedAt, optionale Unit-/Prospect-/Lease-IDs, version | Unit; Party; resultierender Lease |
-| Live Rent Roll | `RentRollLiveDto`, `RentRollPort.readLive` | serverseitige Unit-/Lease-Counts, Beträge nach Contract, Lines, `asOf` | Unit/Lease |
-| Snapshot | `RentRollPort` | immutable Header/Lines/Stand | Property, erzeugender Actor |
+| Live Rent Roll | `RentRollLiveDto`, `RentRollPort.readLive` | serverseitige Unit-/Lease-Counts, Beträge nach Contract, Lines, `asOf`, `effectivenessRuleVersion` | Unit/Lease |
+| Snapshot | `RentRollPort` | immutable Header/Lines/Stand, `effectivenessRuleVersion` (nullable = nicht gekennzeichnet) | Property, erzeugender Actor |
 | Tenant | Party/Tenant role contracts | Name/Rolle/Profil nur nach jeweiliger Permission | Lease/Case referenzieren Party-ID |
 
 Alle Beträge zeigen Währung. Fläche zeigt die Contract-Einheit. Das UI berechnet keine Exposure-, Renewal-, NOI- oder Performancewerte.
@@ -165,6 +184,8 @@ Für jeden Unterbereich: idle/initial loading, background refresh, forbidden, re
 - Party-profile forbidden bei weiterhin lesbarem Lease
 - Rent Roll empty unterscheidet „keine Daten“ von Betrag `0`
 - Snapshot-Empty zeigt erlaubte Create-Aktion nur bei `lease.manage`
+- Rent Roll ohne Regelversion (Server vor `RENT-ROLL-RULE-01`) rendert vollständig und
+  kennzeichnet die Regel als nicht gesetzt, statt zu scheitern
 
 ## 11. Search / filter / sort
 

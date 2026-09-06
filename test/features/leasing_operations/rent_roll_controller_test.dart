@@ -314,6 +314,7 @@ WorkspaceSessionScope _scope({
 RentRollSnapshotDto _snapshot(
   String id, {
   DateTime? generatedAt,
+  int? effectivenessRuleVersion = 2,
   List<RentRollSnapshotLineDto> lines = const <RentRollSnapshotLineDto>[],
 }) => RentRollSnapshotDto(
   id: id,
@@ -333,6 +334,7 @@ RentRollSnapshotDto _snapshot(
   totalRentMonthly: 1100,
   createdAt: DateTime.utc(2026, 4, 1),
   createdBy: 'actor-1',
+  effectivenessRuleVersion: effectivenessRuleVersion,
   lines: lines,
 );
 
@@ -354,6 +356,7 @@ RentRollSnapshotLineDto _line(String id, String unitCode) =>
 RentRollLiveDto _live({
   List<RentRollLiveLineDto>? lines,
   List<String> currencies = const <String>['EUR'],
+  int? effectivenessRuleVersion = 2,
 }) => RentRollLiveDto(
   workspaceId: _workspace,
   propertyId: _property,
@@ -369,6 +372,7 @@ RentRollLiveDto _live({
   totalAncillaryChargesMonthly: 100,
   totalParkingOtherChargesMonthly: 0,
   totalRentMonthly: 1100,
+  effectivenessRuleVersion: effectivenessRuleVersion,
   lines: lines ?? <RentRollLiveLineDto>[_liveLine('A-01')],
 );
 

@@ -256,6 +256,25 @@ Map<String, dynamic> _snapshotRow() => <String, dynamic>{
   'created_by': _actorId,
 };
 
+Map<String, dynamic> _liveEntity() => <String, dynamic>{
+  'workspace_id': _workspaceId,
+  'property_id': 'p1000000-0000-0000-0000-000000000001',
+  'as_of_date': '2026-03-31',
+  'computed_at': '2026-03-31T12:00:00Z',
+  'currency_code': 'EUR',
+  'currencies': <String>['EUR'],
+  'unit_count': 1,
+  'occupied_unit_count': 1,
+  'vacant_unit_count': 0,
+  'offline_unit_count': 0,
+  'effective_lease_count': 1,
+  'total_base_rent_monthly': '1250',
+  'total_ancillary_charges_monthly': '30',
+  'total_parking_other_charges_monthly': '0',
+  'total_rent_monthly': '1280',
+  'lines': <Map<String, dynamic>>[],
+};
+
 Map<String, dynamic> _lineRow({
   String unitCode = 'EG-links',
   String unitStatus = 'occupied',
@@ -772,6 +791,122 @@ void main() {
           (result as LeasingRepositorySuccess<RentRollSnapshotDto>).value;
       expect(snapshot.occupiedOutsideTermLines, hasLength(1));
       expect(snapshot.occupiedOutsideTermLines.single.unitCode, 'OG-links');
+    });
+
+    // RENT-ROLL-RULE-01: three states, and the adapter must keep them apart.
+    // Collapsing any two of them is how a rule change becomes invisible.
+    test('a snapshot names the rule that produced it', () async {
+      final gateway = _FakeGateway()
+        ..rows = <Map<String, dynamic>>[
+          <String, dynamic>{
+            ..._snapshotRow(),
+            'effectiveness_rule_version': 2,
+          },
+        ];
+      final adapter = SupabaseRentRollAdapter.withGateway(gateway);
+
+      final result = await adapter.getSnapshot(
+        workspaceId: _workspaceId,
+        snapshotId: 's1000000-0000-0000-0000-000000000001',
+      );
+
+      final snapshot =
+          (result as LeasingRepositorySuccess<RentRollSnapshotDto>).value;
+      expect(snapshot.effectivenessRuleVersion, 2);
+      expect(snapshot.effectivenessRule, RentRollEffectivenessRule.v2);
+      expect(snapshot.hasUnknownEffectivenessRule, isFalse);
+    });
+
+    test('a snapshot without a marker stays unlabelled and is not read as '
+        'rule 1', () async {
+      // _snapshotRow carries no version — a snapshot frozen before
+      // RENT-ROLL-RULE-01, or a database that has not received it. Migration 50
+      // opened a second era, so "no marker" is genuinely unknown and the
+      // adapter refuses to pick a side.
+      final gateway = _FakeGateway()
+        ..rows = <Map<String, dynamic>>[_snapshotRow()];
+      final adapter = SupabaseRentRollAdapter.withGateway(gateway);
+
+      final result = await adapter.getSnapshot(
+        workspaceId: _workspaceId,
+        snapshotId: 's1000000-0000-0000-0000-000000000001',
+      );
+
+      final snapshot =
+          (result as LeasingRepositorySuccess<RentRollSnapshotDto>).value;
+      expect(snapshot.effectivenessRuleVersion, isNull);
+      expect(snapshot.effectivenessRule, isNull);
+      // Not "unknown": there is no version to fail to recognise.
+      expect(snapshot.hasUnknownEffectivenessRule, isFalse);
+    });
+
+    test('a rule version newer than this build survives as a number', () async {
+      // The database can be ahead of the web build — they reach an environment
+      // through different pipelines. Mapping an unrecognised version to null,
+      // or silently to the current rule, would hide exactly the change the
+      // marker exists to show.
+      final gateway = _FakeGateway()
+        ..rows = <Map<String, dynamic>>[
+          <String, dynamic>{
+            ..._snapshotRow(),
+            'effectiveness_rule_version': 99,
+          },
+        ];
+      final adapter = SupabaseRentRollAdapter.withGateway(gateway);
+
+      final result = await adapter.getSnapshot(
+        workspaceId: _workspaceId,
+        snapshotId: 's1000000-0000-0000-0000-000000000001',
+      );
+
+      final snapshot =
+          (result as LeasingRepositorySuccess<RentRollSnapshotDto>).value;
+      expect(snapshot.effectivenessRuleVersion, 99);
+      expect(snapshot.effectivenessRule, isNull);
+      expect(snapshot.hasUnknownEffectivenessRule, isTrue);
+    });
+
+    test('the live read carries the rule the server applied', () async {
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': <String, dynamic>{
+            ..._liveEntity(),
+            'effectiveness_rule_version': 2,
+          },
+        };
+      final adapter = SupabaseRentRollAdapter.withGateway(gateway);
+
+      final result = await adapter.readLive(
+        workspaceId: _workspaceId,
+        propertyId: 'p1000000-0000-0000-0000-000000000001',
+        asOfDate: DateTime(2026, 3, 31),
+      );
+
+      final live = (result as LeasingRepositorySuccess<RentRollLiveDto>).value;
+      expect(live.effectivenessRuleVersion, 2);
+      expect(live.effectivenessRule, RentRollEffectivenessRule.v2);
+    });
+
+    test('a server that publishes no rule version still answers', () async {
+      // The web build deploys automatically on merge, the database by hand.
+      // Demanding the key would break the rent roll for the length of that gap.
+      final gateway = _FakeGateway()
+        ..rpcResponse = <String, dynamic>{
+          'ok': true,
+          'entity': _liveEntity(),
+        };
+      final adapter = SupabaseRentRollAdapter.withGateway(gateway);
+
+      final result = await adapter.readLive(
+        workspaceId: _workspaceId,
+        propertyId: 'p1000000-0000-0000-0000-000000000001',
+        asOfDate: DateTime(2026, 3, 31),
+      );
+
+      final live = (result as LeasingRepositorySuccess<RentRollLiveDto>).value;
+      expect(live.totalRentMonthly, 1280);
+      expect(live.effectivenessRuleVersion, isNull);
     });
 
     test('a missing snapshot is notFound, not an infrastructure failure',

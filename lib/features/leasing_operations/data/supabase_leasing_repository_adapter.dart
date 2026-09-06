@@ -1652,6 +1652,12 @@ RentRollSnapshotDto _parseRentRollSnapshot(
   totalRentMonthly: _requiredDouble(row, 'total_rent_monthly'),
   createdAt: _requiredDate(row, 'created_at'),
   createdBy: _requiredString(row, 'created_by'),
+  // Optional, and for two different reasons that render the same way: a
+  // snapshot frozen before RENT-ROLL-RULE-01 carries no marker, and a database
+  // that has not received that migration carries no column. The web build and
+  // the database reach an environment through separate pipelines, so demanding
+  // the key here would break the rent roll for the length of that gap.
+  effectivenessRuleVersion: _optionalInt(row['effectiveness_rule_version']),
   lines: lines,
 );
 
@@ -1691,6 +1697,11 @@ RentRollLiveDto _parseRentRollLive(Map<String, dynamic> entity) {
     vacantUnitCount: _requiredInt(entity, 'vacant_unit_count'),
     offlineUnitCount: _requiredInt(entity, 'offline_unit_count'),
     effectiveLeaseCount: _requiredInt(entity, 'effective_lease_count'),
+    // See the snapshot parser: absent from a server older than
+    // RENT-ROLL-RULE-01, and never invented here.
+    effectivenessRuleVersion: _optionalInt(
+      entity['effectiveness_rule_version'],
+    ),
     // Null on purpose when the currencies disagree — see the DTO.
     totalBaseRentMonthly: _optionalDouble(entity['total_base_rent_monthly']),
     totalAncillaryChargesMonthly: _optionalDouble(
