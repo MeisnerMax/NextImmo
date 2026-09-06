@@ -113,6 +113,59 @@ begin
 end;
 $$;
 
+-- Die drei workspace-weiten Finanzobjekte werden aufgeloest-oder-angelegt.
+--
+-- Der Objektwaechter weiter unten schuetzt nur die *Objekte*; Konten, Perioden
+-- und die KPI-Definition haengen am Workspace. Ein Lauf, der nach den Konten
+-- abbricht, liess sich vorher nicht wiederholen — der zweite Versuch scheiterte
+-- an `dependency_conflict` fuer genau die Zeile, die er selbst angelegt hatte.
+-- Gefunden beim Nachstellen der Staging-Lage, nicht im Betrieb.
+
+create or replace function pg_temp.account(
+  p_ws uuid, p_code text, p_name text, p_type text
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id
+  from public.finance_accounts
+  where workspace_id = p_ws and code = p_code;
+  if v_id is not null then
+    return v_id;
+  end if;
+  return (pg_temp.ok(public.create_finance_account(
+    p_ws, p_code, p_name, p_type,
+    gen_random_uuid(), gen_random_uuid(), null, 'Demo-Fixture'
+  ), 'Konto ' || p_code) ->> 'id')::uuid;
+end;
+$$;
+
+create or replace function pg_temp.period(
+  p_ws uuid, p_year integer, p_month integer, p_label text
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id
+  from public.finance_periods
+  where workspace_id = p_ws
+    and fiscal_year = p_year
+    and period_month = p_month;
+  if v_id is not null then
+    return v_id;
+  end if;
+  return (pg_temp.ok(public.open_finance_period(
+    p_ws, p_year, p_month, gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture'
+  ), p_label) ->> 'id')::uuid;
+end;
+$$;
+
 create or replace function pg_temp.tenant(
   p_workspace_id uuid,
   p_party_id uuid,
@@ -161,18 +214,59 @@ declare
 
   v_heute date := (now() at time zone 'utc')::date;
 begin
+  -- Identitaet wird aufgeloest, nie angelegt — und zwar tolerant, weil diese
+  -- Datei seit DEC-030 zwei Umgebungen bedient: lokal (ueber
+  -- `tool/seed_demo_properties.ps1`, wo `supabase/seed.sql` den Workspace
+  -- `neximmo` und `admin@neximmo.com` gebaut hat) und Staging (ueber
+  -- `.github/workflows/staging_seed.yml`, wo Identitaet administrativ vergeben
+  -- wurde, STAGING-PASSWORD-AUTH-01).
+  --
+  -- Eine zweite, staging-eigene Fixture waere die naheliegende Loesung gewesen
+  -- und die falsche: zwei Kopien derselben Objekte driften auseinander, und
+  -- dann testet man lokal etwas anderes, als remote laeuft. Nur die Aufloesung
+  -- unterscheidet sich, also unterscheidet sich auch nur sie.
   select id into v_ws from public.workspaces where key = 'neximmo' limit 1;
   if v_ws is null then
+    select id into v_ws from public.workspaces order by created_at limit 1;
+  end if;
+  if v_ws is null then
     raise exception
-      'Kein Workspace "neximmo". Zuerst supabase/seed.sql anwenden.';
+      'Kein Workspace vorhanden. Lokal zuerst supabase/seed.sql anwenden; '
+      'auf Staging wird der Workspace administrativ angelegt — diese Fixture '
+      'legt keinen an, weil wer den Workspace anlegt auch die Mandantengrenze '
+      'festlegt.';
   end if;
 
   select id into v_actor
   from auth.users where lower(email) = lower('admin@neximmo.com') limit 1;
   if v_actor is null then
-    raise exception
-      'Kein Nutzer admin@neximmo.com. Zuerst supabase/seed.sql anwenden.';
+    -- Kein bekannter Seed-Nutzer: dann die erste aktive Admin-Mitgliedschaft
+    -- dieses Workspace. Ueber die Mitgliedschaft und nicht ueber auth.users,
+    -- damit der Actor garantiert Rechte in genau diesem Workspace hat.
+    select m.user_id into v_actor
+    from public.memberships as m
+    join public.roles as r
+      on r.id = m.role_id and r.workspace_id = m.workspace_id
+    where m.workspace_id = v_ws
+      and m.status = 'active'
+      and r.key = 'admin'
+    order by m.created_at
+    limit 1;
   end if;
+  if v_actor is null then
+    raise exception
+      'Keine aktive Admin-Mitgliedschaft im Workspace %. Diese Fixture legt '
+      'weder Nutzer noch Mitgliedschaft an.', v_ws;
+  end if;
+
+  -- Der Rechtekatalog des Workspace wird abgeglichen, bevor irgendein Kommando
+  -- laeuft. Migrationen liefern `seed_workspace_role_catalog` aus, rufen ihn
+  -- aber fuer einen *bestehenden* Workspace nie auf — ein Workspace, der vor
+  -- einer neuen Faehigkeit angelegt wurde, erfaehrt nie von ihr. Auf Staging
+  -- zaehlte die Erhebung vom 2026-08-23 genau 1 Rolle und 3 Permissions; damit
+  -- koennte ein Admin dort kein Objekt anlegen und keine Zahl sehen. Der
+  -- Seeder ist idempotent und additiv.
+  perform private.seed_workspace_role_catalog(v_ws);
 
   if exists (
     select 1 from public.properties
@@ -569,48 +663,47 @@ begin
   -- Finanzen: Kontenplan, Perioden, Buchungen, eine NOI-Definition
   -- =========================================================================
 
-  v_konto_wohnen := (pg_temp.ok(public.create_finance_account(
-    v_ws, '4000', 'Mietertraege Wohnen', 'income',
-    gen_random_uuid(), gen_random_uuid(), null, 'Demo-Fixture'
-  ), 'Konto 4000') ->> 'id')::uuid;
-
-  v_konto_gewerbe := (pg_temp.ok(public.create_finance_account(
-    v_ws, '4100', 'Mietertraege Gewerbe', 'income',
-    gen_random_uuid(), gen_random_uuid(), null, 'Demo-Fixture'
-  ), 'Konto 4100') ->> 'id')::uuid;
-
-  v_konto_betrieb := (pg_temp.ok(public.create_finance_account(
-    v_ws, '5000', 'Betriebskosten', 'expense',
-    gen_random_uuid(), gen_random_uuid(), null, 'Demo-Fixture'
-  ), 'Konto 5000') ->> 'id')::uuid;
-
-  v_konto_instand := (pg_temp.ok(public.create_finance_account(
-    v_ws, '5100', 'Instandhaltung', 'expense',
-    gen_random_uuid(), gen_random_uuid(), null, 'Demo-Fixture'
-  ), 'Konto 5100') ->> 'id')::uuid;
+  v_konto_wohnen  := pg_temp.account(v_ws, '4000', 'Mietertraege Wohnen', 'income');
+  v_konto_gewerbe := pg_temp.account(v_ws, '4100', 'Mietertraege Gewerbe', 'income');
+  v_konto_betrieb := pg_temp.account(v_ws, '5000', 'Betriebskosten', 'expense');
+  v_konto_instand := pg_temp.account(v_ws, '5100', 'Instandhaltung', 'expense');
 
   -- Drei Perioden: die beiden aelteren abgeschlossen, die laufende offen —
   -- damit die Kennzahlen sich ehrlich als vorlaeufig ausweisen.
-  v_periode_1 := (pg_temp.ok(public.open_finance_period(
+  v_periode_1 := pg_temp.period(
     v_ws,
     extract(year from (v_heute - interval '2 months'))::integer,
     extract(month from (v_heute - interval '2 months'))::integer,
-    gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture'
-  ), 'Periode -2') ->> 'id')::uuid;
-
-  v_periode_2 := (pg_temp.ok(public.open_finance_period(
+    'Periode -2'
+  );
+  v_periode_2 := pg_temp.period(
     v_ws,
     extract(year from (v_heute - interval '1 month'))::integer,
     extract(month from (v_heute - interval '1 month'))::integer,
-    gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture'
-  ), 'Periode -1') ->> 'id')::uuid;
-
-  v_periode_3 := (pg_temp.ok(public.open_finance_period(
+    'Periode -1'
+  );
+  v_periode_3 := pg_temp.period(
     v_ws,
     extract(year from v_heute)::integer,
     extract(month from v_heute)::integer,
-    gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture'
-  ), 'Periode laufend') ->> 'id')::uuid;
+    'Periode laufend'
+  );
+
+  -- Ab hier nur, wenn dieser Workspace noch keine Buchungen hat.
+  --
+  -- Konten und Perioden werden oben aufgeloest-oder-angelegt, weil sie aus
+  -- einer anderen Quelle stammen koennen. Buchungen sind anders: die Fixture
+  -- schliesst die beiden aelteren Perioden nach dem Buchen ab, und ein
+  -- zweiter Lauf wuerde in genau diese geschlossenen Perioden buchen wollen
+  -- und zu Recht abgewiesen. Statt Wiederholbarkeit zu behaupten, die es
+  -- nicht gibt, wird der Block uebersprungen.
+  if exists (
+    select 1 from public.finance_ledger_entries where workspace_id = v_ws
+  ) then
+    raise notice
+      'Finanzdaten existieren bereits — Buchungen und KPI-Definition '
+      'uebersprungen. Objekte und Einheiten wurden angelegt.';
+  else
 
   -- Buchungen Lindenhof: Wohnmieten und Kosten je Periode.
   perform pg_temp.ok(public.record_finance_ledger_entry(
@@ -703,6 +796,13 @@ begin
 
   -- NOI als Definition, nicht als Formel im Code: alle Ertraege minus alle
   -- Aufwendungen. Genau so, wie ein Workspace es selbst festlegen muesste.
+  select id into v_kpi
+  from public.finance_kpi_definitions
+  where workspace_id = v_ws and kpi_key = 'noi'
+  order by definition_version desc
+  limit 1;
+
+  if v_kpi is null then
   v_kpi := (pg_temp.ok(public.create_finance_kpi_definition(
     v_ws, 'noi', 'Net Operating Income',
     jsonb_build_array(
@@ -714,11 +814,13 @@ begin
     'Demo-Fixture'
   ), 'KPI-Definition NOI') ->> 'id')::uuid;
 
-  perform pg_temp.ok(public.activate_finance_kpi_definition(
-    v_ws, v_kpi,
-    (select version from public.finance_kpi_definitions where id = v_kpi),
-    gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture: Definition aktivieren'
-  ), 'KPI-Definition aktivieren');
+    perform pg_temp.ok(public.activate_finance_kpi_definition(
+      v_ws, v_kpi,
+      (select version from public.finance_kpi_definitions where id = v_kpi),
+      gen_random_uuid(), gen_random_uuid(), 'Demo-Fixture: Definition aktivieren'
+    ), 'KPI-Definition aktivieren');
+  end if;
+  end if;
 
   perform set_config('request.jwt.claims', null, true);
 
