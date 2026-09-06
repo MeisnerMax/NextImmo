@@ -194,6 +194,53 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
     (2 Basisnutzer mit verifiziertem TOTP + 1 Repro-Nutzer), 1 Workspace, 1 Rolle,
     3 Permissions, 2 Memberships, Golden Property v11, 10 `audit_events`, 0 Storage-Objekte.
 
+    **Neu gefasst am 2026-09-06 (`DEC-030`).** Der Bestand ist seither zweimal gewachsen, und
+    die Zahlen oben sind nur noch ein Zeitpunktbild. Die Neufassung ist eine Auflage aus
+    `DEC-030`: die Baseline wird nicht aufgegeben, weil mehrere Closeouts an ihr nachweisen,
+    dass eine Sicherheitsübung *keine* Geschäftsdaten mutiert hat — dieser Nachweis muss
+    möglich bleiben.
+
+    | | 2026-08-23 | Inventar vor dem Seed | nach dem Seed |
+    |---|---:|---:|---:|
+    | `auth.users` | 3 | 3 | 3 |
+    | Workspaces | 1 | 1 | 1 |
+    | Rollen | 1 | 6 | 6 |
+    | Permissions | 3 | 33 | 33 |
+    | aktive Memberships | 2 | 2 | 2 |
+    | Objekte | 1 | 2 | 4 |
+    | Einheiten | — | 1 | 15 |
+    | Mietverträge | — | 0 | 10 |
+    | Parteien | — | 0 | 10 |
+    | Wartungsvorgänge | — | 0 | 4 |
+    | Buchungen | — | 0 | 14 |
+    | `audit_events` | 10 | 23 | 152 |
+    | **Golden Property `version`** | **11** | **11** | **11** |
+    | **`storage.objects`** | **0** | **0** | **0** |
+
+    **Die beiden fett gesetzten Zeilen sind die eigentliche Baseline** und haben sich durch
+    keinen der beiden Schritte bewegt. Die übrigen Zahlen sind Bestand, nicht Invariante: sie
+    wachsen bei jedem Seed und taugen nicht als „unverändert"-Nachweis. Die Erhebung läuft
+    reproduzierbar über `.github/workflows/staging_seed.yml` im Modus `inventory`
+    (`supabase/fixtures/staging_inventory.sql`), also nicht mehr von Hand.
+
+    **Zwei Befunde aus der Erhebung, die zur Kenntnis gehören:**
+
+    - Die Angabe „1 Rolle, 3 Permissions" von 2026-08-23 war zum Zeitpunkt der Erhebung
+      richtig und ist es heute nicht mehr: der Rechtekatalog ist mit 33 Schlüsseln vollständig,
+      und der Admin hält alle. Eine darauf gestützte Vermutung, die Anwendung sei auf Staging
+      funktionsunfähig, war falsch — der Grund für die leere Oberfläche waren fehlende
+      *Daten*, nicht fehlende Rechte.
+    - Es existiert eine **sechste Rolle `property_manager`** mit genau den drei Permissions
+      `workspace.read`, `property.read`, `property.update`. Das dokumentierte Modell kennt
+      fünf Rollen, und `supabase/tests/030_permission_catalog.test.sql` sichert „genau diese
+      und keine andere" ab. Die Rolle stammt erkennbar aus einer Testfixture —
+      `supabase/tests_integration/p1_011_setup.sql:20-34` legt sie mit exakt diesem
+      Permissions-Trio an — und ist bei der manuellen Golden-Path-Provisionierung im
+      Staging-Workspace gelandet. Ob sie eine aktive Mitgliedschaft trägt, beantwortet der
+      nächste Inventarlauf (`memberships_by_role`). Sie ist keine Rechteausweitung, aber eine
+      Abweichung zwischen dokumentiertem Modell und laufender Umgebung, und sollte entfernt
+      werden, sobald geklärt ist, dass niemand sie hält.
+
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
 Phase 2 hat lokale und CI-Basis auf **17** angeglichen, statt gegen eine ungeprüfte Version zu

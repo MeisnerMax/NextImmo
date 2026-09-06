@@ -37,6 +37,22 @@ select jsonb_pretty(jsonb_build_object(
       group by role.key
     ) as x
   ),
+  -- Which roles are actually in use. A role nobody holds is not a permission
+  -- problem, but it is a divergence worth seeing: the first run turned up a
+  -- sixth role on staging (`property_manager`, 3 permissions) that the
+  -- documented model does not have and pgTAP pins as impossible — it matches
+  -- the trio in `tests_integration/p1_011_setup.sql` exactly, so it came from
+  -- a test fixture by way of the manual golden-path provisioning.
+  'memberships_by_role', (
+    select coalesce(jsonb_object_agg(x.role_key, x.n), '{}'::jsonb)
+    from (
+      select role.key as role_key, count(*) as n
+      from public.memberships as m
+      join public.roles as role on role.id = m.role_id
+      where m.status = 'active'
+      group by role.key
+    ) as x
+  ),
   -- Named explicitly because the demo data cannot be created without them.
   'missing_for_demo', (
     select coalesce(jsonb_agg(needed.key order by needed.key), '[]'::jsonb)
