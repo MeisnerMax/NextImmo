@@ -56,14 +56,18 @@ run_case() {
 # rule actually under test. An earlier fixture with two made-up versions
 # tripped that check first and never reached the ordering rule at all.
 history_json() {
-  (cd "$repo_root" && python -c "
-import glob, json, os, sys
-oldest_pending = sys.argv[1] == 'oldest-pending'
-versions = sorted(os.path.basename(f).split('_')[0]
-                  for f in glob.glob('supabase/migrations/*.sql'))
-rows = [{'local': v, 'remote': '' if (oldest_pending and v == versions[0]) else v}
-        for v in versions]
-print(json.dumps({'migrations': rows}))" "$1")
+  # jq only. `python` is not reliably on PATH on ubuntu-24.04 runners, and the
+  # gate under test already requires jq, so this adds no dependency.
+  (cd "$repo_root" && ls supabase/migrations/*.sql) \
+    | sed -E 's#.*/([0-9]+)_.*#\1#' | sort \
+    | jq -R -n --arg mode "$1" '
+        [inputs | select(length > 0)] as $versions
+        | ($versions[0] // "") as $oldest
+        | {migrations: ($versions | map({
+            local: .,
+            remote: (if $mode == "oldest-pending" and . == $oldest
+                     then "" else . end)
+          }))}'
 }
 
 # The regression itself: a failing CLI must be reported, not swallowed.

@@ -116,7 +116,10 @@ jobs:
       # stopped a deployment and printed nothing at all.
       - name: Test the staging migration history gate
         shell: bash
-        run: ./tool/test_staging_history_gate_guard.sh
+        # Invoked through `bash` rather than as an executable: the mode bit is
+        # easy to lose when the file is authored on Windows, and losing it
+        # fails the step with a bare exit 126 that says nothing about the test.
+        run: bash ./tool/test_staging_history_gate_guard.sh
       # package.json is the single source of truth for the CLI version. It used
       # to be repeated here as a literal, which let the two drift silently.
       - name: Read the pinned Supabase CLI version
