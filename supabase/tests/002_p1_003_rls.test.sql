@@ -58,6 +58,7 @@ select functions_are(
     'is_aal2',
     'is_active_workspace_member',
     'is_current_active_membership',
+    'lease_is_effective_on',
     'lease_snapshot',
     'lease_status_is_effective',
     'lease_status_transition_allowed',

@@ -319,7 +319,7 @@ Analyse Abhängigkeiten zeigt, die dort nicht sichtbar waren.
 
 | # | Paket | Warum hier | Blockiert |
 | --- | --- | --- | --- |
-| **V-1** | **Stichtagsauflösung Leasing** (B-2) | Ohne sie rechnet jede Rückschau falsch, ohne zu scheitern | alles Abrechnungsbezogene |
+| **V-1** | **Stichtagsauflösung Leasing** (B-2, DEC-027) — *implementiert 2026-09-06, `LEASING-ASOF-01`, Migration 50* | Solange keine Live-Fläche einen vergangenen Stichtag anfragt, ist die Korrektur regressionsfrei; später nicht mehr | alles Abrechnungsbezogene |
 | **V-2** | **`lease_components`, zeitversioniert** (B-1) | Warmmiete, Vorauszahlungen, Empfehlung hängen daran | §4, §3.6, §12 |
 | **V-3** | **Ticket-Kategoriefilter** (§15) | Kleinstes Paket, klar umrissen, Vorbedingung für §11 | Legacy-Removal |
 | **V-4** | **Compliance-Regelschicht mit Gültigkeitszeitraum** | Rechtsstände sind versioniert (§2 dieses Dokuments); jede Berechnung baut darauf | §3, §8 |
@@ -360,9 +360,13 @@ Die Entscheidung räumt eine real bestehende Divergenz auf und zieht drei Korrek
 die **nicht** stillschweigend miterledigt werden, sondern als benannte Arbeit im jeweiligen Paket
 stehen:
 
-1. `rent_roll_unit_rows`, `rent_roll_currencies`, `rent_roll_unit_currencies`, `rent_roll_live`
-   und `create_rent_roll_snapshot` filtern `end_date` nicht mehr aus. Die pgTAP-Pins ändern sich
-   mit.
+1. ~~`rent_roll_unit_rows`, `rent_roll_currencies`, `rent_roll_unit_currencies`, `rent_roll_live`
+   und `create_rent_roll_snapshot` filtern `end_date` nicht mehr aus.~~ **Erledigt mit
+   `LEASING-ASOF-01`** (Migration 50): alle drei Helfer fragen jetzt
+   `private.lease_is_effective_on(...)`, die Regel steht an einer Stelle. Bemerkenswert dabei:
+   den `end_date`-Ausschluss zu entfernen brach **keine einzige** Assertion der Suite — er war
+   nie abgedeckt. Genau diese Stille hat die Divergenz eine Release lang leben lassen. pgTAP 041
+   (24) und Rollback 047 (12) decken jetzt beide Richtungen ab.
 2. `property_leasing_summary` behält sein Verhalten, bekommt aber den **fehlenden
    `start_date`-Filter**: heute zählt dort auch ein Vertrag mit, der noch gar nicht begonnen hat.
    Das ist ein Defekt, keine Entscheidung, und war bis zu dieser Analyse unbemerkt.
