@@ -81,14 +81,21 @@ begin
     return;
   end if;
 
-  -- Der Aufruf laeuft als der Admin, weil die Commands `auth.uid()` gegen den
-  -- Kommandoakteur pruefen.
+  -- Wie in `demo_properties.sql`: die Kommandos laufen als der Admin mit aal2,
+  -- aber `role` bleibt unangetastet. Die RPCs sind SECURITY DEFINER,
+  -- entscheidend ist allein der JWT-Claim, den `auth.uid()` und
+  -- `private.is_aal2()` lesen. Die Rolle zusaetzlich auf `authenticated` zu
+  -- setzen wuerde die Vertrags-Lookups dieser Fixture unter RLS stellen --
+  -- sie wuerden dann von einer Policy abhaengen statt von der Frage, die sie
+  -- stellen, und eine Fixture, die still nichts findet, ist schlimmer als eine,
+  -- die laut scheitert.
   perform set_config(
     'request.jwt.claims',
-    json_build_object('sub', v_actor, 'role', 'authenticated', 'aal', 'aal2')::text,
+    json_build_object(
+      'sub', v_actor::text, 'role', 'authenticated', 'aal', 'aal2'
+    )::text,
     true
   );
-  perform set_config('role', 'authenticated', true);
 
   -- 1. WE-01: eine Mieterhoehung, sichtbar als zwei Perioden.
   select id into v_lease from public.leases
@@ -169,8 +176,7 @@ begin
   -- "nicht erfasst"-Zustand ist ein Zustand des Produkts, kein Versehen, und
   -- er muss in den Demodaten vorkommen, damit er ueberhaupt anschaubar ist.
 
-  perform set_config('role', 'postgres', true);
-  perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claims', null, true);
 
   raise notice 'Mietbestandteile angelegt: % Stueck.', v_count;
 end;
