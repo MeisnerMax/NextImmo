@@ -54,6 +54,25 @@
 -- The predicate is `immutable` and touches no table, so it needs no
 -- `security definer` and adds nothing to the public SECURITY DEFINER inventory.
 --
+-- -----------------------------------------------------------------------------
+-- A consequence worth stating rather than discovering
+-- -----------------------------------------------------------------------------
+--
+-- `rent_roll_snapshots` is an immutable document and carries no marker for the
+-- rule its figures were computed under. Snapshots written before this migration
+-- used the old filter; snapshots written after use this one. For a property
+-- with a lease running past its `end_date`, the two differ -- and the jump is a
+-- change of rule, not a change of rent.
+--
+-- Nothing on the row says so. That is the same shape as the finance lesson from
+-- FINANCE-01b ("no computed figure without its definition version"), and it is
+-- not fixed here: labelling the snapshots means a column, a decision about what
+-- to write on the rows that already exist, and a way to show it -- a package of
+-- its own, named in `ENTERPRISE_OPERATIONS_PROGRAM.md` rather than folded in.
+--
+-- What can be said today is said here: `generated_at` separates the two eras,
+-- and this migration is the boundary.
+--
 -- Deliberately NOT changed here:
 --
 --   * `private.lease_status_is_effective` keeps its meaning. It answers a

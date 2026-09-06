@@ -373,6 +373,13 @@ stehen:
 3. `operations_signals.lease_expiry` verliert den Vertrag heute genau an dem Tag, an dem er
    handlungsbedürftig wird (`end_date >= current_date`). Das ist die Fristenleiter, die den Fall
    am dringendsten zeigen müsste.
+4. **Neu aufgefallen bei V-1:** `rent_roll_snapshots` trägt **keinen Regelmarker**. Ein Snapshot
+   von vor Migration 50 und einer von danach rechnen nach unterschiedlichen Regeln, und nichts
+   auf der Zeile sagt das — bei einem Objekt mit einem über `end_date` hinaus laufenden Vertrag
+   springt die Zahl, ohne dass sich die Miete geändert hätte. Dieselbe Klasse wie die
+   FINANCE-01b-Lehre „keine berechnete Größe ohne Definitionsversion". Nicht in V-1 mitgelöst,
+   weil es eine Spalte, eine Festlegung für die bestehenden Zeilen und eine Anzeige braucht.
+   Heute unterscheidet sie nur `generated_at`.
 
 ### Was weiterhin dem Owner gehört
 
