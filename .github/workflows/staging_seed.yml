@@ -33,6 +33,13 @@ name: Supabase Staging Synthetic Data
 #              holds. Refuses on anything else. Added because the first
 #              inventory found `property_manager` on staging, copied from a
 #              test fixture during manual provisioning.
+#   retire-role moves the memberships of one undocumented role onto a
+#              documented one, so `prune-roles` can then remove it. It exists
+#              because the first prune run found that role *held* and kept it —
+#              correctly, since deleting it would have silently taken away
+#              somebody's access. Deliberately two dispatches rather than one:
+#              an inventory runs between them, so the re-pointing is visible
+#              before anything is deleted.
 #   seed       applies supabase/fixtures/demo_properties.sql — the same file
 #              the local runner uses, so what is tested locally is what runs
 #              here. It is additive and it no-ops on a second run.
@@ -55,6 +62,11 @@ name: Supabase Staging Synthetic Data
 # Execution goes through `supabase db query --linked -f`, i.e. the Management
 # API with the access token. No connection string is assembled anywhere, and
 # the database password is never passed as an argument.
+#
+# That path DISCARDS server messages: `raise notice` and `raise warning` never
+# reach this log. The 2026-09-06 prune run proved it — the fixture correctly
+# refused to delete a held role and the step printed nothing at all. Every
+# fixture here therefore reports through a result set, and any new one must.
 
 on:
   workflow_dispatch:
@@ -68,6 +80,23 @@ on:
           - inventory
           - seed
           - prune-roles
+          - retire-role
+      role_key:
+        description: 'retire-role only: the undocumented role to retire'
+        required: false
+        default: ''
+        type: string
+      target_role_key:
+        description: 'retire-role only: the documented role its holders move to'
+        required: false
+        default: viewer
+        type: choice
+        options:
+          - viewer
+          - operations
+          - analyst
+          - manager
+          - admin
 
 permissions:
   contents: read
@@ -222,6 +251,44 @@ jobs:
           # Additive and idempotent. Creates what is missing, touches nothing
           # else, and in particular never the golden property.
           npx supabase db query --linked -f supabase/fixtures/demo_properties.sql
+
+      - name: Retire an undocumented role by re-pointing its holders
+        if: ${{ inputs.mode == 'retire-role' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          ROLE_KEY: ${{ inputs.role_key }}
+          TARGET_ROLE_KEY: ${{ inputs.target_role_key }}
+        run: |
+          # The inputs are interpolated into SQL, so they are validated first
+          # and strictly. The pattern admits nothing that could close a quote,
+          # and the two membership lists are checked here as well as inside the
+          # fixture — the fixture must not depend on its caller being careful.
+          if ! printf '%s' "$ROLE_KEY" | grep -qE '^[a-z][a-z0-9_]{0,49}$'; then
+            echo "::error::role_key must match ^[a-z][a-z0-9_]{0,49}$ (got '$ROLE_KEY')."
+            exit 1
+          fi
+          case "$ROLE_KEY" in
+            admin|manager|analyst|operations|viewer)
+              echo "::error::'$ROLE_KEY' belongs to the documented model and is not retired here."
+              exit 1 ;;
+          esac
+          case "$TARGET_ROLE_KEY" in
+            admin|manager|analyst|operations|viewer) ;;
+            *) echo "::error::target_role_key '$TARGET_ROLE_KEY' is not one of the five documented roles."
+               exit 1 ;;
+          esac
+          echo "Retiring role '$ROLE_KEY'; its holders move to '$TARGET_ROLE_KEY'."
+
+          # The parameters ride in a temp table so the reviewable logic stays a
+          # static file in the repository rather than a string built at runtime.
+          {
+            echo "drop table if exists pg_temp._retire_params;"
+            echo "create temporary table _retire_params(role_key text, target_role_key text);"
+            echo "insert into _retire_params values ('$ROLE_KEY', '$TARGET_ROLE_KEY');"
+            cat supabase/fixtures/staging_retire_role.sql
+          } > "$RUNNER_TEMP/retire_role.sql"
+
+          npx supabase db query --linked -f "$RUNNER_TEMP/retire_role.sql"
 
       - name: Prune roles outside the documented model
         if: ${{ inputs.mode == 'prune-roles' }}
