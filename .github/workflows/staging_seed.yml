@@ -251,6 +251,13 @@ jobs:
           # Additive and idempotent. Creates what is missing, touches nothing
           # else, and in particular never the golden property.
           npx supabase db query --linked -f supabase/fixtures/demo_properties.sql
+          # Second, and with its own guard. The objects fixture returns early
+          # once the demo properties exist, which they have on staging since
+          # 2026-09-06 - so anything added to it after that date would never
+          # run there. Rent components therefore live in their own additive
+          # file, and `seed` means "bring the demo data up to date" rather
+          # than "create it once".
+          npx supabase db query --linked -f supabase/fixtures/demo_lease_components.sql
 
       - name: Retire an undocumented role by re-pointing its holders
         if: ${{ inputs.mode == 'retire-role' }}

@@ -75,6 +75,11 @@ function Invoke-SqlFile([string] $relativePath, [string] $target, [string] $labe
 Invoke-SqlFile 'supabase\seed.sql' '/tmp/neximmo-seed.sql' 'Local bootstrap seed'
 Invoke-SqlFile 'supabase\fixtures\demo_properties.sql' '/tmp/neximmo-demo.sql' 'Demo property fixture'
 
+# Additive second half, with its own guard: the objects fixture returns early
+# once the demo properties exist, so rent components had to live in their own
+# file to be able to reach a workspace that already has them.
+Invoke-SqlFile 'supabase\fixtures\demo_lease_components.sql' '/tmp/neximmo-demo-components.sql' 'Demo lease components'
+
 # Nachweis lesend, nicht behauptet.
 $evidenceSql = @'
 select json_build_object(
