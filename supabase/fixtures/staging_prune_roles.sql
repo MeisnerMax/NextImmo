@@ -29,6 +29,21 @@
 -- is expected to come back to the access they had.
 --
 -- It is idempotent: a second run finds nothing to do and says so.
+--
+-- **Reporting.** The outcome is a result set, not `raise notice`/`warning`.
+-- The run of 2026-09-06 proved those are invisible: `supabase db query
+-- --linked` goes through the Management API, which discards server messages,
+-- so the fixture correctly kept a held role and the workflow log showed
+-- nothing at all. The outcome was only recoverable because the inventory
+-- reports `memberships_by_role`. A guard nobody can see is half a guard.
+
+drop table if exists pg_temp._prune_report;
+create temporary table _prune_report (
+  outcome  text not null,
+  role_key text not null,
+  holders  integer not null default 0,
+  detail   text
+);
 
 do $prune$
 declare
@@ -55,11 +70,12 @@ begin
   loop
     if v_role.holders > 0 then
       -- Named, not silently skipped: somebody is using it, and that is a
-      -- decision for a person rather than for this script.
-      raise warning
-        'Rolle "%" wird NICHT entfernt: % Mitgliedschaft(en) halten sie. '
-        'Erst umhaengen, dann erneut laufen lassen.',
-        v_role.key, v_role.holders;
+      -- decision for a person rather than for this script. `retire-role`
+      -- exists to make that decision explicit and reversible.
+      insert into _prune_report (outcome, role_key, holders, detail)
+      values ('kept', v_role.key, v_role.holders,
+              'Wird NICHT entfernt: Mitgliedschaft(en) halten sie. Erst per '
+              'retire-role umhaengen, dann erneut laufen lassen.');
       v_kept := v_kept + 1;
       continue;
     end if;
@@ -74,15 +90,39 @@ begin
     delete from public.roles
     where workspace_id = v_ws and id = v_role.id;
 
-    raise notice 'Rolle "%" entfernt (keine Mitgliedschaft).', v_role.key;
+    insert into _prune_report (outcome, role_key, holders, detail)
+    values ('removed', v_role.key, 0,
+            'Entfernt: keine Mitgliedschaft hielt sie.');
     v_removed := v_removed + 1;
   end loop;
 
   if v_removed = 0 and v_kept = 0 then
-    raise notice
-      'Keine Rolle ausserhalb des dokumentierten Modells gefunden — nichts zu tun.';
-  else
-    raise notice 'Fertig: % entfernt, % behalten.', v_removed, v_kept;
+    insert into _prune_report (outcome, role_key, holders, detail)
+    values ('nothing_to_do', '-', 0,
+            'Keine Rolle ausserhalb des dokumentierten Modells gefunden.');
   end if;
 end;
 $prune$;
+
+select jsonb_pretty(jsonb_build_object(
+  'removed', (
+    select coalesce(jsonb_agg(r.role_key order by r.role_key), '[]'::jsonb)
+    from _prune_report as r where r.outcome = 'removed'
+  ),
+  'kept', (
+    select coalesce(jsonb_agg(
+      jsonb_build_object('role_key', r.role_key, 'holders', r.holders)
+      order by r.role_key
+    ), '[]'::jsonb)
+    from _prune_report as r where r.outcome = 'kept'
+  ),
+  'entries', (
+    select coalesce(jsonb_agg(
+      jsonb_build_object(
+        'outcome', r.outcome, 'role_key', r.role_key,
+        'holders', r.holders, 'detail', r.detail
+      ) order by r.role_key
+    ), '[]'::jsonb)
+    from _prune_report as r
+  )
+)) as prune_report;

@@ -241,6 +241,26 @@ an seine Region gebunden — ein späterer Wechsel ist eine Migration, keine Ein
       Abweichung zwischen dokumentiertem Modell und laufender Umgebung, und sollte entfernt
       werden, sobald geklärt ist, dass niemand sie hält.
 
+      **Aufgelöst am 2026-09-06.** Sie *wurde* gehalten, von genau einer aktiven
+      Mitgliedschaft, und der erste `prune-roles`-Lauf hat sie deshalb stehengelassen — so
+      gebaut, weil das Löschen einer gehaltenen Rolle jemandem lautlos den Zugang nähme. Die
+      obige Vermutung „aus einer Testfixture kopiert" war insofern nur halb richtig: das
+      Permissions-Trio stammt aus der Fixture, der Halter aber ist das frühere Ansichts-Konto
+      des Eigentümers, das seit der Admin-Vergabe nicht mehr gebraucht wird. Der Eigentümer
+      hat die Entfernung am 2026-09-06 freigegeben. Der Weg dorthin ist bewusst
+      **zweistufig**: `retire-role` hängt den Halter auf `viewer` um — die geringste
+      dokumentierte Rechtestufe, die genau dem entspricht, wofür das Konto benutzt wurde —,
+      danach entfernt `prune-roles` die dann ungehaltene Rolle. Zwischen beiden Läufen steht
+      ein Inventar, das Umhängen ist also sichtbar, bevor gelöscht wird. Das Konto verliert
+      seinen Zugang nicht; es verliert `property.update`.
+
+    **Ein dritter Befund, aus dem Lauf selbst:** `supabase db query --linked` verwirft
+    `raise notice`/`raise warning`. Der erste `prune-roles`-Lauf handelte korrekt und teilte
+    es niemandem mit — der Schritt gab nichts aus, und das Ergebnis war nur rekonstruierbar,
+    weil das Inventar `memberships_by_role` mitführt. Alle Fixtures dieses Workflows melden
+    seither über ein Result-Set; für neue ist das Pflicht. Eine Schutzmaßnahme, die niemand
+    sehen kann, ist eine halbe Schutzmaßnahme.
+
 **PostgreSQL-Major-Version — entschieden, nicht mehr offen.** Das Projekt läuft auf
 **17.6.1.155**, die lokale Basis stand auf `major_version = 15`. `STAGING-PROVISION-01`
 Phase 2 hat lokale und CI-Basis auf **17** angeglichen, statt gegen eine ungeprüfte Version zu
