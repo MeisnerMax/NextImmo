@@ -197,9 +197,20 @@ class LeaseComponentsSection extends StatelessWidget {
         'wäre weder das eine noch das andere, deshalb wird nicht summiert.';
   }
 
+  /// Names both readings of an absent component, because they are different
+  /// and this section cannot tell them apart.
+  ///
+  /// The as-of read returns what is in force on one date. A component that was
+  /// ended — the returned parking space in the demo data is exactly this — is
+  /// therefore absent today, and shows the same way as one that was never
+  /// entered. "Nicht erfasst" is true for the date either way, but a reader who
+  /// remembers the parking charge would take it for lost data unless the
+  /// sentence says otherwise. The honest fix is a history read, which the
+  /// server does not offer yet; until it does, this says so.
   static const String _absenceExplanation =
-      'Nicht erfasst heißt nicht null: für einen Zeitraum ohne Bestandteil '
-      'liegt keine Angabe vor.';
+      'Nicht erfasst heißt nicht null: für diesen Stichtag liegt kein '
+      'Bestandteil dieser Art vor. Er kann fehlen oder beendet sein — eine '
+      'Historie zeigt dieser Abschnitt noch nicht.';
 
   static String _typeLabel(LeaseComponentType type) => switch (type) {
     LeaseComponentType.baseRent => 'Grundmiete',

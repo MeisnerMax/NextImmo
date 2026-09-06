@@ -46,6 +46,18 @@ void main() {
       find.textContaining('Nicht erfasst heißt nicht null'),
       findsOneWidget,
     );
+    // A component that was ended is absent on a later date and renders the
+    // same way as one that was never entered. The section cannot tell them
+    // apart — the as-of read returns only what is in force — so it says so
+    // rather than letting the reader assume data was lost.
+    expect(
+      find.textContaining('Er kann fehlen oder beendet sein'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Historie zeigt dieser Abschnitt noch nicht'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('nothing recorded at all is a statement, not an empty box', (
