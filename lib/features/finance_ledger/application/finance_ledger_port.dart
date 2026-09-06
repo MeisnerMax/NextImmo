@@ -11,6 +11,7 @@
 library;
 
 import '../domain/finance_actuals_dto.dart';
+import '../domain/finance_kpi_dto.dart';
 
 enum FinanceRepositoryFailureKind {
   forbidden,
@@ -78,6 +79,20 @@ class FinancePeriodRange {
 /// shown a partial statement.
 abstract interface class PropertyFinanceActualsPort {
   Future<FinanceRepositoryResult<PropertyFinanceActualsDto>> read({
+    required String workspaceId,
+    required String propertyId,
+    FinancePeriodRange range = const FinancePeriodRange.unbounded(),
+  });
+}
+
+/// The property's computed figures (FINANCE-01b).
+///
+/// A separate port from the actuals, because the two answer different
+/// questions and can fail independently: a workspace can have a full ledger
+/// and no definitions, and the surface has to say so rather than show an
+/// error. Same two gates on the server.
+abstract interface class PropertyFinanceKpisPort {
+  Future<FinanceRepositoryResult<PropertyFinanceKpisDto>> read({
     required String workspaceId,
     required String propertyId,
     FinancePeriodRange range = const FinancePeriodRange.unbounded(),

@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/finance_ledger_port.dart';
 import '../domain/finance_actuals_dto.dart';
+import '../domain/finance_kpi_dto.dart';
 
 /// The narrow slice of Supabase this adapter needs, so tests can replay a
 /// canned payload without a live client.
@@ -62,7 +63,7 @@ class SupabaseFinanceLedgerAdapter implements PropertyFinanceActualsPort {
       if (ok != false) {
         throw const FormatException('Missing RPC result status.');
       }
-      return _mapFailure(_asMap(payload['error']));
+      return _mapFailure<PropertyFinanceActualsDto>(_asMap(payload['error']));
     } catch (_) {
       return const FinanceRepositoryFailure<PropertyFinanceActualsDto>(
         kind: FinanceRepositoryFailureKind.infrastructureFailure,
@@ -70,32 +71,82 @@ class SupabaseFinanceLedgerAdapter implements PropertyFinanceActualsPort {
       );
     }
   }
+
 }
 
-FinanceRepositoryFailure<PropertyFinanceActualsDto> _mapFailure(
-  Map<String, dynamic> error,
-) {
+/// The computed figures (FINANCE-01b).
+///
+/// Its own class rather than a second method on the adapter above: both ports
+/// name their method `read`, and one class cannot carry two. The leasing
+/// feature splits its adapters for exactly this reason — the aggregates share
+/// the natural method name, so the split is an implementation fact of the data
+/// layer, not a shape a screen ever sees.
+class SupabaseFinanceKpisAdapter implements PropertyFinanceKpisPort {
+  SupabaseFinanceKpisAdapter({required SupabaseClient client})
+    : _gateway = SupabaseFinanceGateway(client);
+
+  SupabaseFinanceKpisAdapter.withGateway(this._gateway);
+
+  final FinanceSupabaseGateway _gateway;
+
+  @override
+  Future<FinanceRepositoryResult<PropertyFinanceKpisDto>> read({
+    required String workspaceId,
+    required String propertyId,
+    FinancePeriodRange range = const FinancePeriodRange.unbounded(),
+  }) async {
+    try {
+      final response = await _gateway
+          .callRpc('property_finance_kpis', <String, Object?>{
+            'p_workspace_id': workspaceId,
+            'p_property_id': propertyId,
+            'p_from_year': range.fromYear,
+            'p_from_month': range.fromMonth,
+            'p_to_year': range.toYear,
+            'p_to_month': range.toMonth,
+          });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return FinanceRepositorySuccess<PropertyFinanceKpisDto>(
+          _parseKpis(payload),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapFailure<PropertyFinanceKpisDto>(_asMap(payload['error']));
+    } catch (_) {
+      return const FinanceRepositoryFailure<PropertyFinanceKpisDto>(
+        kind: FinanceRepositoryFailureKind.infrastructureFailure,
+        message: 'Die Kennzahlen konnten nicht geladen werden.',
+      );
+    }
+  }
+}
+
+FinanceRepositoryFailure<T> _mapFailure<T>(Map<String, dynamic> error) {
   final message = error['message'] is String
       ? error['message'] as String
       : 'Der Finanz-Read ist fehlgeschlagen.';
   final field = error['field'] is String ? error['field'] as String : null;
   return switch (error['code']) {
-    'forbidden' => FinanceRepositoryFailure<PropertyFinanceActualsDto>(
+    'forbidden' => FinanceRepositoryFailure<T>(
       kind: FinanceRepositoryFailureKind.forbidden,
       message: message,
       field: field,
     ),
-    'not_found' => FinanceRepositoryFailure<PropertyFinanceActualsDto>(
+    'not_found' => FinanceRepositoryFailure<T>(
       kind: FinanceRepositoryFailureKind.notFound,
       message: message,
       field: field,
     ),
-    'validation_failed' => FinanceRepositoryFailure<PropertyFinanceActualsDto>(
+    'validation_failed' => FinanceRepositoryFailure<T>(
       kind: FinanceRepositoryFailureKind.validationFailed,
       message: message,
       field: field,
     ),
-    _ => FinanceRepositoryFailure<PropertyFinanceActualsDto>(
+    _ => FinanceRepositoryFailure<T>(
       kind: FinanceRepositoryFailureKind.infrastructureFailure,
       message: message,
       field: field,
@@ -149,6 +200,36 @@ FinancePeriodCoverage _parsePeriod(Map<String, dynamic> row) {
     status: row['status'] == 'closed'
         ? FinancePeriodStatus.closed
         : FinancePeriodStatus.open,
+    entries: _requiredInt(row, 'entries'),
+  );
+}
+
+PropertyFinanceKpisDto _parseKpis(Map<String, dynamic> payload) {
+  final raw = payload['values'];
+  return PropertyFinanceKpisDto(
+    asOf: _requiredDate(payload, 'as_of'),
+    values: <FinanceKpiValue>[
+      if (raw is List)
+        for (final entry in raw)
+          if (entry is Map) _parseKpiValue(_asMap(entry)),
+    ],
+    isProvisional: payload['is_provisional'] == true,
+    openPeriods: _requiredInt(payload, 'open_periods'),
+    coveredPeriods: _requiredInt(payload, 'covered_periods'),
+    activeDefinitions: _requiredInt(payload, 'active_definitions'),
+  );
+}
+
+FinanceKpiValue _parseKpiValue(Map<String, dynamic> row) {
+  return FinanceKpiValue(
+    kpiKey: _requiredString(row, 'kpi_key'),
+    definitionId: _requiredString(row, 'definition_id'),
+    // Required, not optional: a value whose version failed to parse is not a
+    // value with an unknown version, it is a value this client must not show.
+    definitionVersion: _requiredInt(row, 'definition_version'),
+    name: _requiredString(row, 'name'),
+    currencyCode: _requiredString(row, 'currency_code'),
+    value: _requiredNumber(row, 'value'),
     entries: _requiredInt(row, 'entries'),
   );
 }

@@ -6,6 +6,7 @@ import 'package:neximmo_app/features/finance_ledger/application/finance_provider
 import 'package:neximmo_app/features/finance_ledger/application/property_finance_controller.dart';
 import 'package:neximmo_app/features/finance_ledger/data/supabase_finance_ledger_adapter.dart';
 import 'package:neximmo_app/features/finance_ledger/domain/finance_actuals_dto.dart';
+import 'package:neximmo_app/features/finance_ledger/domain/finance_kpi_dto.dart';
 import 'package:neximmo_app/features/finance_ledger/presentation/property_finance_panel.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 
@@ -196,15 +197,41 @@ PropertyFinanceController _controller(
   );
 }
 
+/// Answers "nothing defined", which is the state a workspace is in before
+/// anyone configures a figure. These tests are about the actuals; the KPI
+/// surface has its own file.
+class _StubKpisPort implements PropertyFinanceKpisPort {
+  @override
+  Future<FinanceRepositoryResult<PropertyFinanceKpisDto>> read({
+    required String workspaceId,
+    required String propertyId,
+    FinancePeriodRange range = const FinancePeriodRange.unbounded(),
+  }) async =>
+      FinanceRepositorySuccess(
+        PropertyFinanceKpisDto(
+          asOf: DateTime.utc(2026, 9, 6, 10),
+          values: const <FinanceKpiValue>[],
+          isProvisional: false,
+          openPeriods: 0,
+          coveredPeriods: 0,
+          activeDefinitions: 0,
+        ),
+      );
+}
+
 Future<void> _pumpPanel(
   WidgetTester tester, {
   required _StubPort port,
+  PropertyFinanceKpisPort? kpisPort,
   Set<String> permissions = const <String>{'property.read', 'finance.read'},
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
         propertyFinanceActualsProvider.overrideWithValue(port),
+        propertyFinanceKpisProvider.overrideWithValue(
+          kpisPort ?? _StubKpisPort(),
+        ),
         workspaceSessionScopeProvider.overrideWithValue(
           WorkspaceSessionScope(
             workspaceId: 'w1',
@@ -428,6 +455,10 @@ void main() {
         find.byKey(const Key('property-finance-currency-EUR')),
         findsOneWidget,
       );
+      await _reveal(
+        tester,
+        find.byKey(const Key('property-finance-currency-CHF')),
+      );
       expect(
         find.byKey(const Key('property-finance-currency-CHF')),
         findsOneWidget,
@@ -442,6 +473,18 @@ void main() {
     testWidgets('subtotals each class but subtracts nothing', (tester) async {
       await _pumpPanel(tester, port: _StubPort(FinanceRepositorySuccess(_dto())));
 
+      // Asserted before scrolling: the KPI section sits at the top of the
+      // lazy list and leaves the tree once the subtotals are revealed.
+      expect(
+        find.byKey(const Key('property-finance-kpis-undefined')),
+        findsOneWidget,
+        reason: 'the absence of a computed figure is explained, not left blank',
+      );
+
+      await _reveal(
+        tester,
+        find.byKey(const Key('property-finance-subtotal-expense-EUR')),
+      );
       expect(
         _figure(tester, 'property-finance-subtotal-income-EUR'),
         contains('1000,00 EUR'),
@@ -455,7 +498,14 @@ void main() {
         findsNothing,
         reason: 'a net result is a formula and needs a definition version',
       );
-      expect(find.textContaining('NOI'), findsNothing);
+      // Not "the string NOI never appears": since FINANCE-01b the section
+      // above explains in prose why no NOI is shown. What must be absent is a
+      // computed *figure* — this fixture defines none, so no KPI tile exists.
+      expect(
+        find.byKey(const Key('property-finance-kpi-noi-EUR')),
+        findsNothing,
+      );
+
     });
 
     testWidgets('says the figures are provisional and how provisional', (
