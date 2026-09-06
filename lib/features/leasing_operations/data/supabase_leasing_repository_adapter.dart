@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/leasing_repository.dart';
 import '../application/operations_signals_contract.dart';
+import '../domain/lease_component_dto.dart';
 import '../domain/lease_dto.dart';
 import '../domain/leasing_case_dto.dart';
 import '../domain/leasing_summary_dto.dart';
@@ -1948,4 +1949,171 @@ List<String> _stringList(Object? value) {
     return const <String>[];
   }
   return value.whereType<String>().toList(growable: false);
+}
+
+/// Time-versioned rent components (LEASING-COMPONENTS-01 / 01b).
+///
+/// Reads and writes go through the same envelope as the rest of leasing —
+/// `{ok, entity}` on success, `{ok, error{code}}` on refusal — which is what
+/// 01b existed to restore. Nothing here computes: the server decides which
+/// components are in force on a date, and this class parses the answer.
+class SupabaseLeaseComponentAdapter extends _SupabaseLeasingBase
+    implements LeaseComponentPort {
+  SupabaseLeaseComponentAdapter({required SupabaseClient client})
+    : super(SupabaseLeasingGateway(client));
+
+  SupabaseLeaseComponentAdapter.withGateway(super.gateway);
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async {
+    try {
+      final response = await _gateway.callRpc(
+        'lease_components_as_of',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_as_of': _dateToWire(query.asOfDate),
+          'p_lease_id': query.leaseId,
+          'p_property_id': query.propertyId,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return LeasingRepositorySuccess<LeaseComponentsAsOfDto>(
+          _parseComponentsAsOf(_asMap(payload['entity'])),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<LeaseComponentsAsOfDto>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const LeasingRepositoryFailure<LeaseComponentsAsOfDto>(
+        kind: LeasingRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase lease components could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> create(
+    CreateLeaseComponentCommand command,
+  ) {
+    // An unknown type is refused here rather than sent on. The server would
+    // reject the string anyway, but as a raw enum-cast failure; refusing it in
+    // the layer that owns the enum keeps the reason legible.
+    if (command.componentType == LeaseComponentType.unknown ||
+        command.vatMode == LeaseComponentVatMode.unknown) {
+      return Future<LeasingRepositoryResult<LeaseComponentDto>>.value(
+        const LeasingRepositoryFailure<LeaseComponentDto>(
+          kind: LeasingRepositoryFailureKind.validationFailed,
+          message:
+              'A component this build does not recognise cannot be written. '
+              'It can only have come from a newer server.',
+        ),
+      );
+    }
+    return _executeCommand<LeaseComponentDto>(
+      context: command.context,
+      function: 'create_lease_component',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_lease_id': command.leaseId,
+        'p_component_type': leaseComponentTypeKey(command.componentType),
+        'p_valid_from': _dateToWire(command.validFrom),
+        'p_amount': command.amount,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_valid_to': _dateToWire(command.validTo),
+        'p_vat_mode': leaseComponentVatModeKey(command.vatMode),
+        'p_vat_rate_percent': command.vatRatePercent,
+        'p_note': command.note,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: _parseLeaseComponentRow,
+    );
+  }
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> update(
+    UpdateLeaseComponentCommand command,
+  ) {
+    return _executeCommand<LeaseComponentDto>(
+      context: command.context,
+      function: 'update_lease_component',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_component_id': command.componentId,
+        'p_expected_version': command.expectedVersion,
+        'p_changes': command.changes,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: _parseLeaseComponentRow,
+    );
+  }
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> close(
+    CloseLeaseComponentCommand command,
+  ) {
+    return _executeCommand<LeaseComponentDto>(
+      context: command.context,
+      function: 'close_lease_component',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_component_id': command.componentId,
+        'p_expected_version': command.expectedVersion,
+        'p_valid_to': _dateToWire(command.validTo),
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: _parseLeaseComponentRow,
+    );
+  }
+}
+
+LeaseComponentsAsOfDto _parseComponentsAsOf(Map<String, dynamic> entity) {
+  final raw = entity['components'];
+  if (raw is! List) {
+    throw const FormatException('Expected a component list.');
+  }
+  return LeaseComponentsAsOfDto(
+    asOfDate: _requiredDate(entity, 'as_of_date'),
+    components: raw
+        .map((row) => _parseLeaseComponentRow(_asMap(row)))
+        .toList(growable: false),
+  );
+}
+
+LeaseComponentDto _parseLeaseComponentRow(Map<String, dynamic> row) {
+  final typeKey = _requiredString(row, 'component_type');
+  final type = leaseComponentTypeFromKey(typeKey);
+  return LeaseComponentDto(
+    id: _requiredString(row, 'id'),
+    leaseId: _requiredString(row, 'lease_id'),
+    // The write commands echo the stored row, which has no property_id — a
+    // component belongs to a lease and the lease is what sits on a property.
+    // The read joins it in; a command result does not need it, because the
+    // caller already knows which lease it just wrote to.
+    propertyId: _optionalString(row['property_id']) ?? '',
+    componentType: type,
+    amount: _requiredDouble(row, 'amount'),
+    currencyCode: _requiredString(row, 'currency_code'),
+    vatMode: leaseComponentVatModeFromKey(
+      _requiredString(row, 'vat_mode'),
+    ),
+    vatRatePercent: _optionalDouble(row['vat_rate_percent']),
+    validFrom: _requiredDate(row, 'valid_from'),
+    validTo: _optionalDate(row['valid_to']),
+    version: _requiredInt(row, 'version'),
+    rawTypeKey: type == LeaseComponentType.unknown ? typeKey : null,
+  );
 }
