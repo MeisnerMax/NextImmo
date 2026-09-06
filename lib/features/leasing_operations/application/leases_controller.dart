@@ -39,6 +39,7 @@ import '../../contacts_parties/application/party_repository.dart';
 import '../../contacts_parties/domain/party_dto.dart';
 import '../../identity_access/application/authorization_port.dart';
 import '../../identity_access/application/workspace_session_scope.dart';
+import '../domain/lease_component_dto.dart';
 import '../domain/lease_dto.dart';
 import '../domain/unit_dto.dart';
 import 'leasing_providers.dart';
@@ -50,6 +51,15 @@ const Object _unchanged = Object();
 enum LeasesListPhase { idle, loading, ready, empty, forbidden, error }
 
 enum LeasesDetailPhase { idle, loading, ready, notFound, forbidden, error }
+
+/// The rent components of the selected lease, loaded beside the contract
+/// rather than as part of it.
+///
+/// Its own phase because it has its own permission and its own way of failing.
+/// A member with `lease.read` but no components recorded, and a member the
+/// server refuses, and a read that broke are three different things to say —
+/// and none of them is a reason to fail the contract view that surrounds them.
+enum LeaseComponentsPhase { idle, loading, ready, forbidden, error }
 
 enum LeasesActionPhase {
   idle,
@@ -101,6 +111,8 @@ class LeasesState {
     this.tenantFilter,
     this.selectedLeaseId,
     this.selectedLease,
+    this.componentsPhase = LeaseComponentsPhase.idle,
+    this.components,
     this.versionConflict,
     this.rejection,
     this.message,
@@ -133,6 +145,14 @@ class LeasesState {
   final String? tenantFilter;
   final String? selectedLeaseId;
   final LeaseDto? selectedLease;
+
+  final LeaseComponentsPhase componentsPhase;
+
+  /// The components in force today for [selectedLease]. Null until the read
+  /// lands, and empty-but-present when nothing is recorded — which is a real
+  /// answer, not a missing one (DEC-029).
+  final LeaseComponentsAsOfDto? components;
+
   final LeasingVersionConflict? versionConflict;
   final LeaseTransitionRejection? rejection;
   final String? message;
@@ -179,6 +199,8 @@ class LeasesState {
     Object? tenantFilter = _unchanged,
     Object? selectedLeaseId = _unchanged,
     Object? selectedLease = _unchanged,
+    LeaseComponentsPhase? componentsPhase,
+    Object? components = _unchanged,
     Object? versionConflict = _unchanged,
     Object? rejection = _unchanged,
     Object? message = _unchanged,
@@ -211,6 +233,10 @@ class LeasesState {
       selectedLease: identical(selectedLease, _unchanged)
           ? this.selectedLease
           : selectedLease as LeaseDto?,
+      componentsPhase: componentsPhase ?? this.componentsPhase,
+      components: identical(components, _unchanged)
+          ? this.components
+          : components as LeaseComponentsAsOfDto?,
       versionConflict: identical(versionConflict, _unchanged)
           ? this.versionConflict
           : versionConflict as LeasingVersionConflict?,
@@ -231,6 +257,7 @@ class LeasesController extends StateNotifier<LeasesState> {
   LeasesController({
     required LeaseRepository repository,
     required LeaseSearchPort search,
+    required LeaseComponentPort componentPort,
     required UnitSearchPort unitSearch,
     required PartySearchPort partySearch,
     required WorkspaceSessionScope scope,
@@ -240,6 +267,7 @@ class LeasesController extends StateNotifier<LeasesState> {
     Duration invalidationCoalesceWindow = const Duration(milliseconds: 250),
   }) : _repository = repository,
        _search = search,
+       _componentPort = componentPort,
        _unitSearch = unitSearch,
        _partySearch = partySearch,
        _scope = scope,
@@ -259,6 +287,7 @@ class LeasesController extends StateNotifier<LeasesState> {
 
   final LeaseRepository _repository;
   final LeaseSearchPort _search;
+  final LeaseComponentPort _componentPort;
   final UnitSearchPort _unitSearch;
   final PartySearchPort _partySearch;
   final WorkspaceSessionScope _scope;
@@ -467,6 +496,8 @@ class LeasesController extends StateNotifier<LeasesState> {
         detailPhase: LeasesDetailPhase.idle,
         selectedLeaseId: null,
         selectedLease: null,
+        componentsPhase: LeaseComponentsPhase.idle,
+        components: null,
         rejection: null,
       );
       return;
@@ -480,6 +511,8 @@ class LeasesController extends StateNotifier<LeasesState> {
       detailPhase: LeasesDetailPhase.loading,
       selectedLeaseId: leaseId,
       selectedLease: null,
+      componentsPhase: LeaseComponentsPhase.loading,
+      components: null,
       rejection: null,
     );
     final result = await _repository.getById(
@@ -495,6 +528,7 @@ class LeasesController extends StateNotifier<LeasesState> {
           detailPhase: LeasesDetailPhase.ready,
           selectedLease: value,
         );
+        await _loadComponents(leaseId, generation);
       case LeasingRepositoryFailure<LeaseDto>(:final kind, :final message):
         state = state.copyWith(
           detailPhase: switch (kind) {
@@ -504,6 +538,48 @@ class LeasesController extends StateNotifier<LeasesState> {
             _ => LeasesDetailPhase.error,
           },
           message: message,
+          // The contract could not be read, so there is nothing to hang
+          // components on. Left idle rather than error: the failure above is
+          // the one to report, and a second message about a read that never
+          // ran would only compete with it.
+          componentsPhase: LeaseComponentsPhase.idle,
+        );
+    }
+  }
+
+  /// Loaded beside the contract, never as part of it.
+  ///
+  /// A component read that is refused or breaks must not take the contract view
+  /// with it — the flat inception figures on the lease are still worth showing,
+  /// and the section says for itself what it could not load.
+  Future<void> _loadComponents(String leaseId, int generation) async {
+    final workspaceId = _scope.workspaceId;
+    if (workspaceId == null) {
+      return;
+    }
+    final result = await _componentPort.readAsOf(
+      LeaseComponentListQuery(
+        workspaceId: workspaceId,
+        // Today, explicitly. A past date is a different question and belongs to
+        // a control the reader operates, not to a default nobody chose.
+        asOfDate: DateTime.now(),
+        leaseId: leaseId,
+      ),
+    );
+    if (generation != _detailGeneration) {
+      return;
+    }
+    switch (result) {
+      case LeasingRepositorySuccess<LeaseComponentsAsOfDto>(:final value):
+        state = state.copyWith(
+          componentsPhase: LeaseComponentsPhase.ready,
+          components: value,
+        );
+      case LeasingRepositoryFailure<LeaseComponentsAsOfDto>(:final kind):
+        state = state.copyWith(
+          componentsPhase: kind == LeasingRepositoryFailureKind.forbidden
+              ? LeaseComponentsPhase.forbidden
+              : LeaseComponentsPhase.error,
         );
     }
   }
@@ -818,6 +894,7 @@ final leasesControllerProvider = StateNotifierProvider.autoDispose
       final controller = LeasesController(
         repository: ref.watch(leaseRepositoryProvider),
         search: ref.watch(leaseSearchProvider),
+        componentPort: ref.watch(leaseComponentProvider),
         unitSearch: ref.watch(unitSearchProvider),
         partySearch: ref.watch(partySearchProvider),
         scope: ref.watch(workspaceSessionScopeProvider),

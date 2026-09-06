@@ -19,10 +19,12 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../../features/leasing_operations/application/leases_controller.dart';
+import '../../../../features/leasing_operations/domain/lease_component_dto.dart';
 import '../../../../features/leasing_operations/domain/lease_dto.dart';
 import '../../../components/nx_card.dart';
 import '../../../components/nx_section_header.dart';
 import '../../../theme/app_theme.dart';
+import 'widgets/lease_components_section.dart';
 import 'widgets/lease_form_dialog.dart';
 import 'widgets/lease_lifecycle.dart';
 import 'widgets/leasing_badges.dart';
@@ -37,6 +39,9 @@ class LeaseDetailView extends StatelessWidget {
     required this.onEdit,
     required this.onAdvance,
     required this.onCancel,
+    required this.componentsPhase,
+    required this.onRetryComponents,
+    this.components,
     this.rejection,
   });
 
@@ -50,6 +55,14 @@ class LeaseDetailView extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onAdvance;
   final VoidCallback onCancel;
+
+  /// The rent components of this lease, loaded beside the contract. Their own
+  /// phase, because a component read that is refused or breaks must not take
+  /// the contract view with it.
+  final LeaseComponentsPhase componentsPhase;
+  final LeaseComponentsAsOfDto? components;
+  final VoidCallback onRetryComponents;
+
   final LeaseTransitionRejection? rejection;
 
   @override
@@ -246,6 +259,15 @@ class LeaseDetailView extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: AppSpacing.component),
+        // Directly after the inception figures, because the two only make sense
+        // read together: those are what the contract was signed at, these are
+        // what is payable now.
+        LeaseComponentsSection(
+          phase: componentsPhase,
+          components: components,
+          onRetry: onRetryComponents,
         ),
         const SizedBox(height: AppSpacing.component),
         NxCard(

@@ -812,6 +812,9 @@ class _LeaseDetailCard extends StatelessWidget {
           onEdit: onEdit,
           onAdvance: onAdvance,
           onCancel: onCancel,
+          componentsPhase: state.componentsPhase,
+          components: state.components,
+          onRetryComponents: () => controller.select(lease.id),
         );
     }
   }

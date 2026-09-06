@@ -7,6 +7,7 @@ import 'package:neximmo_app/features/contacts_parties/domain/party_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_providers.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 import 'package:neximmo_app/ui/screens/property_detail/leasing/leases_panel.dart';
@@ -328,6 +329,9 @@ Future<void> _pump(
         ),
         unitSearchProvider.overrideWithValue(_FakeUnitSearch(units)),
         partySearchProvider.overrideWithValue(_FakePartySearch(tenants)),
+        leaseComponentProvider.overrideWithValue(
+          const _FakeLeaseComponents(),
+        ),
         if (deepLinkedLeaseId != null)
           app_state.selectedOperationsLeaseIdProvider.overrideWith(
             (ref) => deepLinkedLeaseId,
@@ -399,6 +403,49 @@ PartySummaryDto _party(String id, String name) => PartySummaryDto(
   displayName: name,
   version: 1,
 );
+
+/// The panel's tests are about the lease list and its detail, not about
+/// components — so this answers "nothing recorded", which is what the server
+/// says for a lease nobody has entered components for. Wired all the same,
+/// because an unconfigured port throws and would fail every test in this file
+/// for a reason none of them is about.
+class _FakeLeaseComponents implements LeaseComponentPort {
+  const _FakeLeaseComponents();
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async => LeasingRepositorySuccess<LeaseComponentsAsOfDto>(
+    LeaseComponentsAsOfDto(
+      asOfDate: query.asOfDate,
+      components: const <LeaseComponentDto>[],
+    ),
+  );
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> create(
+    CreateLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> update(
+    UpdateLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> close(
+    CloseLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
+}
 
 class _FakeLeaseSearch implements LeaseSearchPort {
   _FakeLeaseSearch({required this.leases, this.failure});
