@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:neximmo_app/features/portfolio_property/application/property_workspace_host_state.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/presentation/property_list_view.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
@@ -9,6 +10,7 @@ import 'property_workspace_fixtures.dart';
 void main() {
   _searchTests();
   _coverTests();
+  _cardViewTests();
   group('PropertyListView', () {
     testWidgets('shows a skeleton while the first page loads', (tester) async {
       await _pump(
@@ -588,6 +590,176 @@ void _coverTests() {
   });
 }
 
+void _cardViewTests() {
+  group('PropertyListView cards', () {
+    testWidgets('shows what the row holds and no figure it does not', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[
+            property(
+              id: 'p1',
+              name: 'Atlas House',
+              propertyType: 'mixed_use',
+              units: 12,
+            ),
+          ],
+        ),
+        viewMode: PropertyListViewMode.cards,
+      );
+
+      expect(find.byKey(const Key('property-list-card-grid')), findsOneWidget);
+      expect(find.byKey(const Key('property-card-p1')), findsOneWidget);
+      expect(find.text('Atlas House'), findsOneWidget);
+      expect(find.text('Gemischt'), findsOneWidget);
+      expect(find.text('12 Einheiten'), findsOneWidget);
+      // The table is not also mounted: two views of the same rows would
+      // double every semantics node.
+      expect(find.byKey(const Key('property-list-table')), findsNothing);
+    });
+
+    testWidgets('an unknown property type is shown, not swallowed', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[
+            property(id: 'p1', propertyType: 'wohnheim'),
+          ],
+        ),
+        viewMode: PropertyListViewMode.cards,
+      );
+
+      // `property_type` is free text in the schema, so a workspace using its
+      // own vocabulary must see its own word rather than "Sonstige".
+      expect(find.text('wohnheim'), findsOneWidget);
+    });
+
+    testWidgets('one unit reads as one, not as "1 Einheiten"', (tester) async {
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[property(id: 'p1', units: 1)],
+        ),
+        viewMode: PropertyListViewMode.cards,
+      );
+
+      expect(find.text('1 Einheit'), findsOneWidget);
+    });
+
+    testWidgets('a property without a cover still renders a card', (
+      tester,
+    ) async {
+      // The common case: images are optional and most properties have none.
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[property(id: 'p1')],
+        ),
+        viewMode: PropertyListViewMode.cards,
+        coverUrls: const <String, String>{},
+      );
+
+      expect(find.byKey(const Key('property-card-p1')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the whole card opens the property', (tester) async {
+      String? opened;
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[property(id: 'p1')],
+        ),
+        viewMode: PropertyListViewMode.cards,
+        onOpenProperty: (id) => opened = id,
+      );
+
+      await tester.tap(find.byKey(const Key('property-card-p1')));
+      await tester.pump();
+
+      expect(opened, 'p1');
+    });
+
+    testWidgets('cards are inert while another property is opening', (
+      tester,
+    ) async {
+      String? opened;
+      await _pump(
+        tester,
+        sliceState(
+          properties: <PropertySummaryDto>[property(id: 'p1')],
+        ),
+        viewMode: PropertyListViewMode.cards,
+        openingPropertyId: 'p2',
+        onOpenProperty: (id) => opened = id,
+      );
+
+      await tester.tap(find.byKey(const Key('property-card-p1')));
+      await tester.pump();
+
+      expect(opened, isNull);
+    });
+
+    testWidgets('the toggle reports the mode instead of switching itself', (
+      tester,
+    ) async {
+      PropertyListViewMode? requested;
+      await _pump(
+        tester,
+        sliceState(),
+        viewMode: PropertyListViewMode.cards,
+        onSetViewMode: (mode) => requested = mode,
+      );
+
+      // The host owns the mode so it survives the round trip into a property;
+      // the view asks rather than deciding.
+      await tester.tap(find.text('Tabelle'));
+      await tester.pump();
+
+      expect(requested, PropertyListViewMode.table);
+      expect(find.byKey(const Key('property-list-card-grid')), findsOneWidget);
+    });
+
+    testWidgets('without a host the view keeps the mode itself', (
+      tester,
+    ) async {
+      await _pump(tester, sliceState(), viewMode: PropertyListViewMode.cards);
+
+      expect(find.byKey(const Key('property-list-card-grid')), findsOneWidget);
+    });
+
+    for (final size in const <Size>[
+      Size(320, 700),
+      Size(390, 844),
+      Size(768, 1024),
+      Size(1024, 768),
+      Size(1440, 900),
+    ]) {
+      testWidgets('cards have no overflow at $size', (tester) async {
+        await _pump(
+          tester,
+          sliceState(
+            properties: <PropertySummaryDto>[
+              property(id: 'p1', name: 'Ein sehr langer Objektname ' * 3),
+              property(id: 'p2'),
+              property(id: 'p3'),
+              property(id: 'p4'),
+            ],
+          ),
+          viewMode: PropertyListViewMode.cards,
+          viewport: size,
+        );
+
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+}
+
 Future<void> _pump(
   WidgetTester tester,
   ReferenceSliceState state, {
@@ -601,6 +773,14 @@ Future<void> _pump(
   VoidCallback? onRetryOpen,
   String? openingPropertyId,
   String? restoreFocusPropertyId,
+  // The table, unless a test asks for cards.
+  //
+  // Cards are the product default since PROPERTY-CARD-VIEW-01, but the tests
+  // in this file were written for the table and still describe it correctly.
+  // Pinning the mode here keeps each of them testing the thing it names,
+  // rather than silently re-pointing 27 assertions at a different widget.
+  PropertyListViewMode viewMode = PropertyListViewMode.table,
+  ValueChanged<PropertyListViewMode>? onSetViewMode,
 }) async {
   setViewport(tester, viewport);
   await tester.pumpWidget(
@@ -617,6 +797,8 @@ Future<void> _pump(
         onRetryOpen: onRetryOpen,
         openingPropertyId: openingPropertyId,
         restoreFocusPropertyId: restoreFocusPropertyId,
+        viewMode: viewMode,
+        onSetViewMode: onSetViewMode,
       ),
     ),
   );

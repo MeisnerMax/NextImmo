@@ -207,7 +207,7 @@ void main() {
     expect(find.byKey(const Key('property-workspace')), findsNothing);
     expect(properties.detailPropertyIds, isEmpty, reason: 'list read only');
 
-    await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+    await tester.tap(find.byKey(const Key('property-card-property-a')));
     await tester.pumpAndSettle();
 
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));

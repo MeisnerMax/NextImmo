@@ -41,9 +41,27 @@ Keine Unit-/Rent-/NOI-/Vacancy-KPI wird pro Zeile aus weiteren Queries synthetis
 
 ## 5. Layout and interaction model
 
-- Desktop: Foundation-Tabelle mit klickbarer Primärzeile und optionaler expliziter Öffnen-Aktion; keine eingebetteten Editforms.
+- **Zwei gleichwertige Ansichten, umschaltbar: Karten und Tabelle. Karten sind
+  der Standard** (`PROPERTY-CARD-VIEW-01`, 2026-09-06). Der Modus liegt im
+  restaurierbaren Host-State (`PropertyListRestoreState.viewMode`), nicht im
+  Widget — die Rückkehr aus einem Objekt landet in der Ansicht, die man
+  verlassen hat, und `SHELL-ROUTING-01` findet ihn später dort, wo er für eine
+  URL hingehört.
+- Kartenansicht: responsives Raster über `NxResponsiveGrid` (1/2/3/4 Spalten an
+  den Systembreakpunkten 640/1024/1440), gemessen an der **verfügbaren Breite**,
+  nicht am Fenster — im Workspace-Shell mit Navigationsleiste sind das mehrere
+  hundert Pixel Unterschied. Auf dem Telefon ist das einspaltige Raster die
+  Liste; die alte `ListTile`-Rückfallebene gehört zur Tabellenansicht.
+- Die Karte zeigt Titelbild, Name, Ort, Status, Objekttyp und Einheitenzahl.
+  **Keine Kennzahlen** — siehe §7.
+- Desktop-Tabelle: Foundation-Tabelle mit klickbarer Primärzeile und optionaler
+  expliziter Öffnen-Aktion; keine eingebetteten Editforms.
 - Tablet: reduzierte Tabelle oder Karten gemäß Breite.
-- Mobile: Property Cards mit Name/Ort/Status zuerst; ganze Karte als zugänglicher Link.
+- Ganze Karte als zugänglicher Link; sie ist fokussierbar, zeigt Fokus sichtbar
+  (dieselbe Rahmenfarbe wie Hover) und nimmt den Fokus beim Zurückkehren
+  wieder auf — dieselbe Aufgabe, die in der Tabelle die Öffnen-Schaltfläche
+  erfüllt. Während des Öffnens trägt die Karte einen Fortschrittsbalken über
+  dem Bild, damit ein Klick nicht wie ein toter Klick wirkt.
 - keyset `Mehr laden`, keine unendliche Scrollfalle; Hintergrundrefresh behält Liste.
 
 ## 6. Functional requirements
@@ -64,9 +82,51 @@ Keine Unit-/Rent-/NOI-/Vacancy-KPI wird pro Zeile aus weiteren Queries synthetis
 | address line/postal/city | Summary | sekundäre Standortzeile, optional sicher behandeln |
 | status | Summary | lokalisierter Text/Icon |
 | version | Summary | Concurrency/Freshness intern; kein Updatezeitpunkt vortäuschen |
+| propertyType | Summary | Objekttyp auf der Karte. **Freier Text** im Schema, kein Enum — ein unbekannter Wert wird angezeigt, nicht auf „Sonstige" gebogen |
+| country | Summary | derzeit nicht dargestellt; für Portfolios über Ländergrenzen vorgehalten |
+| units | Summary | Einheitenzahl auf der Karte. Die am Objekt **erfasste** Zahl, nicht ein `count(*)` über `public.units` — die beiden dürfen auseinanderliegen, solange ein Gebäude noch aufgenommen wird |
 | cursor/hasMore | `PropertyPage` | Load-more-State |
 
-Keine Domain-Fanout-Reads pro Zeile.
+`propertyType`, `country` und `units` standen immer auf der Zeile und waren
+`not null`; sie wurden nur nie selektiert. Ihre Aufnahme brauchte weder eine
+Migration noch einen neuen Read.
+
+**Keine Domain-Fanout-Reads pro Zeile — und deshalb keine Kennzahlen auf der
+Karte.** Belegung, Miete, NOI und Alerts liegen nicht im `PropertySummaryDto`,
+und die Liste ist ein einfacher Tabellenread, kein Aggregat. Eine Karte, die
+sie zeigen wollte, müsste `property_overview` **je Kachel** aufrufen — genau
+das N+1, das §27 des Enterprise-Auftrags verbietet, und bei vierzig Karten
+vierzig Rundreisen. Diese Zahlen gehören in einen Batch-Read über die Objekte
+einer Seite, den es noch nicht gibt (`P-1b`). Bis dahin zeigt die Karte, was
+die Zeile trägt, und behauptet nicht mehr.
+
+## 7a. Titelbilder — zwei offene Risiken (2026-09-06)
+
+Die Kartenansicht macht zwei Eigenschaften des Medienpfads sichtbar, die bei
+einem 44px-Thumbnail in einer Tabelle folgenlos blieben. Beide sind
+**vorbestehend**, keine Folge dieses Pakets, und beide sind hier benannt statt
+überstrichen.
+
+1. **Signierte URLs leben fünf Minuten, und nichts erneuert sie.** Sie entstehen
+   im Client-SDK (`createSignedUrlsResult`, ein Batch-Aufruf für eine ganze
+   Seite) und werden im `PropertyCoverController` einmal je Workspace
+   zwischengespeichert. Ein Raster, das länger als fünf Minuten offen liegt —
+   auf einem zweiten Bildschirm etwa — überschreitet diese Grenze zwangsläufig.
+   `NxCoverImage` fängt das ab: ein fehlgeschlagener Ladevorgang zeigt den
+   Platzhalter, nicht das kaputte Bildsymbol. Das ist **überlebbar gemacht,
+   nicht behoben** — ein Erneuerungsmechanismus fehlt weiterhin.
+2. **Es gibt keine serverseitigen Thumbnails.** Der Client lädt immer das
+   Original, bis zu 20 MB je Bild. In einer Tabelle mit einem 44px-Bild pro
+   Zeile fiel das nicht auf; ein Raster aus zwei Dutzend Hero-Bildern wäre
+   genau die Datenmenge, die §27 des Enterprise-Auftrags untersagt. Solange
+   kaum ein Objekt ein Bild hat, ist das latent. **Bevor Bilder in Breite
+   hochgeladen werden, braucht es serverseitige Thumbnails** — das ist eine
+   Voraussetzung, keine Verbesserung.
+
+Der Platzhalter ist deshalb bewusst gestaltet und nicht entschuldigend: Bilder
+sind optional, die Demo-Fixture legt keine an, und in einem realen Bestand wird
+die Mehrheit der Objekte lange keines haben. Eine Kartenansicht, die nur mit
+Foto gut aussieht, sähe für fast jedes Objekt kaputt aus.
 
 ## 8. Permissions and security behavior
 

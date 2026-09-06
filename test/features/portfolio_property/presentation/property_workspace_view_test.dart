@@ -7,6 +7,7 @@ import 'package:neximmo_app/features/portfolio_property/application/property_rep
 import 'package:neximmo_app/features/portfolio_property/application/property_workspace_host_state.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/presentation/property_card.dart';
 import 'package:neximmo_app/features/portfolio_property/presentation/property_workspace_screen.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 
@@ -25,12 +26,21 @@ void main() {
       expect(find.byKey(const Key('property-list')), findsOneWidget);
       expect(find.byKey(const Key('property-workspace')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pump();
       expect(calls.opened, <String>['property-a']);
-      // Still the list while getById is in flight.
+      // Still the list while getById is in flight, and the row being opened
+      // says so. `ProgressIndicator` rather than a concrete subclass: the
+      // table shows a circular spinner in place of its open button, the card
+      // a bar across its cover, and what this test is about is that the click
+      // is acknowledged at all — not which shape does it.
       expect(find.byKey(const Key('property-workspace')), findsNothing);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        // A predicate, not `byType`: that compares the exact runtime type, so
+        // an abstract supertype never matches.
+        find.byWidgetPredicate((widget) => widget is ProgressIndicator),
+        findsOneWidget,
+      );
 
       _update(tester, detailState());
       await tester.pump();
@@ -92,7 +102,7 @@ void main() {
 
       final pending = Completer<void>();
       calls.openResult = pending.future;
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pump();
       _update(tester, sliceState(detailPhase: PropertyDetailPhase.notFound));
       await tester.pump();
@@ -106,7 +116,7 @@ void main() {
 
       final forbidden = Completer<void>();
       calls.openResult = forbidden.future;
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pump();
       _update(tester, sliceState(detailPhase: PropertyDetailPhase.forbidden));
       await tester.pump();
@@ -139,10 +149,12 @@ void main() {
       expect(find.byKey(const Key('property-list')), findsOneWidget);
       expect(_hostState(tester).isPropertyOpen, isFalse);
       expect(_hostState(tester).list.focusedPropertyId, 'property-a');
+      // The card view is the default, so focus lands on the card itself
+      // rather than on the table row's open button.
       final focused = FocusManager.instance.primaryFocus;
       expect(
-        focused?.context?.findAncestorWidgetOfExactType<IconButton>()?.key,
-        const Key('property-list-open-property-a'),
+        focused?.context?.findAncestorWidgetOfExactType<PropertyCard>()?.key,
+        const Key('property-card-property-a'),
       );
     });
 
@@ -444,7 +456,10 @@ void main() {
 
       await tester.tap(find.byKey(const Key('property-context-back')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('property-list-cards')), findsOneWidget);
+      // On a phone in card mode the list *is* the grid, at one column. The
+      // `property-list-cards` ListTile fallback belongs to the table mode,
+      // which is where it still applies.
+      expect(find.byKey(const Key('property-list-card-grid')), findsOneWidget);
       expect(calls.closeCalls, 1);
     });
 
@@ -506,7 +521,7 @@ void _overviewDomainTests() {
       final calls = _Calls()..servesOverview = true;
       await _pump(tester, sliceState(), calls);
       _update(tester, detailState());
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
 
       expect(_hostState(tester).domain, PropertyWorkspaceDomain.overview);
@@ -524,7 +539,7 @@ void _overviewDomainTests() {
       final calls = _Calls();
       await _pump(tester, sliceState(), calls);
       _update(tester, detailState());
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
 
       expect(_hostState(tester).domain, PropertyWorkspaceDomain.asset);
@@ -546,7 +561,7 @@ void _overviewDomainTests() {
       };
       await _pump(tester, sliceState(permissions: permissions), calls);
       _update(tester, detailState(permissions: permissions));
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('property-overview-leasing-open')));
@@ -568,7 +583,7 @@ void _overviewDomainTests() {
         tester,
         detailState(assuranceLevel: AuthenticationAssuranceLevel.aal1),
       );
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
 
       expect(
@@ -588,7 +603,7 @@ void _overviewDomainTests() {
       final calls = _Calls()..servesOverview = true;
       await _pump(tester, sliceState(), calls);
       _update(tester, detailState());
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('property-workspace-nav-asset')));
       await tester.pumpAndSettle();
@@ -596,7 +611,7 @@ void _overviewDomainTests() {
 
       await tester.tap(find.byKey(const Key('property-context-back')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('property-list-open-property-a')));
+      await tester.tap(find.byKey(const Key('property-card-property-a')));
       await tester.pumpAndSettle();
 
       expect(

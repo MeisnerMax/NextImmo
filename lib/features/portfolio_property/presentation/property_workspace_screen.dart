@@ -970,6 +970,17 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
           widget.canCreateProperty && widget.onCreateProperty != null
               ? _openCreateDialog
               : null,
+      // The view mode lives in the restorable host state, so coming back from
+      // a property lands in the view it was left in — and `SHELL-ROUTING-01`
+      // will later find it there when it puts this state into the URL.
+      viewMode: restore.viewMode,
+      onSetViewMode: (mode) {
+        setState(() {
+          _hostState = _hostState.copyWith(
+            list: _hostState.list.copyWith(viewMode: mode),
+          );
+        });
+      },
       onRetryOpen:
           _lastOpenAttemptId == null
               ? null

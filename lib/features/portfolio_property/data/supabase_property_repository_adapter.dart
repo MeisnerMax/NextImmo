@@ -46,7 +46,13 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
     var query = _client
         .from('properties')
         .select(
-          'id, workspace_id, name, address_line1, zip, city, status, version',
+          // `property_type`, `country` and `units` were always on the row and
+          // always `not null`; they were simply never selected, so the list
+          // could show an address and nothing else. Adding them needs no
+          // migration and no new read — the row-level policy governs these
+          // columns exactly as it governs the ones already here.
+          'id, workspace_id, name, address_line1, zip, city, status, version, '
+          'property_type, country, units',
         )
         .eq('workspace_id', workspaceId);
     for (final term in searchTerms) {
@@ -468,6 +474,9 @@ PropertySummaryDto _parsePropertySummary(Map<String, dynamic> json) {
     city: _requiredString(json, 'city'),
     status: PropertyStatus.values.byName(_requiredString(json, 'status')),
     version: _requiredInt(json, 'version'),
+    propertyType: _requiredString(json, 'property_type'),
+    country: _requiredString(json, 'country'),
+    units: _requiredInt(json, 'units'),
   );
 }
 
