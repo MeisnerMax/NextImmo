@@ -346,6 +346,31 @@ void main() {
       expect(propertyActivityVerb('finance_account', 'create'), 'angelegt');
     });
 
+    test('a rent component names its own three actions', () {
+      // PROPERTY-ACTIVITY-03. `close` is the one that had no mapping: ending a
+      // component is not the same event as changing it, which is why
+      // LEASING-COMPONENTS-01 gives it its own action, and an unmapped action
+      // renders as the raw key rather than as a wrong word.
+      expect(
+        propertyActivitySentence(
+          _event(entityType: 'lease_component', action: 'lease_component.create'),
+        ),
+        'Mietbestandteil angelegt',
+      );
+      expect(
+        propertyActivitySentence(
+          _event(entityType: 'lease_component', action: 'lease_component.update'),
+        ),
+        'Mietbestandteil geändert',
+      );
+      expect(
+        propertyActivitySentence(
+          _event(entityType: 'lease_component', action: 'lease_component.close'),
+        ),
+        'Mietbestandteil beendet',
+      );
+    });
+
     test("only the entity's own prefix is stripped", () {
       // Three actions in this schema carry a dotted prefix that is not their
       // entity type. Cutting at the first dot would turn them into words that
