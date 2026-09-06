@@ -80,31 +80,99 @@ String _entityLabel(String entityType) {
   };
 }
 
-/// What happened, as a verb. An action this build does not know keeps its
-/// server word rather than becoming a vague "geändert" that hides a delete.
-String _actionLabel(String action) {
-  return switch (action) {
+/// The verb, resolved from the pair the server actually sends.
+///
+/// `audit_events.action` follows no single convention and never has. Most
+/// writers store an action already qualified with the entity — `lease.create`,
+/// `maintenance_ticket.transition_status` — while the FINANCE-01 family stores
+/// bare verbs (`create`, `transition`). A build that maps bare verbs only, as
+/// this one did, therefore matched nothing the chronicle actually delivers:
+/// every row rendered as "Vertrag lease.transition_status".
+///
+/// So the entity's own prefix is stripped first, and only then mapped. The
+/// strip is an exact `<entity_type>.` match, not "everything up to the first
+/// dot": three actions in this schema carry a prefix that is *not* their
+/// entity type (`security.role_catalog_seeded` on `role_catalog`,
+/// `notification.fan_out` on `notification_batch`,
+/// `operations_signal.update_status` on `operations_signal_state`), and a
+/// naive cut would turn them into words that read like verbs but are not. It
+/// would also collapse `membership.invite` and `membership_invitation.invite`
+/// onto the same key.
+///
+/// The parameter list takes the pair, not just the remainder, so a verb that
+/// one day means something different for two entity types has a place to say
+/// so. Today none does — every remainder below means the same thing wherever
+/// it appears — and inventing that machinery before it is needed would only
+/// add a lookup nobody reads.
+///
+/// Returns null for an action this build cannot name. The caller shows the key
+/// rather than guessing: a vague "geändert" would hide a delete.
+String? propertyActivityVerb(String entityType, String action) {
+  final prefix = '$entityType.';
+  final bare = action.startsWith(prefix)
+      ? action.substring(prefix.length)
+      : action;
+  return switch (bare) {
     'create' => 'angelegt',
     'update' => 'geändert',
-    'transition' => 'im Status geändert',
-    'archive' => 'archiviert',
-    'restore' => 'wiederhergestellt',
+    'updated' => 'geändert',
+    'registered' => 'hinzugefügt',
+    'add' => 'hinzugefügt',
     'delete' => 'entfernt',
+    'archive' => 'archiviert',
+    'archived' => 'archiviert',
+    'restore' => 'wiederhergestellt',
+    'retire' => 'stillgelegt',
+    'supersede' => 'ersetzt',
+    // Three spellings for the same event, from three domains that each chose
+    // their own word for it.
+    'transition' => 'im Status geändert',
+    'transition_status' => 'im Status geändert',
+    'status_changed' => 'im Status geändert',
     'verify' => 'geprüft',
+    'reject' => 'zurückgewiesen',
     'waive' => 'als verzichtet markiert',
+    'content_confirmed' => 'inhaltlich bestätigt',
+    'content_rejected' => 'inhaltlich zurückgewiesen',
     'link' => 'verknüpft',
     'unlink' => 'entkoppelt',
-    _ => action,
+    'generation_deduplicated' => 'als Dublette übersprungen',
+    'factors_upsert' => 'mit neuen Faktoren gespeichert',
+    'variant_create' => 'um eine Variante ergänzt',
+    // `valuation_case.<status>` is built by concatenating the target status
+    // onto the entity name, so the enum's four values arrive here as verbs.
+    'draft' => 'auf Entwurf zurückgesetzt',
+    'in_review' => 'zur Prüfung gestellt',
+    'approved' => 'freigegeben',
+    _ => null,
   };
 }
 
-/// The sentence for one event. Falls back to the raw event key, so an
-/// unmapped server event is visible instead of missing.
+/// The server's composite key for one event, without the doubled prefix.
+///
+/// `public.property_activity` publishes `event_key` as
+/// `entity_type || '.' || action`, which for an already-qualified action
+/// yields `lease.lease.transition_status`. Rather than render that, the key is
+/// derived here from the two fields it is built from — both of which travel on
+/// every row — so this build is correct against the server as it is today and
+/// as it will be once the projection is fixed.
+String propertyActivityEventKey(PropertyActivityEventDto event) {
+  return event.action.contains('.')
+      ? event.action
+      : '${event.entityType}.${event.action}';
+}
+
+/// The sentence for one event.
+///
+/// Either half missing falls back to the whole key. A half-translated
+/// "Vertrag lease.transition_status" is worse than the key it replaces: it
+/// reads as a rendering fault rather than as an event this build cannot name
+/// yet, which is what it actually is.
 String propertyActivitySentence(PropertyActivityEventDto event) {
+  final verb = propertyActivityVerb(event.entityType, event.action);
   final entity = _entityLabel(event.entityType);
-  final verb = _actionLabel(event.action);
-  if (entity == event.entityType && verb == event.action) {
-    return event.eventKey;
+  if (verb == null || entity == event.entityType) {
+    return propertyActivityEventKey(event);
   }
   return '$entity $verb';
 }
@@ -364,6 +432,11 @@ class _CoverageLine extends StatelessWidget {
         .where(state.visibleDomains.contains)
         .map(propertyActivityDomainLabel)
         .join(', ');
+    // A domain key this build has no label for is still coverage the reader
+    // has. `unknownDomainKeys` is documented as being surfaced for exactly
+    // that reason, and until now it was collected and then dropped: a newer
+    // server's area vanished from the line that claims to list them all.
+    final unnamed = state.unknownDomainKeys;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -375,16 +448,40 @@ class _CoverageLine extends StatelessWidget {
           ),
         if (state.coverageIsPartial)
           Text(
-            covered.isEmpty
-                ? 'Diese Chronik deckt derzeit keinen Bereich ab.'
-                : 'Diese Chronik deckt die Bereiche ab, die Sie lesen dürfen: '
-                      '$covered.',
+            _coverageLine(covered, unnamed),
             key: const Key('property-activity-coverage'),
             style: theme.textTheme.bodySmall,
           ),
       ],
     );
   }
+}
+
+/// The coverage sentence.
+///
+/// Names the areas this build can label, and then names the server's own keys
+/// for any it cannot. Both halves are coverage; reporting only the first would
+/// understate what the reader is seeing, which is the same failure as
+/// overstating it.
+String _coverageLine(String covered, List<String> unnamed) {
+  final buffer = StringBuffer();
+  if (covered.isEmpty) {
+    buffer.write('Diese Chronik deckt derzeit keinen benannten Bereich ab.');
+  } else {
+    buffer.write(
+      'Diese Chronik deckt die Bereiche ab, die Sie lesen dürfen: $covered.',
+    );
+  }
+  if (unnamed.isNotEmpty) {
+    buffer.write(
+      unnamed.length == 1
+          ? ' Hinzu kommt ein Bereich, den diese App-Version noch nicht '
+                'benennen kann: ${unnamed.single}.'
+          : ' Hinzu kommen Bereiche, die diese App-Version noch nicht '
+                'benennen kann: ${unnamed.join(', ')}.',
+    );
+  }
+  return buffer.toString();
 }
 
 class _ActivityRow extends StatelessWidget {
