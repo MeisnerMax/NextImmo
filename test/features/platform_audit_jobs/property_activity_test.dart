@@ -41,7 +41,11 @@ class _StubPort implements AuditReadPort {
 PropertyActivityEventDto _event({
   String id = 'e1',
   String entityType = 'lease',
-  String action = 'update',
+  // The shape a real writer produces: qualified with its own entity. The
+  // fixture said 'update' until now, which no migration in this repo ever
+  // writes, and that is precisely why a panel that only understood bare verbs
+  // shipped green.
+  String action = 'lease.update',
   PropertyActivityDomain? domain = PropertyActivityDomain.leasing,
   String? domainKey = 'leasing',
   AuditActorType actorType = AuditActorType.user,
@@ -52,6 +56,10 @@ PropertyActivityEventDto _event({
   return PropertyActivityEventDto(
     id: id,
     occurredAt: occurredAt ?? DateTime.utc(2026, 9, 5, 10),
+    // Doubled on purpose: `public.property_activity` publishes
+    // `entity_type || '.' || action`, so production really does send
+    // `lease.lease.update`. A fixture that quietly de-doubled it would hide
+    // the defect this file exists to pin.
     eventKey: '$entityType.$action',
     entityType: entityType,
     action: action,
@@ -282,6 +290,136 @@ void main() {
     });
   });
 
+  group('Activity sentence', () {
+    // Every action string below is copied from a real writer in
+    // `supabase/migrations/`. The panel used to map bare verbs only, so on
+    // production data it rendered nothing but half-translated keys.
+    test('the qualified actions the writers actually produce all map', () {
+      const cases = <String, String>{
+        'property|property.create': 'Objekt angelegt',
+        'property|property.update': 'Objekt geändert',
+        'property_media|property_media.registered': 'Objektbild hinzugefügt',
+        'property_media|property_media.archived': 'Objektbild archiviert',
+        'unit|unit.transition_status': 'Fläche im Status geändert',
+        'lease|lease.create': 'Vertrag angelegt',
+        'lease|lease.transition_status': 'Vertrag im Status geändert',
+        'leasing_case|leasing_case.transition': 'Vermietungsfall im Status geändert',
+        'rent_roll_snapshot|rent_roll_snapshot.create':
+            'Rent-Roll-Snapshot angelegt',
+        'maintenance_ticket|maintenance_ticket.transition_status':
+            'Wartungsticket im Status geändert',
+        'capex_project|capex_project.update': 'CapEx-Projekt geändert',
+        'task|task.status_changed': 'Aufgabe im Status geändert',
+        'task|task.generation_deduplicated':
+            'Aufgabe als Dublette übersprungen',
+        'document|document.content_confirmed': 'Dokument inhaltlich bestätigt',
+        'document|document.supersede': 'Dokument ersetzt',
+        'document_version|document_version.verify': 'Dokumentversion geprüft',
+        'document_link|document_link.delete': 'Dokumentverknüpfung entfernt',
+        'required_document|required_document.waive':
+            'Dokumentanforderung als verzichtet markiert',
+        'valuation_case|valuation_case.factors_upsert':
+            'Bewertungsfall mit neuen Faktoren gespeichert',
+        'valuation_case|valuation_case.approved': 'Bewertungsfall freigegeben',
+      };
+      for (final entry in cases.entries) {
+        final parts = entry.key.split('|');
+        expect(
+          propertyActivitySentence(
+            _event(entityType: parts[0], action: parts[1]),
+          ),
+          entry.value,
+          reason: '${entry.key} must read as a sentence, not as a server key',
+        );
+      }
+    });
+
+    test('a bare verb maps too, because FINANCE-01 writes them that way', () {
+      expect(
+        propertyActivitySentence(
+          _event(entityType: 'finance_ledger_entry', action: 'create'),
+        ),
+        // No entity label for it yet, so the key is the honest answer -- but
+        // the verb itself must resolve, which is what this pins.
+        'finance_ledger_entry.create',
+      );
+      expect(propertyActivityVerb('finance_period', 'transition'),
+          'im Status geändert');
+      expect(propertyActivityVerb('finance_account', 'create'), 'angelegt');
+    });
+
+    test("only the entity's own prefix is stripped", () {
+      // Three actions in this schema carry a dotted prefix that is not their
+      // entity type. Cutting at the first dot would turn them into words that
+      // read like verbs and are not.
+      expect(
+        propertyActivityVerb('role_catalog', 'security.role_catalog_seeded'),
+        isNull,
+      );
+      expect(
+        propertyActivityVerb('notification_batch', 'notification.fan_out'),
+        isNull,
+      );
+      expect(
+        propertyActivityVerb(
+          'operations_signal_state',
+          'operations_signal.update_status',
+        ),
+        isNull,
+      );
+      // And the trap that makes the naive cut unsafe: two entity types whose
+      // qualified actions share a verb must not collapse onto one key.
+      expect(propertyActivityVerb('membership', 'membership.invite'), isNull);
+      expect(
+        propertyActivityVerb(
+          'membership_invitation',
+          'membership_invitation.invite',
+        ),
+        isNull,
+      );
+    });
+
+    test('an unnameable verb falls back to the key, not to half a sentence',
+        () {
+      final event = _event(entityType: 'lease', action: 'lease.rekeyed');
+      expect(
+        propertyActivitySentence(event),
+        'lease.rekeyed',
+        reason: '"Vertrag lease.rekeyed" reads as a rendering fault rather '
+            'than as an event this build cannot name yet',
+      );
+    });
+
+    test('an unknown entity falls back to the key even with a known verb', () {
+      expect(
+        propertyActivitySentence(
+          _event(entityType: 'covenant', action: 'covenant.create'),
+        ),
+        'covenant.create',
+      );
+    });
+
+    test('the rendered key never carries the doubled server prefix', () {
+      final event = _event(
+        entityType: 'lease',
+        action: 'lease.rekeyed',
+      );
+      expect(
+        event.eventKey,
+        'lease.lease.rekeyed',
+        reason: 'the server really does send this today',
+      );
+      expect(propertyActivityEventKey(event), 'lease.rekeyed');
+      // A bare action still gets its entity, because there it is missing.
+      expect(
+        propertyActivityEventKey(
+          _event(entityType: 'finance_ledger_entry', action: 'create'),
+        ),
+        'finance_ledger_entry.create',
+      );
+    });
+  });
+
   group('Activity panel', () {
     testWidgets('renders one sentence per event, grouped by day', (
       tester,
@@ -296,7 +434,7 @@ void main() {
                 _event(
                   id: 'e2',
                   entityType: 'maintenance_ticket',
-                  action: 'transition',
+                  action: 'maintenance_ticket.transition_status',
                   domain: PropertyActivityDomain.maintenance,
                   domainKey: 'maintenance',
                   occurredAt: DateTime.utc(2026, 9, 4, 10),
@@ -411,6 +549,30 @@ void main() {
         reason: 'a count of records someone else may read is still a '
             'disclosure',
       );
+    });
+
+    testWidgets('the coverage line names a domain this build cannot label', (
+      tester,
+    ) async {
+      // `unknownDomainKeys` is documented as being surfaced so a newer server
+      // reads as "more than this app can label". It was collected and then
+      // dropped: the line that claims to list the covered areas silently left
+      // the new one out -- the exact dishonesty the coverage line exists to
+      // prevent, and the one a finance domain would have walked into.
+      await _pumpPanel(
+        tester,
+        port: _StubPort(
+          PlatformRepositorySuccess(
+            _page(unknownDomainKeys: const <String>['finance']),
+          ),
+        ),
+      );
+
+      final coverage = tester.widget<Text>(
+        find.byKey(const Key('property-activity-coverage')),
+      );
+      expect(coverage.data, contains('finance'));
+      expect(coverage.data, contains('noch nicht benennen kann'));
     });
 
     testWidgets('a single visible domain offers no filter', (tester) async {

@@ -54,6 +54,46 @@ Activity ist eine für Asset-/Property-Manager lesbare, property-scoped Chronik 
 
 Benötigtes DTO: activityId/event key, workspace/property, occurredAt, domain/type, human label, actor display ref, target entity ref, safe summary, source audit/event ref, visibility scope, optional correlation/mutation ref. Reihenfolge und Pagination serverseitig stabil. Payload darf keine Secrets, signed URLs, Dokumentinhalte, Freitextnotizen oder unberechtigte Personendaten enthalten.
 
+## 7a. Satzbildung aus `entity_type` und `action` (2026-09-06)
+
+`public.audit_events.action` folgt **keiner** einheitlichen Konvention und hat es
+nie getan. Die Bestandsaufnahme über alle 16 schreibenden Stellen ergab drei
+Formen nebeneinander:
+
+- **qualifiziert** `<entity_type>.<verb>` — die grosse Mehrheit (74 von 77
+  Actionstrings), z. B. `lease.transition_status`, `property.create`;
+- **nackte Verben** `create` / `update` / `transition` — ausschliesslich die
+  FINANCE-01-Familie, 7 Paare;
+- **abweichend praefigiert**, wo das Punktpraefix *nicht* der Entitaetstyp ist:
+  `security.role_catalog_seeded` (`role_catalog`), `notification.fan_out`
+  (`notification_batch`), `operations_signal.update_status`
+  (`operations_signal_state`).
+
+Der Client bildet deshalb so ab: erst das **exakte** Praefix `<entity_type>.`
+abschneiden, dann den Rest auf ein Verb abbilden. Nicht „alles bis zum ersten
+Punkt": das wuerde `membership.invite` und `membership_invitation.invite` auf
+denselben Schluessel zusammenfallen lassen und aus `security.role_catalog_seeded`
+das scheinbare Verb `role_catalog_seeded` machen.
+
+Ist eine der beiden Haelften unbekannt, rendert die Zeile den **ganzen
+Schluessel** statt eines halbuebersetzten Satzes. „Vertrag lease.rekeyed" liest
+sich als Renderingfehler; `lease.rekeyed` liest sich als das, was es ist — ein
+Ereignis, das dieser Build noch nicht benennen kann. Der Schluessel wird dabei
+aus `entity_type` und `action` gebildet, nicht aus dem gelieferten `event_key`:
+dessen Projektion (`entity_type || '.' || action`) verdoppelt bei jeder
+qualifizierten Action das Praefix.
+
+Server-seitig normalisiert wird **nichts**. `audit_events` ist append-only, die
+bestehende Historie liesse sich ohnehin nicht umschreiben, und eine Konvention
+nachtraeglich zu erzwingen hiesse acht geklonte `private.finish_*_mutation`-
+Funktionen plus acht Direktschreiber anzufassen und mindestens neun pgTAP-Dateien
+zu brechen, die die heutigen Strings festnageln.
+
+**Warum das durchging:** die Fixtures in `supabase/tests/037` und `034` sowie im
+Widget-Test erfanden Actionstrings, die kein Writer je schreibt (`'update'`,
+`'property.updated'`, `'unit.created'`). Ein Test gegen unmoegliche Daten war
+gruen, waehrend jede echte Zeile falsch renderte.
+
 ## 8. Permissions and security behavior
 
 - `property.read` Basis.
