@@ -46,7 +46,16 @@ begin
       'authenticated',
       'authenticated',
       'admin@neximmo.com',
-      null,
+      -- Local development password. This file is the *manual local* bootstrap
+      -- and never runs against staging (`[db.seed] enabled = false`, and the
+      -- staging runbook lists a data seed under "Verboten"), so a fixed
+      -- credential here reaches nothing but a developer's own container.
+      --
+      -- It was `null` until now, which meant the seeded admin could not sign in
+      -- at all: since STAGING-PASSWORD-AUTH-01 the primary login is
+      -- email + password, and a NULL hash rejects every attempt. Bootstrapping
+      -- an account nobody can use is not a bootstrap.
+      extensions.crypt('NexImmo-Local-2026!', extensions.gen_salt('bf')),
       now(),
       '',
       '',
@@ -113,41 +122,24 @@ begin
     values (v_role_id, v_workspace_id, 'admin', 'Admin');
   end if;
 
-  -- Permission catalogue. Migrations intentionally do not seed public.permissions
-  -- (pgTAP fixtures insert their own rows and would collide on permissions_key_unique),
-  -- so the local bootstrap provides the keys enforced by RLS/RPCs plus the
-  -- reporting capability gated in the Flutter navigation.
-  insert into public.permissions (key, name) values
-    ('workspace.read', 'Workspace Read'),
-    ('security.manage', 'Security Manage'),
-    ('audit.read', 'Audit Read'),
-    ('property.read', 'Property Read'),
-    ('property.update', 'Property Update'),
-    ('party.read', 'Party Read'),
-    ('party.manage', 'Party Manage'),
-    ('document.read', 'Document Read'),
-    ('document.manage', 'Document Manage'),
-    ('document.verify', 'Document Verify'),
-    ('task.read', 'Task Read'),
-    ('task.manage', 'Task Manage'),
-    ('notification.read', 'Notification Read'),
-    ('notification.manage', 'Notification Manage'),
-    ('import.read', 'Import Read'),
-    ('import.manage', 'Import Manage'),
-    ('search.read', 'Search Read'),
-    ('search.reindex', 'Search Reindex'),
-    ('lease.read', 'Lease Read'),
-    ('lease.manage', 'Lease Manage'),
-    ('valuation.read', 'Valuation Read'),
-    ('valuation.manage', 'Valuation Manage'),
-    ('valuation.approve', 'Valuation Approve'),
-    ('maintenance.read', 'Maintenance Read'),
-    ('maintenance.manage', 'Maintenance Manage'),
-    ('capex.read', 'CapEx Read'),
-    ('capex.manage', 'CapEx Manage'),
-    ('capex.approve', 'CapEx Approve'),
-    ('reporting.generate', 'Reporting Generate')
-  on conflict (key) do nothing;
+  -- Permission catalogue and role bundles come from the seeder the migrations
+  -- own, not from a list kept here. The migrations still do not populate
+  -- `public.permissions` on apply -- pgTAP fixtures insert their own rows and
+  -- would collide on `permissions_key_unique` -- they ship
+  -- `private.seed_workspace_role_catalog` for callers like this one.
+  --
+  -- They used to be a hand-maintained list of 29 keys, and it drifted: by the
+  -- time FINANCE-01a landed, this file was missing `property.create` and all
+  -- three `finance.*` keys, so a freshly bootstrapped admin could not open a
+  -- property or see a single figure. The catalogue has an owner --
+  -- `private.ensure_permission_catalog`, extended by every package that adds a
+  -- capability -- and a second copy could only ever fall behind it again.
+  --
+  -- `seed_workspace_role_catalog` also creates the four non-admin spec roles
+  -- with their least-privilege bundles, which the single hand-made `admin` role
+  -- never did. Existing rows are never modified: the admin role created above
+  -- keeps its fixed id and simply gains the grants.
+  perform private.seed_workspace_role_catalog(v_workspace_id);
 
   insert into public.user_profiles (user_id, display_name)
   values (v_user_id, 'NexImmo Admin')
