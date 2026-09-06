@@ -9,6 +9,7 @@ select functions_are(
   array[
     'broadcast_membership_entitlement_change',
     'broadcast_role_permission_entitlement_change',
+    'apply_lease_component_update',
     'apply_valuation_factors',
     'assert_unit_occupancy',
     'capex_project_snapshot',
@@ -21,6 +22,7 @@ select functions_are(
     'claim_party_mutation',
     'claim_valuation_mutation',
     'contractor_details_snapshot',
+    'enforce_lease_component_currency',
     'document_command_gate',
     'document_entity_ref_state',
     'document_requirement_state',
