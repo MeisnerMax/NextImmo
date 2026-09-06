@@ -7,6 +7,7 @@ import 'package:neximmo_app/features/identity_access/application/workspace_sessi
 import 'package:neximmo_app/features/leasing_operations/application/leases_controller.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_query_invalidation_source.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 
@@ -480,12 +481,112 @@ void main() {
       expect(controller.state.selectedLease, isNull);
       expect(controller.state.rejection, isNull);
     });
+
+    test('selecting a lease loads its components, scoped to that lease', () async {
+      final componentPort = _FakeLeaseComponents(
+        components: <LeaseComponentDto>[
+          LeaseComponentDto(
+            id: 'k1',
+            leaseId: 'l1',
+            propertyId: _property,
+            componentType: LeaseComponentType.baseRent,
+            amount: 1000,
+            currencyCode: 'EUR',
+            vatMode: LeaseComponentVatMode.exempt,
+            validFrom: DateTime(2026, 1, 1),
+            version: 1,
+          ),
+        ],
+      );
+      final controller = _controller(componentPort: componentPort);
+
+      await controller.select('l1');
+
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.ready);
+      expect(controller.state.components?.components, hasLength(1));
+      // Scoped to the lease, never to the workspace: an unscoped read would be
+      // refused by the server and would be the wrong question anyway.
+      expect(componentPort.queries.single.leaseId, 'l1');
+      expect(componentPort.queries.single.propertyId, isNull);
+    });
+
+    test('nothing recorded is a ready state, not an empty one', () async {
+      final controller = _controller(componentPort: _FakeLeaseComponents());
+
+      await controller.select('l1');
+
+      // DEC-029: the read succeeded and the answer is "no component covers
+      // today". Calling that a failure would invite the screen to fall back to
+      // the flat inception figures, which is the confusion this package exists
+      // to remove.
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.ready);
+      expect(controller.state.components?.components, isEmpty);
+    });
+
+    test('a refused component read leaves the contract readable', () async {
+      final controller = _controller(
+        componentPort: _FakeLeaseComponents(
+          failure: LeasingRepositoryFailureKind.forbidden,
+        ),
+      );
+
+      await controller.select('l1');
+
+      expect(controller.state.detailPhase, LeasesDetailPhase.ready);
+      expect(controller.state.selectedLease, isNotNull);
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.forbidden);
+    });
+
+    test('a broken component read is an error, not a refusal', () async {
+      final controller = _controller(
+        componentPort: _FakeLeaseComponents(
+          failure: LeasingRepositoryFailureKind.infrastructureFailure,
+        ),
+      );
+
+      await controller.select('l1');
+
+      // The two are different things to tell someone: one is "you may not",
+      // the other is "try again".
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.error);
+      expect(controller.state.detailPhase, LeasesDetailPhase.ready);
+    });
+
+    test('a lease that could not be read leaves components idle', () async {
+      final repository = _FakeLeaseRepository()
+        ..getResult = const LeasingRepositoryFailure<LeaseDto>(
+          kind: LeasingRepositoryFailureKind.forbidden,
+          message: 'no',
+        );
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(
+        repository: repository,
+        componentPort: componentPort,
+      );
+
+      await controller.select('l1');
+
+      // No second message competing with the first, and no read fired for a
+      // lease this member cannot see.
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.idle);
+      expect(componentPort.queries, isEmpty);
+    });
+
+    test('deselecting clears the components too', () async {
+      final controller = _controller(componentPort: _FakeLeaseComponents());
+      await controller.select('l1');
+      await controller.select(null);
+
+      expect(controller.state.componentsPhase, LeaseComponentsPhase.idle);
+      expect(controller.state.components, isNull);
+    });
   });
 }
 
 LeasesController _controller({
   _FakeLeaseRepository? repository,
   _FakeLeaseSearch? search,
+  _FakeLeaseComponents? componentPort,
   _FakeUnitSearch? unitSearch,
   _FakePartySearch? partySearch,
   WorkspaceSessionScope? scope,
@@ -496,6 +597,7 @@ LeasesController _controller({
   final controller = LeasesController(
     repository: repository ?? _FakeLeaseRepository(),
     search: search ?? _FakeLeaseSearch(),
+    componentPort: componentPort ?? _FakeLeaseComponents(),
     unitSearch: unitSearch ?? _FakeUnitSearch(),
     partySearch: partySearch ?? _FakePartySearch(),
     scope: scope ?? _scope(),
@@ -614,6 +716,60 @@ class _FakeLeaseSearch implements LeaseSearchPort {
       ),
     );
   }
+}
+
+/// Answers with nothing recorded unless a test says otherwise, which is the
+/// state most leases are in until someone enters a component.
+class _FakeLeaseComponents implements LeaseComponentPort {
+  _FakeLeaseComponents({this.failure, this.components = const <LeaseComponentDto>[]});
+
+  final LeasingRepositoryFailureKind? failure;
+  final List<LeaseComponentDto> components;
+  final List<LeaseComponentListQuery> queries = <LeaseComponentListQuery>[];
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async {
+    queries.add(query);
+    final kind = failure;
+    if (kind != null) {
+      return LeasingRepositoryFailure<LeaseComponentsAsOfDto>(
+        kind: kind,
+        message: 'components failed',
+      );
+    }
+    return LeasingRepositorySuccess<LeaseComponentsAsOfDto>(
+      LeaseComponentsAsOfDto(
+        asOfDate: query.asOfDate,
+        components: components,
+      ),
+    );
+  }
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> create(
+    CreateLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> update(
+    UpdateLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentDto>> close(
+    CloseLeaseComponentCommand command,
+  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
+    kind: LeasingRepositoryFailureKind.forbidden,
+    message: 'not used by these tests',
+  );
 }
 
 class _FakeUnitSearch implements UnitSearchPort {
