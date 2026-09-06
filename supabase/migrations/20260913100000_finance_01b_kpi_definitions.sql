@@ -491,6 +491,14 @@ begin
     return v_claim;
   end if;
 
+  -- Serialize per key. Two creates of the same key arriving together would
+  -- both read the same `max(definition_version)`, both claim the next number,
+  -- and the unique index would reject the second with a raw error. The lock is
+  -- transaction-scoped and per key, so it costs nothing across keys.
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_workspace_id::text || ':' || btrim(p_kpi_key), 0)
+  );
+
   -- The next version for this key. Behind the claim, so a retry replays its
   -- receipt instead of minting a second version of the same definition.
   select coalesce(max(existing.definition_version), 0) + 1
@@ -661,6 +669,13 @@ begin
   if v_claim is not null then
     return v_claim;
   end if;
+
+  -- Same lock as the create path, for the same reason: two activations of
+  -- different versions of one key would each retire the incumbent they saw and
+  -- each try to become the single active row.
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_workspace_id::text || ':' || v_old.kpi_key, 0)
+  );
 
   -- Retire the incumbent first. Same statement order every time, so the
   -- partial unique index can never see two active rows.
