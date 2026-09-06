@@ -18,6 +18,8 @@ import 'features/contacts_parties/data/supabase_party_repository_adapter.dart';
 import 'features/documents_compliance/application/document_providers.dart';
 import 'features/documents_compliance/data/supabase_document_query_invalidation_adapter.dart';
 import 'features/documents_compliance/data/supabase_document_repository_adapter.dart';
+import 'features/finance_ledger/application/finance_providers.dart';
+import 'features/finance_ledger/data/supabase_finance_ledger_adapter.dart';
 import 'features/identity_access/application/workspace_session_scope.dart';
 // Prefixed: the leasing seam names its port `leaseRepositoryProvider`, and a
 // legacy provider of the same name still exists in `ui/state/app_state.dart`.
@@ -67,6 +69,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   final capexProjects = SupabaseCapexProjectRepositoryAdapter(client: client);
   final platform = SupabasePlatformRepositoryAdapter(client: client);
   final propertyMedia = SupabasePropertyMediaAdapter(client: client);
+  final financeLedger = SupabaseFinanceLedgerAdapter(client: client);
   return <Override>[
     // The authenticated reference session is the cloud host's identity.
     workspaceSessionScopeProvider.overrideWith((ref) {
@@ -111,6 +114,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     leasing.leasingCaseSearchProvider.overrideWithValue(leasingCases),
     leasing.rentRollProvider.overrideWithValue(leasingRentRoll),
     leasing.propertyLeasingSummaryProvider.overrideWithValue(leasingSummary),
+    propertyFinanceActualsProvider.overrideWithValue(financeLedger),
     leasing.operationsSignalsProvider.overrideWithValue(leasingSignals),
     leasing.leasingQueryInvalidationSourceProvider.overrideWithValue(
       SupabaseLeasingQueryInvalidationAdapter(client: client),

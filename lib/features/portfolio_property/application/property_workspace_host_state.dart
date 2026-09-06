@@ -125,9 +125,12 @@ registeredPropertyWorkspaceDomains = <PropertyWorkspaceDomainRegistration>[
     readPermission: Permission.documentRead,
   ),
   PropertyWorkspaceDomainRegistration(
+    // Two children with separate gates since FINANCE-01a, so the domain opens
+    // for either and each sub-area hides itself individually.
     domain: PropertyWorkspaceDomain.investment,
     label: 'Investment',
     readPermission: Permission.valuationRead,
+    alternativeReadPermissions: <String>[Permission.financeRead],
   ),
   PropertyWorkspaceDomainRegistration(
     // Since PROPERTY-ACTIVITY-01 the chronicle needs only `property.read`,
@@ -195,15 +198,20 @@ List<PropertyOperationsSubArea> visiblePropertyOperationsSubAreas(
 /// Only `Bewertung` is implemented (`VALUATION-REHOST-01`). `Szenarien` waits
 /// for `SCENARIO-VALUATION-01` and `Performance` for `FINANCE-01`/`P2-D08`;
 /// both stay absent rather than appearing as empty frames.
-enum PropertyInvestmentSubArea { valuation }
+enum PropertyInvestmentSubArea { valuation, performance }
 
 extension PropertyInvestmentSubAreaMeta on PropertyInvestmentSubArea {
   String get label => switch (this) {
     PropertyInvestmentSubArea.valuation => 'Bewertung',
+    PropertyInvestmentSubArea.performance => 'Performance',
   };
 
+  /// Each sub-area carries its own gate: valuation work and financial figures
+  /// are different rights, and a member who may value a building need not be
+  /// able to read its books.
   String get readPermission => switch (this) {
     PropertyInvestmentSubArea.valuation => Permission.valuationRead,
+    PropertyInvestmentSubArea.performance => Permission.financeRead,
   };
 }
 

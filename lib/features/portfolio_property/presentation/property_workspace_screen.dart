@@ -21,6 +21,7 @@ import '../../identity_access/application/identity_access_repository.dart';
 import '../../platform_audit_jobs/domain/platform_entity_type.dart';
 import '../../platform_audit_jobs/application/audit_read_port.dart';
 import '../../platform_audit_jobs/application/platform_providers.dart';
+import '../../finance_ledger/presentation/property_finance_panel.dart';
 import '../../platform_audit_jobs/presentation/property_activity_panel.dart';
 import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
@@ -261,6 +262,12 @@ class _PropertyWorkspaceScreenState
       // valuation queue and case surface rather than rebuilding either.
       investmentBuilder:
           (context, propertyId, subArea) => switch (subArea) {
+            // FINANCE-01a: the booked actuals. The other three areas the
+            // spec plans here wait on the computed-figure contract.
+            PropertyInvestmentSubArea.performance => PropertyFinancePanel(
+              key: ValueKey<String>('property-finance-$propertyId'),
+              propertyId: propertyId,
+            ),
             PropertyInvestmentSubArea.valuation => PropertyValuationPanel(
               key: ValueKey<String>('property-valuation-$propertyId'),
               propertyId: propertyId,
