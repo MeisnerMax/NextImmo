@@ -52,12 +52,23 @@ npx supabase test db --local           # run pgTAP tests in supabase/tests
 npx supabase stop --no-backup
 ```
 
+Local demo data (two properties with units, leases, tickets and bookings, applied through the
+audited RPCs so the rows obey the same rules the application does):
+```
+./tool/seed_demo_properties.ps1            # idempotent, leaves existing data alone
+./tool/seed_demo_properties.ps1 -Reset     # explicit opt-in to a clean rebuild
+```
+Local only. Never point it, or anything like it, at staging — see Environment contract below.
+
 **A reset produces no data.** `[db.seed] enabled = false` in `supabase/config.toml`, so
 `db reset`, `migration down` and `migration up` all leave an empty schema — no workspace, no
 roles, no permission catalogue, no admin user — with or without `--no-seed`. `supabase/seed.sql`
-is a manual local bootstrap fixture; the only thing that applies it is
-`./tool/bootstrap_p2_x01_local.ps1`, which does so explicitly with `psql -v ON_ERROR_STOP=1 -f`
-and then reconciles the result. Seeding was switched off because `supabase migration down`
+is a manual local bootstrap fixture; the only things that apply it are
+`./tool/bootstrap_p2_x01_local.ps1` and `./tool/seed_demo_properties.ps1`, both of which do so
+explicitly with `psql -v ON_ERROR_STOP=1 -f` and then reconcile the result. The seed builds the
+workspace, the admin (`admin@neximmo.com` / `NexImmo-Local-2026!`) and the role/permission
+catalogue via `private.seed_workspace_role_catalog`; it does not hand-maintain a permission list,
+because a second copy of the catalogue only ever drifts behind the migrations that own it. Seeding was switched off because `supabase migration down`
 silently reseeds mid-replay (it has no `--no-seed` of its own), which broke the CI rollback gate
 in 25 pgTAP files. Every pgTAP test builds its own permissions and workspaces and requires the
 unseeded state. Full rationale:
