@@ -55,7 +55,7 @@ select is(
 select ok(
   (select bool_and(taxonomy.required_permission in (
      'property.read', 'lease.read', 'maintenance.read', 'capex.read',
-     'task.read', 'document.read', 'valuation.read'
+     'task.read', 'document.read', 'valuation.read', 'finance.read'
    ))
    from private.property_activity_taxonomy() as taxonomy),
   'every mapped entity type names a real domain read permission'
@@ -146,6 +146,11 @@ insert into public.maintenance_tickets (
 
 -- ---------------------------------------------------------------------------
 -- Audit rows: one per domain, plus the two that must never surface.
+--
+-- Every `action` below is the string its real writer stores. The fixture used
+-- bare verbs ('update', 'create', 'transition') until 2026-09-06, which no
+-- migration in this schema writes -- and a chronicle rendered against that
+-- fantasy passed here while every production row came out half-translated.
 -- ---------------------------------------------------------------------------
 
 insert into public.audit_events (
@@ -157,7 +162,7 @@ insert into public.audit_events (
   -- property, by the admin themselves
   ('d8000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000001',
    'user', 'd2000000-0000-0000-0000-000000000001', null, 'admin', '{}',
-   'update', 'property', 'd5000000-0000-0000-0000-000000000001', 'rpc',
+   'property.update', 'property', 'd5000000-0000-0000-0000-000000000001', 'rpc',
    'd9000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000001',
    'Adresse korrigiert', '{"city": "Bonn"}', '{"city": "Berlin"}',
    now() - interval '5 hours',
@@ -165,7 +170,7 @@ insert into public.audit_events (
   -- unit -> leasing, by somebody else
   ('d8000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000001',
    'user', 'd2000000-0000-0000-0000-000000000003', null, 'admin', '{}',
-   'create', 'unit', 'd6000000-0000-0000-0000-000000000001', 'rpc',
+   'unit.create', 'unit', 'd6000000-0000-0000-0000-000000000001', 'rpc',
    'd9000000-0000-0000-0000-000000000002', 'da000000-0000-0000-0000-000000000002',
    'Erstaufnahme', null, '{"unit_code": "A-01"}',
    now() - interval '4 hours',
@@ -173,7 +178,8 @@ insert into public.audit_events (
   -- maintenance ticket -> maintenance
   ('d8000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000001',
    'user', 'd2000000-0000-0000-0000-000000000003', null, 'admin', '{}',
-   'transition', 'maintenance_ticket', 'd7000000-0000-0000-0000-000000000001', 'rpc',
+   'maintenance_ticket.transition_status', 'maintenance_ticket',
+   'd7000000-0000-0000-0000-000000000001', 'rpc',
    'd9000000-0000-0000-0000-000000000003', 'da000000-0000-0000-0000-000000000003',
    null, '{"status": "draft"}', '{"status": "open"}',
    now() - interval '3 hours',
@@ -181,7 +187,7 @@ insert into public.audit_events (
   -- a unit of the NEIGHBOURING property: right workspace, wrong building
   ('d8000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000001',
    'user', 'd2000000-0000-0000-0000-000000000003', null, 'admin', '{}',
-   'create', 'unit', 'd6000000-0000-0000-0000-000000000002', 'rpc',
+   'unit.create', 'unit', 'd6000000-0000-0000-0000-000000000002', 'rpc',
    'd9000000-0000-0000-0000-000000000004', 'da000000-0000-0000-0000-000000000004',
    null, null, '{"unit_code": "B-01"}',
    now() - interval '2 hours',
@@ -190,7 +196,7 @@ insert into public.audit_events (
   -- not in the taxonomy
   ('d8000000-0000-0000-0000-000000000005', 'd1000000-0000-0000-0000-000000000001',
    'user', 'd2000000-0000-0000-0000-000000000001', null, 'admin', '{}',
-   'update', 'membership', 'd4000000-0000-0000-0000-000000000002', 'rpc',
+   'membership.role_change', 'membership', 'd4000000-0000-0000-0000-000000000002', 'rpc',
    'd9000000-0000-0000-0000-000000000005', 'da000000-0000-0000-0000-000000000005',
    null, null, '{"role_key": "viewer"}',
    now() - interval '1 hour',
@@ -198,7 +204,7 @@ insert into public.audit_events (
   -- a system actor
   ('d8000000-0000-0000-0000-000000000006', 'd1000000-0000-0000-0000-000000000001',
    'system', null, 'retention-job', null, '{}',
-   'update', 'property', 'd5000000-0000-0000-0000-000000000001', 'job',
+   'property.update', 'property', 'd5000000-0000-0000-0000-000000000001', 'job',
    'd9000000-0000-0000-0000-000000000006', 'da000000-0000-0000-0000-000000000006',
    null, null, '{"status": "active"}',
    now() - interval '30 minutes',
@@ -374,9 +380,10 @@ select is(
      pg_temp.activity('d2000000-0000-0000-0000-000000000001') -> 'events'
    ) as event
    where event ->> 'entity_id' = 'd7000000-0000-0000-0000-000000000001'),
-  'maintenance_ticket.transition',
+  'maintenance_ticket.transition_status',
   'the event key is built from the stored columns, so a new action shows up '
-  'as a key instead of vanishing'
+  'as a key instead of vanishing -- and it does not double the prefix the '
+  'action already carries'
 );
 select is(
   (select event ->> 'domain'
@@ -432,7 +439,7 @@ select ok(
      pg_temp.activity('d2000000-0000-0000-0000-000000000001') -> 'events'
    ) as event
    where event ->> 'entity_id' = 'd5000000-0000-0000-0000-000000000001'
-     and event ->> 'action' = 'update'
+     and event ->> 'action' = 'property.update'
      and event ->> 'actor_type' = 'user'),
   'the admin''s own change is marked as theirs'
 );

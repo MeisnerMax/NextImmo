@@ -79,9 +79,14 @@ Ist eine der beiden Haelften unbekannt, rendert die Zeile den **ganzen
 Schluessel** statt eines halbuebersetzten Satzes. „Vertrag lease.rekeyed" liest
 sich als Renderingfehler; `lease.rekeyed` liest sich als das, was es ist — ein
 Ereignis, das dieser Build noch nicht benennen kann. Der Schluessel wird dabei
-aus `entity_type` und `action` gebildet, nicht aus dem gelieferten `event_key`:
-dessen Projektion (`entity_type || '.' || action`) verdoppelt bei jeder
-qualifizierten Action das Praefix.
+aus `entity_type` und `action` gebildet, nicht aus dem gelieferten `event_key`.
+Dessen Projektion (`entity_type || '.' || action`) verdoppelte bei jeder
+qualifizierten Action das Praefix — also bei praktisch jeder Zeile, die diese
+Funktion je geliefert hat. PROPERTY-ACTIVITY-02 korrigiert das serverseitig:
+`event_key` ist jetzt die Action selbst, sobald diese bereits einen Punkt
+enthaelt, und nur sonst die Verkettung. Client und Server kommen damit auf
+denselben Schluessel; der Client rechnet ihn weiterhin selbst aus und ist
+dadurch gegen beide Serverstaende richtig.
 
 Server-seitig normalisiert wird **nichts**. `audit_events` ist append-only, die
 bestehende Historie liesse sich ohnehin nicht umschreiben, und eine Konvention
@@ -93,6 +98,40 @@ zu brechen, die die heutigen Strings festnageln.
 Widget-Test erfanden Actionstrings, die kein Writer je schreibt (`'update'`,
 `'property.updated'`, `'unit.created'`). Ein Test gegen unmoegliche Daten war
 gruen, waehrend jede echte Zeile falsch renderte.
+
+## 7b. Finanzdomaene: nur die Buchung (PROPERTY-ACTIVITY-02, 2026-09-06)
+
+Die Chronik zeigt aus dem Finanzbereich **ausschliesslich Buchungen**
+(`finance_ledger_entry`), gegated auf `finance.read`.
+
+Grund ist kein Aufwand, sondern Zuordenbarkeit. Von den fuenf Tabellen, die
+FINANCE-01a/01b anlegen, traegt genau eine eine `property_id`:
+
+| Tabelle | Objektbezug |
+| --- | --- |
+| `finance_ledger_entries` | `property_id uuid not null` |
+| `finance_accounts` | keiner, workspace-weit |
+| `finance_periods` | keiner, workspace-weit |
+| `finance_kpi_definitions` | keiner, workspace-weit |
+| `finance_kpi_definition_lines` | keiner, workspace-weit |
+
+Ein Kontenplan zu aendern oder eine Periode zu schliessen ist eine Handlung am
+**Workspace**. Sie in die Chronik eines Objekts zu legen hiesse, dass jedes
+Objekt des Workspace dasselbe Ereignis als seine eigene Historie ausweist. Diese
+Ereignisse gehoeren in eine workspace-weite Chronik, die es noch nicht gibt und
+die hier auch nicht erfunden wird.
+
+Ein Mitglied ohne `finance.read` sieht keine Buchung **und** kein `finance` in
+`visible_domains` — dieselbe berechtigungsfoermige Coverage-Aussage, die jede
+andere Domaene schon macht. Bis PROPERTY-ACTIVITY-02 fehlte `finance` in der
+Taxonomie ueberhaupt, konnte also nie in `visible_domains` auftauchen: „keine
+Finanzaktivitaet" war von „Finanzaktivitaet wird nicht gezeigt" nicht
+unterscheidbar.
+
+`audit_events.parent_entity_*` wird auch hier nicht gelesen —
+`private.finish_finance_mutation` setzt die Spalten nicht, ihre Parameterliste
+kennt sie gar nicht. Aufgeloest wird beim Lesen ueber die Quelltabelle, wie bei
+Einheiten, Vertraegen und Aufgaben auch.
 
 ## 8. Permissions and security behavior
 

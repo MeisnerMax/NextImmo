@@ -44,6 +44,9 @@ String propertyActivityDomainLabel(PropertyActivityDomain domain) {
     PropertyActivityDomain.tasks => 'Aufgaben',
     PropertyActivityDomain.documents => 'Dokumente',
     PropertyActivityDomain.valuation => 'Bewertung',
+    // The chronicle carries bookings only. Opening or closing a period is a
+    // workspace act with no property, so it is not here to be labelled.
+    PropertyActivityDomain.finance => 'Finanzen',
   };
 }
 
@@ -56,6 +59,7 @@ IconData propertyActivityDomainIcon(PropertyActivityDomain domain) {
     PropertyActivityDomain.tasks => Icons.checklist_outlined,
     PropertyActivityDomain.documents => Icons.folder_outlined,
     PropertyActivityDomain.valuation => Icons.insights_outlined,
+    PropertyActivityDomain.finance => Icons.account_balance_outlined,
   };
 }
 
@@ -76,6 +80,7 @@ String _entityLabel(String entityType) {
     'document_link' => 'Dokumentverknüpfung',
     'required_document' => 'Dokumentanforderung',
     'valuation_case' => 'Bewertungsfall',
+    'finance_ledger_entry' => 'Buchung',
     _ => entityType,
   };
 }
