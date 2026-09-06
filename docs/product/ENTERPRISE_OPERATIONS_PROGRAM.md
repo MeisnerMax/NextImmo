@@ -28,10 +28,25 @@ Damit ist **§4 (Warmmiete), §3.6 (Vorauszahlungen) und §12 (Vorauszahlungsemp
 Auftrags kein Feature, sondern ein Datenmodell-Ausbau.** Das Beispiel aus dem Auftrag
 (Jan–Jun 180 €, Jul–Dez 210 €) ist heute nicht darstellbar.
 
-Das Migrationsteam hat die Lücke selbst benannt: `lease_rent_schedule` (period_key,
-rent_monthly, source) und `lease_indexation_rules` existieren im Legacy-SQLite und wurden
-**bewusst nicht** migriert (`20260730120000:21-52`), mit offener Designfrage (RISK-QA-001).
-Diese Entscheidung wird jetzt fällig.
+Das Migrationsteam hat die Lücke selbst benannt: `lease_rent_schedule` und
+`lease_indexation_rules` existieren im Legacy-SQLite und wurden **bewusst nicht** migriert
+(`20260730120000:21-52`), mit einer ausdrücklich dem Migrierenden zugewiesenen Designfrage
+(`:46-51`).
+
+**Entschieden als [DEC-026].** Richtigstellung dazu: `RISK-QA-001` ist **keine** offene
+Entscheidung, sondern ein QA-Risiko über fehlende Golden-Master-Fixtures
+(`09_test_baseline.md:139`); es steht nicht im Entscheidungsregister, und die Fixture-Liste
+enthält für die Indexierung ohnehin keinen Eintrag. Der Migrationskopf zitiert es nur als
+Gefahr. Frühere Fassungen dieses Dokuments haben es als die offene Entscheidung geführt — das
+war falsch.
+
+Die dort gestellte Alternative („nach PL/pgSQL portieren und eine zweite, driftende
+Implementierung erzeugen" gegen „die Engine behalten und ihr Ergebnis speichern") ist seit
+`AP-X02-2b` gegenstandslos: die Dart-Engine läuft nicht mehr im Runtime. Eine Portierung ersetzt
+totes Legacy, statt eine zweite lebende Implementierung zu schaffen. Zwei Hauspräzedenzen haben
+dieselbe Frage bereits gegen die Clientvariante entschieden — `P2-D05a` und `P2-D05b`, letzteres
+mit „No drift by construction, not by discipline". Die Legacy-Engine ist zudem kein Asset: ihr
+einziger Test löst die Indexierung nie aus.
 
 ### B-2 · Stichtagsrechnung ist heute unmöglich: alle Aggregate filtern auf den *aktuellen* Status
 
@@ -50,20 +65,22 @@ Der Vorteil daran: eine korrekte Stichtagsauflösung lässt sich heute **ohne Re
 einziehen, weil keine Live-Fläche einen vergangenen Stichtag anfragt. Deshalb steht V-1 vorn —
 nicht als Feuerwehreinsatz, sondern weil es später nicht mehr gefahrlos geht.
 
-Zwei Fragen sind dabei **auseinanderzuhalten**, und die zweite wird in V-1 ausdrücklich nicht
-mitentschieden:
+Zwei Fragen sind dabei **auseinanderzuhalten**; beide sind inzwischen entschieden, aber
+getrennt und mit je eigener Begründung:
 
 1. *Zählt ein Vertrag, der heute nicht mehr `active` ist, für einen vergangenen Stichtag?*
    Ja — wenn er `active` erreicht hatte und sein Wirkungszeitraum den Stichtag deckt. `end_date`
    wird beim Übergang nach `ended` **nicht** angepasst; es gibt stattdessen `move_out_date` und
    `ended_at`. Welches Datum die Mietpflicht beendet, ist damit eine eigene, konservativ zu
    dokumentierende Festlegung.
-2. *Zählt ein `active`-Vertrag jenseits seines `end_date`?* Diese Frage ist heute **von zwei
-   Flächen unterschiedlich beantwortet**: `property_leasing_summary` weist sie als `expired_open`
-   aus und zählt sie, `private.rent_roll_unit_rows` schliesst sie über
-   `end_date >= p_as_of_date` aus. Diese Divergenz besteht seit P2-D05b und ist eine
-   Produktentscheidung (eine deutsche Miete läuft nach Fristablauf oft kraft Gesetzes weiter) —
-   sie gehört nicht still in ein Stichtagspaket.
+2. *Zählt ein `active`-Vertrag jenseits seines `end_date`?* **Ja — [DEC-027].** Die Frage war
+   von zwei Flächen unterschiedlich beantwortet (`property_leasing_summary` zählt, die
+   Rent-Roll-Helfer schliessen aus), und die Divergenz war unbeaufsichtigt entstanden: für den
+   Rent Roll ist der Datumsfilter begründet entschieden, für die Leasing-Übersicht gibt es keine
+   Festlegung. Entscheidend war die Häufigkeit — ohne Scheduler, ohne Trigger und mit einem
+   `update_lease`, das aktive Verträge gar nicht ändern lässt, ist dieser Zustand der
+   **unvermeidliche Endzustand jedes befristeten Vertrags** und zugleich die einzige darstellbare
+   Form der Fortsetzung kraft Gesetzes. Die Folgearbeiten stehen in §6.
 
 ### B-3 · Das KPI-Modell kann NOI, aber prinzipiell keine Quotienten
 
@@ -101,8 +118,13 @@ befüllt und nie von der Bewertungs-Engine. Die Cloud-Übersicht liefert bewusst
 der Bewertungsarbeit und keinen Wert, weil METHOD-GOV-01 offenlässt, welche Zahl „der" Objektwert
 ist (`docs/product/VALUATION_METHOD_GOVERNANCE.md`).
 
-**LTV ist vor dieser Entscheidung nicht ehrlich berechenbar.** Ein Covenant-Modul, das sich einen
-Wert aussucht, erfindet die wichtigste Zahl im Modul.
+**Entschieden als [DEC-028]: es gibt keinen globalen Objektwert.** Ein Covenant trägt eine
+auflösbare Wertquellen-Bindung, und LTV bleibt `null`, solange sie nicht auflösbar ist.
+`METHOD-GOV-01` lässt die Frage nicht nur offen — es *verbietet* jede heute verfügbare Zahl: der
+einzige gespeicherte Wertbetrag stammt von genau der Engine, die dort als BLOCKED geführt wird.
+Auch die Marktkonvention stützt die Bindung statt eines Standards: deutsche Praxis kennt
+Verkehrswert **und** Beleihungswert nebeneinander, und §14.4 des Auftrags verlangt für NOI
+bereits loan-spezifische Definitionen — für die Wertbasis gilt das erst recht.
 
 ---
 
@@ -319,26 +341,48 @@ in der CI-Kette → SR-Zähler → Client-Port/Controller/UI → Tests → Docs 
 
 ---
 
-## 6. Entscheidungen, die dem Owner gehören
+## 6. Getroffene Entscheidungen
 
-Diese treffe ich nicht selbst, weil sie das Produkt festlegen und nicht die Technik.
+Der Owner hat diese drei am 2026-09-06 zur Entscheidung zurückgegeben. Sie sind nach der Regel
+aus §35 des Auftrags getroffen — bestehende NexImmo-Konventionen prüfen, konservativen
+Enterprise-Default wählen, Entscheidung dokumentieren — und stehen mit voller Begründung im
+[Entscheidungsregister](../architecture/phase_0/11_decision_register.md).
 
-1. **B-1: Wie werden Mietkomponenten versioniert?** Der Legacy-Weg (`lease_rent_schedule` +
-   Dart-Engine) wurde bewusst nicht migriert, mit offener Designfrage (RISK-QA-001): Engine
-   portieren oder Ergebnis speichern? Das ist eine Architekturentscheidung mit langem Schatten.
-2. **B-5: Welche Zahl ist „der" Objektwert für LTV?** METHOD-GOV-01 lässt das offen. Ohne
-   Festlegung ist kein Covenant ehrlich rechenbar.
-3. **Rollenmodell (§19):** Der Auftrag nennt sechs Rollen, es gibt fünf. „Accounting" und
-   „Finance" existieren serverseitig nicht. Neue Rollen anlegen, oder die geforderten Personas auf
-   die bestehenden fünf abbilden?
-4. **Wie weit geht die Compliance-Automatik?** § 5d CO2KostAufG ist ein fünfgliedriger kumulativer
-   Tatbestand mit unbestimmten Rechtsbegriffen. Mein Vorschlag: Assistenz mit ausdrücklicher
-   Bestätigung, keine automatische Entscheidung. Das gilt sinngemäss überall dort, wo das Gesetz
-   Wertungen verlangt.
-5. **Fachliche Freigabe der Rechtsregeln** (Liste in §2). Ich baue die Schicht so, dass Regeln
-   austauschbar sind — aber welche Regel gilt, gehört fachlich abgesegnet.
+| ID | Entscheidung | Kern der Begründung |
+| --- | --- | --- |
+| **DEC-026** | Mietkomponenten als zeitversionierte Daten in Postgres, Berechnung **serverseitig**; Legacy-Regeln neu gefasst statt portiert | Die Drift-Sorge ist seit `AP-X02-2b` gegenstandslos (die Dart-Engine läuft nicht mehr); zwei Hauspräzedenzen haben genauso entschieden; §28 verlangt Serverautorität; die Legacy-Engine ist ein unvollständiger Prototyp mit einem Test, der die Indexierung nie auslöst |
+| **DEC-027** | `end_date` ist ein **geplantes Ende**, keine Beendigung — ein `active`-Vertrag zählt unabhängig davon | Es ist der Normalfall: ohne Scheduler, ohne Trigger und mit einem `update_lease`, das aktive Verträge gar nicht ändern lässt, landet **jeder** befristete Vertrag dort. Es ist zugleich die einzige darstellbare Form der Fortsetzung kraft Gesetzes, bei der die Miete geschuldet ist |
+| **DEC-028** | Kein globaler Objektwert; **Wertquellen-Bindung je Covenant**, LTV `null` solange sie nicht auflösbar ist | `METHOD-GOV-01` verbietet jede heute verfügbare Zahl; die Marktkonvention kennt keinen Standard, sondern eine vertragliche Definition; §14.4 verlangt loan-spezifische Definitionen schon für NOI |
 
----
+### Folgearbeiten, die aus DEC-027 fallen
+
+Die Entscheidung räumt eine real bestehende Divergenz auf und zieht drei Korrekturen nach sich,
+die **nicht** stillschweigend miterledigt werden, sondern als benannte Arbeit im jeweiligen Paket
+stehen:
+
+1. `rent_roll_unit_rows`, `rent_roll_currencies`, `rent_roll_unit_currencies`, `rent_roll_live`
+   und `create_rent_roll_snapshot` filtern `end_date` nicht mehr aus. Die pgTAP-Pins ändern sich
+   mit.
+2. `property_leasing_summary` behält sein Verhalten, bekommt aber den **fehlenden
+   `start_date`-Filter**: heute zählt dort auch ein Vertrag mit, der noch gar nicht begonnen hat.
+   Das ist ein Defekt, keine Entscheidung, und war bis zu dieser Analyse unbemerkt.
+3. `operations_signals.lease_expiry` verliert den Vertrag heute genau an dem Tag, an dem er
+   handlungsbedürftig wird (`end_date >= current_date`). Das ist die Fristenleiter, die den Fall
+   am dringendsten zeigen müsste.
+
+### Was weiterhin dem Owner gehört
+
+- **Die fachliche Freigabe der Rechtsregeln** (Liste in §2). Ich baue die Schicht so, dass Regeln
+  austauschbar und versioniert sind — aber welche Regel gilt, gehört fachlich abgesegnet.
+  `DEC-014` („Legal/tax/accounting rules require external domain validation") führt genau das
+  seit Phase 0 als offen.
+- **Das Rollenmodell (§19).** Der Auftrag nennt sechs Rollen, es gibt fünf; „Accounting" und
+  „Finance" existieren serverseitig nicht. Ich schlage vor, die Personas auf die bestehenden fünf
+  abzubilden statt das Rollenmodell zu erweitern — aber das ist eine Produktentscheidung mit
+  Berechtigungsfolgen, keine technische.
+- **Die Reichweite der Compliance-Automatik.** Mein Vorschlag steht in §2: Assistenz mit
+  ausdrücklicher Bestätigung überall dort, wo das Gesetz eine Wertung verlangt (§ 5d
+  CO2KostAufG ist der Musterfall).
 
 ## 7. Was dieses Dokument nicht ist
 
