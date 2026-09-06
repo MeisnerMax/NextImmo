@@ -182,9 +182,11 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test RENT-ROLL-RULE-01, LEASING-ASOF-01b, LEASING-ASOF-01, PROPERTY-ACTIVITY-02, FINANCE-01b, FINANCE-01a, PROPERTY-ACTIVITY-01, LEASING-SUMMARY-01, PROPERTY-MEDIA-DATA-01, AUDIT-01, PROPERTY-LOOKUP-01, PROPERTY-OVERVIEW-DATA-01, PROPERTY-DATA-02, PERMISSION-CATALOG-02, NOTIFICATION-EMITTER-01, TASK-QUERY-01, AAL enforcement, PH-01, P2-D06 workspace read, P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
+      - name: Test FINANCE-01c, RENT-ROLL-RULE-01, LEASING-ASOF-01b, LEASING-ASOF-01, PROPERTY-ACTIVITY-02, FINANCE-01b, FINANCE-01a, PROPERTY-ACTIVITY-01, LEASING-SUMMARY-01, PROPERTY-MEDIA-DATA-01, AUDIT-01, PROPERTY-LOOKUP-01, PROPERTY-OVERVIEW-DATA-01, PROPERTY-DATA-02, PERMISSION-CATALOG-02, NOTIFICATION-EMITTER-01, TASK-QUERY-01, AAL enforcement, PH-01, P2-D06 workspace read, P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/050_finance_01c_business_key_locks_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/049_rent_roll_rule_01_effectiveness_version_down.test.sql
           supabase migration down --local --last 1 --yes
@@ -290,6 +292,13 @@ jobs:
       - name: Test P1-004 concurrency
         shell: pwsh
         run: ./tool/verify_p1_004_concurrency.ps1
+      # The advisory locks FINANCE-01c adds are unprovable in pgTAP, which runs
+      # in a single transaction. This stages three real sessions instead. It
+      # resets first, so it is placed after P1-004, which deliberately runs on
+      # the freshly replayed schema.
+      - name: Test FINANCE-01c business key concurrency
+        shell: pwsh
+        run: ./tool/verify_finance_01c_concurrency.ps1
       - name: Test P1-007 real client integration
         shell: pwsh
         run: ./tool/verify_p1_007_integration.ps1
