@@ -339,9 +339,7 @@ void main() {
         propertyActivitySentence(
           _event(entityType: 'finance_ledger_entry', action: 'create'),
         ),
-        // No entity label for it yet, so the key is the honest answer -- but
-        // the verb itself must resolve, which is what this pins.
-        'finance_ledger_entry.create',
+        'Buchung angelegt',
       );
       expect(propertyActivityVerb('finance_period', 'transition'),
           'im Status geändert');
@@ -396,6 +394,21 @@ void main() {
           _event(entityType: 'covenant', action: 'covenant.create'),
         ),
         'covenant.create',
+      );
+    });
+
+    test('the finance domain is labelled, not shown as a raw key', () {
+      // PROPERTY-ACTIVITY-02 added it server-side. Only bookings reach a
+      // property chronicle: accounts, periods and KPI definitions are
+      // workspace-level rows with no property_id, so there is nothing to
+      // label for them here.
+      expect(
+        propertyActivityDomainFromWire('finance'),
+        PropertyActivityDomain.finance,
+      );
+      expect(
+        propertyActivityDomainLabel(PropertyActivityDomain.finance),
+        'Finanzen',
       );
     });
 

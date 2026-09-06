@@ -30,6 +30,7 @@ enum PropertyActivityDomain {
   tasks,
   documents,
   valuation,
+  finance,
 }
 
 /// The domain a server key names, or null when this build does not know it.
@@ -46,6 +47,7 @@ PropertyActivityDomain? propertyActivityDomainFromWire(String value) {
     'tasks' => PropertyActivityDomain.tasks,
     'documents' => PropertyActivityDomain.documents,
     'valuation' => PropertyActivityDomain.valuation,
+    'finance' => PropertyActivityDomain.finance,
     _ => null,
   };
 }
@@ -59,6 +61,7 @@ String propertyActivityDomainToWire(PropertyActivityDomain domain) {
     PropertyActivityDomain.tasks => 'tasks',
     PropertyActivityDomain.documents => 'documents',
     PropertyActivityDomain.valuation => 'valuation',
+    PropertyActivityDomain.finance => 'finance',
   };
 }
 
