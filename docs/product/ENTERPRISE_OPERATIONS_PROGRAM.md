@@ -320,7 +320,8 @@ Analyse Abhängigkeiten zeigt, die dort nicht sichtbar waren.
 | # | Paket | Warum hier | Blockiert |
 | --- | --- | --- | --- |
 | **V-1** | **Stichtagsauflösung Leasing** (B-2, DEC-027) — *implementiert 2026-09-06, `LEASING-ASOF-01`, Migration 50* | Solange keine Live-Fläche einen vergangenen Stichtag anfragt, ist die Korrektur regressionsfrei; später nicht mehr | alles Abrechnungsbezogene |
-| **V-2** | **`lease_components`, zeitversioniert** (B-1) | Warmmiete, Vorauszahlungen, Empfehlung hängen daran | §4, §3.6, §12 |
+| **V-2** | **`lease_components`, zeitversioniert** (B-1) — *implementiert 2026-09-06, Migration 54* | Warmmiete, Vorauszahlungen, Empfehlung hängen daran | §4, §3.6, §12 |
+| **V-2a** | **PROPERTY-ACTIVITY-03: Komponenten in der Objektchronik** | V-2 schreibt Audit-Ereignisse, die die Chronik heute nicht auflösen kann | Folge aus V-2 |
 | **V-3** | **Ticket-Kategoriefilter** (§15) | Kleinstes Paket, klar umrissen, Vorbedingung für §11 | Legacy-Removal |
 | **V-4** | **Compliance-Regelschicht mit Gültigkeitszeitraum** | Rechtsstände sind versioniert (§2 dieses Dokuments); jede Berechnung baut darauf | §3, §8 |
 | P-1 | Property Card View (§1) | UI-only, unabhängig, früher Sichtbarkeitsgewinn — braucht aber Kennzahlen im DTO | — |

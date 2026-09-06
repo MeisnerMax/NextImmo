@@ -313,6 +313,17 @@ try {
   # extensions.gin_trgm_ops does not exist". Naming the extension here keeps
   # the archive self-sufficient instead of moving that dependency into a
   # runbook step someone has to remember during a recovery.
+  #
+  # btree_gist is the same dependency wearing a much worse disguise, and
+  # LEASING-COMPONENTS-01 walked into it. Its exclusion constraint names
+  # `extensions.gist_uuid_ops` explicitly -- but that class is the *default*
+  # for uuid under gist, so pg_dump writes the constraint back without any
+  # opclass at all: `EXCLUDE USING gist (workspace_id WITH =, ...)`. The
+  # restore then fails with "data type uuid has no default operator class",
+  # which reads like a missing type rather than a missing extension and sends
+  # you looking in the wrong place. The rule to take from both: every
+  # extension an object depends on has to be named here, whether or not the
+  # dependency is still visible in the dumped SQL.
   docker exec -i $container pg_dump `
     -U postgres -d $sourceDatabase -Fc --no-owner --no-acl `
     --schema=public `
@@ -321,6 +332,7 @@ try {
     --schema=extensions `
     --schema=supabase_migrations `
     --extension=pg_trgm `
+    --extension=btree_gist `
     -f $containerDump
   Assert-NativeSuccess 'logical_dump'
 
