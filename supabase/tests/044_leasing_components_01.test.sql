@@ -22,7 +22,7 @@ create extension if not exists pgtap with schema extensions;
 -- a single day must not. A half-open range is what separates them, and an
 -- inclusive one would have failed the first while passing the second.
 
-select plan(39);
+select plan(40);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -387,6 +387,12 @@ select is(
    where entity_type = 'lease_component' and action = 'lease_component.create'),
   1, 'and it writes one audit event under its own action');
 
+select isnt(
+  (select result #>> '{entity,id}' from component_results where key = 'create'),
+  null,
+  'the created row travels under `entity`, the key every other leasing command '
+  'uses and the one `claim_leasing_mutation` replays under');
+
 insert into component_results (key, result)
 select 'overlap', pg_temp.as_user(
   'c1200000-0000-0000-0000-000000000001',
@@ -423,7 +429,7 @@ select 'update', pg_temp.as_user(
     'c1900000-0000-0000-0000-000000000001'::uuid)$inner$);
 
 select is(
-  (select result #>> '{data,version}' from component_results where key = 'update'),
+  (select result #>> '{entity,version}' from component_results where key = 'update'),
   '2', 'an update bumps the version');
 
 insert into component_results (key, result)
@@ -473,7 +479,7 @@ select 'close', pg_temp.as_user(
     'c1900000-0000-0000-0000-000000000001'::uuid)$inner$);
 
 select is(
-  (select result #>> '{data,valid_to}' from component_results where key = 'close'),
+  (select result #>> '{entity,valid_to}' from component_results where key = 'close'),
   '2026-04-30', 'closing sets the end date instead of deleting the row');
 
 select is(
@@ -493,11 +499,19 @@ select 'replay', pg_temp.as_user(
     'c1800000-0000-0000-0000-000000000001'::uuid,
     'c1900000-0000-0000-0000-000000000001'::uuid)$inner$);
 
-select isnt(
-  (select result -> 'ok' from component_results where key = 'replay'),
-  null,
-  'replaying a mutation id answers rather than erroring -- idempotency is the '
-  'contract, whatever the shape of the answer');
+-- Not a null check. An earlier version of this assertion only required the
+-- replay to "answer rather than error", and said in its own comment that the
+-- shape did not matter -- which is exactly how migration 54 shipped answering
+-- `data` on a first call and `entity` on a retry, because the replay is
+-- produced by `claim_leasing_mutation` and always used `entity`. A retry has
+-- to be indistinguishable from the original, so the check is that it returns
+-- the same row.
+select is(
+  (select result #>> '{entity,id}' from component_results where key = 'replay'),
+  (select result #>> '{entity,id}' from component_results where key = 'create'),
+  'a replayed mutation returns the same entity, in the same shape as the '
+  'original -- an idempotent command that answers differently on the retry is '
+  'not idempotent in any way a caller can use');
 
 select is(
   (select count(*)::integer from public.lease_components
