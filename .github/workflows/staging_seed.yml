@@ -1,0 +1,228 @@
+name: Supabase Staging Synthetic Data
+
+# Puts SYNTHETIC data on the STAGING project — and nothing else. The database
+# schema half lives in staging_db_deploy.yml; this workflow never pushes a
+# migration, never resets, never drops. Production is unreachable from here:
+# no production ref, no promotion path, and the same pinned-ref gate.
+#
+# Why this exists (DEC-030, 2026-09-06). DEC-017 has always authorized
+# synthetic data on staging, and runbook step 17 ("synthetische Golden-Path-
+# Daten erzeugen") was carried out on 2026-08-10 — the runbook's prohibition
+# names a *real* data seed. What was missing was a repeatable mechanism: hand
+# mutation is forbidden and the migration workflow applies only migrations. For
+# a cloud-only product (DEC-024), that left a developer's own machine as the
+# only place with data to look at, which is the wrong surface to evaluate on.
+#
+# MANUAL ONLY (workflow_dispatch), fail-closed on every gate, and the gates are
+# deliberately the same ones the migration workflow uses:
+#
+#   1. must be dispatched from main — any other ref fails, hard.
+#   2. the repository variable STAGING_SEED_ENABLED must equal "true".
+#      Deliberately unset until an owner flips it, so merging this file alone
+#      cannot make the workflow act.
+#   3. the four named CI checks must be green on the exact dispatched commit.
+#   4. the three staging values must be present in the `staging` environment.
+#   5. the project ref must equal the documented staging project. A swapped
+#      secret cannot silently point this workflow at another project.
+#
+# Two modes, and `inventory` is the default on purpose:
+#
+#   inventory  reads and reports only. Never writes. Safe to run at any time,
+#              and the way to see what a seed would be walking into.
+#   seed       applies supabase/fixtures/demo_properties.sql — the same file
+#              the local runner uses, so what is tested locally is what runs
+#              here. It is additive and it no-ops on a second run.
+#
+# What it is NOT is resumable after a partial failure, and that is stated here
+# rather than discovered: the fixture closes two fiscal periods after booking
+# into them, so a re-run would try to book into closed periods and be refused.
+# Accounts and periods are resolved-or-created, so pre-existing ones from
+# another source are fine; bookings are skipped wholesale once any exist. A run
+# that fails midway is a loud error for a human to look at, not something to
+# retry blindly.
+#
+# What the seed may never do, per DEC-030: touch the existing golden property
+# (v11, 10 audit_events, 0 storage objects). Several closeouts prove at that
+# row that a security exercise mutated no business data, and those proofs must
+# not be invalidated after the fact. The fixture creates its own objects beside
+# it and the inventory reports the baseline before and after so the claim is
+# checkable rather than asserted.
+#
+# Execution goes through `supabase db query --linked -f`, i.e. the Management
+# API with the access token. No connection string is assembled anywhere, and
+# the database password is never passed as an argument.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'inventory (read-only) or seed (additive write)'
+        required: true
+        default: inventory
+        type: choice
+        options:
+          - inventory
+          - seed
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  # One at a time, and a running one is never cancelled: interrupting a seed
+  # mid-flight would leave a half-built object graph.
+  group: supabase-staging-synthetic-data
+  cancel-in-progress: false
+
+jobs:
+  seed_staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      # The one documented staging project (07_staging_runbook.md §4).
+      # An identifier, not a credential.
+      EXPECTED_STAGING_PROJECT_REF: vhxdgchhgyzbjnogjicb
+    steps:
+      - name: Gate — dispatched from main only
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow writes to the staging database and runs only from main; dispatched ref was '${{ github.ref }}'."
+            exit 1
+          fi
+          echo "Dispatched from main at ${{ github.sha }} in mode '${{ inputs.mode }}'"
+
+      - name: Gate — owner kill switch
+        run: |
+          if [ "${{ vars.STAGING_SEED_ENABLED }}" != "true" ]; then
+            echo "::error::STAGING_SEED_ENABLED is not 'true'; staging synthetic data is disabled until an owner enables it."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Confirm the checked-out commit
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "${{ github.sha }}" ]; then
+            echo "::error::Checked out $actual but was asked for ${{ github.sha }}."
+            exit 1
+          fi
+
+      - name: Gate — the four CI checks are green on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A fixture that never passed CI must not reach staging, for the same
+          # reason a migration must not.
+          missing=''
+          for check in verify supply_chain marketing database; do
+            conclusion="$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+              --jq ".check_runs[] | select(.name==\"$check\") | .conclusion" | head -n1)"
+            if [ "$conclusion" != "success" ]; then
+              missing="$missing $check(${conclusion:-absent})"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Required checks are not green on ${{ github.sha }}:$missing"
+            exit 1
+          fi
+
+      - name: Gate — the staging values are present
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF_STAGING: ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+        run: |
+          # Presence only. Naming which one is missing is safe; printing any
+          # value is not.
+          missing=''
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF_STAGING; do
+            eval "value=\${$name}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Staging access is incompletely configured; missing:$missing"
+            exit 1
+          fi
+
+      - name: Gate — the project ref is the documented staging project
+        env:
+          SUPABASE_PROJECT_REF_STAGING: ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+        run: |
+          # Defense in depth against a swapped or mistyped secret: this
+          # workflow refuses to talk to any project other than the one the
+          # staging runbook documents.
+          if [ "$SUPABASE_PROJECT_REF_STAGING" != "$EXPECTED_STAGING_PROJECT_REF" ]; then
+            echo "::error::SUPABASE_PROJECT_REF_STAGING does not match the documented staging project; refusing to touch an unverified project."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the pinned Supabase CLI
+        run: npm ci
+
+      - name: Verify the pinned Supabase CLI is what runs
+        run: |
+          version="$(node -p "require('./package.json').devDependencies.supabase")"
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json must pin an exact Supabase CLI version, got '$version'"
+            exit 1
+          fi
+          actual="$(npx supabase --version)"
+          if [ "$actual" != "$version" ]; then
+            echo "::error::Supabase CLI version drift: expected $version, found $actual"
+            exit 1
+          fi
+          echo "Supabase CLI $actual"
+
+      - name: Link the staging project explicitly
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # Set here, every run, from the verified ref — never from stored link
+          # metadata.
+          npx supabase link --project-ref "$EXPECTED_STAGING_PROJECT_REF"
+
+      - name: Gate — no pending migration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # Seeding a schema that is behind the repository would produce data
+          # shaped for a contract staging does not have yet. The migration
+          # workflow owns that; this one refuses to run ahead of it.
+          output="$(npx supabase db push --linked --dry-run 2>&1)"
+          echo "$output"
+          if ! printf '%s' "$output" | grep -qi 'up to date'; then
+            echo "::error::Staging has pending migrations; run Supabase Staging Migrations first."
+            exit 1
+          fi
+
+      - name: Inventory — before (read-only)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          npx supabase db query --linked -f supabase/fixtures/staging_inventory.sql
+
+      - name: Apply the synthetic fixture
+        if: ${{ inputs.mode == 'seed' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # Additive and idempotent. Creates what is missing, touches nothing
+          # else, and in particular never the golden property.
+          npx supabase db query --linked -f supabase/fixtures/demo_properties.sql
+
+      - name: Inventory — after (read-only)
+        if: ${{ inputs.mode == 'seed' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          # The pair of inventories is the evidence: what changed, and that the
+          # golden baseline did not.
+          npx supabase db query --linked -f supabase/fixtures/staging_inventory.sql
