@@ -33,7 +33,7 @@ create extension if not exists pgtap with schema extensions;
 -- reports `days_let` beside `days_in_window` and is not split between tenant
 -- and owner.
 
-select plan(62);
+select plan(64);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -689,6 +689,19 @@ select is(
   'validation_failed',
   'and an infinite date is refused rather than raising 22003 out of the '
   'arithmetic below');
+
+select is(
+  pg_temp.preview(date '2020-01-01', date '2026-12-31') -> 'error' ->> 'field',
+  'to',
+  'a period of 84 months is refused: an operating-cost period is at most a '
+  'year, and the occupancy figure is counted day by day per unit -- a request '
+  'spanning decades is a mistyped year, not a settlement');
+
+select is(
+  pg_temp.preview(date '2024-03-01', date '2027-02-28') -> 'ok',
+  'true'::jsonb,
+  'while exactly 36 months is allowed -- paired with the line above so the '
+  'cap is a boundary and not a refusal of anything long');
 
 -- ---------------------------------------------------------------------------
 -- The number

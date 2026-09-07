@@ -117,6 +117,12 @@
 --
 -- === Zeitraum =============================================================
 --
+-- Der Zeitraum umfasst hoechstens 36 Monate. Ein Abrechnungszeitraum betraegt
+-- nach § 556 Abs. 3 Satz 1 BGB hoechstens ein Jahr; der Deckel liegt bewusst
+-- darueber, damit ein mehrjaehriger Vergleich moeglich bleibt, und tief genug,
+-- dass eine vertippte Jahreszahl abgelehnt statt gerechnet wird -- die
+-- Belegungstage werden Tag fuer Tag je Einheit ermittelt.
+--
 -- Der Zeitraum muss aus ganzen Monaten bestehen: `p_from` ist ein Monatserster,
 -- `p_to` ein Monatsletzter. Die Buchungsperioden dieses Schemas sind
 -- Kalendermonate, und ein halber Monat haette keine Periode, in der er liegt.
@@ -319,6 +325,34 @@ begin
     );
   end if;
 
+  v_month_count :=
+    (extract(year from p_to)::integer - extract(year from p_from)::integer) * 12
+    + (extract(month from p_to)::integer - extract(month from p_from)::integer)
+    + 1;
+
+  -- Oben gedeckelt, aus zwei Gruenden. Fachlich: ein Abrechnungszeitraum
+  -- betraegt hoechstens ein Jahr (§ 556 Abs. 3 Satz 1 BGB). Der Deckel liegt
+  -- bewusst darueber, damit ein Vergleich ueber mehrere Jahre moeglich bleibt
+  -- -- gerechnet wird hier ja nichts, was zugestellt wird. Praktisch: die
+  -- Belegungstage werden Tag fuer Tag je Einheit ermittelt, ein Zeitraum von
+  -- 1900 bis 2099 waere also ein Lesevorgang ueber Millionen Zeilen fuer
+  -- jeden angemeldeten Nutzer.
+  if v_month_count > 36 then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message',
+          'A settlement period covers at most 36 months; this one covers ' ||
+          v_month_count || '. An operating-cost period is at most a year '
+          '(§ 556 Abs. 3 BGB) -- this limit is wider so a multi-year '
+          'comparison stays possible, and narrow enough that a mistyped year '
+          'is refused rather than computed.',
+        'field', 'to'
+      )
+    );
+  end if;
+
   v_days := (p_to - p_from) + 1;
   v_window := daterange(p_from, p_to + 1, '[)');
 
@@ -347,14 +381,11 @@ begin
     and make_date(period.fiscal_year, period.period_month, 1)
         between p_from and p_to;
 
-  -- Wie viele Monate der Zeitraum hat, gegen wie viele Perioden es gibt. Fehlt
-  -- fuer einen Monat die Periode, konnte darin nichts gebucht werden -- was
-  -- sich von "es fiel nichts an" nicht unterscheiden laesst, wenn es niemand
-  -- sagt. Die Zahl steht deshalb in der Antwort, nicht die Schlussfolgerung.
-  v_month_count :=
-    (extract(year from p_to)::integer - extract(year from p_from)::integer) * 12
-    + (extract(month from p_to)::integer - extract(month from p_from)::integer)
-    + 1;
+  -- `v_month_count` steht schon; es entscheidet oben ueber den Deckel. Hier
+  -- zaehlt nur noch, wie viele Perioden es fuer diese Monate gibt: fehlt
+  -- eine, konnte in ihrem Monat nichts gebucht werden -- was sich von "es
+  -- fiel nichts an" nicht unterscheiden laesst, wenn es niemand sagt. Die
+  -- Zahl steht in der Antwort, nicht die Schlussfolgerung.
 
   -- ---------------------------------------------------------------------
   -- Waehrung: eine, oder keine Abrechnung

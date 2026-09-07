@@ -186,6 +186,37 @@ void main() {
       );
     });
 
+    test('a period longer than three years is refused before the round trip',
+        () async {
+      gateway.result = _preview();
+
+      final FinanceRepositoryResult<ServiceChargePreviewDto> result = await read(
+        from: DateTime(2020, 1, 1),
+        to: DateTime(2026, 12, 31),
+      );
+
+      expect(gateway.calls, isEmpty);
+      expect(
+        (result as FinanceRepositoryFailure<ServiceChargePreviewDto>).message,
+        contains('36 Monate'),
+        reason: 'the occupancy figure is counted day by day per unit, so a '
+            'mistyped year is a read over decades rather than a settlement',
+      );
+    });
+
+    test('and exactly 36 months is not', () async {
+      gateway.result = _preview();
+
+      await read(from: DateTime(2024, 3, 1), to: DateTime(2027, 2, 28));
+
+      expect(
+        gateway.calls,
+        hasLength(1),
+        reason: 'paired with the test above so the cap is a boundary and not '
+            'a refusal of anything long',
+      );
+    });
+
     test('a period that ends before it starts names the field', () async {
       final FinanceRepositoryResult<ServiceChargePreviewDto> result = await read(
         from: DateTime(2026, 3, 1),

@@ -5,17 +5,22 @@
 /// — which is why this adapter is the shortest one in the feature and should
 /// stay that way until a settlement becomes a document.
 ///
-/// Two refusals happen before the round trip, and both are refused server-side
-/// as well:
+/// Three refusals happen before the round trip, and every one of them is
+/// refused server-side as well — this layer is not the server's only caller,
+/// so a check here is a courtesy to the form and never the guarantee:
 ///
 ///   * **A period that is not whole months.** The booking periods of this
 ///     schema are calendar months; a range from the 15th has no period to fall
 ///     inside. Caught here so the form can say so without a round trip, and
 ///     caught again on the server because this layer is not the only caller.
 ///   * **A period that ends before it starts.** Same reason.
+///   * **A period longer than 36 months.** An operating-cost period is at
+///     most a year (§ 556 Abs. 3 BGB); the cap is wider so a multi-year
+///     comparison stays possible, and low enough that a mistyped year is
+///     refused instead of asking the server to walk decades of days.
 ///
 /// The German mapping is deliberately small. Everything the server can refuse
-/// here is either one of those two — already caught above — or a permission,
+/// here is either one of those three — already caught above — or a permission,
 /// and a sentence this build has not seen before is passed through verbatim
 /// rather than replaced with a guess.
 library;
@@ -48,6 +53,21 @@ class SupabaseServiceChargePreviewAdapter implements ServiceChargePreviewPort {
       return const FinanceRepositoryFailure<ServiceChargePreviewDto>(
         kind: FinanceRepositoryFailureKind.validationFailed,
         message: 'Der Abrechnungszeitraum endet vor seinem Beginn.',
+        field: 'to',
+      );
+    }
+    // The same cap the server applies, so a mistyped year is answered by the
+    // form rather than by a round trip. The server keeps its own copy: this
+    // layer is not its only caller.
+    final int months =
+        (end.year - start.year) * 12 + (end.month - start.month) + 1;
+    if (months > 36) {
+      return FinanceRepositoryFailure<ServiceChargePreviewDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message:
+            'Ein Abrechnungszeitraum umfasst höchstens 36 Monate; dieser '
+            'umfasst $months. Nach § 556 Abs. 3 BGB ist ein '
+            'Abrechnungszeitraum höchstens ein Jahr lang.',
         field: 'to',
       );
     }
