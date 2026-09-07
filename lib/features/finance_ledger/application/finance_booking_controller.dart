@@ -195,7 +195,14 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
     state = state.copyWith(phase: FinanceBookingPhase.loading, message: null);
 
     final result = await _periodsPort.readPeriods(workspaceId: workspaceId);
-    if (generation != _generation || !mounted) {
+    // A newer load has taken over: leave the phase to it. Bailing out here
+    // without that check would have been safe; bailing out of the *newest*
+    // load would strand the screen on its spinner, because nothing else in
+    // this controller ever writes `phase` and the screen has no refresh.
+    if (!mounted) {
+      return;
+    }
+    if (generation != _generation) {
       return;
     }
     switch (result) {
@@ -203,6 +210,12 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
         state = state.copyWith(
           phase: FinanceBookingPhase.ready,
           periods: value,
+          // Booking needs a chosen, open period, and the picker's first entry
+          // is "all periods" — so on a fresh visit the action was simply
+          // absent, with nothing on screen saying why. The newest open period
+          // is the one somebody books into nine times out of ten; a chosen
+          // period that is still in the list is left alone.
+          periodId: _keepOrDefaultPeriod(value),
           message: null,
         );
       case FinanceRepositoryFailure<FinancePeriodOverviewDto>(
@@ -220,6 +233,35 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
         return;
     }
     await _loadEntries(generation);
+  }
+
+  /// Keeps the caller's chosen period if it still exists, and otherwise
+  /// falls back to the newest open one. Null only when there is none.
+  ///
+  /// "Newest" is computed here from year and month rather than taken as the
+  /// first open row. The server does sort newest-first today, but a default
+  /// that silently depends on a read's ordering is a default that changes
+  /// when somebody adds a sort — and the month it lands on is the month a
+  /// cost gets booked into.
+  String? _keepOrDefaultPeriod(FinancePeriodOverviewDto overview) {
+    final String? chosen = state.periodId;
+    if (chosen != null &&
+        overview.periods.any((FinancePeriodDto p) => p.id == chosen)) {
+      return chosen;
+    }
+    FinancePeriodDto? newest;
+    for (final FinancePeriodDto period in overview.periods) {
+      if (!period.isOpen) {
+        continue;
+      }
+      if (newest == null ||
+          period.fiscalYear > newest.fiscalYear ||
+          (period.fiscalYear == newest.fiscalYear &&
+              period.periodMonth > newest.periodMonth)) {
+        newest = period;
+      }
+    }
+    return newest?.id;
   }
 
   Future<void> selectProperty({
@@ -317,12 +359,24 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
     );
   }
 
+  /// A mutation id that survives a retry of the same submission.
+  ///
+  /// Every other finance command here mints a fresh id per attempt, which is
+  /// harmless for an upsert guarded by `expectedVersion` — the second attempt
+  /// either replays or conflicts. `record_finance_ledger_entry` is the first
+  /// client-driven append-only INSERT with no natural key: two attempts with
+  /// two ids are two bookings, and a booking cannot be deleted. So a form
+  /// takes one of these when it opens and passes the same one on every press,
+  /// which is what lets the server's own receipt recognise the retry.
+  String newSubmissionId() => _idFactory();
+
   Future<CostPoolActionFailure?> book({
     required String accountId,
     required String periodId,
     required DateTime bookedOn,
     required num amount,
     required String currencyCode,
+    required String submissionId,
     String? description,
     String? unitId,
   }) async {
@@ -339,7 +393,7 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
     _running();
     final result = await _ledgerPort.recordEntry(
       RecordFinanceLedgerEntryCommand(
-        context: _context(),
+        context: _context(mutationId: submissionId),
         propertyId: propertyId,
         accountId: accountId,
         periodId: periodId,
@@ -384,10 +438,15 @@ class FinanceBookingController extends StateNotifier<FinanceBookingState> {
     return refusal;
   }
 
-  FinanceCommandContext _context({String? reason}) => FinanceCommandContext(
+  FinanceCommandContext _context({String? reason, String? mutationId}) =>
+      FinanceCommandContext(
     workspaceId: _scope.workspaceId!,
     actorId: _scope.actorId!,
-    mutationId: _idFactory(),
+    // Supplied by the caller for an append-only command, so a retry of the
+    // same submission carries the same id and the server's receipt can
+    // recognise it. Minted per attempt everywhere else, where the version
+    // token already makes a second attempt safe.
+    mutationId: mutationId ?? _idFactory(),
     correlationId: _idFactory(),
     // Never an empty string: the shared finance gate refuses a reason of
     // length zero outright, so "no reason" has to be null.

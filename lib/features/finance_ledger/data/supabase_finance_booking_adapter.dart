@@ -6,15 +6,16 @@
 /// `finance_ledger_entries` is empty in every workspace and every figure built
 /// on it renders nothing. This adapter is the other half of that.
 ///
-/// Two refusals happen here before the round trip, and both are refused
-/// server-side as well:
+/// Three refusals happen here before the round trip — a non-finite amount, a
+/// booking of zero, and a currency that is not three letters. There is no
+/// workspace default currency anywhere on the server, so every booking states
+/// its own and a typo is worth catching early.
 ///
-///   * **A booking date outside its period.** The server gained that check in
-///     this package's own migration; the client repeats it so the reason
-///     arrives in the form rather than after a round trip.
-///   * **A currency that is not three letters.** There is no workspace default
-///     anywhere on the server, so every booking states its own and a typo is
-///     worth catching early.
+/// **The booking date is not among them, and an earlier draft of this comment
+/// claimed it was.** The command carries a period *id*, not its month, so this
+/// layer cannot tell whether the date falls inside it. The check lives on the
+/// server, and the dialog bounds its date picker to the period's own month so
+/// the refusal is normally unreachable from the app at all.
 ///
 /// One thing this adapter deliberately does *not* offer: editing or deleting a
 /// booking. No such command exists, and adding a method that could only ever

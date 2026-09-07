@@ -253,7 +253,11 @@ void main() {
         'finance.manage',
         'finance.close',
       },
+      bool countingIds = false,
     }) {
+      // A constant id is enough for most of these; the retry tests need to
+      // tell a freshly minted id from a supplied one, which a constant hides.
+      int next = 0;
       final FinanceBookingController subject = FinanceBookingController(
         periodsPort: periods,
         ledgerPort: ledger,
@@ -263,7 +267,7 @@ void main() {
           permissions: permissions,
           mutationsSupported: true,
         ),
-        idFactory: () => 'id-1',
+        idFactory: countingIds ? () => 'id-${++next}' : () => 'id-1',
       );
       addTearDown(subject.dispose);
       return subject;
@@ -361,6 +365,119 @@ void main() {
       expect(failure, isNotNull);
     });
 
+    test('a retry of the same submission books under the same mutation id', () async {
+      final FinanceBookingController subject = controller(countingIds: true);
+      await subject.load();
+      await subject.selectProperty(propertyId: 'property-1');
+
+      // What a user does after a booking appears to fail: press again.
+      final String submission = subject.newSubmissionId();
+      for (int attempt = 0; attempt < 2; attempt++) {
+        await subject.book(
+          accountId: 'account-1',
+          periodId: 'period-1',
+          bookedOn: DateTime(2026, 1, 15),
+          amount: 100,
+          currencyCode: 'EUR',
+          submissionId: submission,
+        );
+      }
+
+      expect(ledger.records, hasLength(2));
+      expect(
+        ledger.records[1].context.mutationId,
+        ledger.records[0].context.mutationId,
+        reason: 'a ledger entry is append-only and cannot be deleted, so two '
+            'ids for one submission is a cost booked twice with no remedy',
+      );
+      expect(
+        ledger.records[1].context.correlationId,
+        isNot(ledger.records[0].context.correlationId),
+        reason: 'the attempts are still two separate audit events',
+      );
+    });
+
+    test('two submissions do not share a mutation id', () async {
+      final FinanceBookingController subject = controller(countingIds: true);
+      await subject.load();
+      await subject.selectProperty(propertyId: 'property-1');
+
+      for (int i = 0; i < 2; i++) {
+        await subject.book(
+          accountId: 'account-1',
+          periodId: 'period-1',
+          bookedOn: DateTime(2026, 1, 15),
+          amount: 100,
+          currencyCode: 'EUR',
+          submissionId: subject.newSubmissionId(),
+        );
+      }
+
+      expect(
+        ledger.records[1].context.mutationId,
+        isNot(ledger.records[0].context.mutationId),
+        reason: 'paired with the test above: an id that never changes would '
+            'satisfy that one by swallowing the second booking instead',
+      );
+    });
+
+    test('a period is chosen on load, so the booking action is reachable', () async {
+      periods.overview = FinancePeriodOverviewDto(
+        periods: <FinancePeriodDto>[
+          _periodDto(id: 'p-closed', year: 2026, month: 6, open: false),
+          _periodDto(id: 'p-april', year: 2026, month: 4),
+          _periodDto(id: 'p-may', year: 2026, month: 5),
+        ],
+        openCount: 2,
+        totalCount: 3,
+      );
+
+      final FinanceBookingController subject = controller();
+      await subject.load();
+      await subject.selectProperty(propertyId: 'property-1');
+
+      expect(
+        subject.state.periodId,
+        'p-may',
+        reason: 'the newest open period by year and month — not the newest '
+            'row, and not the first open one the read happened to return',
+      );
+      expect(subject.state.canBookNow, isTrue);
+    });
+
+    test('a chosen period survives a reload', () async {
+      periods.overview = FinancePeriodOverviewDto(
+        periods: <FinancePeriodDto>[
+          _periodDto(id: 'p-april', year: 2026, month: 4),
+          _periodDto(id: 'p-may', year: 2026, month: 5),
+        ],
+        openCount: 2,
+        totalCount: 2,
+      );
+
+      final FinanceBookingController subject = controller();
+      await subject.load();
+      subject.selectPeriod('p-april');
+      await subject.load();
+
+      expect(
+        subject.state.periodId,
+        'p-april',
+        reason: 'reverting to the default on every reload would silently move '
+            'the month a cost is booked into',
+      );
+    });
+
+    test('a failed load leaves the screen readable rather than spinning', () async {
+      periods.readFailure = FinanceRepositoryFailureKind.infrastructureFailure;
+
+      final FinanceBookingController subject = controller();
+      await subject.load();
+
+      expect(subject.state.phase, isNot(FinanceBookingPhase.loading));
+      expect(subject.state.message, isNotNull);
+    });
+
     test('booking without a property is refused with the reason', () async {
       final FinanceBookingController subject = controller();
       await subject.load();
@@ -371,6 +488,7 @@ void main() {
         bookedOn: DateTime(2026, 1, 15),
         amount: 100,
         currencyCode: 'EUR',
+        submissionId: 'submission-1',
       );
 
       expect(ledger.records, isEmpty);
@@ -451,12 +569,17 @@ RecordFinanceLedgerEntryCommand _booking({
   );
 }
 
-FinancePeriodDto _periodDto({int version = 1, bool open = true}) =>
-    FinancePeriodDto(
-      id: 'period-1',
+FinancePeriodDto _periodDto({
+  String id = 'period-1',
+  int year = 2026,
+  int month = 1,
+  int version = 1,
+  bool open = true,
+}) => FinancePeriodDto(
+      id: id,
       workspaceId: 'ws-1',
-      fiscalYear: 2026,
-      periodMonth: 1,
+      fiscalYear: year,
+      periodMonth: month,
       state: open ? FinancePeriodState.open : FinancePeriodState.closed,
       version: version,
       entryCount: 0,
@@ -540,6 +663,7 @@ class _FakePeriodsPort implements FinancePeriodsPort {
   bool closed = false;
   bool writeFails = false;
   FinanceRepositoryFailureKind? readFailure;
+  FinancePeriodOverviewDto? overview;
   final List<OpenFinancePeriodCommand> opens = <OpenFinancePeriodCommand>[];
   final List<TransitionFinancePeriodCommand> transitions =
       <TransitionFinancePeriodCommand>[];
@@ -558,11 +682,12 @@ class _FakePeriodsPort implements FinancePeriodsPort {
       );
     }
     return FinanceRepositorySuccess<FinancePeriodOverviewDto>(
-      FinancePeriodOverviewDto(
-        periods: <FinancePeriodDto>[_periodDto(open: !closed)],
-        openCount: closed ? 0 : 1,
-        totalCount: 1,
-      ),
+      overview ??
+          FinancePeriodOverviewDto(
+            periods: <FinancePeriodDto>[_periodDto(open: !closed)],
+            openCount: closed ? 0 : 1,
+            totalCount: 1,
+          ),
     );
   }
 

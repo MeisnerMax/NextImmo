@@ -18,16 +18,21 @@
 --
 -- **Two reads, because a booking form cannot work without them.**
 --
---   * `workspace_finance_periods` — nothing lists periods. A client could
---     only learn a period existed by trying to open it and being told it
---     already exists, a refusal that deliberately carries no entity. So a
---     period picker was impossible and `open_finance_period` was, in
---     practice, write-only.
---   * `property_finance_ledger_entries` — nothing lists entries.
+--   * `workspace_finance_periods` — no *RPC* listed periods, and this house
+--     reads through RPCs. An earlier draft of this header said a period
+--     picker was "impossible" and that `open_finance_period` was write-only;
+--     both are too strong, and a review demonstrated it. `finance_periods`
+--     grants SELECT to `authenticated` under a `finance.read` RLS policy and
+--     PostgREST exposes the schema, so a direct table read was always
+--     available. What was missing is an RPC — and the difference is not
+--     cosmetic: a direct read carries only the table's own policy, while this
+--     function can be gated, shaped and counted like every other read here.
+--   * `property_finance_ledger_entries` — the same, with a sharper edge.
 --     `property_finance_actuals` sums per account and currency and reports
---     `entries` as a *count*; there is no way to see what was booked, which
---     means no way to notice a mistake. That matters more here than usual,
---     because of the next paragraph.
+--     `entries` as a *count*, so no RPC showed what was booked; and the
+--     table's own policy has no entity-scope check, so reading it directly
+--     would hand a member scoped to one building every property's spending.
+--     This function gates on the property first.
 --
 -- **A booking cannot be corrected, and this package does not pretend
 -- otherwise.** There is no update, no delete and no reversal command, no
@@ -48,6 +53,23 @@
 -- first client can produce such a row. Every booking in the existing test
 -- suite already falls inside its period, so nothing that was correct becomes
 -- refused.
+--
+-- **Four things an adversarial review found before this merged**, three of
+-- them introduced by this package:
+--
+--   * The new period check broke the demo/staging fixture on 101 days of the
+--     year, because the fixture derives its periods from calendar months and
+--     its bookings from day offsets. It fails loudly and leaves nothing
+--     behind, and no CI job runs the fixture — so a green suite said nothing
+--     about it. The fixture now derives both from the same month.
+--   * `booked_on` may be `infinity`, for which `extract(...)::integer` raises
+--     rather than refusing. Now refused by name.
+--   * `count(*) over ()` inside a LIMITed subquery counts the pre-LIMIT rows,
+--     not the returned ones — the opposite of what the comment claimed. It
+--     would have made a capped page indistinguishable from a complete one.
+--   * This read gated on two of the four checks `property_finance_actuals`
+--     uses. No outcome changed, but an anonymous or aal1 caller was told the
+--     property was not permitted instead of what was actually wrong.
 --
 -- Counters this migration moves, deliberately:
 --   SR-20  107 -> 109  (two new public functions)
@@ -117,7 +139,10 @@ begin
   into v_periods, v_open, v_total
   from public.finance_periods as period
   where period.workspace_id = p_workspace_id
-    and (p_include_closed or period.status = 'open');
+    -- Coalesced, because the predicate is three-valued: an explicit null
+    -- would make `null or false` = null for a closed period, dropping it —
+    -- an explicit null behaving as the opposite of the declared default.
+    and (coalesce(p_include_closed, true) or period.status = 'open');
 
   return jsonb_build_object(
     'ok', true,
@@ -162,7 +187,6 @@ as $function$
 declare
   v_limit integer := least(greatest(coalesce(p_limit, 100), 1), 500);
   v_entries jsonb;
-  v_total integer;
 begin
   if p_workspace_id is null or p_property_id is null then
     return jsonb_build_object(
@@ -174,9 +198,32 @@ begin
     );
   end if;
 
-  -- The same two gates in the same order as `property_finance_actuals`: the
-  -- entity scope first, then the workspace permission. This read returns one
-  -- property's spending line by line, which is more than the aggregate does.
+  -- Four gates, in the order `property_finance_actuals` uses them. An earlier
+  -- draft of this comment said "the same two gates" and implemented two: the
+  -- sibling checks authentication and AAL2 explicitly *first*, so an anonymous
+  -- or aal1 caller learns which of the two is wrong instead of being told the
+  -- property is not permitted. Skipping them changed no outcome —
+  -- `has_workspace_permission` asserts AAL2 itself — but it changed the
+  -- refusal, and this read returns a property's spending line by line.
+  if auth.uid() is null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'forbidden', 'message', 'Authentication required'
+      )
+    );
+  end if;
+
+  -- DEC-025.
+  if (auth.jwt() ->> 'aal') is distinct from 'aal2' then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'forbidden', 'message', 'AAL2 is required for finance reads'
+      )
+    );
+  end if;
+
   if not private.has_scoped_entity_permission(
        p_workspace_id, 'property.read', 'property', p_property_id
      ) then
@@ -215,14 +262,12 @@ begin
     coalesce(
       jsonb_agg(row.payload order by row.booked_on desc, row.created_at desc),
       '[]'::jsonb
-    ),
-    max(row.total)::integer
-  into v_entries, v_total
+    )
+  into v_entries
   from (
     select
       entry.booked_on,
       entry.created_at,
-      count(*) over ()::integer as total,
       private.finance_entry_snapshot(entry)
         || jsonb_build_object(
              -- Joined in so a list reads without a second round trip. An
@@ -267,10 +312,13 @@ begin
     'ok', true,
     'entity', jsonb_build_object(
       'entries', v_entries,
-      -- How many the filter matched, which is what the caller needs to know
-      -- whether the page in hand is the whole answer. `count(*) over ()` is
-      -- computed inside the limited subquery, so it counts the returned rows;
-      -- the separate count below is the honest total.
+      -- Counted from the aggregated array, which is the only thing that
+      -- actually knows how many rows came back. An earlier draft used
+      -- `count(*) over ()` inside the LIMITed subquery and a comment claiming
+      -- it counted the returned rows: Postgres evaluates window functions
+      -- before LIMIT, so it produced the pre-LIMIT total — the same number as
+      -- `total_count`, which would have made `isTruncated` permanently false
+      -- and a capped page indistinguishable from a complete one.
       'returned_count', coalesce(jsonb_array_length(v_entries), 0),
       'total_count', (
         select count(*)::integer
@@ -425,6 +473,22 @@ begin
   -- claim because it is a property of the request rather than of stored
   -- state -- a corrected retry with the same mutation id must be able to
   -- proceed.
+  -- The `date` type accepts `infinity` and `-infinity`, for which
+  -- `extract(...)` returns a non-finite numeric and the `::integer` cast
+  -- raises 22003 — an SQL exception rather than this command's refusal
+  -- envelope, which is the whole contract a client is written against.
+  -- Refused by name first.
+  if p_booked_on in ('infinity'::date, '-infinity'::date) then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message', 'A booking date must be a real calendar date',
+        'field', 'booked_on'
+      )
+    );
+  end if;
+
   if extract(year from p_booked_on)::integer <> v_period.fiscal_year
      or extract(month from p_booked_on)::integer <> v_period.period_month then
     return jsonb_build_object(

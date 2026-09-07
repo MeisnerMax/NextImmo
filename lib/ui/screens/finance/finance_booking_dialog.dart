@@ -55,6 +55,7 @@ Future<bool?> showFinanceBookingDialog(
   required String propertyName,
   required List<CostAccountAllocationDto> accounts,
   required FinanceBookingSubmit onSubmit,
+  bool accountsLoaded = true,
   String defaultCurrency = 'EUR',
 }) {
   return showDialog<bool>(
@@ -64,6 +65,7 @@ Future<bool?> showFinanceBookingDialog(
       period: period,
       propertyName: propertyName,
       accounts: accounts,
+      accountsLoaded: accountsLoaded,
       onSubmit: onSubmit,
       defaultCurrency: defaultCurrency,
     ),
@@ -75,6 +77,7 @@ class _FinanceBookingDialog extends StatefulWidget {
     required this.period,
     required this.propertyName,
     required this.accounts,
+    required this.accountsLoaded,
     required this.onSubmit,
     required this.defaultCurrency,
   });
@@ -82,6 +85,12 @@ class _FinanceBookingDialog extends StatefulWidget {
   final FinancePeriodDto period;
   final String propertyName;
   final List<CostAccountAllocationDto> accounts;
+
+  /// Whether the cost-type read actually answered. An empty list has four
+  /// causes and only one of them is "none are set up"; saying the cheerful one
+  /// while the read was refused sends somebody looking for a problem that is
+  /// not there.
+  final bool accountsLoaded;
   final FinanceBookingSubmit onSubmit;
   final String defaultCurrency;
 
@@ -161,7 +170,8 @@ class _FinanceBookingDialogState extends State<_FinanceBookingDialog> {
                   const SizedBox(height: AppSpacing.sm),
                 ],
                 Text(
-                  '${widget.propertyName} · Periode ${widget.period.label}',
+                  '${widget.propertyName} · Periode ${widget.period.label} · '
+                  'gesamtes Objekt',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -178,9 +188,11 @@ class _FinanceBookingDialogState extends State<_FinanceBookingDialog> {
                   isExpanded: true,
                   decoration: InputDecoration(
                     labelText: 'Kostenart',
-                    helperText: _bookable.isEmpty
-                        ? 'Es sind keine aktiven Kostenarten angelegt.'
-                        : null,
+                    helperText: _bookable.isNotEmpty
+                        ? null
+                        : (widget.accountsLoaded
+                              ? 'Es sind keine aktiven Kostenarten angelegt.'
+                              : 'Die Kostenarten konnten nicht geladen werden.'),
                     errorText: _errorFor('account_id'),
                   ),
                   items: <DropdownMenuItem<String>>[
@@ -387,7 +399,7 @@ class _FinanceBookingDialogState extends State<_FinanceBookingDialog> {
       firstDate: first,
       lastDate: last,
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(
         () => _bookedOn = DateTime(picked.year, picked.month, picked.day),
       );

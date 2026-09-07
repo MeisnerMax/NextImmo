@@ -27,7 +27,7 @@ create extension if not exists pgtap with schema extensions;
 -- without a list a client could not discover a period it had not itself just
 -- opened. The command was write-only in practice.
 
-select plan(21);
+select plan(28);
 
 -- ---------------------------------------------------------------------------
 -- Fixture
@@ -179,7 +179,10 @@ $$;
 
 create or replace function pg_temp.entries(
   p_property uuid default '75500000-0000-0000-0000-000000000001',
-  p_user uuid default '75200000-0000-0000-0000-000000000001'
+  p_user uuid default '75200000-0000-0000-0000-000000000001',
+  p_account uuid default null,
+  p_limit integer default 100,
+  p_period uuid default null
 )
 returns jsonb
 language sql
@@ -188,8 +191,9 @@ as $$
     p_user,
     format(
       $q$select public.property_finance_ledger_entries(
-        %L::uuid, %L::uuid, null, null, 100)$q$,
-      '75100000-0000-0000-0000-000000000001', p_property
+        %L::uuid, %L::uuid, %L::uuid, %L::uuid, %s)$q$,
+      '75100000-0000-0000-0000-000000000001', p_property,
+      p_period, p_account, coalesce(p_limit::text, 'null')
     )
   );
 $$;
@@ -307,6 +311,58 @@ select is(
   1,
   'and reads as null rather than false: nobody has decided whether it may be '
   'passed on, which is not the same as deciding that it may not');
+
+-- ---------------------------------------------------------------------------
+-- The filters and the cap, which decide what a reader is actually looking at
+-- ---------------------------------------------------------------------------
+
+-- Three entries stand at this point: two on 4300 (1000 and -1000, both
+-- 2026-01-15) and one on 4900 (500, 2026-01-20).
+
+select is(
+  pg_temp.entries(p_account => '75300000-0000-0000-0000-000000000002')
+    -> 'entity' ->> 'total_count',
+  '1',
+  'the account filter narrows the read to one cost type');
+
+select is(
+  (select entry ->> 'account_code'
+   from jsonb_array_elements(
+     pg_temp.entries(p_account => '75300000-0000-0000-0000-000000000002')
+       -> 'entity' -> 'entries') as entry),
+  '4900',
+  'and returns that one rather than the first row of an unfiltered read');
+
+select is(
+  pg_temp.entries() -> 'entity' ->> 'total_count',
+  '3',
+  'while the unfiltered read still finds all three -- paired so neither of '
+  'the two above passes by the filter being ignored');
+
+select is(
+  pg_temp.entries(p_limit => 1) -> 'entity' ->> 'returned_count',
+  '1',
+  'the cap limits what comes back');
+
+select is(
+  pg_temp.entries(p_limit => 1) -> 'entity' ->> 'total_count',
+  '3',
+  'but the total still counts every matching row: a page that reported its '
+  'own length as the total would read as the whole ledger');
+
+select is(
+  (select entry ->> 'booked_on'
+   from jsonb_array_elements(
+     pg_temp.entries(p_limit => 1) -> 'entity' -> 'entries') as entry),
+  '2026-01-20',
+  'and a capped page holds the newest booking, which is what the surface '
+  'tells the reader it is showing');
+
+select is(
+  pg_temp.entries(p_limit => 0) -> 'entity' ->> 'returned_count',
+  '1',
+  'a cap of zero is clamped to one rather than returning an empty ledger '
+  'that would read as "nothing is booked here"');
 
 -- ---------------------------------------------------------------------------
 -- Closing a period, and finding it afterwards

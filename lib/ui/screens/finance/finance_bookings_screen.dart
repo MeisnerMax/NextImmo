@@ -62,9 +62,15 @@ class _FinanceBookingsScreenState
     // body, so a bare read returns its empty initial state and disposes the
     // controller before the load lands — which is how a picker ends up
     // permanently empty.
-    final List<CostAccountAllocationDto> accounts = ref
-        .watch(costAllocationControllerProvider)
-        .accounts;
+    final CostAllocationState allocation = ref.watch(
+      costAllocationControllerProvider,
+    );
+    final List<CostAccountAllocationDto> accounts = allocation.accounts;
+    // An empty list has four causes — still loading, refused, broken, or
+    // genuinely none — and only the last of them is "none are set up". The
+    // dialog is told which, rather than asserting the cheerful one.
+    final bool accountsLoaded =
+        allocation.phase == CostAllocationPhase.ready;
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -78,7 +84,9 @@ class _FinanceBookingsScreenState
                 'Grundlage jeder Betriebskostenabrechnung.',
           ),
           const SizedBox(height: AppSpacing.sm),
-          Expanded(child: _body(context, state, controller, accounts)),
+          Expanded(
+            child: _body(context, state, controller, accounts, accountsLoaded),
+          ),
         ],
       ),
     );
@@ -89,6 +97,7 @@ class _FinanceBookingsScreenState
     FinanceBookingState state,
     FinanceBookingController controller,
     List<CostAccountAllocationDto> accounts,
+    bool accountsLoaded,
   ) {
     switch (state.phase) {
       case FinanceBookingPhase.idle:
@@ -117,7 +126,7 @@ class _FinanceBookingsScreenState
           ),
         );
       case FinanceBookingPhase.ready:
-        return _ready(context, state, controller, accounts);
+        return _ready(context, state, controller, accounts, accountsLoaded);
     }
   }
 
@@ -126,6 +135,7 @@ class _FinanceBookingsScreenState
     FinanceBookingState state,
     FinanceBookingController controller,
     List<CostAccountAllocationDto> accounts,
+    bool accountsLoaded,
   ) {
     final semantic = context.semanticColors;
     final theme = Theme.of(context);
@@ -143,17 +153,34 @@ class _FinanceBookingsScreenState
             ),
             NxKpiTile(
               label: 'Buchungen',
-              value: '${state.ledger?.totalCount ?? 0}',
-              caption: state.propertyId == null
-                  ? 'kein Objekt gewählt'
-                  : 'für dieses Objekt und diese Auswahl',
+              // A dash, not a zero. "No property chosen" and "the read was
+              // refused" are both `ledger == null`, and neither of them is the
+              // number nought — printing one would assert a fact about a
+              // property nobody has looked at.
+              value: state.ledger == null
+                  ? '—'
+                  : '${state.ledger!.totalCount}',
+              caption: state.ledger != null
+                  ? 'für dieses Objekt und diese Auswahl'
+                  : (state.propertyId == null
+                        ? 'kein Objekt gewählt'
+                        : 'nicht lesbar'),
             ),
             NxKpiTile(
               label: 'Nicht eingeordnet',
-              value: '${state.unclassifiedOnPage}',
+              value: state.ledger == null
+                  ? '—'
+                  : '${state.unclassifiedOnPage}',
               status: state.unclassifiedOnPage > 0 ? semantic.warning : null,
-              // The work between these bookings and a settlement.
-              caption: 'Kostenarten ohne Umlage-Entscheidung',
+              // Counted over the rows on screen, and the caption says so. The
+              // server has no count for it, and a page-local figure captioned
+              // as a fact about the property would be the thing P-2a and P-2b
+              // went out of their way to avoid.
+              caption: state.ledger == null
+                  ? 'keine Buchungen geladen'
+                  : (state.ledger!.isTruncated
+                        ? 'auf dieser Seite — die Liste ist gekürzt'
+                        : 'auf dieser Seite'),
             ),
           ],
         ),
@@ -272,7 +299,8 @@ class _FinanceBookingsScreenState
             if (controller.canBook && state.canBookNow)
               FilledButton.icon(
                 key: const Key('finance-booking-create'),
-                onPressed: () => _book(controller, state, accounts),
+                onPressed: () =>
+                    _book(controller, state, accounts, accountsLoaded),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Buchung erfassen'),
               ),
@@ -320,8 +348,11 @@ class _FinanceBookingsScreenState
                 key: const Key('finance-booking-truncated'),
                 message:
                     'Es werden ${state.ledger!.returnedCount} von '
-                    '${state.ledger!.totalCount} Buchungen gezeigt. Die '
-                    'Auswahl über die Periode eingrenzen.',
+                    '${state.ledger!.totalCount} Buchungen gezeigt — die '
+                    'neuesten zuerst. '
+                    '${state.periodId == null ? 'Eine einzelne Periode wählen, um weniger zu sehen. ' : ''}'
+                    'Ältere Buchungen sind über diese Fläche derzeit nicht '
+                    'erreichbar; ein Blättern gibt es noch nicht.',
                 kind: NxNoticeKind.warning,
               ),
             ),
@@ -369,6 +400,11 @@ class _FinanceBookingsScreenState
     // as a uuid.
     final PropertyRepositoryResult<PropertyDto> named = await repository
         .getById(workspaceId: workspaceId, propertyId: chosen);
+    // Checked again: the controller is autoDispose, and driving a disposed
+    // StateNotifier throws out of an unawaited future.
+    if (!mounted) {
+      return;
+    }
     final String? name =
         named is PropertyRepositorySuccess<PropertyDto> ? named.value.name : null;
     await controller.selectProperty(propertyId: chosen, propertyName: name);
@@ -462,16 +498,22 @@ class _FinanceBookingsScreenState
     FinanceBookingController controller,
     FinanceBookingState state,
     List<CostAccountAllocationDto> accounts,
+    bool accountsLoaded,
   ) async {
     final FinancePeriodDto? period = state.selectedPeriod;
     if (period == null) {
       return;
     }
+    // One id for the whole dialog session, so a retry after a timeout carries
+    // the same one and the server's receipt recognises it. A fresh id per
+    // press would book the same uncorrectable cost twice.
+    final String submissionId = controller.newSubmissionId();
     await showFinanceBookingDialog(
       context,
       period: period,
       propertyName: state.propertyName ?? 'Objekt',
       accounts: accounts,
+      accountsLoaded: accountsLoaded,
       onSubmit: (FinanceBookingFormResult result) => controller.book(
         accountId: result.accountId,
         periodId: period.id,
@@ -479,6 +521,7 @@ class _FinanceBookingsScreenState
         amount: result.amount,
         currencyCode: result.currencyCode,
         description: result.description,
+        submissionId: submissionId,
       ),
     );
   }
@@ -573,7 +616,10 @@ class _EntryRow extends StatelessWidget {
               if (entry.periodMonth != null && entry.periodFiscalYear != null)
                 'Periode ${entry.periodMonth.toString().padLeft(2, '0')}/'
                     '${entry.periodFiscalYear}',
-              if (entry.unitCode != null) entry.unitCode!,
+              // Labelled, because this is the field that decides whether
+              // the cost belongs to the building or to one flat, and a bare
+              // code between a date and a period reads as neither.
+              if (entry.unitCode != null) 'Einheit ${entry.unitCode}',
             ].join(' · '),
             style: muted,
           ),
@@ -626,6 +672,12 @@ String _formatDate(DateTime value) {
 /// German formatting: full stop groups thousands, comma separates decimals.
 /// Always two decimals, because a money figure that sometimes shows one reads
 /// as a different quantity.
+///
+/// The sign is an ASCII hyphen rather than U+2212. Typographically the minus
+/// sign is the right character; practically, the one workflow this package
+/// documents as the sole remedy for a mis-booking is copying an amount back
+/// into the form with a sign, and `parseGermanFigure` — like `num.tryParse`
+/// under it — reads only the hyphen.
 String _formatAmount(num value) {
   final bool negative = value < 0;
   final String fixed = value.abs().toStringAsFixed(2);
@@ -638,5 +690,5 @@ String _formatAmount(num value) {
     }
     grouped.write(whole[i]);
   }
-  return '${negative ? '−' : ''}$grouped,${parts[1]}';
+  return '${negative ? '-' : ''}$grouped,${parts[1]}';
 }
