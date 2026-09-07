@@ -120,6 +120,8 @@ select functions_are(
     'search_index_sync_property',
     'search_index_sync_source',
     'seed_workspace_role_catalog',
+    'supplier_contract_deadlines',
+    'supplier_contract_snapshot',
     'send_entitlement_revalidation',
     'sync_unit_occupancy',
     'task_property_rollup',

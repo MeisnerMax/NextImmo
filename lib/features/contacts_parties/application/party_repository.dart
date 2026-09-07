@@ -11,6 +11,7 @@
 library;
 
 import '../domain/party_dto.dart';
+import '../domain/supplier_contract_dto.dart';
 
 class PartyCommandContext {
   const PartyCommandContext({
@@ -311,6 +312,131 @@ abstract interface class PartySearchPort {
 }
 
 /// Time-boundable functional roles and the contractor satellite.
+/// Supplier and utility contracts (`SUPPLIER-CONTRACTS-01`, P-3).
+///
+/// Its own port beside [PartyRoleRepository] rather than more methods on it: a
+/// role says what a party *is* to the workspace, and a contract is a thing
+/// agreed *with* them. They have different lifecycles and only share a
+/// counterparty.
+class SupplierContractsQuery {
+  const SupplierContractsQuery({
+    required this.workspaceId,
+    this.asOfDate,
+    this.partyId,
+    this.propertyId,
+    this.includeEnded = false,
+  });
+
+  final String workspaceId;
+
+  /// The date the deadlines are computed against. Null lets the server use its
+  /// own today, and the answer states which date it used.
+  final DateTime? asOfDate;
+
+  final String? partyId;
+  final String? propertyId;
+
+  /// Ended contracts are out by default. "What did we agree with them before"
+  /// is a real question, just not the one a worklist asks.
+  final bool includeEnded;
+}
+
+class CreateSupplierContractCommand {
+  const CreateSupplierContractCommand({
+    required this.context,
+    required this.partyId,
+    required this.title,
+    required this.contractType,
+    required this.startDate,
+    this.propertyId,
+    this.scopeNote,
+    this.endDate,
+    this.noticePeriodDays,
+    this.autoRenew = false,
+    this.renewalTermMonths,
+    this.annualValue,
+    this.currencyCode,
+  });
+
+  final PartyCommandContext context;
+  final String partyId;
+  final String? propertyId;
+  final String title;
+  final String contractType;
+  final String? scopeNote;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final int? noticePeriodDays;
+  final bool autoRenew;
+  final int? renewalTermMonths;
+  final double? annualValue;
+  final String? currencyCode;
+}
+
+/// A patch, like the contractor details command: a field not mentioned keeps
+/// its value, one mapped to null is cleared.
+///
+/// `status` may move between `draft` and `active` and nothing else. Ending has
+/// its own command, which demands a reason and stamps the date — and a
+/// terminal state reachable through a field edit is how "why did we drop them"
+/// becomes unanswerable.
+class UpdateSupplierContractCommand {
+  const UpdateSupplierContractCommand({
+    required this.context,
+    required this.contractId,
+    required this.expectedVersion,
+    required this.changes,
+  }) : assert(changes.length > 0, 'an empty change set is not a command');
+
+  final PartyCommandContext context;
+  final String contractId;
+  final int expectedVersion;
+  final Map<String, Object?> changes;
+}
+
+class EndSupplierContractCommand {
+  const EndSupplierContractCommand({
+    required this.context,
+    required this.contractId,
+    required this.expectedVersion,
+    required this.endedReason,
+  });
+
+  final PartyCommandContext context;
+  final String contractId;
+  final int expectedVersion;
+
+  /// Required, unlike the optional command reason. Why a supplier relationship
+  /// ended is what somebody wants to know in two years.
+  final String endedReason;
+}
+
+/// The methods carry `Contract` in their names rather than being `create`,
+/// `update` and `end`.
+///
+/// Not decoration: the Supabase adapter implements four of these ports on one
+/// class, and `PartyRepository` and `PartyRoleRepository` already own those
+/// three verbs. Generic names would have collided, and the collision does not
+/// surface as a naming complaint — it surfaces as `CreatePartyCommand` no
+/// longer being assignable, in files that have nothing to do with contracts.
+abstract interface class SupplierContractsPort {
+  Future<PartyRepositoryResult<SupplierContractSetDto>> listContracts(
+    SupplierContractsQuery query,
+  );
+
+  Future<PartyRepositoryResult<SupplierContractDto>> createContract(
+    CreateSupplierContractCommand command,
+  );
+
+  Future<PartyRepositoryResult<SupplierContractDto>> updateContract(
+    UpdateSupplierContractCommand command,
+  );
+
+  Future<PartyRepositoryResult<SupplierContractDto>> endContract(
+    EndSupplierContractCommand command,
+  );
+}
+
 abstract interface class PartyRoleRepository {
   Future<PartyRepositoryResult<List<PartyRoleDto>>> listForParty({
     required String workspaceId,

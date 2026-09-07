@@ -36,6 +36,7 @@ import 'package:uuid/uuid.dart';
 import '../../identity_access/application/authorization_port.dart';
 import '../../identity_access/application/workspace_session_scope.dart';
 import '../domain/party_dto.dart';
+import '../domain/supplier_contract_dto.dart';
 import 'party_providers.dart';
 import 'party_query_invalidation_source.dart';
 import 'party_repository.dart';
@@ -61,6 +62,41 @@ enum ContractorsActionPhase {
   failed,
 }
 
+/// The contract read is separate from the contractor read and fails
+/// separately: a supplier's rate and rating are still worth showing when their
+/// framework agreements could not be loaded.
+enum SupplierContractsPhase { idle, loading, ready, error }
+
+/// What the create form hands back. A plain value object rather than the
+/// command itself, so the dialog never has to build an actor context.
+class CreateSupplierContractDraft {
+  const CreateSupplierContractDraft({
+    required this.title,
+    required this.contractType,
+    required this.startDate,
+    this.propertyId,
+    this.scopeNote,
+    this.endDate,
+    this.noticePeriodDays,
+    this.autoRenew = false,
+    this.renewalTermMonths,
+    this.annualValue,
+    this.currencyCode,
+  });
+
+  final String title;
+  final String contractType;
+  final DateTime startDate;
+  final String? propertyId;
+  final String? scopeNote;
+  final DateTime? endDate;
+  final int? noticePeriodDays;
+  final bool autoRenew;
+  final int? renewalTermMonths;
+  final double? annualValue;
+  final String? currencyCode;
+}
+
 class ContractorsState {
   const ContractorsState({
     required this.listPhase,
@@ -73,6 +109,8 @@ class ContractorsState {
     this.selectedParty,
     this.selectedRoles = const <PartyRoleDto>[],
     this.selectedContractorDetails,
+    this.contracts = const <SupplierContractDto>[],
+    this.contractsPhase = SupplierContractsPhase.idle,
     this.versionConflict,
     this.message,
     this.actionMessage,
@@ -97,6 +135,19 @@ class ContractorsState {
   /// reasoning as `TenantsState.selectedRoles`: one identity, several roles.
   final List<PartyRoleDto> selectedRoles;
   final ContractorDetailsDto? selectedContractorDetails;
+
+  /// The selected supplier's contracts (`SUPPLIER-CONTRACTS-01`, P-3), with
+  /// the notice deadlines the server derived against today. Empty is a real
+  /// answer -- most suppliers have no framework agreement.
+  final List<SupplierContractDto> contracts;
+
+  final SupplierContractsPhase contractsPhase;
+
+  /// Contracts whose notice deadline has passed while they still run. The
+  /// server made that judgement; this only filters what it said.
+  List<SupplierContractDto> get contractsMissedNotice => contracts
+      .where((SupplierContractDto contract) => contract.noticeDeadlinePassed)
+      .toList(growable: false);
   final PartyVersionConflict? versionConflict;
   final String? message;
   final String? actionMessage;
@@ -118,6 +169,8 @@ class ContractorsState {
     Object? selectedParty = _unchanged,
     List<PartyRoleDto>? selectedRoles,
     Object? selectedContractorDetails = _unchanged,
+    List<SupplierContractDto>? contracts,
+    SupplierContractsPhase? contractsPhase,
     Object? versionConflict = _unchanged,
     Object? message = _unchanged,
     Object? actionMessage = _unchanged,
@@ -141,6 +194,8 @@ class ContractorsState {
       selectedContractorDetails: identical(selectedContractorDetails, _unchanged)
           ? this.selectedContractorDetails
           : selectedContractorDetails as ContractorDetailsDto?,
+      contracts: contracts ?? this.contracts,
+      contractsPhase: contractsPhase ?? this.contractsPhase,
       versionConflict: identical(versionConflict, _unchanged)
           ? this.versionConflict
           : versionConflict as PartyVersionConflict?,
@@ -159,6 +214,7 @@ class ContractorsController extends StateNotifier<ContractorsState> {
     required PartyRepository partyRepository,
     required PartySearchPort partySearch,
     required PartyRoleRepository partyRoles,
+    required SupplierContractsPort contracts,
     required WorkspaceSessionScope scope,
     PartyQueryInvalidationSource? partyInvalidationSource,
     ContractorsIdFactory? idFactory,
@@ -166,6 +222,7 @@ class ContractorsController extends StateNotifier<ContractorsState> {
   }) : _partyRepository = partyRepository,
        _partySearch = partySearch,
        _partyRoles = partyRoles,
+       _contracts = contracts,
        _scope = scope,
        _partyInvalidationSource = partyInvalidationSource,
        _idFactory = idFactory ?? const Uuid().v4,
@@ -179,6 +236,7 @@ class ContractorsController extends StateNotifier<ContractorsState> {
   final PartyRepository _partyRepository;
   final PartySearchPort _partySearch;
   final PartyRoleRepository _partyRoles;
+  final SupplierContractsPort _contracts;
   final WorkspaceSessionScope _scope;
   final PartyQueryInvalidationSource? _partyInvalidationSource;
   final ContractorsIdFactory _idFactory;
@@ -286,6 +344,8 @@ class ContractorsController extends StateNotifier<ContractorsState> {
         selectedParty: null,
         selectedRoles: const <PartyRoleDto>[],
         selectedContractorDetails: null,
+        contracts: const <SupplierContractDto>[],
+        contractsPhase: SupplierContractsPhase.idle,
       );
       return;
     }
@@ -300,6 +360,10 @@ class ContractorsController extends StateNotifier<ContractorsState> {
       selectedParty: null,
       selectedRoles: const <PartyRoleDto>[],
       selectedContractorDetails: null,
+      // The contracts of the supplier being left must not survive into the
+      // one being opened.
+      contracts: const <SupplierContractDto>[],
+      contractsPhase: SupplierContractsPhase.idle,
     );
     final result = await _partyRepository.getById(
       workspaceId: workspaceId,
@@ -321,6 +385,9 @@ class ContractorsController extends StateNotifier<ContractorsState> {
           selectedRoles: roles,
           selectedContractorDetails: details,
         );
+        // After the detail state lands, not before: the contract read has its
+        // own phase and must not be able to hold up the identity it hangs off.
+        await loadContracts();
       case PartyRepositoryFailure<PartyDto>(:final kind, :final message):
         state = state.copyWith(
           detailPhase: switch (kind) {
@@ -449,6 +516,116 @@ class ContractorsController extends StateNotifier<ContractorsState> {
         await select(updated.id);
       },
       successMessage: 'Handwerker gespeichert.',
+    );
+  }
+
+  /// Loads the selected supplier's contracts (`SUPPLIER-CONTRACTS-01`, P-3).
+  ///
+  /// Its own read, its own phase. A supplier's rate and ratings are still
+  /// worth showing when the contracts could not be fetched, and folding the
+  /// two together would make one failure hide the other half of the screen.
+  Future<void> loadContracts() async {
+    final partyId = state.selectedPartyId;
+    final workspaceId = _scope.workspaceId;
+    if (partyId == null || workspaceId == null) {
+      state = state.copyWith(
+        contracts: const <SupplierContractDto>[],
+        contractsPhase: SupplierContractsPhase.idle,
+      );
+      return;
+    }
+    state = state.copyWith(contractsPhase: SupplierContractsPhase.loading);
+    final result = await _contracts.listContracts(
+      SupplierContractsQuery(workspaceId: workspaceId, partyId: partyId),
+    );
+    if (!mounted || state.selectedPartyId != partyId) {
+      return;
+    }
+    switch (result) {
+      case PartyRepositorySuccess<SupplierContractSetDto>(:final value):
+        state = state.copyWith(
+          contracts: value.contracts,
+          contractsPhase: SupplierContractsPhase.ready,
+        );
+      case PartyRepositoryFailure<SupplierContractSetDto>():
+        state = state.copyWith(
+          // Dropped, not kept: a stale contract list beside an error is a
+          // notice deadline nobody is maintaining any more.
+          contracts: const <SupplierContractDto>[],
+          contractsPhase: SupplierContractsPhase.error,
+        );
+    }
+  }
+
+  Future<void> createContract(CreateSupplierContractDraft draft) async {
+    final partyId = state.selectedPartyId;
+    if (partyId == null) {
+      return;
+    }
+    await _runMutation(
+      () => _contracts.createContract(
+        CreateSupplierContractCommand(
+          context: _commandContext(),
+          partyId: partyId,
+          title: draft.title,
+          contractType: draft.contractType,
+          startDate: draft.startDate,
+          propertyId: draft.propertyId,
+          scopeNote: draft.scopeNote,
+          endDate: draft.endDate,
+          noticePeriodDays: draft.noticePeriodDays,
+          autoRenew: draft.autoRenew,
+          renewalTermMonths: draft.renewalTermMonths,
+          annualValue: draft.annualValue,
+          currencyCode: draft.currencyCode,
+        ),
+      ),
+      onSuccess: (SupplierContractDto _) async => loadContracts(),
+      successMessage:
+          'Vertrag angelegt. Er ist ein Entwurf, bis er aktiviert wird.',
+    );
+  }
+
+  Future<void> updateContract({
+    required SupplierContractDto contract,
+    required Map<String, Object?> changes,
+  }) async {
+    if (changes.isEmpty) {
+      state = state.copyWith(message: 'Es wurde nichts geändert.');
+      return;
+    }
+    await _runMutation(
+      () => _contracts.updateContract(
+        UpdateSupplierContractCommand(
+          context: _commandContext(),
+          contractId: contract.id,
+          expectedVersion: contract.version,
+          changes: changes,
+        ),
+      ),
+      onSuccess: (SupplierContractDto _) async => loadContracts(),
+      successMessage: 'Vertrag gespeichert.',
+    );
+  }
+
+  /// Ends a contract. The reason is required by the server and by the dialog:
+  /// why a supplier relationship ended is what somebody wants to know in two
+  /// years.
+  Future<void> endContract({
+    required SupplierContractDto contract,
+    required String endedReason,
+  }) async {
+    await _runMutation(
+      () => _contracts.endContract(
+        EndSupplierContractCommand(
+          context: _commandContext(),
+          contractId: contract.id,
+          expectedVersion: contract.version,
+          endedReason: endedReason,
+        ),
+      ),
+      onSuccess: (SupplierContractDto _) async => loadContracts(),
+      successMessage: 'Vertrag beendet. Er bleibt in der Historie.',
     );
   }
 
@@ -644,6 +821,7 @@ final contractorsControllerProvider =
         partyRepository: ref.watch(partyRepositoryProvider),
         partySearch: ref.watch(partySearchProvider),
         partyRoles: ref.watch(partyRoleProvider),
+        contracts: ref.watch(supplierContractsProvider),
         scope: ref.watch(workspaceSessionScopeProvider),
         partyInvalidationSource: ref.watch(partyQueryInvalidationSourceProvider),
       );

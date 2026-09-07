@@ -92,6 +92,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     partyRepositoryProvider.overrideWithValue(parties),
     partySearchProvider.overrideWithValue(parties),
     partyRoleProvider.overrideWithValue(parties),
+    supplierContractsProvider.overrideWithValue(parties),
     duplicateDetectionProvider.overrideWithValue(parties),
     partyQueryInvalidationSourceProvider.overrideWithValue(
       SupabasePartyQueryInvalidationAdapter(client: client),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/contacts_parties/application/party_providers.dart';
 import 'package:neximmo_app/features/contacts_parties/application/party_repository.dart';
 import 'package:neximmo_app/features/contacts_parties/domain/party_dto.dart';
+import 'package:neximmo_app/features/contacts_parties/domain/supplier_contract_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/ui/screens/maintenance/contractors_panel.dart';
 
@@ -172,6 +173,9 @@ Future<void> _pump(
           _FakePartyRepository(party: party, updateFailure: updateFailure),
         ),
         partyRoleProvider.overrideWithValue(_FakePartyRoles(roles, details)),
+        supplierContractsProvider.overrideWithValue(
+          const _FakeSupplierContracts(),
+        ),
       ],
       child: const MaterialApp(home: Scaffold(body: ContractorsPanel())),
     ),
@@ -379,4 +383,38 @@ class _FakePartyRoles implements PartyRoleRepository {
       ),
     );
   }
+}
+
+
+/// A supplier with no framework agreements, which is what most of them are.
+/// Present so the screen can build: without an override the provider fails
+/// closed, and every assertion in this file would fail for a reason that has
+/// nothing to do with what it tests.
+class _FakeSupplierContracts implements SupplierContractsPort {
+  const _FakeSupplierContracts();
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractSetDto>> listContracts(
+    SupplierContractsQuery query,
+  ) async => PartyRepositorySuccess<SupplierContractSetDto>(
+    SupplierContractSetDto(
+      asOfDate: DateTime(2026, 9, 7),
+      contracts: const <SupplierContractDto>[],
+    ),
+  );
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> createContract(
+    CreateSupplierContractCommand command,
+  ) async => throw UnimplementedError('createContract');
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> updateContract(
+    UpdateSupplierContractCommand command,
+  ) async => throw UnimplementedError('updateContract');
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> endContract(
+    EndSupplierContractCommand command,
+  ) async => throw UnimplementedError('endContract');
 }

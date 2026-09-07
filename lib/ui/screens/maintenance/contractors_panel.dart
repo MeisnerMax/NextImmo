@@ -18,7 +18,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/contacts_parties/application/contractors_controller.dart';
 import '../../../features/contacts_parties/domain/party_dto.dart';
+import '../../../features/contacts_parties/domain/supplier_contract_dto.dart';
 import 'widgets/contractor_details_dialog.dart';
+import 'widgets/supplier_contracts_section.dart';
+import 'widgets/supplier_contract_dialogs.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
@@ -166,6 +169,10 @@ class _ContractorsPanelState extends ConsumerState<ContractorsPanel> {
           controller: controller,
           onEdit: () => _editContractor(controller, state),
           onEditDetails: () => _editContractorDetails(controller, state),
+          onAddContract: () => _addContract(controller),
+          onEditContract: (contract) => _editContract(controller, contract),
+          onEndContract: (contract) => _endContract(controller, contract),
+          onRetryContracts: () => unawaited(controller.loadContracts()),
           onEndRole: () => _endRole(controller, state),
         );
         if (!split) {
@@ -320,6 +327,46 @@ class _ContractorsPanelState extends ConsumerState<ContractorsPanel> {
         serviceArea: result.serviceArea,
       ),
     );
+  }
+
+  Future<void> _addContract(ContractorsController controller) async {
+    final draft = await showSupplierContractCreateDialog(context);
+    if (draft == null) {
+      return;
+    }
+    await controller.createContract(draft);
+  }
+
+  /// The edit dialog hands back a patch, so a save cannot overwrite a field
+  /// this reader never looked at. Null means cancelled or unchanged.
+  Future<void> _editContract(
+    ContractorsController controller,
+    SupplierContractDto contract,
+  ) async {
+    final changes = await showSupplierContractEditDialog(
+      context,
+      contract: contract,
+    );
+    if (changes == null) {
+      return;
+    }
+    await controller.updateContract(contract: contract, changes: changes);
+  }
+
+  /// Its own dialog because it is its own event, and the reason it asks for is
+  /// required rather than optional.
+  Future<void> _endContract(
+    ContractorsController controller,
+    SupplierContractDto contract,
+  ) async {
+    final reason = await showSupplierContractEndDialog(
+      context,
+      contract: contract,
+    );
+    if (reason == null) {
+      return;
+    }
+    await controller.endContract(contract: contract, endedReason: reason);
   }
 
   /// Corrects the register entry (`SUPPLIER-DETAILS-01`, P-3).
@@ -518,6 +565,10 @@ class _ContractorDetailCard extends StatelessWidget {
     required this.controller,
     required this.onEdit,
     required this.onEditDetails,
+    required this.onAddContract,
+    required this.onEditContract,
+    required this.onEndContract,
+    required this.onRetryContracts,
     required this.onEndRole,
   });
 
@@ -527,6 +578,12 @@ class _ContractorDetailCard extends StatelessWidget {
 
   /// Opens the register editor (`SUPPLIER-DETAILS-01`).
   final VoidCallback onEditDetails;
+
+  /// The contract surface (`SUPPLIER-CONTRACTS-01`).
+  final VoidCallback onAddContract;
+  final void Function(SupplierContractDto contract) onEditContract;
+  final void Function(SupplierContractDto contract) onEndContract;
+  final VoidCallback onRetryContracts;
 
   final VoidCallback onEndRole;
 
@@ -574,6 +631,10 @@ class _ContractorDetailCard extends StatelessWidget {
           canMutate: controller.canMutate,
           onEdit: onEdit,
       onEditDetails: onEditDetails,
+      onAddContract: onAddContract,
+      onEditContract: onEditContract,
+      onEndContract: onEndContract,
+      onRetryContracts: onRetryContracts,
           onEndRole: onEndRole,
         );
     }
@@ -587,6 +648,10 @@ class _ContractorDetail extends StatelessWidget {
     required this.canMutate,
     required this.onEdit,
     required this.onEditDetails,
+    required this.onAddContract,
+    required this.onEditContract,
+    required this.onEndContract,
+    required this.onRetryContracts,
     required this.onEndRole,
   });
 
@@ -597,6 +662,12 @@ class _ContractorDetail extends StatelessWidget {
 
   /// Opens the register editor (`SUPPLIER-DETAILS-01`).
   final VoidCallback onEditDetails;
+
+  /// The contract surface (`SUPPLIER-CONTRACTS-01`).
+  final VoidCallback onAddContract;
+  final void Function(SupplierContractDto contract) onEditContract;
+  final void Function(SupplierContractDto contract) onEndContract;
+  final VoidCallback onRetryContracts;
 
   final VoidCallback onEndRole;
 
@@ -686,6 +757,19 @@ class _ContractorDetail extends StatelessWidget {
                   label: const Text('Rolle beenden'),
                 ),
             ],
+          ),
+          const SizedBox(height: 16),
+          // SUPPLIER-CONTRACTS-01 (P-3): the framework agreements belong to
+          // the company that signed them, not to one of the buildings they
+          // cover.
+          SupplierContractsSection(
+            phase: state.contractsPhase,
+            contracts: state.contracts,
+            canMutate: canMutate,
+            onAdd: onAddContract,
+            onEdit: onEditContract,
+            onEnd: onEndContract,
+            onRetry: onRetryContracts,
           ),
         ],
       ),
