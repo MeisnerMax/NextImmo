@@ -79,7 +79,13 @@ select functions_are(
     'membership_invitation_snapshot',
     'membership_snapshot',
     'notification_snapshot',
+    -- ALERT-READER-01 (P-10): the one time source, and the eight signal
+    -- definitions moved here so the property screen and the workspace list
+    -- cannot drift apart on a threshold.
+    'operations_now',
+    'operations_signal_rows',
     'operations_signal_state_snapshot',
+    'operations_today',
     'party_command_gate',
     'party_role_snapshot',
     'party_snapshot',

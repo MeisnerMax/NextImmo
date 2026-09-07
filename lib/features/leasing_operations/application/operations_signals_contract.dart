@@ -23,6 +23,33 @@ class OperationsSignalsQuery {
   final String propertyId;
 }
 
+/// The whole workspace at once (`ALERT-READER-01`, P-10).
+///
+/// No property: that is the point. A worklist assembled by calling the
+/// property-scoped read once per asset is forty round trips to answer "what
+/// needs attention today".
+class WorkspaceOperationsSignalsQuery {
+  const WorkspaceOperationsSignalsQuery({
+    required this.workspaceId,
+    this.severity,
+    this.status,
+    this.limit,
+  });
+
+  final String workspaceId;
+
+  /// One of `critical`, `warning`, `info`. An unknown value is refused by the
+  /// server rather than answered with an empty list, because silence there
+  /// would read as "nothing critical".
+  final String? severity;
+
+  /// One of `open`, `dismissed`, `resolved`.
+  final String? status;
+
+  /// The server clamps this to at most 500 and reports what it used.
+  final int? limit;
+}
+
 /// [expectedVersion] is `null` exactly when acknowledging a signal that has no
 /// acknowledgement row yet ([OperationsSignalDto.statusVersion] was `null`);
 /// passing a version there is rejected as `versionConflict`, matching
@@ -116,6 +143,10 @@ abstract interface class OperationsSignalsPort {
   Future<OperationsSignalsResult<List<OperationsSignalDto>>> list(
     OperationsSignalsQuery query,
   );
+
+  /// The whole workspace's signals in one read (`ALERT-READER-01`).
+  Future<OperationsSignalsResult<WorkspaceOperationsSignalsDto>>
+      listWorkspace(WorkspaceOperationsSignalsQuery query);
 
   Future<OperationsSignalsResult<OperationsSignalStateDto>> updateStatus(
     UpdateOperationsSignalStatusCommand command,

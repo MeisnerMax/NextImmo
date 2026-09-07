@@ -298,6 +298,9 @@ enum CloudDestinationReadiness { ready, migrationRequired }
 
 CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
   return switch (page) {
+    // ALERT-READER-01 (P-10): the dashboard is the workspace worklist, built
+    // on `workspace_operations_signals` -- a contract read, no legacy source.
+    GlobalPage.dashboard ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||

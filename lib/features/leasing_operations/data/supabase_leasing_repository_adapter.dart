@@ -1209,6 +1209,69 @@ class SupabaseOperationsSignalsAdapter implements OperationsSignalsPort {
   }
 
   @override
+  Future<OperationsSignalsResult<WorkspaceOperationsSignalsDto>> listWorkspace(
+    WorkspaceOperationsSignalsQuery query,
+  ) async {
+    try {
+      final response = await _gateway.callRpc(
+        'workspace_operations_signals',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_severity': query.severity,
+          'p_status': query.status,
+          'p_limit': query.limit,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final entity = _asMap(payload['entity']);
+        final rawSignals = entity['signals'];
+        if (rawSignals is! List) {
+          throw const FormatException('Missing signals array.');
+        }
+        final bySeverity = <String, int>{};
+        final rawBySeverity = entity['total_by_severity'];
+        if (rawBySeverity is Map) {
+          for (final entry in rawBySeverity.entries) {
+            final count = _optionalInt(entry.value);
+            if (entry.key is String && count != null) {
+              bySeverity[entry.key as String] = count;
+            }
+          }
+        }
+        final signals = rawSignals
+            .map((row) => _parseSignal(_asMap(row), null))
+            .toList(growable: false);
+        return OperationsSignalsSuccess<WorkspaceOperationsSignalsDto>(
+          WorkspaceOperationsSignalsDto(
+            computedAt: _requiredDate(entity, 'computed_at'),
+            signals: signals,
+            // Read, never inferred from the list length. The server counted
+            // before it capped, and re-deriving it here would silently turn
+            // "40 of 200" into "40".
+            total: _optionalInt(entity['total']) ?? signals.length,
+            truncated: entity['truncated'] == true,
+            limit: _optionalInt(entity['limit']) ?? signals.length,
+            totalBySeverity: Map<String, int>.unmodifiable(bySeverity),
+          ),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapFailure<WorkspaceOperationsSignalsDto>(
+        _asMap(payload['error']),
+      );
+    } catch (_) {
+      return const OperationsSignalsFailure<WorkspaceOperationsSignalsDto>(
+        kind: OperationsSignalsFailureKind.infrastructureFailure,
+        message: 'Supabase workspace signals could not be loaded.',
+      );
+    }
+  }
+
+  @override
   Future<OperationsSignalsResult<OperationsSignalStateDto>> updateStatus(
     UpdateOperationsSignalStatusCommand command,
   ) async {
@@ -1313,7 +1376,11 @@ class SupabaseOperationsSignalsAdapter implements OperationsSignalsPort {
   }
 }
 
-OperationsSignalDto _parseSignal(Map<String, dynamic> row, String propertyId) {
+/// [propertyId] is the property the caller asked about, or null on the
+/// workspace-wide read, which spans many. When it is given the parse refuses a
+/// row belonging to another property -- a guard the workspace read cannot
+/// have, and does not need: naming no property is the question it asked.
+OperationsSignalDto _parseSignal(Map<String, dynamic> row, String? propertyId) {
   final signal = OperationsSignalDto(
     signalKey: _requiredString(row, 'signal_key'),
     type: _requiredString(row, 'type'),
@@ -1321,6 +1388,9 @@ OperationsSignalDto _parseSignal(Map<String, dynamic> row, String propertyId) {
     message: _requiredString(row, 'message'),
     recommendedAction: _requiredString(row, 'recommended_action'),
     propertyId: _requiredString(row, 'property_id'),
+    // Absent from the property-scoped payload, where the screen already knows
+    // the building.
+    propertyName: _optionalString(row['property_name']),
     unitId: _optionalString(row['unit_id']),
     leaseId: _optionalString(row['lease_id']),
     tenantPartyId: _optionalString(row['tenant_party_id']),
@@ -1329,7 +1399,7 @@ OperationsSignalDto _parseSignal(Map<String, dynamic> row, String propertyId) {
     statusVersion: _optionalInt(row['status_version']),
     statusUpdatedAt: _optionalDate(row['status_updated_at']),
   );
-  if (signal.propertyId != propertyId) {
+  if (propertyId != null && signal.propertyId != propertyId) {
     throw const FormatException('Workspace mismatch.');
   }
   return signal;

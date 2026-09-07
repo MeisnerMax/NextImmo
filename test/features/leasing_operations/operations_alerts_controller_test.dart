@@ -385,6 +385,14 @@ class _FakeSignals implements OperationsSignalsPort {
   UpdateOperationsSignalStatusCommand? lastCommand;
 
   @override
+  Future<OperationsSignalsResult<WorkspaceOperationsSignalsDto>> listWorkspace(
+    WorkspaceOperationsSignalsQuery query,
+  ) async => const OperationsSignalsFailure<WorkspaceOperationsSignalsDto>(
+    kind: OperationsSignalsFailureKind.infrastructureFailure,
+    message: 'not used by this test',
+  );
+
+  @override
   Future<OperationsSignalsResult<List<OperationsSignalDto>>> list(
     OperationsSignalsQuery query,
   ) async {
