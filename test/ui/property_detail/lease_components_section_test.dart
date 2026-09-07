@@ -48,16 +48,19 @@ void main() {
       findsOneWidget,
     );
     // A component that was ended is absent on a later date and renders the
-    // same way as one that was never entered. The section cannot tell them
-    // apart — the as-of read returns only what is in force — so it says so
-    // rather than letting the reader assume data was lost.
+    // same way as one that was never entered. The as-of read returns only what
+    // is in force, so this section cannot tell them apart — it says so, and
+    // since LEASING-COMPONENTS-02 it names where the answer is instead of
+    // leaving the reader with the question.
     expect(
       find.textContaining('Er kann fehlen oder beendet sein'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Historie zeigt dieser Abschnitt noch nicht'),
+      find.textContaining('zeigt der Verlauf'),
       findsOneWidget,
+      reason: 'the sentence used to end "eine Historie zeigt dieser Abschnitt '
+          'noch nicht", which V-2b made untrue',
     );
   });
 

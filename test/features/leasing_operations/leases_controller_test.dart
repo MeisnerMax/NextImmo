@@ -43,16 +43,18 @@ void main() {
       }
     });
 
-    test('cancelling is allowed from every non-terminal state and nowhere else',
-        () {
-      for (final from in LeaseStatus.values) {
-        expect(
-          from.canTransitionTo(LeaseStatus.cancelled),
-          !from.isTerminal,
-          reason: 'cancel from $from',
-        );
-      }
-    });
+    test(
+      'cancelling is allowed from every non-terminal state and nowhere else',
+      () {
+        for (final from in LeaseStatus.values) {
+          expect(
+            from.canTransitionTo(LeaseStatus.cancelled),
+            !from.isTerminal,
+            reason: 'cancel from $from',
+          );
+        }
+      },
+    );
 
     test('editability stops at the first signature', () {
       // Mirrors update_lease's v_editable_states.
@@ -77,8 +79,8 @@ void main() {
     });
 
     test('forbidden is distinct from error', () async {
-      final search = _FakeLeaseSearch()
-        ..failure = LeasingRepositoryFailureKind.forbidden;
+      final search =
+          _FakeLeaseSearch()..failure = LeasingRepositoryFailureKind.forbidden;
       final controller = _controller(search: search);
       await controller.load();
 
@@ -86,8 +88,9 @@ void main() {
     });
 
     test('an infrastructure failure lands in error with a message', () async {
-      final search = _FakeLeaseSearch()
-        ..failure = LeasingRepositoryFailureKind.infrastructureFailure;
+      final search =
+          _FakeLeaseSearch()
+            ..failure = LeasingRepositoryFailureKind.infrastructureFailure;
       final controller = _controller(search: search);
       await controller.load();
 
@@ -95,42 +98,48 @@ void main() {
       expect(controller.state.message, isNotNull);
     });
 
-    test('an unresolved scope stays idle instead of calling the backend',
-        () async {
-      final search = _FakeLeaseSearch();
-      final controller = _controller(
-        search: search,
-        scope: const WorkspaceSessionScope.unresolved(),
-      );
-      await controller.load();
+    test(
+      'an unresolved scope stays idle instead of calling the backend',
+      () async {
+        final search = _FakeLeaseSearch();
+        final controller = _controller(
+          search: search,
+          scope: const WorkspaceSessionScope.unresolved(),
+        );
+        await controller.load();
 
-      expect(controller.state.listPhase, LeasesListPhase.idle);
-      expect(search.calls, 0);
-    });
+        expect(controller.state.listPhase, LeasesListPhase.idle);
+        expect(search.calls, 0);
+      },
+    );
 
-    test('every filter reaches the server rather than filtering locally',
-        () async {
-      final search = _FakeLeaseSearch()..leases = <LeaseSummaryDto>[_summary('l1')];
-      final controller = _controller(search: search);
-      await controller.load();
+    test(
+      'every filter reaches the server rather than filtering locally',
+      () async {
+        final search =
+            _FakeLeaseSearch()..leases = <LeaseSummaryDto>[_summary('l1')];
+        final controller = _controller(search: search);
+        await controller.load();
 
-      await controller.setStatusFilter(LeaseStatus.active);
-      await controller.setEffectiveOnly(true);
-      await controller.setUnitFilter('u1');
-      await controller.setTenantFilter('party-1');
+        await controller.setStatusFilter(LeaseStatus.active);
+        await controller.setEffectiveOnly(true);
+        await controller.setUnitFilter('u1');
+        await controller.setTenantFilter('party-1');
 
-      final last = search.queries.last;
-      expect(last.propertyId, _property);
-      expect(last.status, LeaseStatus.active);
-      expect(last.effectiveOnly, isTrue);
-      expect(last.unitId, 'u1');
-      expect(last.tenantPartyId, 'party-1');
-    });
+        final last = search.queries.last;
+        expect(last.propertyId, _property);
+        expect(last.status, LeaseStatus.active);
+        expect(last.effectiveOnly, isTrue);
+        expect(last.unitId, 'u1');
+        expect(last.tenantPartyId, 'party-1');
+      },
+    );
 
     test('loadMore appends the next keyset page', () async {
-      final search = _FakeLeaseSearch()
-        ..leases = <LeaseSummaryDto>[_summary('l1')]
-        ..nextCursor = 'l1';
+      final search =
+          _FakeLeaseSearch()
+            ..leases = <LeaseSummaryDto>[_summary('l1')]
+            ..nextCursor = 'l1';
       final controller = _controller(search: search);
       await controller.load();
 
@@ -149,10 +158,12 @@ void main() {
 
   group('companion reads', () {
     test('resolve the unit code and the tenant name for the list', () async {
-      final units = _FakeUnitSearch()
-        ..units = <UnitSummaryDto>[_unitSummary('u1', 'A-01')];
-      final parties = _FakePartySearch()
-        ..parties = <PartySummaryDto>[_party('party-1', 'Meier GmbH')];
+      final units =
+          _FakeUnitSearch()
+            ..units = <UnitSummaryDto>[_unitSummary('u1', 'A-01')];
+      final parties =
+          _FakePartySearch()
+            ..parties = <PartySummaryDto>[_party('party-1', 'Meier GmbH')];
       final controller = _controller(unitSearch: units, partySearch: parties);
       await controller.load();
 
@@ -163,106 +174,125 @@ void main() {
       expect(parties.lastQuery?.roleType, PartyRoleType.tenant);
     });
 
-    test('a failing companion read degrades to unresolved, not to a failed list',
-        () async {
-      final search = _FakeLeaseSearch()..leases = <LeaseSummaryDto>[_summary('l1')];
-      final units = _FakeUnitSearch()
-        ..failure = LeasingRepositoryFailureKind.infrastructureFailure;
-      final parties = _FakePartySearch()..fails = true;
-      final controller = _controller(
-        search: search,
-        unitSearch: units,
-        partySearch: parties,
-      );
-      await controller.load();
+    test(
+      'a failing companion read degrades to unresolved, not to a failed list',
+      () async {
+        final search =
+            _FakeLeaseSearch()..leases = <LeaseSummaryDto>[_summary('l1')];
+        final units =
+            _FakeUnitSearch()
+              ..failure = LeasingRepositoryFailureKind.infrastructureFailure;
+        final parties = _FakePartySearch()..fails = true;
+        final controller = _controller(
+          search: search,
+          unitSearch: units,
+          partySearch: parties,
+        );
+        await controller.load();
 
-      expect(controller.state.listPhase, LeasesListPhase.ready);
-      expect(controller.state.unitCodeFor('u1'), isNull);
-      expect(controller.state.tenantNameFor('party-1'), isNull);
-    });
+        expect(controller.state.listPhase, LeasesListPhase.ready);
+        expect(controller.state.unitCodeFor('u1'), isNull);
+        expect(controller.state.tenantNameFor('party-1'), isNull);
+      },
+    );
   });
 
   group('mutation gate', () {
-    test('a read-only backend answers readOnly, not a failed mutation',
-        () async {
-      final repository = _FakeLeaseRepository();
-      final controller = _controller(
-        repository: repository,
-        scope: _scope(mutationsSupported: false),
-      );
-
-      await controller.createLease(_draft());
-
-      expect(controller.state.actionPhase, LeasesActionPhase.readOnly);
-      expect(controller.state.actionMessage, contains('schreibgeschützt'));
-      expect(repository.createCalls, 0);
-    });
-
-    test('a missing permission answers forbidden, distinct from readOnly',
-        () async {
-      final repository = _FakeLeaseRepository();
-      final controller = _controller(
-        repository: repository,
-        scope: _scope(permissions: const <String>{'lease.read'}),
-      );
-
-      await controller.createLease(_draft());
-
-      expect(controller.state.actionPhase, LeasesActionPhase.forbidden);
-      expect(repository.createCalls, 0);
-    });
-
-    test('a version conflict carries the current lease for the resolve dialog',
-        () async {
-      // The likeliest real failure here: two sessions on the same lease.
-      final repository = _FakeLeaseRepository()
-        ..transitionResult = LeasingRepositoryFailure<LeaseDto>(
-          kind: LeasingRepositoryFailureKind.versionConflict,
-          message: 'stale',
-          versionConflict: LeasingVersionConflict(
-            expectedVersion: 1,
-            actualVersion: 2,
-            currentLease: _lease('l1', status: LeaseStatus.sent, version: 2),
-          ),
+    test(
+      'a read-only backend answers readOnly, not a failed mutation',
+      () async {
+        final repository = _FakeLeaseRepository();
+        final controller = _controller(
+          repository: repository,
+          scope: _scope(mutationsSupported: false),
         );
-      final controller = _controller(repository: repository);
 
-      await controller.advanceLease(lease: _lease('l1'));
+        await controller.createLease(_draft());
 
-      expect(controller.state.actionPhase, LeasesActionPhase.conflict);
-      expect(controller.state.versionConflict?.currentLease?.version, 2);
-    });
+        expect(controller.state.actionPhase, LeasesActionPhase.readOnly);
+        expect(controller.state.actionMessage, contains('schreibgeschützt'));
+        expect(repository.createCalls, 0);
+      },
+    );
+
+    test(
+      'a missing permission answers forbidden, distinct from readOnly',
+      () async {
+        final repository = _FakeLeaseRepository();
+        final controller = _controller(
+          repository: repository,
+          scope: _scope(permissions: const <String>{'lease.read'}),
+        );
+
+        await controller.createLease(_draft());
+
+        expect(controller.state.actionPhase, LeasesActionPhase.forbidden);
+        expect(repository.createCalls, 0);
+      },
+    );
+
+    test(
+      'a version conflict carries the current lease for the resolve dialog',
+      () async {
+        // The likeliest real failure here: two sessions on the same lease.
+        final repository =
+            _FakeLeaseRepository()
+              ..transitionResult = LeasingRepositoryFailure<LeaseDto>(
+                kind: LeasingRepositoryFailureKind.versionConflict,
+                message: 'stale',
+                versionConflict: LeasingVersionConflict(
+                  expectedVersion: 1,
+                  actualVersion: 2,
+                  currentLease: _lease(
+                    'l1',
+                    status: LeaseStatus.sent,
+                    version: 2,
+                  ),
+                ),
+              );
+        final controller = _controller(repository: repository);
+
+        await controller.advanceLease(lease: _lease('l1'));
+
+        expect(controller.state.actionPhase, LeasesActionPhase.conflict);
+        expect(controller.state.versionConflict?.currentLease?.version, 2);
+      },
+    );
   });
 
   group('transitions', () {
-    test('advancing sends the one lawful next step, never a chosen target',
-        () async {
-      final repository = _FakeLeaseRepository();
-      final controller = _controller(repository: repository);
+    test(
+      'advancing sends the one lawful next step, never a chosen target',
+      () async {
+        final repository = _FakeLeaseRepository();
+        final controller = _controller(repository: repository);
 
-      await controller.advanceLease(
-        lease: _lease('l1', status: LeaseStatus.landlordSigned),
-      );
+        await controller.advanceLease(
+          lease: _lease('l1', status: LeaseStatus.landlordSigned),
+        );
 
-      expect(repository.lastTransition?.targetStatus, LeaseStatus.active);
-      expect(repository.lastTransition?.moveOutDate, isNull);
-      expect(controller.state.actionPhase, LeasesActionPhase.succeeded);
-      expect(controller.state.actionMessage, contains('vermietet'));
-    });
+        expect(repository.lastTransition?.targetStatus, LeaseStatus.active);
+        expect(repository.lastTransition?.moveOutDate, isNull);
+        expect(controller.state.actionPhase, LeasesActionPhase.succeeded);
+        expect(controller.state.actionMessage, contains('vermietet'));
+      },
+    );
 
-    test('a terminal lease offers no step and never reaches the server',
-        () async {
-      final repository = _FakeLeaseRepository();
-      final controller = _controller(repository: repository);
+    test(
+      'a terminal lease offers no step and never reaches the server',
+      () async {
+        final repository = _FakeLeaseRepository();
+        final controller = _controller(repository: repository);
 
-      await controller.advanceLease(
-        lease: _lease('l1', status: LeaseStatus.ended),
-      );
+        await controller.advanceLease(
+          lease: _lease('l1', status: LeaseStatus.ended),
+        );
 
-      expect(controller.state.actionPhase, LeasesActionPhase.notAllowed);
-      expect(controller.state.rejection?.from, LeaseStatus.ended);
-      expect(repository.transitionCalls, 0);
-    });
+        expect(controller.state.actionPhase, LeasesActionPhase.notAllowed);
+        expect(controller.state.rejection?.from, LeaseStatus.ended);
+        expect(repository.transitionCalls, 0);
+      },
+    );
 
     test('a move-out date is only sent when ending the lease', () async {
       final repository = _FakeLeaseRepository();
@@ -277,20 +307,22 @@ void main() {
       expect(repository.lastTransition?.moveOutDate, DateTime.utc(2026, 9, 30));
     });
 
-    test('a move-out date on any other step is refused before the round trip',
-        () async {
-      final repository = _FakeLeaseRepository();
-      final controller = _controller(repository: repository);
+    test(
+      'a move-out date on any other step is refused before the round trip',
+      () async {
+        final repository = _FakeLeaseRepository();
+        final controller = _controller(repository: repository);
 
-      await controller.advanceLease(
-        lease: _lease('l1', status: LeaseStatus.draft),
-        moveOutDate: DateTime.utc(2026, 9, 30),
-      );
+        await controller.advanceLease(
+          lease: _lease('l1', status: LeaseStatus.draft),
+          moveOutDate: DateTime.utc(2026, 9, 30),
+        );
 
-      expect(controller.state.actionPhase, LeasesActionPhase.failed);
-      expect(controller.state.actionMessage, contains('Auszugsdatum'));
-      expect(repository.transitionCalls, 0);
-    });
+        expect(controller.state.actionPhase, LeasesActionPhase.failed);
+        expect(controller.state.actionMessage, contains('Auszugsdatum'));
+        expect(repository.transitionCalls, 0);
+      },
+    );
 
     test('cancelling without a reason never reaches the server', () async {
       final repository = _FakeLeaseRepository();
@@ -319,26 +351,29 @@ void main() {
       );
     });
 
-    test('a refused transition becomes an explained rejection, not an error',
-        () async {
-      final repository = _FakeLeaseRepository()
-        ..transitionResult = const LeasingRepositoryFailure<LeaseDto>(
-          kind: LeasingRepositoryFailureKind.validationFailed,
-          message: 'STM-005 does not allow draft -> reviewed',
+    test(
+      'a refused transition becomes an explained rejection, not an error',
+      () async {
+        final repository =
+            _FakeLeaseRepository()
+              ..transitionResult = const LeasingRepositoryFailure<LeaseDto>(
+                kind: LeasingRepositoryFailureKind.validationFailed,
+                message: 'STM-005 does not allow draft -> reviewed',
+              );
+        final controller = _controller(repository: repository);
+
+        await controller.advanceLease(
+          lease: _lease('l1', status: LeaseStatus.draft),
         );
-      final controller = _controller(repository: repository);
 
-      await controller.advanceLease(
-        lease: _lease('l1', status: LeaseStatus.draft),
-      );
-
-      expect(controller.state.actionPhase, LeasesActionPhase.notAllowed);
-      expect(controller.state.rejection?.from, LeaseStatus.draft);
-      expect(controller.state.rejection?.attempted, LeaseStatus.reviewed);
-      expect(controller.state.rejection?.serverMessage, isNotNull);
-      // The view renders the rejection; there is deliberately no snackbar text.
-      expect(controller.state.actionMessage, isNull);
-    });
+        expect(controller.state.actionPhase, LeasesActionPhase.notAllowed);
+        expect(controller.state.rejection?.from, LeaseStatus.draft);
+        expect(controller.state.rejection?.attempted, LeaseStatus.reviewed);
+        expect(controller.state.rejection?.serverMessage, isNotNull);
+        // The view renders the rejection; there is deliberately no snackbar text.
+        expect(controller.state.actionMessage, isNull);
+      },
+    );
   });
 
   group('editing a binding lease', () {
@@ -455,11 +490,12 @@ void main() {
 
   group('detail', () {
     test('a missing lease is notFound, not a generic error', () async {
-      final repository = _FakeLeaseRepository()
-        ..getResult = const LeasingRepositoryFailure<LeaseDto>(
-          kind: LeasingRepositoryFailureKind.notFound,
-          message: 'gone',
-        );
+      final repository =
+          _FakeLeaseRepository()
+            ..getResult = const LeasingRepositoryFailure<LeaseDto>(
+              kind: LeasingRepositoryFailureKind.notFound,
+              message: 'gone',
+            );
       final controller = _controller(repository: repository);
 
       await controller.select('l1');
@@ -468,11 +504,12 @@ void main() {
     });
 
     test('deselecting clears the panel and any pending rejection', () async {
-      final repository = _FakeLeaseRepository()
-        ..transitionResult = const LeasingRepositoryFailure<LeaseDto>(
-          kind: LeasingRepositoryFailureKind.validationFailed,
-          message: 'no',
-        );
+      final repository =
+          _FakeLeaseRepository()
+            ..transitionResult = const LeasingRepositoryFailure<LeaseDto>(
+              kind: LeasingRepositoryFailureKind.validationFailed,
+              message: 'no',
+            );
       final controller = _controller(repository: repository);
       await controller.select('l1');
       await controller.advanceLease(lease: _lease('l1'));
@@ -483,33 +520,36 @@ void main() {
       expect(controller.state.rejection, isNull);
     });
 
-    test('selecting a lease loads its components, scoped to that lease', () async {
-      final componentPort = _FakeLeaseComponents(
-        components: <LeaseComponentDto>[
-          LeaseComponentDto(
-            id: 'k1',
-            leaseId: 'l1',
-            propertyId: _property,
-            componentType: LeaseComponentType.baseRent,
-            amount: 1000,
-            currencyCode: 'EUR',
-            vatMode: LeaseComponentVatMode.exempt,
-            validFrom: DateTime(2026, 1, 1),
-            version: 1,
-          ),
-        ],
-      );
-      final controller = _controller(componentPort: componentPort);
+    test(
+      'selecting a lease loads its components, scoped to that lease',
+      () async {
+        final componentPort = _FakeLeaseComponents(
+          components: <LeaseComponentDto>[
+            LeaseComponentDto(
+              id: 'k1',
+              leaseId: 'l1',
+              propertyId: _property,
+              componentType: LeaseComponentType.baseRent,
+              amount: 1000,
+              currencyCode: 'EUR',
+              vatMode: LeaseComponentVatMode.exempt,
+              validFrom: DateTime(2026, 1, 1),
+              version: 1,
+            ),
+          ],
+        );
+        final controller = _controller(componentPort: componentPort);
 
-      await controller.select('l1');
+        await controller.select('l1');
 
-      expect(controller.state.componentsPhase, LeaseComponentsPhase.ready);
-      expect(controller.state.components?.components, hasLength(1));
-      // Scoped to the lease, never to the workspace: an unscoped read would be
-      // refused by the server and would be the wrong question anyway.
-      expect(componentPort.queries.single.leaseId, 'l1');
-      expect(componentPort.queries.single.propertyId, isNull);
-    });
+        expect(controller.state.componentsPhase, LeaseComponentsPhase.ready);
+        expect(controller.state.components?.components, hasLength(1));
+        // Scoped to the lease, never to the workspace: an unscoped read would be
+        // refused by the server and would be the wrong question anyway.
+        expect(componentPort.queries.single.leaseId, 'l1');
+        expect(componentPort.queries.single.propertyId, isNull);
+      },
+    );
 
     test('nothing recorded is a ready state, not an empty one', () async {
       final controller = _controller(componentPort: _FakeLeaseComponents());
@@ -554,11 +594,12 @@ void main() {
     });
 
     test('a lease that could not be read leaves components idle', () async {
-      final repository = _FakeLeaseRepository()
-        ..getResult = const LeasingRepositoryFailure<LeaseDto>(
-          kind: LeasingRepositoryFailureKind.forbidden,
-          message: 'no',
-        );
+      final repository =
+          _FakeLeaseRepository()
+            ..getResult = const LeasingRepositoryFailure<LeaseDto>(
+              kind: LeasingRepositoryFailureKind.forbidden,
+              message: 'no',
+            );
       final componentPort = _FakeLeaseComponents();
       final controller = _controller(
         repository: repository,
@@ -582,28 +623,33 @@ void main() {
       expect(controller.state.components, isNull);
     });
 
-    test('creating a component reloads the components, not the lease list', () async {
-      final componentPort = _FakeLeaseComponents();
-      final controller = _controller(componentPort: componentPort);
-      await controller.select('l1');
-      final readsBefore = componentPort.queries.length;
+    test(
+      'creating a component reloads the components, not the lease list',
+      () async {
+        final componentPort = _FakeLeaseComponents();
+        final controller = _controller(componentPort: componentPort);
+        await controller.select('l1');
+        final readsBefore = componentPort.queries.length;
 
-      await controller.createComponent(
-        leaseId: 'l1',
-        componentType: LeaseComponentType.baseRent,
-        validFrom: DateTime(2026, 1, 1),
-        amount: 1000,
-      );
+        await controller.createComponent(
+          leaseId: 'l1',
+          componentType: LeaseComponentType.baseRent,
+          validFrom: DateTime(2026, 1, 1),
+          amount: 1000,
+        );
 
-      expect(componentPort.created, hasLength(1));
-      expect(componentPort.created.single.componentType,
-          LeaseComponentType.baseRent);
-      // The read is the only thing that knows what is in force today.
-      // Reproducing that decision in the controller is how two answers start
-      // disagreeing.
-      expect(componentPort.queries.length, readsBefore + 1);
-      expect(controller.state.actionPhase, LeasesActionPhase.succeeded);
-    });
+        expect(componentPort.created, hasLength(1));
+        expect(
+          componentPort.created.single.componentType,
+          LeaseComponentType.baseRent,
+        );
+        // The read is the only thing that knows what is in force today.
+        // Reproducing that decision in the controller is how two answers start
+        // disagreeing.
+        expect(componentPort.queries.length, readsBefore + 1);
+        expect(controller.state.actionPhase, LeasesActionPhase.succeeded);
+      },
+    );
 
     test('an update with nothing changed is refused, not silently reported '
         'as saved', () async {
@@ -621,27 +667,30 @@ void main() {
       expect(
         componentPort.updated,
         isEmpty,
-        reason: 'a form that closes on Speichern while nothing was saved is '
+        reason:
+            'a form that closes on Speichern while nothing was saved is '
             'the same lie whether or not a request was sent',
       );
     });
 
-    test('an update sends the expected version, so a stale form conflicts',
-        () async {
-      final componentPort = _FakeLeaseComponents();
-      final controller = _controller(componentPort: componentPort);
-      await controller.select('l1');
+    test(
+      'an update sends the expected version, so a stale form conflicts',
+      () async {
+        final componentPort = _FakeLeaseComponents();
+        final controller = _controller(componentPort: componentPort);
+        await controller.select('l1');
 
-      await controller.updateComponent(
-        component: _componentDto(version: 4),
-        changes: const <String, Object?>{'amount': '1200'},
-      );
+        await controller.updateComponent(
+          component: _componentDto(version: 4),
+          changes: const <String, Object?>{'amount': '1200'},
+        );
 
-      expect(componentPort.updated.single.expectedVersion, 4);
-      expect(componentPort.updated.single.changes, <String, Object?>{
-        'amount': '1200',
-      });
-    });
+        expect(componentPort.updated.single.expectedVersion, 4);
+        expect(componentPort.updated.single.changes, <String, Object?>{
+          'amount': '1200',
+        });
+      },
+    );
 
     test('closing goes through the close command, not an update', () async {
       final componentPort = _FakeLeaseComponents();
@@ -736,6 +785,120 @@ void main() {
       // An overlapping period is a dependency conflict, which this controller
       // already maps to readOnly rather than to a generic failure.
       expect(controller.state.actionPhase, LeasesActionPhase.readOnly);
+    });
+  });
+
+  group('component history (LEASING-COMPONENTS-02, V-2b)', () {
+    test('is not loaded beside the contract', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+
+      await controller.select('l1');
+
+      expect(
+        componentPort.historyQueries,
+        isEmpty,
+        reason:
+            'the history carries every period ever recorded and nobody '
+            'needs it to see what is payable now',
+      );
+      expect(
+        controller.state.componentHistoryPhase,
+        LeaseComponentHistoryPhase.idle,
+      );
+      // The as-of read did run, so "isEmpty" above is about the history and
+      // not about the fake never being called at all.
+      expect(componentPort.queries, hasLength(1));
+    });
+
+    test('loads on demand and reaches the selected lease', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.loadComponentHistory();
+
+      expect(componentPort.historyQueries.single.leaseId, 'l1');
+      expect(
+        controller.state.componentHistoryPhase,
+        LeaseComponentHistoryPhase.ready,
+      );
+      expect(controller.state.componentHistory?.timelines, hasLength(1));
+    });
+
+    test('re-reads on every call rather than caching', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.loadComponentHistory();
+      await controller.loadComponentHistory();
+
+      expect(
+        componentPort.historyQueries,
+        hasLength(2),
+        reason:
+            'a component written since the dialog last opened would '
+            'otherwise be missing from the very view whose job is to show the '
+            'whole record',
+      );
+    });
+
+    test(
+      'a refused history is typed, and does not touch the components',
+      () async {
+        final componentPort =
+            _FakeLeaseComponents()
+              ..historyFailure = LeasingRepositoryFailureKind.forbidden;
+        final controller = _controller(componentPort: componentPort);
+        await controller.select('l1');
+
+        await controller.loadComponentHistory();
+
+        expect(
+          controller.state.componentHistoryPhase,
+          LeaseComponentHistoryPhase.forbidden,
+        );
+        expect(controller.state.componentHistory, isNull);
+        expect(
+          controller.state.componentsPhase,
+          LeaseComponentsPhase.ready,
+          reason:
+              'the contract view keeps the components in force. A failed '
+              'history must cost the dialog, not the screen behind it',
+        );
+      },
+    );
+
+    test('selecting another lease drops the history of the last one', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+      await controller.loadComponentHistory();
+      expect(controller.state.componentHistory, isNotNull);
+
+      await controller.select('l2');
+
+      expect(
+        controller.state.componentHistory,
+        isNull,
+        reason:
+            'a history belonging to the lease being left must not survive '
+            'into the one being opened',
+      );
+      expect(
+        controller.state.componentHistoryPhase,
+        LeaseComponentHistoryPhase.idle,
+      );
+    });
+
+    test('nothing is asked for when no lease is selected', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+
+      await controller.loadComponentHistory();
+
+      expect(componentPort.historyQueries, isEmpty);
     });
   });
 }
@@ -881,10 +1044,7 @@ class _FakeLeaseSearch implements LeaseSearchPort {
       );
     }
     return LeasingRepositorySuccess<LeasingPageResult<LeaseSummaryDto>>(
-      LeasingPageResult<LeaseSummaryDto>(
-        items: leases,
-        nextCursor: nextCursor,
-      ),
+      LeasingPageResult<LeaseSummaryDto>(items: leases, nextCursor: nextCursor),
     );
   }
 }
@@ -932,6 +1092,47 @@ class _FakeLeaseComponents implements LeaseComponentPort {
     );
   }
 
+  final List<LeaseComponentHistoryQuery> historyQueries =
+      <LeaseComponentHistoryQuery>[];
+  LeasingRepositoryFailureKind? historyFailure;
+
+  @override
+  Future<LeasingRepositoryResult<LeaseComponentHistoryDto>> readHistory(
+    LeaseComponentHistoryQuery query,
+  ) async {
+    historyQueries.add(query);
+    final kind = historyFailure;
+    if (kind != null) {
+      return LeasingRepositoryFailure<LeaseComponentHistoryDto>(
+        kind: kind,
+        message: 'history refused',
+      );
+    }
+    return LeasingRepositorySuccess<LeaseComponentHistoryDto>(
+      LeaseComponentHistoryDto(
+        leaseId: query.leaseId,
+        asOfDate: query.asOfDate ?? DateTime(2026, 9, 7),
+        timelines: <LeaseComponentTimelineDto>[
+          LeaseComponentTimelineDto(
+            componentType: LeaseComponentType.baseRent,
+            periods: <LeaseComponentPeriodDto>[
+              LeaseComponentPeriodDto(
+                id: 'h1',
+                validFrom: DateTime(2025, 1, 1),
+                amount: 900,
+                currencyCode: 'EUR',
+                vatMode: LeaseComponentVatMode.exempt,
+                version: 1,
+                inForce: true,
+              ),
+            ],
+            gaps: const <LeaseComponentGap>[],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
     LeaseComponentListQuery query,
@@ -945,10 +1146,7 @@ class _FakeLeaseComponents implements LeaseComponentPort {
       );
     }
     return LeasingRepositorySuccess<LeaseComponentsAsOfDto>(
-      LeaseComponentsAsOfDto(
-        asOfDate: query.asOfDate,
-        components: components,
-      ),
+      LeaseComponentsAsOfDto(asOfDate: query.asOfDate, components: components),
     );
   }
 

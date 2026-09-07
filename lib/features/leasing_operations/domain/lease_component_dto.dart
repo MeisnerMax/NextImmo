@@ -129,12 +129,27 @@ class LeaseComponentDto {
   /// [LeaseComponentVatMode.unknown] mode from a newer server says nothing
   /// about how the amount relates to tax. Returning [amount] in either case
   /// would present a net figure as a gross one.
-  double? get grossMonthly => switch (vatMode) {
+  double? get grossMonthly =>
+      leaseComponentGross(vatMode, amount, vatRatePercent);
+}
+
+/// The gross rule, in one place.
+///
+/// Extracted when the history read (V-2b) needed the same answer for a period
+/// row. A second copy of this would be a second chance to disagree about
+/// whether a net amount without a rate can be grossed up -- it cannot, and
+/// null is the answer both callers must give.
+double? leaseComponentGross(
+  LeaseComponentVatMode vatMode,
+  double amount,
+  double? vatRatePercent,
+) {
+  return switch (vatMode) {
     LeaseComponentVatMode.exempt => amount,
     LeaseComponentVatMode.gross => amount,
     LeaseComponentVatMode.net => vatRatePercent == null
         ? null
-        : amount * (1 + vatRatePercent! / 100),
+        : amount * (1 + vatRatePercent / 100),
     LeaseComponentVatMode.unknown => null,
   };
 }
@@ -260,4 +275,121 @@ class LeaseComponentsAsOfDto {
     return null;
   }
 
+}
+
+
+/// One recorded period of one component type (LEASING-COMPONENTS-02, V-2b).
+///
+/// Distinct from [LeaseComponentDto] because it answers a different question.
+/// That one is "what is in force"; this one is "what was ever recorded", so it
+/// carries [inForce] rather than being implicitly current, and it keeps the
+/// note and the last edit, which are what a contract review reads.
+class LeaseComponentPeriodDto {
+  const LeaseComponentPeriodDto({
+    required this.id,
+    required this.validFrom,
+    required this.amount,
+    required this.currencyCode,
+    required this.vatMode,
+    required this.version,
+    required this.inForce,
+    this.validTo,
+    this.vatRatePercent,
+    this.note,
+    this.updatedAt,
+  });
+
+  final String id;
+
+  /// Inclusive on both ends, as the contract reads. Null [validTo] is
+  /// open-ended, not missing.
+  final DateTime validFrom;
+  final DateTime? validTo;
+
+  final double amount;
+  final String currencyCode;
+  final LeaseComponentVatMode vatMode;
+  final double? vatRatePercent;
+  final String? note;
+  final int version;
+  final DateTime? updatedAt;
+
+  /// Whether this period covers the date the history was read for. The server
+  /// decides it, and at most one period per type can carry it, because the
+  /// table forbids two rows covering the same day.
+  final bool inForce;
+
+  bool get isOpenEnded => validTo == null;
+
+  double? get grossMonthly =>
+      leaseComponentGross(vatMode, amount, vatRatePercent);
+}
+
+/// A hole between two recorded periods.
+///
+/// Interior only. The time before the first period is not a gap -- nothing was
+/// ever claimed about it -- and neither is the time after an open-ended last
+/// one. The server makes that judgement; this type only names what it sent.
+class LeaseComponentGap {
+  const LeaseComponentGap({required this.from, required this.to});
+
+  /// Both inclusive, like every other date in the payload.
+  final DateTime from;
+  final DateTime to;
+}
+
+/// Everything ever recorded for one component type on one lease.
+class LeaseComponentTimelineDto {
+  const LeaseComponentTimelineDto({
+    required this.componentType,
+    required this.periods,
+    required this.gaps,
+    this.rawTypeKey,
+  });
+
+  final LeaseComponentType componentType;
+
+  /// Oldest first, as the server ordered them.
+  final List<LeaseComponentPeriodDto> periods;
+
+  final List<LeaseComponentGap> gaps;
+
+  /// The server's key, kept only for [LeaseComponentType.unknown].
+  final String? rawTypeKey;
+
+  bool get hasGap => gaps.isNotEmpty;
+
+  /// The period covering the date this history was read for, or null when the
+  /// type has a hole there. Null is a real answer, not a lookup failure.
+  LeaseComponentPeriodDto? get current {
+    for (final LeaseComponentPeriodDto period in periods) {
+      if (period.inForce) {
+        return period;
+      }
+    }
+    return null;
+  }
+}
+
+/// The full component history of one lease.
+class LeaseComponentHistoryDto {
+  const LeaseComponentHistoryDto({
+    required this.leaseId,
+    required this.asOfDate,
+    required this.timelines,
+    this.propertyId,
+    this.currencyCode,
+  });
+
+  final String leaseId;
+  final String? propertyId;
+  final String? currencyCode;
+
+  /// The date [LeaseComponentPeriodDto.inForce] was decided against. The
+  /// history itself is complete regardless.
+  final DateTime asOfDate;
+
+  /// One entry per type that has any history. A type never recorded on this
+  /// lease is absent, not present and empty -- nothing was claimed about it.
+  final List<LeaseComponentTimelineDto> timelines;
 }

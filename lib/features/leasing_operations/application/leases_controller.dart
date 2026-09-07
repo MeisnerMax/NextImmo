@@ -62,6 +62,14 @@ enum LeasesDetailPhase { idle, loading, ready, notFound, forbidden, error }
 /// and none of them is a reason to fail the contract view that surrounds them.
 enum LeaseComponentsPhase { idle, loading, ready, forbidden, error }
 
+/// The component history (LEASING-COMPONENTS-02, V-2b), loaded on demand.
+///
+/// Separate from [LeaseComponentsPhase] because it is a separate read with its
+/// own failure: the contract view must not lose the components in force
+/// because the history could not be fetched, and the history dialog must be
+/// able to say so on its own.
+enum LeaseComponentHistoryPhase { idle, loading, ready, forbidden, error }
+
 enum LeasesActionPhase {
   idle,
   submitting,
@@ -115,6 +123,8 @@ class LeasesState {
     this.componentsPhase = LeaseComponentsPhase.idle,
     this.components,
     this.warmRent,
+    this.componentHistoryPhase = LeaseComponentHistoryPhase.idle,
+    this.componentHistory,
     this.versionConflict,
     this.rejection,
     this.message,
@@ -160,6 +170,12 @@ class LeasesState {
   /// the components without a total rather than computing one, which is the
   /// whole point of moving it here.
   final WarmRentDto? warmRent;
+  final LeaseComponentHistoryPhase componentHistoryPhase;
+
+  /// Every recorded period of every type on [selectedLease]. Null until the
+  /// reader asks for it -- the history is bigger than the as-of read and
+  /// nobody needs it to see what is payable now.
+  final LeaseComponentHistoryDto? componentHistory;
 
   final LeasingVersionConflict? versionConflict;
   final LeaseTransitionRejection? rejection;
@@ -210,6 +226,8 @@ class LeasesState {
     LeaseComponentsPhase? componentsPhase,
     Object? components = _unchanged,
     Object? warmRent = _unchanged,
+    LeaseComponentHistoryPhase? componentHistoryPhase,
+    Object? componentHistory = _unchanged,
     Object? versionConflict = _unchanged,
     Object? rejection = _unchanged,
     Object? message = _unchanged,
@@ -249,6 +267,10 @@ class LeasesState {
       warmRent: identical(warmRent, _unchanged)
           ? this.warmRent
           : warmRent as WarmRentDto?,
+      componentHistoryPhase: componentHistoryPhase ?? this.componentHistoryPhase,
+      componentHistory: identical(componentHistory, _unchanged)
+          ? this.componentHistory
+          : componentHistory as LeaseComponentHistoryDto?,
       versionConflict: identical(versionConflict, _unchanged)
           ? this.versionConflict
           : versionConflict as LeasingVersionConflict?,
@@ -514,6 +536,8 @@ class LeasesController extends StateNotifier<LeasesState> {
         componentsPhase: LeaseComponentsPhase.idle,
         components: null,
         warmRent: null,
+        componentHistoryPhase: LeaseComponentHistoryPhase.idle,
+        componentHistory: null,
         rejection: null,
       );
       return;
@@ -530,6 +554,11 @@ class LeasesController extends StateNotifier<LeasesState> {
       componentsPhase: LeaseComponentsPhase.loading,
       components: null,
       warmRent: null,
+      // A history belonging to the lease being left must not survive into the
+      // one being opened. Dropped here rather than when the dialog closes,
+      // because that is where the selection actually changes.
+      componentHistoryPhase: LeaseComponentHistoryPhase.idle,
+      componentHistory: null,
       rejection: null,
     );
     final result = await _repository.getById(
@@ -617,6 +646,55 @@ class LeasesController extends StateNotifier<LeasesState> {
           componentsPhase: kind == LeasingRepositoryFailureKind.forbidden
               ? LeaseComponentsPhase.forbidden
               : LeaseComponentsPhase.error,
+        );
+    }
+  }
+
+  /// Loads the full component history of the selected lease
+  /// (LEASING-COMPONENTS-02, V-2b).
+  ///
+  /// On demand, not beside the contract: the history carries every period ever
+  /// recorded and nobody needs it to see what is payable now. Called when the
+  /// reader opens the timeline.
+  ///
+  /// Re-reads on every call rather than caching. A component written since the
+  /// dialog last opened would otherwise be missing from the very view whose
+  /// job is to show the whole record.
+  Future<void> loadComponentHistory() async {
+    final leaseId = state.selectedLeaseId;
+    final workspaceId = _scope.workspaceId;
+    if (leaseId == null || workspaceId == null) {
+      return;
+    }
+    final generation = _detailGeneration;
+    state = state.copyWith(
+      componentHistoryPhase: LeaseComponentHistoryPhase.loading,
+    );
+    final result = await _componentPort.readHistory(
+      LeaseComponentHistoryQuery(
+        workspaceId: workspaceId,
+        leaseId: leaseId,
+        // Today, matching the as-of read beside it. Passing nothing would let
+        // the server pick its own today, and the two views would disagree
+        // about which period is current across a midnight boundary.
+        asOfDate: DateTime.now(),
+      ),
+    );
+    if (generation != _detailGeneration) {
+      return;
+    }
+    switch (result) {
+      case LeasingRepositorySuccess<LeaseComponentHistoryDto>(:final value):
+        state = state.copyWith(
+          componentHistoryPhase: LeaseComponentHistoryPhase.ready,
+          componentHistory: value,
+        );
+      case LeasingRepositoryFailure<LeaseComponentHistoryDto>(:final kind):
+        state = state.copyWith(
+          componentHistoryPhase: kind == LeasingRepositoryFailureKind.forbidden
+              ? LeaseComponentHistoryPhase.forbidden
+              : LeaseComponentHistoryPhase.error,
+          componentHistory: null,
         );
     }
   }

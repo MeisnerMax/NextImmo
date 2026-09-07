@@ -19,6 +19,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../../../../features/leasing_operations/domain/lease_component_dto.dart';
 
 import '../../../../../features/leasing_operations/domain/lease_dto.dart';
 import '../../../../../features/leasing_operations/domain/rent_roll_dto.dart';
@@ -303,3 +304,17 @@ String ruleVersionLabel(int? version) {
   }
   return 'Regel v$version';
 }
+
+/// German label for a component type.
+///
+/// Lives here rather than inside the section because the history dialog names
+/// the same types, and a second copy would be a second chance for the two
+/// views of one contract to call the same thing by different words.
+String leaseComponentTypeLabel(LeaseComponentType type) => switch (type) {
+  LeaseComponentType.baseRent => 'Grundmiete',
+  LeaseComponentType.serviceChargeAdvance => 'Betriebskostenvorauszahlung',
+  LeaseComponentType.heatingAdvance => 'Heizkostenvorauszahlung',
+  LeaseComponentType.parking => 'Stellplatz',
+  LeaseComponentType.other => 'Sonstiges',
+  LeaseComponentType.unknown => 'Unbekannter Bestandteil',
+};
