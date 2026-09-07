@@ -17,6 +17,7 @@ import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart
 import 'package:neximmo_app/features/portfolio_property/application/property_media_controller.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_media_port.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_media_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_card_metrics_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 import 'package:neximmo_app/ui/navigation/app_navigation.dart';
@@ -346,6 +347,15 @@ class _PropertyRepository implements PropertyRepository {
   /// Property ids the overview read was asked for. `Übersicht` is the default
   /// landing domain, so the connected host must reach exactly this contract.
   final List<String> overviewPropertyIds = <String>[];
+
+  @override
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async => const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this test',
+  );
 
   @override
   Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({

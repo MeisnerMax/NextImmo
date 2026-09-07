@@ -275,6 +275,11 @@ class _FakeGateway implements PropertySupabaseGateway {
   }
 
   @override
+  Future<Object?> propertyCardMetrics(Map<String, Object?> parameters) async {
+    throw UnimplementedError('propertyCardMetrics');
+  }
+
+  @override
   Future<Object?> propertyOverview(Map<String, Object?> parameters) async {
     overviewCalls++;
     overviewParameters = parameters;

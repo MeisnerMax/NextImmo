@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/identity_access/application/identity_access_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_card_metrics_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/features/reference_slice/application/reference_slice_controller.dart';
 
@@ -583,6 +584,15 @@ class _FakePropertyRepository implements PropertyRepository {
     createCommands.add(command);
     return createResults.removeFirst();
   }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async => const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this test',
+  );
 
   @override
   Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({

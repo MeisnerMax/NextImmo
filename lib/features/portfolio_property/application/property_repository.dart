@@ -1,4 +1,5 @@
 import '../domain/property_dto.dart';
+import '../domain/property_card_metrics_dto.dart';
 import '../domain/property_overview_dto.dart';
 
 class CommandContext {
@@ -186,6 +187,18 @@ abstract interface class PropertyRepository {
   Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({
     required String workspaceId,
     required String propertyId,
+  });
+
+  /// The same leasing and maintenance numbers the overview reports, for a page
+  /// of properties in one read (PROPERTY-CARD-METRICS-01).
+  ///
+  /// Ids the caller may not see and ids that name nothing come back in
+  /// [PropertyCardMetricsBatch.withheld], indistinguishable from each other.
+  /// The server caps the list; asking for more than a page is a failure, not a
+  /// truncation, so a caller never silently receives less than it asked for.
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
   });
 
   Future<PropertyRepositoryResult<PropertyDto>> update(
