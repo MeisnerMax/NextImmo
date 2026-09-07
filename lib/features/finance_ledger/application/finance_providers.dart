@@ -19,6 +19,11 @@ final costAllocationRulesProvider = Provider<CostAllocationRulesPort>(
   (ref) => throw StateError('CostAllocationRulesPort is not configured.'),
 );
 
+/// Cost pools and allocation keys (`COST-POOLS-ALLOCATION-KEYS-01`, P-2b).
+final costPoolsProvider = Provider<CostPoolsPort>(
+  (ref) => throw StateError('CostPoolsPort is not configured.'),
+);
+
 final propertyFinanceKpisProvider = Provider<PropertyFinanceKpisPort>(
   (ref) => throw StateError('PropertyFinanceKpisPort is not configured.'),
 );

@@ -307,6 +307,9 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // COST-ALLOCATION-RULES-01 (P-2a): reads and writes the allocation rules
     // through their contract only.
     GlobalPage.costAllocation ||
+    // COST-POOLS-ALLOCATION-KEYS-01 (P-2b): reads and writes the pools and
+    // keys through their contracts only.
+    GlobalPage.costPools ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||
@@ -340,6 +343,10 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     // needs the finance read, because which costs are apportionable is a
     // financial fact about the workspace.
     GlobalPage.costAllocation => 'finance.read',
+    // Same gate, same reason: how a cost is divided is a financial fact about
+    // the workspace. The write gate is `finance.manage` and lives on the
+    // commands.
+    GlobalPage.costPools => 'finance.read',
     GlobalPage.properties ||
     GlobalPage.portfolios ||
     GlobalPage.esg ||
@@ -664,6 +671,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Umlagefähigkeit',
         routeKey: 'setup_administration.cost_allocation',
         icon: Icons.rule_folder_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.costPools,
+        label: 'Umlageschlüssel',
+        title: 'Kostenpools und Umlageschlüssel',
+        routeKey: 'setup_administration.cost_pools',
+        icon: Icons.percent_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.settings,

@@ -79,6 +79,13 @@ select functions_are(
     'membership_invitation_snapshot',
     'membership_snapshot',
     'allocation_rule_snapshot',
+    -- COST-POOLS-ALLOCATION-KEYS-01 (P-2b). The resolution helper is listed
+    -- here rather than made public deliberately: it answers "what would this
+    -- basis distribute over", and a caller that could ask it directly could
+    -- ask about a workspace it holds no finance.read on.
+    'allocation_basis_resolution',
+    'allocation_key_snapshot',
+    'cost_pool_snapshot',
     'compliance_rule_snapshot',
     'notification_snapshot',
     -- ALERT-READER-01 (P-10): the one time source, and the eight signal

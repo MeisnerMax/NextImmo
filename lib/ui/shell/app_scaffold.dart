@@ -17,6 +17,7 @@ import '../navigation/app_navigation.dart';
 import '../screens/alerts/workspace_alerts_screen.dart';
 import '../screens/compliance/compliance_rules_screen.dart';
 import '../screens/finance/cost_allocation_screen.dart';
+import '../screens/finance/cost_pool_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -342,6 +343,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               'Die Kostenarten liegen ausschließlich in der Cloud-Buchhaltung.',
           icon: Icons.cloud_off_outlined,
         );
+      case GlobalPage.costPools:
+        // Same reason again: the pools and keys point at `finance_accounts`
+        // and `units`, neither of which the legacy store carries in this shape.
+        return const _CloudDestinationState(
+          title: 'Umlageschlüssel nur in der Cloud-Shell',
+          description:
+              'Kostenpools und Umlageschlüssel liegen ausschließlich in der '
+              'Cloud-Buchhaltung.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.settings:
         return const SettingsScreen();
       case GlobalPage.help:
@@ -441,6 +452,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // COST-ALLOCATION-RULES-01 (P-2a): which costs a tenant pays, and on
         // which principle.
         return const CostAllocationScreen();
+      case GlobalPage.costPools:
+        // COST-POOLS-ALLOCATION-KEYS-01 (P-2b): how those costs are divided,
+        // and which keys cannot be resolved from what is stored.
+        return const CostPoolScreen();
       case GlobalPage.notifications:
         // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
         return const NotificationInboxScreen();
