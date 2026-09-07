@@ -331,7 +331,7 @@ Analyse Abhängigkeiten zeigt, die dort nicht sichtbar waren.
 | P-4 | Meters + Consumption + Import Center (§5) | eigenständig, grösster Neubau | §8.3, §7 |
 | P-5 | Settlement Engine (§8) | braucht V-1, V-2, V-4, P-2, P-4 | §12 |
 | P-6 | Energy + Insurance (§9, §10) | über `required_documents` | §16 |
-| P-7 | Warm Rent (§4) — *Serverkontrakt implementiert 2026-09-07, `WARM-RENT-01`, Migration 59; UI offen* | braucht V-2 | §12 |
+| P-7 | Warm Rent (§4) — *implementiert 2026-09-07, `WARM-RENT-01`, Migration 59, inkl. Oberfläche* | braucht V-2 | §12 |
 | P-8 | Budget + Forecast + Varianz (§13) | braucht KPI-Erweiterung | §16 |
 | P-9 | Debt + Covenants (§14) | braucht B-3 **und** B-5 | §16 |
 | P-10 | Alert-Reader + Zeitquelle (§16, B-4) | hebt `operations_signals` | — |

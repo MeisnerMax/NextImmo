@@ -8,6 +8,7 @@ import 'package:neximmo_app/features/identity_access/application/workspace_sessi
 import 'package:neximmo_app/features/leasing_operations/application/leasing_providers.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/warm_rent_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 import 'package:neximmo_app/ui/screens/property_detail/leasing/leases_panel.dart';
@@ -332,6 +333,7 @@ Future<void> _pump(
         leaseComponentProvider.overrideWithValue(
           const _FakeLeaseComponents(),
         ),
+        warmRentProvider.overrideWithValue(const _FakeWarmRent()),
         if (deepLinkedLeaseId != null)
           app_state.selectedOperationsLeaseIdProvider.overrideWith(
             (ref) => deepLinkedLeaseId,
@@ -409,6 +411,17 @@ PartySummaryDto _party(String id, String name) => PartySummaryDto(
 /// says for a lease nobody has entered components for. Wired all the same,
 /// because an unconfigured port throws and would fail every test in this file
 /// for a reason none of them is about.
+/// Answers with no warm rent: this file is about the lease list and its
+/// detail, and a figure invented here would be asserted on by accident.
+class _FakeWarmRent implements WarmRentPort {
+  const _FakeWarmRent();
+
+  @override
+  Future<LeasingRepositoryResult<List<WarmRentDto>>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async => const LeasingRepositorySuccess<List<WarmRentDto>>(<WarmRentDto>[]);
+}
+
 class _FakeLeaseComponents implements LeaseComponentPort {
   const _FakeLeaseComponents();
 

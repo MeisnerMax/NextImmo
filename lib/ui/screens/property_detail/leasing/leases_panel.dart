@@ -934,6 +934,7 @@ class _LeaseDetailCard extends StatelessWidget {
           onCancel: onCancel,
           componentsPhase: state.componentsPhase,
           components: state.components,
+          warmRent: state.warmRent,
           onRetryComponents: () => controller.select(lease.id),
           canMutateComponents: controller.canMutate,
           onAddComponent: onAddComponent,

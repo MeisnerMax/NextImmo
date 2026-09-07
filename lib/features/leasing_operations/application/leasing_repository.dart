@@ -24,6 +24,7 @@ import '../domain/leasing_case_dto.dart';
 import '../domain/leasing_summary_dto.dart';
 import '../domain/rent_roll_dto.dart';
 import '../domain/unit_dto.dart';
+import '../domain/warm_rent_dto.dart';
 
 class LeasingCommandContext {
   const LeasingCommandContext({
@@ -607,5 +608,22 @@ abstract interface class LeaseComponentPort {
 
   Future<LeasingRepositoryResult<LeaseComponentDto>> close(
     CloseLeaseComponentCommand command,
+  );
+}
+
+/// Warm rent (WARM-RENT-01, P-7).
+///
+/// Its own port rather than a method on [LeaseComponentPort]: the components
+/// answer "what is recorded", warm rent answers "what does that add up to, and
+/// is the sum entitled to the word". The second question has a composition
+/// rule the first does not, and the server owns it.
+///
+/// There is no client-side fallback. If the server withholds a figure, the
+/// screen says so — computing one here would be exactly the drift DEC-026
+/// exists to prevent, and P2-D05b is the precedent where a client-side live
+/// calculation was pulled back a release after shipping.
+abstract interface class WarmRentPort {
+  Future<LeasingRepositoryResult<List<WarmRentDto>>> readAsOf(
+    LeaseComponentListQuery query,
   );
 }
