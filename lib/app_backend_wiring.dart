@@ -25,6 +25,7 @@ import 'features/finance_ledger/data/supabase_cost_allocation_adapter.dart';
 import 'features/finance_ledger/data/supabase_cost_pool_adapter.dart';
 import 'features/finance_ledger/data/supabase_finance_account_adapter.dart';
 import 'features/finance_ledger/data/supabase_finance_booking_adapter.dart';
+import 'features/finance_ledger/data/supabase_service_charge_preview_adapter.dart';
 import 'features/finance_ledger/data/supabase_unit_basis_value_adapter.dart';
 import 'features/finance_ledger/data/supabase_finance_ledger_adapter.dart';
 import 'features/identity_access/application/workspace_session_scope.dart';
@@ -82,6 +83,9 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   final costAllocation = SupabaseCostAllocationAdapter(client: client);
   final financeAccounts = SupabaseFinanceAccountAdapter(client: client);
   final financeBookings = SupabaseFinanceBookingAdapter(client: client);
+  final serviceChargePreview = SupabaseServiceChargePreviewAdapter(
+    client: client,
+  );
   final costPools = SupabaseCostPoolAdapter(client: client);
   final unitBasisValues = SupabaseUnitBasisValueAdapter(client: client);
   final financeLedger = SupabaseFinanceLedgerAdapter(client: client);
@@ -138,6 +142,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     financeAccountsProvider.overrideWithValue(financeAccounts),
     financePeriodsProvider.overrideWithValue(financeBookings),
     propertyLedgerProvider.overrideWithValue(financeBookings),
+    serviceChargePreviewProvider.overrideWithValue(serviceChargePreview),
     costPoolsProvider.overrideWithValue(costPools),
     unitBasisValuesProvider.overrideWithValue(unitBasisValues),
     propertyFinanceActualsProvider.overrideWithValue(financeLedger),

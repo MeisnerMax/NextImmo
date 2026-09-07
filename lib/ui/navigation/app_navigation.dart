@@ -313,6 +313,9 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // FINANCE-BOOKINGS-01: periods and ledger entries through their contracts
     // only. The commands existed since FINANCE-01a and nothing called them.
     GlobalPage.ledger ||
+    // SERVICE-CHARGE-PREVIEW-01: one read, no command -- the settlement is
+    // computed on demand and stored nowhere.
+    GlobalPage.serviceCharge ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||
@@ -359,6 +362,10 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     // one. The write gates (finance.manage to book, finance.close to seal a
     // month) live on the commands.
     GlobalPage.ledger => Permission.financeRead,
+    // The same read permission as the ledger it divides. There is no separate
+    // "may settle" capability, and inventing one here would put a permission
+    // in the routing table that no server command knows about.
+    GlobalPage.serviceCharge => Permission.financeRead,
     // The rental view is a leasing read, not a property one: it lists units and
     // leases and only borrows the property name.
     GlobalPage.rentalOverview => Permission.leaseRead,
@@ -584,6 +591,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Buchungen',
         routeKey: 'daily_business.ledger',
         icon: Icons.receipt_long_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.serviceCharge,
+        label: 'Betriebskosten',
+        title: 'Betriebskostenabrechnung',
+        routeKey: 'daily_business.service_charge',
+        icon: Icons.calculate_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.imports,

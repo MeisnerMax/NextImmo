@@ -1,10 +1,11 @@
 /// Backend-agnostic contract for the finance ledger (FINANCE-01a).
 ///
-/// A read port and nothing else for now. The ledger's write surface exists
-/// server-side — accounts, periods and bookings all have audited, idempotent
-/// commands — but no screen in the Property area drives it yet: booking is a
-/// workspace-level administration job, not a property one, and inventing a
-/// property-scoped booking form would put a workspace concern inside a building.
+/// Reads and writes. An earlier version of this header said "a read port and
+/// nothing else for now", and explained that booking is a workspace-level job
+/// with no property screen to drive it — which was true when it was written
+/// and had stopped being true by the time the commands below were added.
+/// FINANCE-BOOKINGS-01 gave the workspace ledger its own screen;
+/// SERVICE-CHARGE-PREVIEW-01 added the read that distributes what it books.
 ///
 /// The failure kinds mirror the shape every other feature uses, so a surface
 /// can tell "you may not" from "it broke" without parsing a message.
@@ -15,6 +16,7 @@ import '../domain/cost_allocation_dto.dart';
 import '../domain/cost_pool_dto.dart';
 import '../domain/finance_booking_dto.dart';
 import '../domain/finance_kpi_dto.dart';
+import '../domain/service_charge_preview_dto.dart';
 
 enum FinanceRepositoryFailureKind {
   forbidden,
@@ -521,4 +523,25 @@ abstract interface class PropertyLedgerPort {
   Future<FinanceRepositoryResult<FinanceLedgerEntryDto>> recordEntry(
     RecordFinanceLedgerEntryCommand command,
   );
+}
+
+/// The service-charge preview: what the bookings of one period come to per
+/// unit.
+///
+/// A read, and only a read. There is no command beside it and that is the
+/// point — a settlement that could be *saved* would be a document with
+/// deadlines, addressees and a claim attached, and none of those exist yet.
+/// The preview computes on demand from the ledger, the classification and the
+/// distribution keys, and stores nothing.
+abstract interface class ServiceChargePreviewPort {
+  /// [from] must be the first of a month and [to] the last of a month: the
+  /// booking periods of this schema are calendar months, and a half month has
+  /// no period to fall inside. The server refuses anything else rather than
+  /// rounding the range to fit.
+  Future<FinanceRepositoryResult<ServiceChargePreviewDto>> readPreview({
+    required String workspaceId,
+    required String propertyId,
+    required DateTime from,
+    required DateTime to,
+  });
 }

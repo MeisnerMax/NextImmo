@@ -119,6 +119,13 @@ enum GlobalPage {
   /// classification because the two answer consecutive questions -- may this
   /// cost be passed on, and then how is it split.
   costPools,
+
+  /// SERVICE-CHARGE-PREVIEW-01: the operating-cost statement itself, for one
+  /// property and one period. The last of the four consecutive questions --
+  /// may this cost be passed on, how is it split, what was actually booked,
+  /// and now: what does each unit owe. A page of its own rather than a tab on
+  /// the ledger, because it is the one an owner or a tenant asks for by name.
+  serviceCharge,
   settings,
   help,
 }

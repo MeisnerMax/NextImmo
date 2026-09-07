@@ -43,6 +43,11 @@ final unitBasisValuesProvider = Provider<UnitBasisValuesPort>(
   (ref) => throw StateError('UnitBasisValuesPort is not configured.'),
 );
 
+/// The service-charge preview (`SERVICE-CHARGE-PREVIEW-01`).
+final serviceChargePreviewProvider = Provider<ServiceChargePreviewPort>(
+  (ref) => throw StateError('ServiceChargePreviewPort is not configured.'),
+);
+
 final propertyFinanceKpisProvider = Provider<PropertyFinanceKpisPort>(
   (ref) => throw StateError('PropertyFinanceKpisPort is not configured.'),
 );
