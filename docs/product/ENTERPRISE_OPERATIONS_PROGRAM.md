@@ -323,7 +323,7 @@ Analyse Abhängigkeiten zeigt, die dort nicht sichtbar waren.
 | **V-2** | **`lease_components`, zeitversioniert** (B-1) — *implementiert 2026-09-06, Migration 54* | Warmmiete, Vorauszahlungen, Empfehlung hängen daran | §4, §3.6, §12 |
 | **V-2a** | **PROPERTY-ACTIVITY-03: Komponenten in der Objektchronik** — *implementiert 2026-09-06, Migration 55* | V-2 schreibt Audit-Ereignisse, die die Chronik sonst nicht auflösen könnte | Folge aus V-2 |
 | **V-2b** | **Komponenten-Historie und Mutations-Oberfläche** — *Formular implementiert 2026-09-07; Lückenmeldung als `LEASING-COMPONENTS-01c`, Migration 57* | Bleibt offen: eine echte Historienansicht (alle Perioden, nicht nur der Stichtag). Der beendete Bestandteil ist jetzt **benannt**, aber seine Vorgeschichte ist weiterhin nicht abrufbar | Folge aus V-2 |
-| **V-3** | **Ticket-Kategoriefilter** (§15) | Kleinstes Paket, klar umrissen, Vorbedingung für §11 | Legacy-Removal |
+| **V-3** | **Ticket-Kategoriefilter** (§15) — *implementiert 2026-09-07, `MAINTENANCE-CATEGORY-01`, Migration 58* | Kleinstes Paket, klar umrissen, Vorbedingung für §11 | Legacy-Removal |
 | **V-4** | **Compliance-Regelschicht mit Gültigkeitszeitraum** | Rechtsstände sind versioniert (§2 dieses Dokuments); jede Berechnung baut darauf | §3, §8 |
 | P-1 | Property Card View (§1) | UI-only, unabhängig, früher Sichtbarkeitsgewinn — braucht aber Kennzahlen im DTO | — |
 | P-2 | Cost Categories + Pools + Allocation Keys (§3.1–3.3) | auf `finance_accounts` aufsetzend | §8 |

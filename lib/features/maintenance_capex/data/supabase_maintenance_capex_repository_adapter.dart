@@ -280,6 +280,7 @@ class SupabaseMaintenanceTicketRepositoryAdapter
         'p_priority': query.priority == null
             ? null
             : _ticketPriorityToWire[query.priority!],
+        'p_category': query.category,
       },
       parseRow: _parseMaintenanceTicketSummary,
       workspaceId: query.workspaceId,
@@ -300,11 +301,54 @@ class SupabaseMaintenanceTicketRepositoryAdapter
         'p_priority': query.priority == null
             ? null
             : _ticketPriorityToWire[query.priority!],
+        'p_category': query.category,
       },
       parseRow: _parseMaintenanceTicketSummary,
       workspaceId: query.workspaceId,
       workspaceOf: (item) => item.workspaceId,
     );
+  }
+
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceCategoryUsage>>>
+  categoriesInUse({required String workspaceId}) async {
+    try {
+      final response = await _gateway.callRpc(
+        'maintenance_ticket_categories',
+        <String, Object?>{'p_workspace_id': workspaceId},
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final rows = payload['entity'];
+        if (rows is! List) {
+          throw const FormatException('Expected a category list.');
+        }
+        return MaintenanceCapexRepositorySuccess<List<MaintenanceCategoryUsage>>(
+          rows.map((row) {
+            final entry = _asMap(row);
+            return MaintenanceCategoryUsage(
+              category: _requiredString(entry, 'category'),
+              ticketCount: _optionalInt(entry['ticket_count']) ?? 0,
+            );
+          }).toList(growable: false),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<List<MaintenanceCategoryUsage>>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const MaintenanceCapexRepositoryFailure<
+        List<MaintenanceCategoryUsage>
+      >(
+        kind: MaintenanceCapexRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase maintenance categories could not be loaded.',
+      );
+    }
   }
 
   // --- MaintenanceTicketRepository ---
@@ -696,6 +740,10 @@ MaintenanceTicketSummaryDto _parseMaintenanceTicketSummary(
   costActual: _optionalDouble(row['cost_actual']),
   currencyCode: _optionalString(row['currency_code']),
   contractorPartyId: _optionalString(row['contractor_party_id']),
+  // Sent on every list row since P2-D06 and read by nobody until
+  // MAINTENANCE-CATEGORY-01. Optional here rather than required, so a payload
+  // from before the snapshot carried it still parses.
+  category: _optionalString(row['category']) ?? 'general',
 );
 
 MaintenanceTicketDto _parseMaintenanceTicket(Map<String, dynamic> row) =>

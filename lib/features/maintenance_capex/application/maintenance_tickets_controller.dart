@@ -43,6 +43,8 @@ class MaintenanceTicketsState {
     this.tickets = const <MaintenanceTicketSummaryDto>[],
     this.statusFilter,
     this.priorityFilter,
+    this.categoryFilter,
+    this.categoriesInUse = const <MaintenanceCategoryUsage>[],
     this.versionConflict,
     this.message,
     this.actionMessage,
@@ -56,6 +58,15 @@ class MaintenanceTicketsState {
   final List<MaintenanceTicketSummaryDto> tickets;
   final MaintenanceTicketStatus? statusFilter;
   final MaintenanceTicketPriority? priorityFilter;
+
+  /// Free text, matched exactly server-side.
+  final String? categoryFilter;
+
+  /// What this workspace has actually been typing, with counts. The curated
+  /// list in the UI is a suggestion; this is the record, and the filter offers
+  /// both so a vocabulary nobody planned stays reachable.
+  final List<MaintenanceCategoryUsage> categoriesInUse;
+
   final MaintenanceCapexVersionConflict? versionConflict;
   final String? message;
   final String? actionMessage;
@@ -66,6 +77,8 @@ class MaintenanceTicketsState {
     List<MaintenanceTicketSummaryDto>? tickets,
     Object? statusFilter = _unchanged,
     Object? priorityFilter = _unchanged,
+    Object? categoryFilter = _unchanged,
+    List<MaintenanceCategoryUsage>? categoriesInUse,
     Object? versionConflict = _unchanged,
     Object? message = _unchanged,
     Object? actionMessage = _unchanged,
@@ -80,6 +93,10 @@ class MaintenanceTicketsState {
       priorityFilter: identical(priorityFilter, _unchanged)
           ? this.priorityFilter
           : priorityFilter as MaintenanceTicketPriority?,
+      categoryFilter: identical(categoryFilter, _unchanged)
+          ? this.categoryFilter
+          : categoryFilter as String?,
+      categoriesInUse: categoriesInUse ?? this.categoriesInUse,
       versionConflict: identical(versionConflict, _unchanged)
           ? this.versionConflict
           : versionConflict as MaintenanceCapexVersionConflict?,
@@ -150,6 +167,7 @@ class MaintenanceTicketsController extends StateNotifier<MaintenanceTicketsState
         workspaceId: workspaceId,
         status: state.statusFilter,
         priority: state.priorityFilter,
+        category: state.categoryFilter,
       ),
     );
     if (generation != _generation) {
@@ -183,9 +201,34 @@ class MaintenanceTicketsController extends StateNotifier<MaintenanceTicketsState
   Future<void> updateFilters({
     Object? status = _unchanged,
     Object? priority = _unchanged,
+    Object? category = _unchanged,
   }) async {
-    state = state.copyWith(statusFilter: status, priorityFilter: priority);
+    state = state.copyWith(
+      statusFilter: status,
+      priorityFilter: priority,
+      categoryFilter: category,
+    );
     await load();
+  }
+
+  /// Loaded once beside the list, never as part of it.
+  ///
+  /// A census that fails must not fail the list: the curated options still
+  /// work, and the filter simply cannot offer what this workspace typed. It is
+  /// also deliberately not reloaded on every filter change — the vocabulary
+  /// does not depend on which subset is being shown, and refetching it would
+  /// make the option list flicker as the reader narrows the list.
+  Future<void> loadCategories() async {
+    final workspaceId = _scope.workspaceId;
+    if (workspaceId == null) {
+      return;
+    }
+    final result = await _search.categoriesInUse(workspaceId: workspaceId);
+    if (result case MaintenanceCapexRepositorySuccess<
+      List<MaintenanceCategoryUsage>
+    >(:final value)) {
+      state = state.copyWith(categoriesInUse: value);
+    }
   }
 
   void clearAction() {
@@ -355,5 +398,8 @@ final maintenanceTicketsControllerProvider = StateNotifierProvider.autoDispose<
     invalidationSource: ref.watch(maintenanceCapexQueryInvalidationSourceProvider),
   );
   unawaited(controller.load());
+  // Beside the list, not before it: the vocabulary is useful but the list is
+  // the screen, and a census that is slow must not hold it up.
+  unawaited(controller.loadCategories());
   return controller;
 });

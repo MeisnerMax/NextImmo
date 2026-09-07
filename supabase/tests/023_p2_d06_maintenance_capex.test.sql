@@ -36,7 +36,12 @@ select is(
   'client roles receive no DML grants on either table'
 );
 
-select has_function('public', 'maintenance_tickets', array['uuid', 'uuid', 'uuid', 'text', 'text']);
+-- Six parameters since MAINTENANCE-CATEGORY-01 (V-3): the category filter
+-- was added by drop-and-recreate rather than as an overload, so the arity is
+-- part of the contract and this assertion is what would catch a stray second
+-- copy of the function.
+select has_function('public', 'maintenance_tickets',
+  array['uuid', 'uuid', 'uuid', 'text', 'text', 'text']);
 select has_function('public', 'capex_projects', array['uuid', 'uuid', 'text']);
 select has_function('public', 'create_maintenance_ticket', array[
   'uuid', 'uuid', 'text', 'uuid', 'uuid', 'uuid', 'text', 'text', 'text', 'timestamptz',

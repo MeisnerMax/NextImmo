@@ -52,6 +52,7 @@ class MaintenanceTicketListQuery {
     this.unitId,
     this.status,
     this.priority,
+    this.category,
   });
 
   final String workspaceId;
@@ -59,6 +60,11 @@ class MaintenanceTicketListQuery {
   final String? unitId;
   final MaintenanceTicketStatus? status;
   final MaintenanceTicketPriority? priority;
+
+  /// Free text, matched exactly server-side. Not an enum: the column is free
+  /// text and a workspace's own vocabulary is the thing this filter exists to
+  /// make sense of (`screens/maintenance_tickets.md` 7.2).
+  final String? category;
 }
 
 /// Lists tickets across every property in the workspace — backed by the
@@ -73,11 +79,27 @@ class WorkspaceMaintenanceTicketListQuery {
     required this.workspaceId,
     this.status,
     this.priority,
+    this.category,
   });
 
   final String workspaceId;
   final MaintenanceTicketStatus? status;
   final MaintenanceTicketPriority? priority;
+  final String? category;
+}
+
+/// One category a workspace actually uses, and how many tickets carry it.
+///
+/// The curated list in the UI is a suggestion; this is the record. A workspace
+/// that has been typing its own vocabulary for a year gets to filter by it.
+class MaintenanceCategoryUsage {
+  const MaintenanceCategoryUsage({
+    required this.category,
+    required this.ticketCount,
+  });
+
+  final String category;
+  final int ticketCount;
 }
 
 /// Lists projects of exactly one property — `public.capex_projects` requires
@@ -279,6 +301,15 @@ abstract interface class MaintenanceTicketSearchPort {
   /// permission-check ordering, not one RPC with an optional filter.
   Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
   searchWorkspace(WorkspaceMaintenanceTicketListQuery query);
+
+  /// The categories in use across the workspace, with counts.
+  ///
+  /// Deliberately workspace-wide even for the property screen: a category that
+  /// exists on one property is part of the workspace's vocabulary, and a filter
+  /// whose options changed per property would make the same control mean two
+  /// different things.
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceCategoryUsage>>>
+  categoriesInUse({required String workspaceId});
 }
 
 /// Project lifecycle. Reads are server-authorized on `capex.read`; mutations

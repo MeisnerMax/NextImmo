@@ -119,7 +119,111 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('the filter offers the curated list and what the workspace uses', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      tickets: <MaintenanceTicketSummaryDto>[_ticket('t1', status: MaintenanceTicketStatus.newTicket)],
+      categories: const <MaintenanceCategoryUsage>[
+        MaintenanceCategoryUsage(category: 'hvac', ticketCount: 3),
+        MaintenanceCategoryUsage(category: 'defect', ticketCount: 1),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('maintenance-category-filter')));
+    await tester.pumpAndSettle();
+
+    // Curated, with the count where the workspace has tickets…
+    expect(find.text('Mangel (1)'), findsWidgets);
+    expect(find.text('Kleinreparatur'), findsWidgets);
+    // …and the workspace's own value, shown raw because this build has no
+    // label for it and inventing one would hide that somebody chose it.
+    expect(find.text('hvac (3)'), findsWidgets);
+    expect(find.text('Alle Kategorien'), findsWidgets);
+  });
+
+  testWidgets('choosing a category re-queries the server with it', (
+    tester,
+  ) async {
+    final search = _FakeSearch(
+      tickets: <MaintenanceTicketSummaryDto>[_ticket('t1', status: MaintenanceTicketStatus.newTicket)],
+      categories: const <MaintenanceCategoryUsage>[
+        MaintenanceCategoryUsage(category: 'hvac', ticketCount: 3),
+      ],
+    );
+    await _pump(tester, search: search);
+
+    await tester.tap(find.byKey(const Key('maintenance-category-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('hvac (3)').last);
+    await tester.pumpAndSettle();
+
+    // Server-side, not a client-side filter over a page that may not hold
+    // every ticket.
+    expect(search.categoryQueries.last, 'hvac');
+  });
+
+  testWidgets('the create form can set a category, and starts at the column '
+      'default', (tester) async {
+    // Driven directly rather than through the panel: the create button is
+    // disabled while the workspace has no properties, and the test would then
+    // be asserting on the fixture rather than on the form.
+    MaintenanceTicketDraft? draft;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () async {
+                draft = await showMaintenanceTicketFormDialog(
+                  context,
+                  properties: <PropertySummaryDto>[_propertyRow()],
+                  categoriesInUse: const <String>['hvac'],
+                );
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // Before MAINTENANCE-CATEGORY-01 there was no field at all — one could
+    // filter by something no reachable form could set.
+    final field = find.byKey(const Key('maintenance-ticket-category'));
+    expect(field, findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).first, 'Heizung tropft');
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    // The workspace's own value is offered here too, so a category that exists
+    // is chosen again instead of retyped into a near-miss.
+    await tester.tap(find.text('hvac').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(draft?.category, 'hvac');
+  });
 }
+
+PropertySummaryDto _propertyRow() => const PropertySummaryDto(
+  id: 'p1',
+  workspaceId: _workspace,
+  name: _property,
+  addressLine1: 'Weg 1',
+  zip: '10115',
+  city: 'Berlin',
+  status: PropertyStatus.active,
+  version: 1,
+  propertyType: 'residential',
+  country: 'de',
+  units: 1,
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -127,6 +231,8 @@ Future<void> _pump(
   MaintenanceCapexRepositoryFailureKind? searchFailure,
   MaintenanceCapexRepositoryFailureKind? transitionFailure,
   ValueChanged<String>? onPushRoute,
+  List<MaintenanceCategoryUsage> categories = const <MaintenanceCategoryUsage>[],
+  _FakeSearch? search,
   Size size = const Size(1400, 900),
 }) async {
   tester.view.physicalSize = size;
@@ -148,7 +254,12 @@ Future<void> _pump(
           ),
         ),
         maintenanceTicketSearchProvider.overrideWithValue(
-          _FakeSearch(tickets: tickets, failure: searchFailure),
+          search ??
+              _FakeSearch(
+                tickets: tickets,
+                failure: searchFailure,
+                categories: categories,
+              ),
         ),
         maintenanceTicketRepositoryProvider.overrideWithValue(
           _FakeRepository(transitionFailure: transitionFailure),
@@ -187,10 +298,28 @@ MaintenanceTicketSummaryDto _ticket(
 );
 
 class _FakeSearch implements MaintenanceTicketSearchPort {
-  _FakeSearch({required this.tickets, this.failure});
+  _FakeSearch({
+    required this.tickets,
+    this.failure,
+    this.categories = const <MaintenanceCategoryUsage>[],
+  });
 
   final List<MaintenanceTicketSummaryDto> tickets;
   final MaintenanceCapexRepositoryFailureKind? failure;
+
+  /// Empty by default: most of these tests are about the list, and a census
+  /// that invented values would make the option count depend on the fake
+  /// rather than on the workspace.
+  final List<MaintenanceCategoryUsage> categories;
+
+  final List<String?> categoryQueries = <String?>[];
+
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceCategoryUsage>>>
+  categoriesInUse({required String workspaceId}) async =>
+      MaintenanceCapexRepositorySuccess<List<MaintenanceCategoryUsage>>(
+        categories,
+      );
 
   @override
   Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
@@ -201,6 +330,7 @@ class _FakeSearch implements MaintenanceTicketSearchPort {
   @override
   Future<MaintenanceCapexRepositoryResult<List<MaintenanceTicketSummaryDto>>>
   searchWorkspace(WorkspaceMaintenanceTicketListQuery query) async {
+    categoryQueries.add(query.category);
     final failure = this.failure;
     if (failure != null) {
       return MaintenanceCapexRepositoryFailure<List<MaintenanceTicketSummaryDto>>(

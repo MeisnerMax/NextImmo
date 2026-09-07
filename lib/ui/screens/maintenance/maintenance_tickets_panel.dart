@@ -22,6 +22,7 @@ import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
 import '../../navigation/app_navigation.dart';
 import 'widgets/maintenance_capex_badges.dart';
+import 'widgets/maintenance_categories.dart';
 
 class MaintenanceTicketsPanel extends ConsumerStatefulWidget {
   const MaintenanceTicketsPanel({super.key});
@@ -50,9 +51,11 @@ class _MaintenanceTicketsPanelState
               unawaited(controller.updateFilters(status: value)),
           onPriorityChanged: (value) =>
               unawaited(controller.updateFilters(priority: value)),
+          onCategoryChanged: (value) =>
+              unawaited(controller.updateFilters(category: value)),
           onCreate: properties.isEmpty
               ? null
-              : () => _createTicket(controller, properties),
+              : () => _createTicket(controller, properties, state),
         ),
         const SizedBox(height: 12),
         Expanded(child: _buildContent(state, controller, properties)),
@@ -109,7 +112,7 @@ class _MaintenanceTicketsPanelState
               ? null
               : FilledButton.icon(
                   onPressed: controller.canMutate
-                      ? () => _createTicket(controller, properties)
+                      ? () => _createTicket(controller, properties, state)
                       : null,
                   icon: const Icon(Icons.add),
                   label: const Text('Ticket anlegen'),
@@ -191,10 +194,17 @@ class _MaintenanceTicketsPanelState
   Future<void> _createTicket(
     MaintenanceTicketsController controller,
     List<PropertySummaryDto> properties,
+    MaintenanceTicketsState state,
   ) async {
     final result = await showMaintenanceTicketFormDialog(
       context,
       properties: properties,
+      // The workspace's own vocabulary is offered beside the curated list, so
+      // a category that exists can be chosen again instead of being retyped
+      // into a near-miss.
+      categoriesInUse: state.categoriesInUse
+          .map((usage) => usage.category)
+          .toList(growable: false),
     );
     if (result == null) {
       return;
@@ -226,6 +236,7 @@ class _Toolbar extends StatelessWidget {
     required this.canMutate,
     required this.onStatusChanged,
     required this.onPriorityChanged,
+    required this.onCategoryChanged,
     required this.onCreate,
   });
 
@@ -233,7 +244,24 @@ class _Toolbar extends StatelessWidget {
   final bool canMutate;
   final ValueChanged<MaintenanceTicketStatus?> onStatusChanged;
   final ValueChanged<MaintenanceTicketPriority?> onPriorityChanged;
+  final ValueChanged<String?> onCategoryChanged;
   final VoidCallback? onCreate;
+
+  /// The count beside a category is the workspace-wide number, not the number
+  /// matching the other filters — it says what exists, so the reader can tell
+  /// an empty result from an empty category.
+  static String _categoryOptionLabel(
+    MaintenanceTicketsState state,
+    String category,
+  ) {
+    final label = maintenanceCategoryLabel(category);
+    for (final usage in state.categoriesInUse) {
+      if (usage.category == category) {
+        return '$label (${usage.ticketCount})';
+      }
+    }
+    return label;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +305,29 @@ class _Toolbar extends StatelessWidget {
                 ),
             ],
             onChanged: onPriorityChanged,
+          ),
+        ),
+        SizedBox(
+          width: 240,
+          child: DropdownButtonFormField<String?>(
+            key: const Key('maintenance-category-filter'),
+            value: state.categoryFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Kategorie'),
+            items: <DropdownMenuItem<String?>>[
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Alle Kategorien'),
+              ),
+              for (final category in maintenanceCategoryOptions(
+                state.categoriesInUse.map((usage) => usage.category),
+              ))
+                DropdownMenuItem<String?>(
+                  value: category,
+                  child: Text(_categoryOptionLabel(state, category)),
+                ),
+            ],
+            onChanged: onCategoryChanged,
           ),
         ),
         FilledButton.icon(
@@ -403,12 +454,16 @@ class _TicketsSkeleton extends StatelessWidget {
 Future<MaintenanceTicketDraft?> showMaintenanceTicketFormDialog(
   BuildContext context, {
   required List<PropertySummaryDto> properties,
+  List<String> categoriesInUse = const <String>[],
 }) async {
   final formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
   var propertyId = properties.first.id;
   var priority = MaintenanceTicketPriority.normal;
+  // The column's own default. A ticket without a category is impossible
+  // server-side, so the form starts where the database would.
+  var category = 'general';
 
   return showDialog<MaintenanceTicketDraft>(
     context: context,
@@ -448,6 +503,23 @@ Future<MaintenanceTicketDraft?> showMaintenanceTicketFormDialog(
                   decoration: const InputDecoration(labelText: 'Beschreibung'),
                   maxLines: 3,
                 ),
+                DropdownButtonFormField<String>(
+                  key: const Key('maintenance-ticket-category'),
+                  value: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Kategorie'),
+                  items: <DropdownMenuItem<String>>[
+                    for (final option in maintenanceCategoryOptions(
+                      categoriesInUse,
+                    ))
+                      DropdownMenuItem(
+                        value: option,
+                        child: Text(maintenanceCategoryLabel(option)),
+                      ),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => category = value ?? category),
+                ),
                 DropdownButtonFormField<MaintenanceTicketPriority>(
                   value: priority,
                   isExpanded: true,
@@ -484,6 +556,7 @@ Future<MaintenanceTicketDraft?> showMaintenanceTicketFormDialog(
                       ? null
                       : descriptionController.text.trim(),
                   priority: priority,
+                  category: category,
                 ),
               );
             },

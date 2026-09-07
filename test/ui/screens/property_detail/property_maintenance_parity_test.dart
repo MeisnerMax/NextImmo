@@ -415,6 +415,15 @@ class _TicketFakes
     implements MaintenanceTicketSearchPort, MaintenanceTicketRepository {
   _TicketFakes(this.results);
 
+  /// Answers with an empty vocabulary: this file is about parity of the ticket
+  /// surface, not about which filter options a workspace has.
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceCategoryUsage>>>
+  categoriesInUse({required String workspaceId}) async =>
+      const MaintenanceCapexRepositorySuccess<List<MaintenanceCategoryUsage>>(
+        <MaintenanceCategoryUsage>[],
+      );
+
   List<MaintenanceTicketSummaryDto> results;
   final List<MaintenanceTicketListQuery> queries =
       <MaintenanceTicketListQuery>[];
