@@ -51,6 +51,15 @@
 -- gilt** (`basis_changed_in_window`). Lieber keine Zahl als eine, deren
 -- Zustandekommen niemand vereinbart hat.
 --
+-- Das gilt nur fuer die drei Bemessungen mit Speicher. **Flaeche und
+-- Einheitenzahl haben in diesem Schema keine Historie**: `units.area_sqm` ist
+-- ein Feld ohne Gueltigkeitszeitraum und `unit_count` ist ein `count(*)` von
+-- heute. Wird im Juni eine Einheit angelegt oder eine Flaeche korrigiert,
+-- rechnet eine Abrechnung fuer das Vorjahr mit dem heutigen Nenner, und nichts
+-- im Datenbestand kann das bemerken. Die Verweigerung oben deckt diesen Fall
+-- also *nicht* ab -- was hier steht, damit niemand aus ihrer Abwesenheit
+-- schliesst, es sei geprueft worden.
+--
 -- **Frage 2: Wie wird eine im Zeitraum nur teilweise vermietete Einheit
 -- behandelt?** Der Leerstandsanteil traegt im Regelfall der Eigentuemer, und
 -- bei einem Mieterwechsel ist der Anteil zwischen zwei Mietverhaeltnissen zu
@@ -73,7 +82,18 @@
 --   * `no_key` -- fuer die Kostenart gilt im Zeitraum kein Verteilerschluessel.
 --   * `key_not_stable_in_window` -- ein Schluessel gilt, aber nicht fuer den
 --     ganzen Zeitraum. Welcher der beiden zaehlt, ist dieselbe Klasse von
---     Frage wie Frage 1 oben.
+--     Frage wie Frage 1 oben. Gilt auch dann, wenn ein *kontobezogener*
+--     Schluessel nur einen Teil abdeckt und ein Auffangschluessel den Rest:
+--     fuer diesen Teil hat jemand ausdruecklich etwas anderes vereinbart.
+--   * `ambiguous_key` -- mehr als ein Schluessel gilt fuer den ganzen
+--     Zeitraum. Die Exclusion-Constraint auf `allocation_keys` schliesst
+--     `cost_pool_id` mit ein, also sind zwei gleichzeitig gueltige Schluessel
+--     fuer dieselbe Kostenart zulaessig -- und eine Abrechnung nennt genau
+--     einen.
+--   * `basis_total_unusable` / `basis_missing_for_unit` -- die Aufloesung
+--     nennt sich auflösbar und liefert trotzdem keinen teilbaren Nenner oder
+--     keinen Wert fuer jede Einheit. Heute unerreichbar; siehe die Begruendung
+--     an den Wachen selbst.
 --   * `basis_changed_in_window` -- Frage 1.
 --   * `pool_scope_unresolvable` -- Gebaeude, Aufgang und Zaehlergruppe haben in
 --     diesem Schema keine Entitaet, also ist nicht bestimmbar, welche
@@ -157,6 +177,14 @@ declare
   v_unclassified numeric := 0;
   v_unclassified_accounts integer := 0;
   v_rounded numeric;
+  -- The settlement period as a half-open range, so containment and overlap
+  -- are one operator each rather than four date comparisons.
+  v_window daterange;
+  v_specific_full integer;
+  v_specific_any integer;
+  v_fallback_full integer;
+  v_fallback_any integer;
+  v_null_lines integer;
 begin
   if p_workspace_id is null or p_property_id is null then
     return jsonb_build_object(
@@ -281,6 +309,7 @@ begin
   end if;
 
   v_days := (p_to - p_from) + 1;
+  v_window := daterange(p_from, p_to + 1, '[)');
 
   -- ---------------------------------------------------------------------
   -- Waehrung: eine, oder keine Abrechnung
@@ -421,40 +450,59 @@ begin
       continue;
     end if;
 
-    -- Der Schluessel: kontobezogen vor Auffangschluessel, und er muss den
-    -- ganzen Zeitraum abdecken. Ein Schluessel, der zum 1. Juli wechselt,
-    -- stellt dieselbe Frage wie ein Bemessungswert, der sich aendert -- und
-    -- die beantwortet diese Vorschau nicht.
+    -- Der Schluessel. Vier Zahlen, weil vier Faelle auseinanderzuhalten sind
+    -- und drei davon frueher stillschweigend zum falschen Schluessel gefuehrt
+    -- haetten:
+    --
+    --   * Ein *kontobezogener* Schluessel, der nur einen Teil des Zeitraums
+    --     abdeckt, darf nicht auf den Auffangschluessel zurueckfallen. Fuer
+    --     diesen Teil des Jahres hat jemand ausdruecklich etwas anderes
+    --     vereinbart; ihn zu uebergehen, weil ein allgemeiner Schluessel
+    --     laenger gilt, ist genau der stille Fehler, den DEC-029 meint.
+    --   * Zwei Schluessel koennen gleichzeitig gelten: die
+    --     Exclusion-Constraint auf `allocation_keys` schliesst
+    --     `cost_pool_id` mit ein, also sind ein Schluessel auf die
+    --     Objekt-Kostenstelle und einer ohne Kostenstelle fuer dieselbe
+    --     Kostenart gleichzeitig zulaessig. Ein `limit 1` haette einen davon
+    --     genommen und die gesamten Kosten danach verteilt.
+    --   * Ein Schluessel, der den Zeitraum nur streift, ist etwas anderes als
+    --     gar keiner -- nur der erste Fall ist eine offene Frage.
     select
-      key.id, key.basis, key.explanation, key.valid_from, key.valid_to,
-      key.finance_account_id, key.cost_pool_id,
-      pool.scope as pool_scope, pool.unit_id as pool_unit_id,
-      pool.pool_key, pool.name as pool_name
-    into v_key
+      count(*) filter (
+        where key.finance_account_id is not null and key.validity @> v_window
+      )::integer,
+      count(*) filter (where key.finance_account_id is not null)::integer,
+      count(*) filter (
+        where key.finance_account_id is null and key.validity @> v_window
+      )::integer,
+      count(*) filter (where key.finance_account_id is null)::integer
+    into v_specific_full, v_specific_any, v_fallback_full, v_fallback_any
     from public.allocation_keys as key
-    left join public.cost_pools as pool
-      on pool.workspace_id = key.workspace_id
-      and pool.id = key.cost_pool_id
     where key.workspace_id = p_workspace_id
       and key.property_id = p_property_id
       and (key.finance_account_id = v_account.id
            or key.finance_account_id is null)
-      and key.validity @> daterange(p_from, p_to + 1, '[)')
-    order by key.finance_account_id nulls last
-    limit 1;
+      and key.validity && v_window;
 
-    if not found then
-      -- Zwei Stille auseinandergehalten: kein Schluessel, oder einer, der den
-      -- Zeitraum nicht ganz abdeckt. Nur die zweite ist eine offene Frage.
-      if exists (
-        select 1
-        from public.allocation_keys as key
-        where key.workspace_id = p_workspace_id
-          and key.property_id = p_property_id
-          and (key.finance_account_id = v_account.id
-               or key.finance_account_id is null)
-          and key.validity && daterange(p_from, p_to + 1, '[)')
-      ) then
+    if v_specific_any > 0 and v_specific_full = 0 then
+      v_refusal := jsonb_build_object(
+        'reason', 'key_not_stable_in_window',
+        'detail',
+          'A key written for this cost type governs part of this period and '
+          'not all of it. Falling back to the general key would ignore what '
+          'was agreed for the rest, so nothing is distributed here.'
+      );
+    elsif v_specific_full > 1 or (v_specific_full = 0 and v_fallback_full > 1)
+    then
+      v_refusal := jsonb_build_object(
+        'reason', 'ambiguous_key',
+        'detail',
+          'More than one distribution key applies to this cost type for the '
+          'whole period. Which of them governs it is a decision this preview '
+          'does not make -- and a statement cites exactly one.'
+      );
+    elsif v_specific_full = 0 and v_fallback_full = 0 then
+      if v_fallback_any > 0 then
         v_refusal := jsonb_build_object(
           'reason', 'key_not_stable_in_window',
           'detail',
@@ -472,6 +520,33 @@ begin
             'absence makes an operating-cost statement formally void.'
         );
       end if;
+    end if;
+
+    if v_refusal is null then
+      select
+        key.id, key.basis, key.explanation, key.valid_from, key.valid_to,
+        key.finance_account_id, key.cost_pool_id,
+        pool.scope as pool_scope, pool.unit_id as pool_unit_id,
+        pool.pool_key, pool.name as pool_name
+      into v_key
+      from public.allocation_keys as key
+      left join public.cost_pools as pool
+        on pool.workspace_id = key.workspace_id
+        and pool.id = key.cost_pool_id
+      where key.workspace_id = p_workspace_id
+        and key.property_id = p_property_id
+        and key.validity @> v_window
+        and (
+          case when v_specific_full = 1
+            then key.finance_account_id = v_account.id
+            else key.finance_account_id is null
+          end
+        );
+    end if;
+
+    if v_refusal is not null then
+      -- schon entschieden
+      null;
     elsif v_key.pool_scope in ('building', 'entrance', 'meter_group') then
       v_refusal := jsonb_build_object(
         'reason', 'pool_scope_unresolvable',
@@ -550,6 +625,24 @@ begin
         );
       else
         v_denominator := (v_resolution ->> 'total')::numeric;
+        -- Belt and braces. Every branch of the resolution that answers
+        -- `resolvable` today also promises a positive total -- `area_sqm`
+        -- sums a column whose own CHECK is `> 0`, `unit_count` counts rows it
+        -- has just required to be more than none, and the three stored bases
+        -- test the sum explicitly. The guard stays because the alternative to
+        -- a wrong assumption here is not a wrong number but SQLSTATE 22012
+        -- out of the whole statement, and because this schema has already
+        -- been surprised once by a CHECK that did not exclude what it looked
+        -- like it excluded (NaN, P-2c).
+        if v_denominator is null or v_denominator = 0 then
+          v_denominator := null;
+          v_refusal := jsonb_build_object(
+            'reason', 'basis_total_unusable',
+            'detail',
+              'The basis reports itself resolvable and yields no total to '
+              'divide by. Nothing is distributed rather than guessing one.'
+          );
+        end if;
       end if;
     end if;
 
@@ -631,6 +724,44 @@ begin
         where unit.workspace_id = p_workspace_id
           and unit.property_id = p_property_id
       ) as line;
+    end if;
+
+    -- Eine Zeile ohne Betrag entsteht, wenn eine Einheit keinen Wert fuer die
+    -- Bemessung hat. Die Aufloesung schliesst das heute aus -- sie verlangt
+    -- fuer jede Bemessung mit Speicher einen Wert je Einheit, und `area_sqm`
+    -- verlangt eine Flaeche je Einheit. Wenn diese Zusicherung je bricht,
+    -- soll das Ergebnis eine Verweigerung sein und keine Verteilung, in der
+    -- der fehlende Anteil als Rundungsdifferenz erscheint: `sum()` uebergeht
+    -- NULL, also waeren die verbleibenden Zeilen zu klein und die Differenz
+    -- traegt stillschweigend den ganzen fehlenden Anteil.
+    select count(*)::integer into v_null_lines
+    from jsonb_array_elements(v_account_lines) as line
+    where line -> 'amount' = 'null'::jsonb;
+
+    if v_null_lines > 0 then
+      v_undistributed := v_undistributed + v_account.amount;
+      v_accounts := v_accounts || jsonb_build_object(
+        'account_id', v_account.id,
+        'account_code', v_account.code,
+        'account_name', v_account.name,
+        'amount', v_account.amount,
+        'entry_count', v_account.entry_count,
+        'allocatable', true,
+        'distributed', false,
+        'refusal', jsonb_build_object(
+          'reason', 'basis_missing_for_unit',
+          'detail',
+            'The basis resolved, and ' || v_null_lines || ' unit(s) still '
+            'carry no value for it. Distributing the rest would spread the '
+            'missing share over the others without saying so.'
+        ),
+        'key', jsonb_build_object(
+          'id', v_key.id, 'basis', v_key.basis,
+          'explanation', v_key.explanation
+        ),
+        'basis_resolution', v_resolution
+      );
+      continue;
     end if;
 
     v_lines := v_lines || v_account_lines;

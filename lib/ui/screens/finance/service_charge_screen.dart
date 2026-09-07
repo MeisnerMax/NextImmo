@@ -410,7 +410,10 @@ class _ServiceChargeScreenState extends ConsumerState<ServiceChargeScreen> {
           'Ändert sich ein Bemessungswert im Zeitraum — zieht etwa jemand im '
           'Juli aus —, verweigert die Vorschau die Verteilung, statt sich für '
           'einen Stichtag oder für eine Zeitgewichtung zu entscheiden; welche '
-          'gilt, steht im Mietvertrag. Und stand eine Einheit zeitweise leer, '
+          'gilt, steht im Mietvertrag. Für Fläche und Einheitenzahl kann sie '
+          'das nicht: beide haben keine Historie, eine Abrechnung für einen '
+          'vergangenen Zeitraum rechnet also mit dem heutigen Bestand. Und '
+          'stand eine Einheit zeitweise leer, '
           'wird ihr Anteil trotzdem vollständig ausgewiesen: dass ihn der '
           'Eigentümer trägt, ist der Regelfall, aber keine Zahl, die hier '
           'jemand ohne Entscheidung setzen sollte.',

@@ -33,7 +33,7 @@ create extension if not exists pgtap with schema extensions;
 -- reports `days_let` beside `days_in_window` and is not split between tenant
 -- and owner.
 
-select plan(51);
+select plan(57);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -106,6 +106,15 @@ insert into public.properties (
    'Abrechnungshaus B', 'Abrechnungsweg 2', '10115', 'Berlin', 'de',
    'residential', 1,
    '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  -- Haus C exists for the key-selection cases alone: one unit, so the
+  -- denominators are trivial and the assertions are about which key was
+  -- chosen rather than about arithmetic.
+  ('76500000-0000-0000-0000-000000000003',
+   '76100000-0000-0000-0000-000000000001',
+   'Abrechnungshaus C', 'Abrechnungsweg 3', '10115', 'Berlin', 'de',
+   'residential', 1,
+   '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
 
 -- 60 + 30 + 10 = 100 square metres, so an area share is a figure a reader can
@@ -132,6 +141,11 @@ insert into public.units (
   ('76600000-0000-0000-0000-000000000004',
    '76100000-0000-0000-0000-000000000001',
    '76500000-0000-0000-0000-000000000002', 'B-01', 'occupied', 100,
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76600000-0000-0000-0000-000000000005',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003', 'C-01', 'occupied', 50,
    '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
 
@@ -209,6 +223,17 @@ insert into public.finance_accounts (
    '76100000-0000-0000-0000-000000000001',
    '4000', 'Mietertraege', 'income',
    '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  -- The two key-selection cases on Haus C.
+  ('76300000-0000-0000-0000-000000000009',
+   '76100000-0000-0000-0000-000000000001',
+   '4700', 'Aufzug', 'expense',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76300000-0000-0000-0000-000000000010',
+   '76100000-0000-0000-0000-000000000001',
+   '4800', 'Winterdienst', 'expense',
+   '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
 
 insert into public.finance_account_allocation_rules (
@@ -237,6 +262,28 @@ insert into public.finance_account_allocation_rules (
    '76200000-0000-0000-0000-000000000001'),
   ('76300000-0000-0000-0000-000000000006',
    '76100000-0000-0000-0000-000000000001', false, null,
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76300000-0000-0000-0000-000000000009',
+   '76100000-0000-0000-0000-000000000001', true, 'performance',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76300000-0000-0000-0000-000000000010',
+   '76100000-0000-0000-0000-000000000001', true, 'performance',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001');
+
+-- A property-scoped pool on Haus C. It exists so that two keys for the same
+-- cost type can be valid at once: the exclusion constraint on
+-- `allocation_keys` coalesces `cost_pool_id` into its key, so a pool-bound key
+-- and an unbound one do not collide.
+insert into public.cost_pools (
+  id, workspace_id, property_id, pool_key, name, scope, created_by, updated_by
+) values
+  ('76a00000-0000-0000-0000-000000000001',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   'c-haupt', 'Hauptkostenstelle C', 'property',
    '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
 
@@ -273,6 +320,52 @@ insert into public.allocation_keys (
    '76500000-0000-0000-0000-000000000001',
    '76300000-0000-0000-0000-000000000005', 'persons',
    'Nach der Zahl der im Haushalt gemeldeten Personen.',
+   date '2020-01-01', null,
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  -- Haus C: the catch-all. `finance_account_id` null means "every cost type
+  -- that has no key of its own".
+  ('76800000-0000-0000-0000-000000000006',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   null, 'area_sqm',
+   'Auffangschluessel Haus C: nach Flaeche.',
+   date '2020-01-01', null,
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  -- Two keys for 4700, both covering the whole period, differing only in
+  -- their cost pool. Legal per the exclusion constraint; ambiguous for a
+  -- statement, which cites exactly one.
+  ('76800000-0000-0000-0000-000000000007',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000009', 'area_sqm',
+   'Aufzug nach Flaeche.',
+   date '2020-01-01', null,
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  -- 4800 has a key of its own for January only. A catch-all covers the rest
+  -- of the period, and falling back to it would ignore what was agreed for
+  -- January.
+  ('76800000-0000-0000-0000-000000000009',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000010', 'unit_count',
+   'Winterdienst im Januar: zu gleichen Teilen.',
+   date '2026-01-01', date '2026-01-31',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001');
+
+insert into public.allocation_keys (
+  id, workspace_id, property_id, finance_account_id, cost_pool_id, basis,
+  explanation, valid_from, valid_to, created_by, updated_by
+) values
+  ('76800000-0000-0000-0000-000000000008',
+   '76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000009',
+   '76a00000-0000-0000-0000-000000000001', 'unit_count',
+   'Aufzug je Einheit.',
    date '2020-01-01', null,
    '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
@@ -382,6 +475,26 @@ insert into public.finance_ledger_entries (
    '76900000-0000-0000-0000-000000000001', date '2026-01-03', 12000, 'EUR',
    '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001'),
+  -- Haus C: one cost type with no key of its own, and two with the awkward
+  -- ones.
+  ('76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000001',
+   '76900000-0000-0000-0000-000000000001', date '2026-01-08', 200, 'EUR',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000009',
+   '76900000-0000-0000-0000-000000000001', date '2026-01-09', 300, 'EUR',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
+  ('76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000010',
+   '76900000-0000-0000-0000-000000000001', date '2026-01-14', 400, 'EUR',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001'),
   -- Haus B books the same month in two currencies.
   ('76100000-0000-0000-0000-000000000001',
    '76500000-0000-0000-0000-000000000002',
@@ -479,6 +592,22 @@ as $$
   select account
   from jsonb_array_elements(
          pg_temp.preview(p_from, p_to) -> 'entity' -> 'accounts') as account
+  where account ->> 'account_code' = p_account_code;
+$$;
+
+create or replace function pg_temp.account_c(
+  p_account_code text,
+  p_from date default '2026-01-01',
+  p_to date default '2026-02-28'
+)
+returns jsonb
+language sql
+as $$
+  select account
+  from jsonb_array_elements(
+         pg_temp.preview(p_from, p_to,
+                         '76500000-0000-0000-0000-000000000003')
+           -> 'entity' -> 'accounts') as account
   where account ->> 'account_code' = p_account_code;
 $$;
 
@@ -799,6 +928,47 @@ select is(
   'true'::jsonb,
   'and the answer says on its face that it is not a statement: nothing here '
   'is stored, versioned or deliverable');
+
+-- ---------------------------------------------------------------------------
+-- Which key governs, when more than one could
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.account_c('4300') -> 'distributed',
+  'true'::jsonb,
+  'a cost type with no key of its own is distributed by the catch-all key');
+
+select is(
+  pg_temp.account_c('4300') -> 'key' ->> 'explanation',
+  'Auffangschluessel Haus C: nach Flaeche.',
+  'and cites that key by its explanation -- paired with the two refusals '
+  'below, so neither of them passes by the catch-all never being reached');
+
+select is(
+  pg_temp.account_c('4700') -> 'refusal' ->> 'reason',
+  'ambiguous_key',
+  'two keys valid for the whole period refuse rather than one of them being '
+  'picked: the exclusion constraint coalesces cost_pool_id, so both are legal '
+  'and a limit 1 would have chosen arbitrarily');
+
+select is(
+  pg_temp.account_c('4700') -> 'distributed',
+  'false'::jsonb,
+  'and nothing is distributed under either of them');
+
+select is(
+  pg_temp.account_c('4800') -> 'refusal' ->> 'reason',
+  'key_not_stable_in_window',
+  'a key written for this cost type that covers only January refuses for a '
+  'January-February period -- it does not fall back to the catch-all, which '
+  'would ignore what was agreed for January');
+
+select is(
+  pg_temp.account_c('4800', date '2026-01-01', date '2026-01-31')
+    -> 'key' ->> 'explanation',
+  'Winterdienst im Januar: zu gleichen Teilen.',
+  'while over January the same data uses that very key -- so the refusal is '
+  'a property of the window, not of the key');
 
 -- ---------------------------------------------------------------------------
 -- Two currencies have no total

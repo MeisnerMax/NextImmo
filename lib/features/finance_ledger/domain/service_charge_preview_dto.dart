@@ -49,6 +49,9 @@ class ServiceChargeRefusal {
     'unclassified' => 'Nicht eingeordnet',
     'no_key' => 'Kein Verteilerschlüssel',
     'key_not_stable_in_window' => 'Schlüssel wechselt im Zeitraum',
+    'ambiguous_key' => 'Mehrere Schlüssel gelten gleichzeitig',
+    'basis_total_unusable' => 'Bemessung ohne teilbaren Nenner',
+    'basis_missing_for_unit' => 'Bemessung fehlt für eine Einheit',
     'basis_changed_in_window' => 'Bemessung ändert sich im Zeitraum',
     'pool_scope_unresolvable' => 'Kostenstelle nicht auflösbar',
     'direct_without_target' => 'Direktzuweisung ohne Einheit',
@@ -324,7 +327,10 @@ class ServiceChargeTotals {
     );
   }
 
-  /// What actually reached the units.
+  /// What was booked on the cost types that reached the units — the booked
+  /// amount, not the sum of the rounded lines. The two differ by each
+  /// account's `roundingDifference`, which is reported rather than absorbed;
+  /// summing the unit totals instead would quietly hide those cents.
   final num distributed;
 
   /// Classified as passable-on and still not distributed, because a key or a
