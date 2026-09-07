@@ -42,6 +42,10 @@ class LeaseDetailView extends StatelessWidget {
     required this.componentsPhase,
     required this.onRetryComponents,
     this.components,
+    this.canMutateComponents = false,
+    this.onAddComponent,
+    this.onEditComponent,
+    this.onCloseComponent,
     this.rejection,
   });
 
@@ -62,6 +66,13 @@ class LeaseDetailView extends StatelessWidget {
   final LeaseComponentsPhase componentsPhase;
   final LeaseComponentsAsOfDto? components;
   final VoidCallback onRetryComponents;
+
+  /// `lease.manage`. Checked here as well as server-side so a member who may
+  /// only read is not offered a control that will certainly be refused.
+  final bool canMutateComponents;
+  final void Function(LeaseComponentType? preselectedType)? onAddComponent;
+  final void Function(LeaseComponentDto component)? onEditComponent;
+  final void Function(LeaseComponentDto component)? onCloseComponent;
 
   final LeaseTransitionRejection? rejection;
 
@@ -268,6 +279,10 @@ class LeaseDetailView extends StatelessWidget {
           phase: componentsPhase,
           components: components,
           onRetry: onRetryComponents,
+          canMutate: canMutateComponents,
+          onAdd: onAddComponent,
+          onEdit: onEditComponent,
+          onClose: onCloseComponent,
         ),
         const SizedBox(height: AppSpacing.component),
         NxCard(

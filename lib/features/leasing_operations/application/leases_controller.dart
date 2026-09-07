@@ -584,6 +584,110 @@ class LeasesController extends StateNotifier<LeasesState> {
     }
   }
 
+  /// Adds a component to the selected lease.
+  ///
+  /// No currency parameter: the server reads it from the lease, so a caller
+  /// cannot introduce a mismatch. No `unknown` type either — the adapter
+  /// refuses that before it reaches the server, because writing back a
+  /// classification this build did not make is worse than refusing.
+  ///
+  /// On success the components are reloaded rather than patched into state.
+  /// A create can supersede nothing and shift nothing, but the read is the only
+  /// thing that knows which components are in force *today*, and reproducing
+  /// that decision here is how two answers start disagreeing.
+  Future<void> createComponent({
+    required String leaseId,
+    required LeaseComponentType componentType,
+    required DateTime validFrom,
+    required double amount,
+    DateTime? validTo,
+    LeaseComponentVatMode vatMode = LeaseComponentVatMode.exempt,
+    double? vatRatePercent,
+    String? note,
+  }) async {
+    await _runMutation(
+      () => _componentPort.create(
+        CreateLeaseComponentCommand(
+          context: _commandContext(),
+          leaseId: leaseId,
+          componentType: componentType,
+          validFrom: validFrom,
+          validTo: validTo,
+          amount: amount,
+          vatMode: vatMode,
+          vatRatePercent: vatRatePercent,
+          note: note,
+        ),
+      ),
+      onSuccess: (LeaseComponentDto _) async {
+        await _loadComponents(leaseId, _detailGeneration);
+      },
+      successMessage: 'Mietbestandteil angelegt.',
+    );
+  }
+
+  /// Changes an existing component.
+  ///
+  /// [changes] carries only what the caller touched, keyed the way the server
+  /// names it. An unknown key is refused server-side rather than ignored, so a
+  /// typo surfaces instead of reporting a change that never happened.
+  Future<void> updateComponent({
+    required LeaseComponentDto component,
+    required Map<String, Object?> changes,
+  }) async {
+    if (changes.isEmpty) {
+      // Nothing to send. Reported as a refusal rather than as a silent success,
+      // because a form that closes on "Speichern" while nothing was saved is
+      // the same lie either way.
+      state = state.copyWith(
+        actionPhase: LeasesActionPhase.notAllowed,
+        actionMessage: 'Es wurde nichts geändert.',
+        versionConflict: null,
+        rejection: null,
+      );
+      return;
+    }
+    await _runMutation(
+      () => _componentPort.update(
+        UpdateLeaseComponentCommand(
+          context: _commandContext(),
+          componentId: component.id,
+          expectedVersion: component.version,
+          changes: changes,
+        ),
+      ),
+      onSuccess: (LeaseComponentDto updated) async {
+        await _loadComponents(updated.leaseId, _detailGeneration);
+      },
+      successMessage: 'Mietbestandteil gespeichert.',
+    );
+  }
+
+  /// Ends a component on a date. Never a delete: what a tenant paid until March
+  /// is a fact about March, and the settlement engine reads history.
+  Future<void> closeComponent({
+    required LeaseComponentDto component,
+    required DateTime validTo,
+    String? reason,
+  }) async {
+    await _runMutation(
+      () => _componentPort.close(
+        CloseLeaseComponentCommand(
+          context: _commandContext(reason: reason),
+          componentId: component.id,
+          expectedVersion: component.version,
+          validTo: validTo,
+        ),
+      ),
+      onSuccess: (LeaseComponentDto closed) async {
+        await _loadComponents(closed.leaseId, _detailGeneration);
+      },
+      // Says what happened rather than "gespeichert": the component is still
+      // there, and after today's date it simply stops being in force.
+      successMessage: 'Mietbestandteil beendet — er bleibt in der Historie.',
+    );
+  }
+
   void clearAction() {
     state = state.copyWith(
       actionPhase: LeasesActionPhase.idle,

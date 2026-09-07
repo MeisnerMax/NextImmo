@@ -25,12 +25,27 @@ class LeaseComponentsSection extends StatelessWidget {
     required this.phase,
     required this.components,
     required this.onRetry,
+    this.canMutate = false,
+    this.onAdd,
+    this.onEdit,
+    this.onClose,
     this.inceptionNote = true,
   });
 
   final LeaseComponentsPhase phase;
   final LeaseComponentsAsOfDto? components;
   final VoidCallback onRetry;
+
+  /// Whether this member may write components (`lease.manage`). The server
+  /// checks it too; this only decides whether an action is offered, so nobody
+  /// spends a round trip on a certain refusal.
+  final bool canMutate;
+
+  /// Opens the form. The argument preselects the type, so the action on an
+  /// unrecorded row lands in the form already knowing what it is for.
+  final void Function(LeaseComponentType? preselectedType)? onAdd;
+  final void Function(LeaseComponentDto component)? onEdit;
+  final void Function(LeaseComponentDto component)? onClose;
 
   /// Whether to explain how this section relates to the contract figures above
   /// it. On by default; off where the section stands alone.
@@ -139,6 +154,18 @@ class LeaseComponentsSection extends StatelessWidget {
           _absenceExplanation,
           style: theme.textTheme.bodySmall,
         ),
+        if (canMutate && onAdd != null) ...<Widget>[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const Key('lease-component-add'),
+              onPressed: () => onAdd!(null),
+              icon: const Icon(Icons.add),
+              label: const Text('Bestandteil hinzufügen'),
+            ),
+          ),
+        ],
       ];
     }
 
@@ -148,6 +175,10 @@ class LeaseComponentsSection extends StatelessWidget {
         _ComponentRow(
           label: _typeLabel(type),
           component: resolved.ofType(type),
+          canMutate: canMutate,
+          onAdd: onAdd == null ? null : () => onAdd!(type),
+          onEdit: onEdit,
+          onClose: onClose,
         ),
       // An unfamiliar type is shown rather than dropped: leaving it out would
       // understate what a tenant pays, and this build cannot know what it is.
@@ -156,6 +187,9 @@ class LeaseComponentsSection extends StatelessWidget {
           label: component.rawTypeKey ?? 'Unbekannter Bestandteil',
           component: component,
           unfamiliar: true,
+          // Deliberately no actions: this build does not know what the type
+          // means, so it must not offer to rewrite it.
+          canMutate: false,
         ),
       const Divider(height: 24),
       _ComponentTotalRow(total: total),
@@ -164,6 +198,18 @@ class LeaseComponentsSection extends StatelessWidget {
         total == null ? _noTotalExplanation(resolved) : _absenceExplanation,
         style: theme.textTheme.bodySmall,
       ),
+      if (canMutate && onAdd != null) ...<Widget>[
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: const Key('lease-component-add'),
+            onPressed: () => onAdd!(null),
+            icon: const Icon(Icons.add),
+            label: const Text('Bestandteil hinzufügen'),
+          ),
+        ),
+      ],
       if (inceptionNote) ...<Widget>[
         const SizedBox(height: 8),
         Text(
@@ -227,11 +273,19 @@ class _ComponentRow extends StatelessWidget {
     required this.label,
     required this.component,
     this.unfamiliar = false,
+    this.canMutate = false,
+    this.onAdd,
+    this.onEdit,
+    this.onClose,
   });
 
   final String label;
   final LeaseComponentDto? component;
   final bool unfamiliar;
+  final bool canMutate;
+  final VoidCallback? onAdd;
+  final void Function(LeaseComponentDto component)? onEdit;
+  final void Function(LeaseComponentDto component)? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +314,26 @@ class _ComponentRow extends StatelessWidget {
             flex: 4,
             child: resolved == null
                 // Words, not a dash: a dash in a money column is read as zero.
-                ? Text('nicht erfasst', style: muted, textAlign: TextAlign.end)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text(
+                        'nicht erfasst',
+                        style: muted,
+                        textAlign: TextAlign.end,
+                      ),
+                      if (canMutate && onAdd != null)
+                        TextButton(
+                          onPressed: onAdd,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('erfassen'),
+                        ),
+                    ],
+                  )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: <Widget>[
@@ -281,6 +354,39 @@ class _ComponentRow extends StatelessWidget {
                           vat,
                           style: theme.textTheme.bodySmall,
                           textAlign: TextAlign.end,
+                        ),
+                      if (canMutate && (onEdit != null || onClose != null))
+                        // A menu rather than two buttons: at 320px two labelled
+                        // controls per row push the amount off the line, and
+                        // the amount is what the row is for.
+                        PopupMenuButton<String>(
+                          key: Key('lease-component-actions-${resolved.id}'),
+                          tooltip: 'Aktionen',
+                          padding: EdgeInsets.zero,
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              onEdit?.call(resolved);
+                            } else if (value == 'close') {
+                              onClose?.call(resolved);
+                            }
+                          },
+                          itemBuilder: (context) => <PopupMenuEntry<String>>[
+                            if (onEdit != null)
+                              const PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Text('Bearbeiten'),
+                              ),
+                            // Only what is still running can be ended. A
+                            // component that already has an end date is changed
+                            // through the form, where the date is a field
+                            // rather than the whole action.
+                            if (onClose != null && resolved.isOpenEnded)
+                              const PopupMenuItem<String>(
+                                value: 'close',
+                                child: Text('Beenden'),
+                              ),
+                          ],
+                          icon: const Icon(Icons.more_horiz, size: 20),
                         ),
                     ],
                   ),
