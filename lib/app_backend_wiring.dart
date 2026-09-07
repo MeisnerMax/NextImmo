@@ -23,6 +23,7 @@ import 'features/documents_compliance/data/supabase_document_repository_adapter.
 import 'features/finance_ledger/application/finance_providers.dart';
 import 'features/finance_ledger/data/supabase_cost_allocation_adapter.dart';
 import 'features/finance_ledger/data/supabase_cost_pool_adapter.dart';
+import 'features/finance_ledger/data/supabase_finance_account_adapter.dart';
 import 'features/finance_ledger/data/supabase_unit_basis_value_adapter.dart';
 import 'features/finance_ledger/data/supabase_finance_ledger_adapter.dart';
 import 'features/identity_access/application/workspace_session_scope.dart';
@@ -78,6 +79,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
   final platform = SupabasePlatformRepositoryAdapter(client: client);
   final propertyMedia = SupabasePropertyMediaAdapter(client: client);
   final costAllocation = SupabaseCostAllocationAdapter(client: client);
+  final financeAccounts = SupabaseFinanceAccountAdapter(client: client);
   final costPools = SupabaseCostPoolAdapter(client: client);
   final unitBasisValues = SupabaseUnitBasisValueAdapter(client: client);
   final financeLedger = SupabaseFinanceLedgerAdapter(client: client);
@@ -131,6 +133,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
     leasing.warmRentProvider.overrideWithValue(leasingWarmRent),
     leasing.propertyLeasingSummaryProvider.overrideWithValue(leasingSummary),
     costAllocationRulesProvider.overrideWithValue(costAllocation),
+    financeAccountsProvider.overrideWithValue(financeAccounts),
     costPoolsProvider.overrideWithValue(costPools),
     unitBasisValuesProvider.overrideWithValue(unitBasisValues),
     propertyFinanceActualsProvider.overrideWithValue(financeLedger),

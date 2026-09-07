@@ -1,0 +1,125 @@
+-- FINANCE-COST-TYPES-01 (the cost type tree gets a reachable write path).
+--
+-- **One field, and it is the reason the whole surface was unreachable.**
+-- `public.update_finance_account` takes `p_expected_version bigint` as a
+-- required argument — no default — and `public.cost_allocation_rules`, the
+-- only read that lists a workspace's accounts, returned
+-- `finance_account_id`, `code`, `name`, `account_type`, `is_active` and the
+-- allocation rule. It did not return the account's version. So no client
+-- could call the update at all: there was no way to learn the number the
+-- command insists on.
+--
+-- That is the shape of a gap worth naming. `FINANCE-01a` shipped
+-- `create_finance_account`, `update_finance_account`,
+-- `record_finance_ledger_entry`, `open_finance_period` and
+-- `transition_finance_period_status` — all audited, all idempotent, all
+-- granted to `authenticated` — and its own header said no screen drove them
+-- yet. Two packages later the screens exist: `cost_allocation_rules` (P-2a)
+-- lists the accounts, and the pools and keys (P-2b, P-2c) hang off them. What
+-- nobody noticed is that the list could show accounts and never edit one, and
+-- that a workspace with no accounts had no way to make the first — so
+-- "Umlagefähigkeit" opened on an empty list whose own empty state says
+-- "Ohne Konten gibt es nichts einzuordnen", with no way out of that state
+-- from inside the application.
+--
+-- **Nothing else changes.** No new table, no new function, no new policy, no
+-- new permission. The counters SR-20, SR-22 and SR-23 do not move, and the
+-- private function inventory is untouched: this is a `create or replace` that
+-- adds one key to a payload. The package that goes with it is otherwise
+-- entirely client-side, which is why it carries a migration this small.
+--
+-- **The code stays absent from the update on purpose.** `update_finance_account`
+-- accepts a name, a parent and an active flag, and not a code. A code is what
+-- a booking, a report and an export cite; renaming one silently re-points
+-- every line that quoted it. The client says so in the form rather than
+-- offering a field the server would ignore.
+
+create or replace function public.cost_allocation_rules(
+  p_workspace_id uuid,
+  p_allocatable_only boolean default false
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+declare
+  v_accounts jsonb;
+  v_classified integer;
+  v_total integer;
+begin
+  if p_workspace_id is null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed', 'message', 'Workspace is required',
+        'field', 'workspaceId'
+      )
+    );
+  end if;
+
+  if not private.has_workspace_permission(p_workspace_id, 'finance.read') then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'forbidden', 'message', 'Cost allocation rules are not permitted'
+      )
+    );
+  end if;
+
+  -- Every account, classified or not. An unclassified account is the
+  -- interesting case: it is unclassified, and a list that showed only the
+  -- classified ones would make the work look finished.
+  select
+    coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'finance_account_id', account.id,
+          'code', account.code,
+          'name', account.name,
+          'account_type', account.account_type,
+          'is_active', account.is_active,
+          -- The account's own version, not the rule's. `update_finance_account`
+          -- requires it and this is the only read that lists accounts, so
+          -- without it the command was unreachable from any client.
+          'version', account.version,
+          'parent_account_id', account.parent_account_id,
+          'rule', case
+            when rule.finance_account_id is null then null
+            else private.allocation_rule_snapshot(rule)
+          end
+        )
+        order by account.code
+      ),
+      '[]'::jsonb
+    ),
+    count(*) filter (where rule.finance_account_id is not null)::integer,
+    count(*)::integer
+  into v_accounts, v_classified, v_total
+  from public.finance_accounts as account
+  left join public.finance_account_allocation_rules as rule
+    on rule.workspace_id = account.workspace_id
+    and rule.finance_account_id = account.id
+  where account.workspace_id = p_workspace_id
+    and (not p_allocatable_only or rule.allocatable);
+
+  return jsonb_build_object(
+    'ok', true,
+    'entity', jsonb_build_object(
+      'accounts', v_accounts,
+      'classified_count', v_classified,
+      -- Counted by the server over every account in the workspace. "How much is
+      -- still unclassified" is the question the surface exists to answer, and
+      -- a count over the rows a caller happens to hold answers a different one.
+      'unclassified_count', v_total - v_classified,
+      'total_count', v_total
+    )
+  );
+end;
+$function$;
+
+comment on function public.cost_allocation_rules(uuid, boolean) is
+  'Every cost account of a workspace with its allocation rule or null, plus '
+  'the account version that update_finance_account requires. Unclassified '
+  'accounts are listed rather than filtered away: they are the work.';

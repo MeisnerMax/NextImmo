@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../identity_access/application/workspace_session_scope.dart';
 import '../domain/cost_allocation_dto.dart';
+import '../domain/finance_actuals_dto.dart';
 import 'finance_ledger_port.dart';
 import 'finance_providers.dart';
 
@@ -22,6 +23,18 @@ const Object _unchanged = Object();
 enum CostAllocationPhase { idle, loading, ready, forbidden, error }
 
 enum CostAllocationActionPhase { idle, running, failed, succeeded }
+
+/// Why a write was refused, handed back to whoever asked for it.
+///
+/// The state carries the same thing for the page-level notice, but a dialog
+/// needs it as a *return value*: it has to stay open, keep what the user
+/// typed, and put the message on the field the server named.
+class CostAllocationActionFailure {
+  const CostAllocationActionFailure({required this.message, this.field});
+
+  final String message;
+  final String? field;
+}
 
 class CostAllocationState {
   const CostAllocationState({
@@ -89,14 +102,17 @@ class CostAllocationState {
 class CostAllocationController extends StateNotifier<CostAllocationState> {
   CostAllocationController({
     required CostAllocationRulesPort port,
+    required FinanceAccountsPort accountsPort,
     required WorkspaceSessionScope scope,
     String Function()? idFactory,
   }) : _port = port,
+       _accountsPort = accountsPort,
        _scope = scope,
        _idFactory = idFactory ?? (() => const Uuid().v4()),
        super(const CostAllocationState());
 
   final CostAllocationRulesPort _port;
+  final FinanceAccountsPort _accountsPort;
   final WorkspaceSessionScope _scope;
   final String Function() _idFactory;
 
@@ -141,6 +157,159 @@ class CostAllocationController extends StateNotifier<CostAllocationState> {
           overview: null,
           message: message,
         );
+    }
+  }
+
+  /// Creates a cost type. Returns null on success, or why it was refused — a
+  /// dialog needs it as a return value so it can stay open, keep what was
+  /// typed, and put the message on the field the server named.
+  Future<CostAllocationActionFailure?> createAccount({
+    required String code,
+    required String name,
+    required FinanceAccountType accountType,
+    String? parentAccountId,
+  }) async {
+    final CostAllocationActionFailure? refusal = _guardMutation();
+    if (refusal != null) {
+      return refusal;
+    }
+    state = state.copyWith(
+      actionPhase: CostAllocationActionPhase.running,
+      actionMessage: null,
+      actionField: null,
+    );
+    final result = await _accountsPort.createAccount(
+      CreateFinanceAccountCommand(
+        context: _context(),
+        code: code,
+        name: name,
+        accountType: accountType,
+        parentAccountId: parentAccountId,
+      ),
+    );
+    return _settleAccount(result, 'Kostenart angelegt.');
+  }
+
+  /// Renames a cost type or takes it out of use.
+  ///
+  /// The expected version is read from this controller's own current list
+  /// rather than passed in: a dialog holds the row it was opened with, so a
+  /// version conflict followed by a retry from that same open dialog would
+  /// re-send the stale version forever.
+  Future<CostAllocationActionFailure?> updateAccount({
+    required String accountId,
+    String? name,
+    bool? isActive,
+  }) async {
+    final CostAllocationActionFailure? refusal = _guardMutation();
+    if (refusal != null) {
+      return refusal;
+    }
+    final CostAccountAllocationDto? current = state.accounts
+        .where(
+          (CostAccountAllocationDto account) =>
+              account.financeAccountId == accountId,
+        )
+        .firstOrNull;
+    final int? version = current?.version;
+    if (version == null) {
+      // The server sent none, so there is nothing to send back. Said rather
+      // than guessed: an edit with an invented version is refused anyway, and
+      // a refusal the reader cannot act on is worse than an honest one here.
+      const CostAllocationActionFailure refused = CostAllocationActionFailure(
+        message:
+            'Diese Kostenart lässt sich mit diesem Stand nicht ändern: der '
+            'Server hat keine Version dazu geliefert.',
+      );
+      state = state.copyWith(
+        actionPhase: CostAllocationActionPhase.failed,
+        actionMessage: refused.message,
+        actionField: null,
+      );
+      return refused;
+    }
+
+    state = state.copyWith(
+      actionPhase: CostAllocationActionPhase.running,
+      actionMessage: null,
+      actionField: null,
+    );
+    final result = await _accountsPort.updateAccount(
+      UpdateFinanceAccountCommand(
+        context: _context(),
+        accountId: accountId,
+        expectedVersion: version,
+        name: name,
+        isActive: isActive,
+      ),
+    );
+    return _settleAccount(result, 'Kostenart gespeichert.');
+  }
+
+  CostAllocationActionFailure? _guardMutation() {
+    // Checked before touching state: this controller is autoDispose and its
+    // provider watches the session scope, so a token refresh between opening a
+    // dialog and pressing save disposes it while the dialog still holds it.
+    if (!mounted) {
+      return const CostAllocationActionFailure(
+        message: 'Die Sitzung wurde neu geladen. Bitte erneut versuchen.',
+      );
+    }
+    if (canMutate) {
+      return null;
+    }
+    const CostAllocationActionFailure refusal = CostAllocationActionFailure(
+      message: 'Für Kostenarten fehlt die Berechtigung zur Finanzverwaltung.',
+    );
+    state = state.copyWith(
+      actionPhase: CostAllocationActionPhase.failed,
+      actionMessage: refusal.message,
+      actionField: null,
+    );
+    return refusal;
+  }
+
+  FinanceCommandContext _context() => FinanceCommandContext(
+    workspaceId: _scope.workspaceId!,
+    actorId: _scope.actorId!,
+    mutationId: _idFactory(),
+    correlationId: _idFactory(),
+  );
+
+  Future<CostAllocationActionFailure?> _settleAccount(
+    FinanceRepositoryResult<CostAccountAllocationDto> result,
+    String successMessage,
+  ) async {
+    if (!mounted) {
+      return const CostAllocationActionFailure(
+        message: 'Die Sitzung wurde neu geladen. Bitte erneut versuchen.',
+      );
+    }
+    switch (result) {
+      case FinanceRepositorySuccess<CostAccountAllocationDto>():
+        state = state.copyWith(
+          actionPhase: CostAllocationActionPhase.succeeded,
+          actionMessage: successMessage,
+          actionField: null,
+        );
+        // Re-read rather than patching the list: the unclassified count is the
+        // server's, and a new cost type moves it.
+        await load();
+        return null;
+      case FinanceRepositoryFailure<CostAccountAllocationDto>(
+        :final message,
+        :final field,
+      ):
+        state = state.copyWith(
+          actionPhase: CostAllocationActionPhase.failed,
+          actionMessage: message,
+          actionField: field,
+        );
+        // Re-read after a refusal too: a refusal means this side's picture and
+        // the server's disagreed, and the next attempt is built from what is
+        // on screen.
+        await load();
+        return CostAllocationActionFailure(message: message, field: field);
     }
   }
 
@@ -219,6 +388,7 @@ final costAllocationControllerProvider = StateNotifierProvider.autoDispose<
 >((Ref ref) {
   final controller = CostAllocationController(
     port: ref.watch(costAllocationRulesProvider),
+    accountsPort: ref.watch(financeAccountsProvider),
     scope: ref.watch(workspaceSessionScopeProvider),
   );
   unawaited(controller.load());

@@ -190,6 +190,11 @@ CostAccountAllocationDto _parseAccount(Map<String, dynamic> row) {
     name: _requiredString(row, 'name'),
     accountType: _requiredString(row, 'account_type'),
     isActive: row['is_active'] == true,
+    // Absent from a server that predates FINANCE-COST-TYPES-01. Left null
+    // rather than defaulted: `update_finance_account` refuses a wrong version,
+    // so a guess would be an edit offered and then rejected.
+    version: row['version'] is num ? (row['version'] as num).toInt() : null,
+    parentAccountId: _optionalString(row['parent_account_id']),
     // Null stays null. An account nobody has classified and one classified as
     // "not apportionable" mean different things, and collapsing them here
     // would make the unclassified count unexplainable.
