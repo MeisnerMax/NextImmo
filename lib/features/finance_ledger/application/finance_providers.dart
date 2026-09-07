@@ -19,6 +19,15 @@ final costAllocationRulesProvider = Provider<CostAllocationRulesPort>(
   (ref) => throw StateError('CostAllocationRulesPort is not configured.'),
 );
 
+/// Accounting periods and bookings (`FINANCE-BOOKINGS-01`).
+final financePeriodsProvider = Provider<FinancePeriodsPort>(
+  (ref) => throw StateError('FinancePeriodsPort is not configured.'),
+);
+
+final propertyLedgerProvider = Provider<PropertyLedgerPort>(
+  (ref) => throw StateError('PropertyLedgerPort is not configured.'),
+);
+
 /// The cost type tree (`FINANCE-COST-TYPES-01`).
 final financeAccountsProvider = Provider<FinanceAccountsPort>(
   (ref) => throw StateError('FinanceAccountsPort is not configured.'),

@@ -18,6 +18,7 @@ import '../screens/alerts/workspace_alerts_screen.dart';
 import '../screens/compliance/compliance_rules_screen.dart';
 import '../screens/finance/cost_allocation_screen.dart';
 import '../screens/finance/cost_pool_screen.dart';
+import '../screens/finance/finance_bookings_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -452,6 +453,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // COST-ALLOCATION-RULES-01 (P-2a): which costs a tenant pays, and on
         // which principle.
         return const CostAllocationScreen();
+      case GlobalPage.ledger:
+        // FINANCE-BOOKINGS-01: what a property actually spent. The surface the
+        // five configuration packages before it were missing -- the commands
+        // existed since FINANCE-01a and nothing called them.
+        return const FinanceBookingsScreen();
       case GlobalPage.costPools:
         // COST-POOLS-ALLOCATION-KEYS-01 (P-2b): how those costs are divided,
         // and which keys cannot be resolved from what is stored.

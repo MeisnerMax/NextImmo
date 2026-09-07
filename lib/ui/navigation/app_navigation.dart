@@ -310,6 +310,9 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // COST-POOLS-ALLOCATION-KEYS-01 (P-2b): reads and writes the pools and
     // keys through their contracts only.
     GlobalPage.costPools ||
+    // FINANCE-BOOKINGS-01: periods and ledger entries through their contracts
+    // only. The commands existed since FINANCE-01a and nothing called them.
+    GlobalPage.ledger ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||
@@ -351,8 +354,11 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     GlobalPage.portfolios ||
     GlobalPage.esg ||
     GlobalPage.maintenance ||
-    GlobalPage.budgets ||
-    GlobalPage.ledger => Permission.propertyRead,
+    GlobalPage.budgets => Permission.propertyRead,
+    // Reading what a property spent is a finance question, not a property
+    // one. The write gates (finance.manage to book, finance.close to seal a
+    // month) live on the commands.
+    GlobalPage.ledger => Permission.financeRead,
     // The rental view is a leasing read, not a property one: it lists units and
     // leases and only borrows the property name.
     GlobalPage.rentalOverview => Permission.leaseRead,

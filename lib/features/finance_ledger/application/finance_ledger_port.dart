@@ -13,6 +13,7 @@ library;
 import '../domain/finance_actuals_dto.dart';
 import '../domain/cost_allocation_dto.dart';
 import '../domain/cost_pool_dto.dart';
+import '../domain/finance_booking_dto.dart';
 import '../domain/finance_kpi_dto.dart';
 
 enum FinanceRepositoryFailureKind {
@@ -404,5 +405,120 @@ abstract interface class FinanceAccountsPort {
 
   Future<FinanceRepositoryResult<CostAccountAllocationDto>> updateAccount(
     UpdateFinanceAccountCommand command,
+  );
+}
+
+/// Opens an accounting period (`FINANCE-BOOKINGS-01`).
+///
+/// A period is a calendar month of a fiscal year and belongs to the whole
+/// workspace, not to a property. Opening one needs `finance.manage`.
+class OpenFinancePeriodCommand {
+  const OpenFinancePeriodCommand({
+    required this.context,
+    required this.fiscalYear,
+    required this.periodMonth,
+  });
+
+  final FinanceCommandContext context;
+  final int fiscalYear;
+
+  /// 1–12.
+  final int periodMonth;
+}
+
+/// Closes a period, or reopens a closed one.
+///
+/// Needs `finance.close`, deliberately separate from `finance.manage`: whoever
+/// books should not automatically be whoever seals the month. Reopening
+/// additionally requires a reason, and the server refuses a blank one.
+class TransitionFinancePeriodCommand {
+  const TransitionFinancePeriodCommand({
+    required this.context,
+    required this.periodId,
+    required this.targetState,
+    required this.expectedVersion,
+  });
+
+  final FinanceCommandContext context;
+  final String periodId;
+  final FinancePeriodState targetState;
+
+  /// Required by the server with no default. Carried from the row the caller
+  /// is looking at, never re-read at submit time — a refusal followed by a
+  /// retry with a fresher version and older intent is how a concurrent change
+  /// gets overwritten.
+  final int expectedVersion;
+}
+
+/// Books an actual cost against a property.
+///
+/// [amount] is signed. A negative amount is a counter-booking, which is the
+/// only correction this schema offers: there is no update, no delete and no
+/// reversal command, so a mistake is answered rather than erased.
+class RecordFinanceLedgerEntryCommand {
+  const RecordFinanceLedgerEntryCommand({
+    required this.context,
+    required this.propertyId,
+    required this.accountId,
+    required this.periodId,
+    required this.bookedOn,
+    required this.amount,
+    required this.currencyCode,
+    this.description,
+    this.unitId,
+    this.leaseId,
+  });
+
+  final FinanceCommandContext context;
+  final String propertyId;
+  final String accountId;
+  final String periodId;
+
+  /// Must fall inside the period's month. The server refuses otherwise, and
+  /// so does the client — every figure downstream groups by period, so a
+  /// booking in the wrong one is a wrong number everywhere and nothing else
+  /// would notice.
+  final DateTime bookedOn;
+
+  final num amount;
+
+  /// A three-letter ISO code. There is no workspace default anywhere on the
+  /// server, so every booking states its own.
+  final String currencyCode;
+
+  final String? description;
+  final String? unitId;
+  final String? leaseId;
+}
+
+abstract interface class FinancePeriodsPort {
+  Future<FinanceRepositoryResult<FinancePeriodOverviewDto>> readPeriods({
+    required String workspaceId,
+    bool includeClosed = true,
+  });
+
+  Future<FinanceRepositoryResult<FinancePeriodDto>> openPeriod(
+    OpenFinancePeriodCommand command,
+  );
+
+  Future<FinanceRepositoryResult<FinancePeriodDto>> transitionPeriod(
+    TransitionFinancePeriodCommand command,
+  );
+}
+
+abstract interface class PropertyLedgerPort {
+  /// What a property actually spent, line by line. Capped: the result says
+  /// how many rows came back and how many matched, so a truncated page cannot
+  /// read as the whole answer.
+  Future<FinanceRepositoryResult<FinanceLedgerOverviewDto>> readEntries({
+    required String workspaceId,
+    required String propertyId,
+    String? periodId,
+    String? accountId,
+    int limit = 100,
+  });
+
+  Future<FinanceRepositoryResult<FinanceLedgerEntryDto>> recordEntry(
+    RecordFinanceLedgerEntryCommand command,
   );
 }
