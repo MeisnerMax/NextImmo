@@ -2085,11 +2085,52 @@ LeaseComponentsAsOfDto _parseComponentsAsOf(Map<String, dynamic> entity) {
   if (raw is! List) {
     throw const FormatException('Expected a component list.');
   }
+  // Absent on a server that predates LEASING-COMPONENTS-01c. Parsed as empty
+  // rather than as a failure: the components are still correct, and refusing
+  // the whole read because one field is younger than the deployment would be a
+  // worse answer than reporting no coverage.
+  final rawCoverage = entity['coverage'];
   return LeaseComponentsAsOfDto(
     asOfDate: _requiredDate(entity, 'as_of_date'),
     components: raw
         .map((row) => _parseLeaseComponentRow(_asMap(row)))
         .toList(growable: false),
+    coverage: rawCoverage is List
+        ? rawCoverage
+              .map((row) => _parseLeaseComponentCoverage(_asMap(row)))
+              .toList(growable: false)
+        : const <LeaseComponentCoverage>[],
+  );
+}
+
+LeaseComponentCoverage _parseLeaseComponentCoverage(Map<String, dynamic> row) {
+  final rawTypes = row['types'];
+  return LeaseComponentCoverage(
+    leaseId: _requiredString(row, 'lease_id'),
+    windowFrom: _requiredDate(row, 'window_from'),
+    windowTo: _requiredDate(row, 'window_to'),
+    complete: row['complete'] == true,
+    types: rawTypes is List
+        ? rawTypes
+              .map((entry) => _parseLeaseComponentCoverageType(_asMap(entry)))
+              .toList(growable: false)
+        : const <LeaseComponentCoverageType>[],
+  );
+}
+
+LeaseComponentCoverageType _parseLeaseComponentCoverageType(
+  Map<String, dynamic> row,
+) {
+  final typeKey = _requiredString(row, 'component_type');
+  final type = leaseComponentTypeFromKey(typeKey);
+  return LeaseComponentCoverageType(
+    componentType: type,
+    inForce: row['in_force'] == true,
+    gapCount: _optionalInt(row['gap_count']) ?? 0,
+    firstGapFrom: _optionalDate(row['first_gap_from']),
+    firstGapTo: _optionalDate(row['first_gap_to']),
+    openGapFrom: _optionalDate(row['open_gap_from']),
+    rawTypeKey: type == LeaseComponentType.unknown ? typeKey : null,
   );
 }
 

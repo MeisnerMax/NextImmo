@@ -191,6 +191,7 @@ class LeaseComponentsSection extends StatelessWidget {
         _ComponentRow(
           label: _typeLabel(type),
           component: resolved.ofType(type),
+          coverage: _coverageOf(resolved, type),
           canMutate: canMutate,
           onAdd: onAdd == null ? null : () => onAdd!(type),
           onEdit: onEdit,
@@ -214,6 +215,7 @@ class LeaseComponentsSection extends StatelessWidget {
         total == null ? _noTotalExplanation(resolved) : _absenceExplanation,
         style: theme.textTheme.bodySmall,
       ),
+      ..._historyNotice(theme, resolved),
       if (canMutate && onAdd != null) ...<Widget>[
         const SizedBox(height: 12),
         Align(
@@ -238,37 +240,89 @@ class LeaseComponentsSection extends StatelessWidget {
     ];
   }
 
-  /// Why there is no total, in the words of the reason there is none. A single
-  /// catch-all sentence would have named the currency case for a lease whose
-  /// real problem is that net and gross amounts cannot be added.
-  static String _noTotalExplanation(LeaseComponentsAsOfDto resolved) {
-    final currencies = resolved.components
-        .map((c) => c.currencyCode)
-        .toSet();
-    if (currencies.length > 1) {
-      return 'Die erfassten Bestandteile lauten auf verschiedene Währungen '
-          'und werden deshalb nicht summiert.';
+  /// The gap that the date alone cannot show.
+  ///
+  /// A type can be in force today and still have a hole earlier in the term —
+  /// base rent recorded January to June and August onwards reads as complete
+  /// on any September date, and July is unknown to everyone. That is the half
+  /// of DEC-029 that had no surface at all until LEASING-COMPONENTS-01c, and
+  /// it is reported here rather than left for a reader to notice.
+  ///
+  /// Deliberately not an error colour: an incomplete history is a normal state
+  /// of a system being filled in, not a fault. It is a statement, and it names
+  /// the first gap so there is somewhere to start.
+  List<Widget> _historyNotice(
+    ThemeData theme,
+    LeaseComponentsAsOfDto resolved,
+  ) {
+    final withGaps = <LeaseComponentCoverageType>[
+      for (final entry in resolved.coverage)
+        for (final type in entry.types)
+          if (type.hasGap) type,
+    ];
+    if (withGaps.isEmpty) {
+      return const <Widget>[];
     }
-    if (resolved.components.any(
-      (c) => c.vatMode == LeaseComponentVatMode.unknown,
-    )) {
-      return 'Für mindestens einen Bestandteil ist die Steuerbehandlung '
-          'unbekannt, deshalb wird nicht summiert.';
-    }
-    return 'Netto- und Bruttobeträge stehen nebeneinander. Eine Summe daraus '
-        'wäre weder das eine noch das andere, deshalb wird nicht summiert.';
+    final parts = <String>[
+      for (final type in withGaps)
+        '${_typeLabel(type.componentType)} '
+            '(${type.gapCount == 1 ? 'Lücke' : '${type.gapCount} Lücken'}'
+            '${type.firstGapFrom == null ? '' : ', erste ab '
+                '${formatLeaseDate(type.firstGapFrom)}'})',
+    ];
+    return <Widget>[
+      const SizedBox(height: 8),
+      Text(
+        'Historie unvollständig: ${parts.join(', ')}. '
+        'Für diese Zeiträume liegt keine Angabe vor — sie werden nicht aus '
+        'den Vertragsbeginn-Zahlen ergänzt.',
+        key: const Key('lease-components-history-gaps'),
+        style: theme.textTheme.bodySmall,
+      ),
+    ];
   }
 
-  /// Names both readings of an absent component, because they are different
-  /// and this section cannot tell them apart.
+  /// The server's verdict on one type, across every lease in scope.
   ///
-  /// The as-of read returns what is in force on one date. A component that was
-  /// ended — the returned parking space in the demo data is exactly this — is
-  /// therefore absent today, and shows the same way as one that was never
-  /// entered. "Nicht erfasst" is true for the date either way, but a reader who
-  /// remembers the parking charge would take it for lost data unless the
-  /// sentence says otherwise. The honest fix is a history read, which the
-  /// server does not offer yet; until it does, this says so.
+  /// The contract view queries one lease, so there is at most one entry; the
+  /// lookup is written to survive the property-scoped read without pretending
+  /// it can attribute a gap to the right lease from here.
+  static LeaseComponentCoverageType? _coverageOf(
+    LeaseComponentsAsOfDto resolved,
+    LeaseComponentType type,
+  ) {
+    for (final entry in resolved.coverage) {
+      final match = entry.ofType(type);
+      if (match != null) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  /// Why there is no total, in the words of the reason there is none.
+  ///
+  /// Decided by the DTO now, not re-derived here — the widget used to work it
+  /// out a second time, which is how a sentence starts naming the wrong cause.
+  static String _noTotalExplanation(LeaseComponentsAsOfDto resolved) {
+    return switch (resolved.totalBlocker) {
+      LeaseComponentTotalBlocker.gapAtDate =>
+        'Für mindestens einen Bestandteil liegt für diesen Stichtag keine '
+            'Angabe vor, obwohl er für andere Zeiträume erfasst ist. Eine '
+            'Summe würde ihn stillschweigend weglassen.',
+      LeaseComponentTotalBlocker.mixedCurrency =>
+        'Die erfassten Bestandteile lauten auf verschiedene Währungen und '
+            'werden deshalb nicht summiert.',
+      LeaseComponentTotalBlocker.unknownVat =>
+        'Für mindestens einen Bestandteil ist die Steuerbehandlung unbekannt, '
+            'deshalb wird nicht summiert.',
+      LeaseComponentTotalBlocker.mixedVat =>
+        'Netto- und Bruttobeträge stehen nebeneinander. Eine Summe daraus wäre '
+            'weder das eine noch das andere, deshalb wird nicht summiert.',
+      LeaseComponentTotalBlocker.none => _absenceExplanation,
+    };
+  }
+
   static const String _absenceExplanation =
       'Nicht erfasst heißt nicht null: für diesen Stichtag liegt kein '
       'Bestandteil dieser Art vor. Er kann fehlen oder beendet sein — eine '
@@ -288,6 +342,7 @@ class _ComponentRow extends StatelessWidget {
   const _ComponentRow({
     required this.label,
     required this.component,
+    this.coverage,
     this.unfamiliar = false,
     this.canMutate = false,
     this.onAdd,
@@ -297,6 +352,12 @@ class _ComponentRow extends StatelessWidget {
 
   final String label;
   final LeaseComponentDto? component;
+
+  /// What the server knows about this type across the whole term. Null when
+  /// the type has no history at all for this lease — which is a different
+  /// statement from "not in force today", and the row says which.
+  final LeaseComponentCoverageType? coverage;
+
   final bool unfamiliar;
   final bool canMutate;
   final VoidCallback? onAdd;
@@ -334,7 +395,7 @@ class _ComponentRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: <Widget>[
                       Text(
-                        'nicht erfasst',
+                        _absentLabel(),
                         style: muted,
                         textAlign: TextAlign.end,
                       ),
@@ -410,6 +471,25 @@ class _ComponentRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Two different absences, and until LEASING-COMPONENTS-01c they looked
+  /// identical.
+  ///
+  /// A type nobody ever recorded and a type recorded for other periods but not
+  /// this one are different facts: the first is a blank, the second is a hole
+  /// somebody left. Only the second tells the reader there is something to go
+  /// and find.
+  String _absentLabel() {
+    final entry = coverage;
+    if (entry == null) {
+      return 'nicht erfasst';
+    }
+    final since = entry.openGapFrom;
+    if (since != null) {
+      return 'seit ${formatLeaseDate(since)} nicht erfasst';
+    }
+    return 'für diesen Stichtag nicht erfasst';
   }
 
   static String _periodLabel(LeaseComponentDto component) {

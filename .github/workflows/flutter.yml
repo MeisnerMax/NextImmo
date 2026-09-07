@@ -193,9 +193,11 @@ jobs:
           supabase db advisors --local --type performance --level info --fail-on error
       - name: Test database
         run: supabase test db --local
-      - name: Test LEASING-COMPONENTS-01b, PROPERTY-ACTIVITY-03, LEASING-COMPONENTS-01, FINANCE-01c, RENT-ROLL-RULE-01, LEASING-ASOF-01b, LEASING-ASOF-01, PROPERTY-ACTIVITY-02, FINANCE-01b, FINANCE-01a, PROPERTY-ACTIVITY-01, LEASING-SUMMARY-01, PROPERTY-MEDIA-DATA-01, AUDIT-01, PROPERTY-LOOKUP-01, PROPERTY-OVERVIEW-DATA-01, PROPERTY-DATA-02, PERMISSION-CATALOG-02, NOTIFICATION-EMITTER-01, TASK-QUERY-01, AAL enforcement, PH-01, P2-D06 workspace read, P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
+      - name: Test LEASING-COMPONENTS-01c, LEASING-COMPONENTS-01b, PROPERTY-ACTIVITY-03, LEASING-COMPONENTS-01, FINANCE-01c, RENT-ROLL-RULE-01, LEASING-ASOF-01b, LEASING-ASOF-01, PROPERTY-ACTIVITY-02, FINANCE-01b, FINANCE-01a, PROPERTY-ACTIVITY-01, LEASING-SUMMARY-01, PROPERTY-MEDIA-DATA-01, AUDIT-01, PROPERTY-LOOKUP-01, PROPERTY-OVERVIEW-DATA-01, PROPERTY-DATA-02, PERMISSION-CATALOG-02, NOTIFICATION-EMITTER-01, TASK-QUERY-01, AAL enforcement, PH-01, P2-D06 workspace read, P2-D06, P2-D05a, P2-D05b, P2-X01, P2-D05, P2-D07, P2-D04, P2-D03, P2-D02, P2-D01, DEBT-012, P1-017, P1-011 and P1-004 rollback
         shell: pwsh
         run: |
+          supabase migration down --local --last 1 --yes
+          supabase test db --local supabase/tests_rollback/054_leasing_components_01c_coverage_down.test.sql
           supabase migration down --local --last 1 --yes
           supabase test db --local supabase/tests_rollback/053_leasing_components_01b_response_key_down.test.sql
           supabase migration down --local --last 1 --yes
