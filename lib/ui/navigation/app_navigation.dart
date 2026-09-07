@@ -301,6 +301,9 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // ALERT-READER-01 (P-10): the dashboard is the workspace worklist, built
     // on `workspace_operations_signals` -- a contract read, no legacy source.
     GlobalPage.dashboard ||
+    // COMPLIANCE-RULES-01 (V-4): reads and writes `compliance_rules` through
+    // its contract only.
+    GlobalPage.complianceRules ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||
@@ -326,6 +329,10 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
 String? cloudReadPermissionForPage(GlobalPage page) {
   return switch (page) {
     GlobalPage.dashboard || GlobalPage.help => null,
+    // Readable by anyone who may read the workspace. The write gate is
+    // `security.manage` and lives on the command, not on the destination: a
+    // rule nobody can see is a rule nobody can challenge.
+    GlobalPage.complianceRules => 'workspace.read',
     GlobalPage.properties ||
     GlobalPage.portfolios ||
     GlobalPage.esg ||
@@ -636,6 +643,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Mitglieder',
         routeKey: 'setup_administration.users',
         icon: Icons.manage_accounts_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.complianceRules,
+        label: 'Rechtsregeln',
+        title: 'Rechtsregeln',
+        routeKey: 'setup_administration.compliance_rules',
+        icon: Icons.gavel_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.settings,

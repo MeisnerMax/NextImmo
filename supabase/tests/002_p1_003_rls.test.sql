@@ -78,6 +78,7 @@ select functions_are(
     'membership_command_gate',
     'membership_invitation_snapshot',
     'membership_snapshot',
+    'compliance_rule_snapshot',
     'notification_snapshot',
     -- ALERT-READER-01 (P-10): the one time source, and the eight signal
     -- definitions moved here so the property screen and the workspace list

@@ -12,6 +12,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'features/compliance_rules/application/compliance_rules_providers.dart';
+import 'features/compliance_rules/data/supabase_compliance_rules_adapter.dart';
 import 'features/contacts_parties/application/party_providers.dart';
 import 'features/contacts_parties/data/supabase_party_query_invalidation_adapter.dart';
 import 'features/contacts_parties/data/supabase_party_repository_adapter.dart';
@@ -52,6 +54,7 @@ final cloudValuationComparableSourceOverride = valuationComparableSourceProvider
 
 /// Binds every feature port to its Supabase adapter.
 List<Override> featureBackendOverrides({required SupabaseClient client}) {
+  final complianceRules = SupabaseComplianceRulesAdapter(client: client);
   final parties = SupabasePartyRepositoryAdapter(client: client);
   final documents = SupabaseDocumentRepositoryAdapter(client: client);
   final valuations = SupabaseValuationRepositoryAdapter(client: client);
@@ -85,6 +88,7 @@ List<Override> featureBackendOverrides({required SupabaseClient client}) {
         mutationsSupported: true,
       );
     }),
+    complianceRulesPortProvider.overrideWithValue(complianceRules),
     partyRepositoryProvider.overrideWithValue(parties),
     partySearchProvider.overrideWithValue(parties),
     partyRoleProvider.overrideWithValue(parties),

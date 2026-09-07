@@ -15,6 +15,7 @@ import '../components/nx_empty_state.dart';
 import '../../features/identity_access/application/identity_access_repository.dart';
 import '../navigation/app_navigation.dart';
 import '../screens/alerts/workspace_alerts_screen.dart';
+import '../screens/compliance/compliance_rules_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -320,6 +321,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               'Cloud-Anmeldung verfügbar.',
           icon: Icons.cloud_off_outlined,
         );
+      case GlobalPage.complianceRules:
+        // COMPLIANCE-RULES-01 is cloud-only: the rules live in
+        // `public.compliance_rules` and have no legacy counterpart. This
+        // branch is dead under DEC-024 and says so rather than 404-ing.
+        return const _CloudDestinationState(
+          title: 'Rechtsregeln nur in der Cloud-Shell',
+          description:
+              'Die Regelschicht ist ausschließlich über die Cloud-Anmeldung '
+              'verfügbar.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.settings:
         return const SettingsScreen();
       case GlobalPage.help:
@@ -411,6 +423,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // notice about itself. It is now the workspace worklist -- the one
         // question a property manager opens the app with.
         return const WorkspaceAlertsScreen();
+      case GlobalPage.complianceRules:
+        // COMPLIANCE-RULES-01 (V-4): the workspace's legal rule set, with the
+        // validity period that makes a retrospective correction possible.
+        return const ComplianceRulesScreen();
       case GlobalPage.notifications:
         // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
         return const NotificationInboxScreen();
