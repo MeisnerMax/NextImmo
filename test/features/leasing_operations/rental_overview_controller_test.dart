@@ -6,6 +6,7 @@ import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_card_metrics_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 
 const String _workspace = 'workspace-a';
@@ -261,6 +262,15 @@ class _FakeProperties implements PropertyRepository {
     PropertyListQuery query,
   ) async => PropertyRepositorySuccess<PropertyPageResult>(
     PropertyPageResult(items: properties),
+  );
+
+  @override
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async => const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this test',
   );
 
   @override

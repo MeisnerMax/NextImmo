@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/property_repository.dart';
 import '../domain/property_dto.dart';
+import '../domain/property_card_metrics_dto.dart';
 import '../domain/property_overview_dto.dart';
 
 abstract interface class PropertySupabaseGateway {
@@ -25,6 +26,8 @@ abstract interface class PropertySupabaseGateway {
   Future<Object?> createProperty(Map<String, Object?> parameters);
 
   Future<Object?> propertyOverview(Map<String, Object?> parameters);
+
+  Future<Object?> propertyCardMetrics(Map<String, Object?> parameters);
 }
 
 class SupabasePropertyGateway implements PropertySupabaseGateway {
@@ -104,6 +107,11 @@ class SupabasePropertyGateway implements PropertySupabaseGateway {
   @override
   Future<Object?> propertyOverview(Map<String, Object?> parameters) {
     return _client.rpc('property_overview', params: parameters);
+  }
+
+  @override
+  Future<Object?> propertyCardMetrics(Map<String, Object?> parameters) {
+    return _client.rpc('property_card_metrics', params: parameters);
   }
 }
 
@@ -265,6 +273,66 @@ class SupabasePropertyRepositoryAdapter implements PropertyRepository {
       return const PropertyRepositoryFailure<PropertyOverviewDto>(
         kind: PropertyRepositoryFailureKind.infrastructureFailure,
         message: 'The property overview could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async {
+    // An empty page is answered here rather than on the server. Not to save a
+    // round trip -- to keep the caller from having to special-case an answer
+    // that is the same either way.
+    if (propertyIds.isEmpty) {
+      return const PropertyRepositorySuccess<PropertyCardMetricsBatch>(
+        PropertyCardMetricsBatch(
+          asOf: null,
+          byPropertyId: <String, PropertyCardMetricsDto>{},
+          withheld: <String>[],
+        ),
+      );
+    }
+    try {
+      final response = await _gateway.propertyCardMetrics(<String, Object?>{
+        'p_workspace_id': workspaceId,
+        'p_property_ids': propertyIds,
+      });
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return PropertyRepositorySuccess<PropertyCardMetricsBatch>(
+          _parseCardMetrics(_asMap(payload['entity'])),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      final error = _asMap(payload['error']);
+      final code = _requiredString(error, 'code');
+      final message = error['message'] is String
+          ? error['message'] as String
+          : 'The property metrics could not be loaded.';
+      return switch (code) {
+        'forbidden' => PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+          kind: PropertyRepositoryFailureKind.forbidden,
+          message: message,
+        ),
+        'validation_failed' =>
+          PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+            kind: PropertyRepositoryFailureKind.validationFailed,
+            message: message,
+          ),
+        _ => const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+          kind: PropertyRepositoryFailureKind.infrastructureFailure,
+          message: 'The property metrics could not be loaded.',
+        ),
+      };
+    } catch (_) {
+      return const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+        kind: PropertyRepositoryFailureKind.infrastructureFailure,
+        message: 'The property metrics could not be loaded.',
       );
     }
   }
@@ -589,6 +657,47 @@ List<String> propertySearchTerms(String? raw) {
     }
   }
   return List<String>.unmodifiable(terms);
+}
+
+/// Parses the batch answer.
+///
+/// A property whose payload cannot be read is skipped rather than defaulted:
+/// the card then shows no numbers, which is what a missing answer means. The
+/// alternative -- an entry with empty sections -- would render as zeroes.
+PropertyCardMetricsBatch _parseCardMetrics(Map<String, dynamic> json) {
+  final metrics = <String, PropertyCardMetricsDto>{};
+  final rows = json['properties'];
+  if (rows is List) {
+    for (final row in rows) {
+      if (row is! Map) {
+        continue;
+      }
+      final entry = _asMap(row);
+      final propertyId = entry['property_id'];
+      if (propertyId is! String || propertyId.isEmpty) {
+        continue;
+      }
+      metrics[propertyId] = PropertyCardMetricsDto(
+        propertyId: propertyId,
+        leasing: _parseSection(entry['leasing'], 'lease.read'),
+        maintenance: _parseSection(entry['maintenance'], 'maintenance.read'),
+      );
+    }
+  }
+  final withheld = <String>[];
+  final withheldRaw = json['withheld'];
+  if (withheldRaw is List) {
+    for (final id in withheldRaw) {
+      if (id is String && id.isNotEmpty) {
+        withheld.add(id);
+      }
+    }
+  }
+  return PropertyCardMetricsBatch(
+    asOf: _nullableDateTime(json, 'as_of'),
+    byPropertyId: Map<String, PropertyCardMetricsDto>.unmodifiable(metrics),
+    withheld: List<String>.unmodifiable(withheld),
+  );
 }
 
 PropertyOverviewSection _parseSection(Object? raw, String fallbackPermission) {

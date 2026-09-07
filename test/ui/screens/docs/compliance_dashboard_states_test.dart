@@ -10,6 +10,7 @@ import 'package:neximmo_app/features/documents_compliance/domain/document_dto.da
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 import 'package:neximmo_app/features/portfolio_property/application/property_repository.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_dto.dart';
+import 'package:neximmo_app/features/portfolio_property/domain/property_card_metrics_dto.dart';
 import 'package:neximmo_app/features/portfolio_property/domain/property_overview_dto.dart';
 import 'package:neximmo_app/ui/screens/docs/compliance_dashboard_screen.dart';
 import 'package:neximmo_app/ui/theme/app_theme.dart';
@@ -563,6 +564,15 @@ class _FakePropertyDirectory implements PropertyRepository {
       ),
     );
   }
+
+  @override
+  Future<PropertyRepositoryResult<PropertyCardMetricsBatch>> cardMetrics({
+    required String workspaceId,
+    required List<String> propertyIds,
+  }) async => const PropertyRepositoryFailure<PropertyCardMetricsBatch>(
+    kind: PropertyRepositoryFailureKind.forbidden,
+    message: 'not used by this test',
+  );
 
   @override
   Future<PropertyRepositoryResult<PropertyOverviewDto>> overview({

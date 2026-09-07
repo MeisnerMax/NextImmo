@@ -27,6 +27,7 @@ import '../../platform_audit_jobs/presentation/property_audit_panel.dart';
 import '../../platform_audit_jobs/presentation/task_center_screen.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/property_repository.dart';
+import '../application/property_card_metrics_controller.dart';
 import '../application/property_cover_controller.dart';
 import '../application/property_workspace_host_state.dart';
 import '../domain/property_dto.dart';
@@ -71,9 +72,15 @@ class _PropertyWorkspaceScreenState
         workspaceId == null
             ? const <String, String>{}
             : ref.watch(propertyCoverControllerProvider(workspaceId)).urls;
+    // PROPERTY-CARD-METRICS-01: the same page-at-a-time discipline as the
+    // covers, for the numbers the cards show.
+    final cardMetrics =
+        workspaceId == null
+            ? const PropertyCardMetricsState()
+            : ref.watch(propertyCardMetricsControllerProvider(workspaceId));
     if (workspaceId != null && state.properties.isNotEmpty) {
-      // After the frame: this runs during build, and asking for covers is a
-      // read that must not mutate a provider mid-build.
+      // After the frame: this runs during build, and asking for covers or
+      // metrics is a read that must not mutate a provider mid-build.
       final ids = <String>[
         for (final property in state.properties) property.id,
       ];
@@ -82,6 +89,11 @@ class _PropertyWorkspaceScreenState
           unawaited(
             ref
                 .read(propertyCoverControllerProvider(workspaceId).notifier)
+                .ensure(ids),
+          );
+          unawaited(
+            ref
+                .read(propertyCardMetricsControllerProvider(workspaceId).notifier)
                 .ensure(ids),
           );
         }
@@ -235,6 +247,7 @@ class _PropertyWorkspaceScreenState
       // PROPERTY-MEDIA-DATA-01: one read for the whole page's covers, never
       // one per row.
       coverUrls: coverUrls,
+      cardMetrics: cardMetrics,
       // PROPERTY-MEDIA-DATA-01: the gallery lives under the master data, so
       // the picture of a building is where the rest of its facts are.
       mediaBuilder:
@@ -362,6 +375,7 @@ class PropertyWorkspaceView extends StatefulWidget {
     this.leasingSummaryBuilder,
     this.mediaBuilder,
     this.coverUrls = const <String, String>{},
+    this.cardMetrics = const PropertyCardMetricsState(),
     this.initialPropertyId,
   });
 
@@ -477,6 +491,11 @@ class PropertyWorkspaceView extends StatefulWidget {
   /// Cover images for the loaded list page, keyed by property id. Empty means
   /// no thumbnails, which the rows render as placeholders.
   final Map<String, String> coverUrls;
+
+  /// Operational numbers for the loaded list page
+  /// (`PROPERTY-CARD-METRICS-01`), keyed by property id. Empty means the cards
+  /// show no figures -- never zeroes.
+  final PropertyCardMetricsState cardMetrics;
 
   @override
   State<PropertyWorkspaceView> createState() => _PropertyWorkspaceViewState();
@@ -966,6 +985,7 @@ class _PropertyWorkspaceViewState extends State<PropertyWorkspaceView> {
       onRefreshWorkspaces: widget.onRefreshWorkspaces,
       onSearch: widget.onSearchProperties,
       coverUrls: widget.coverUrls,
+      cardMetrics: widget.cardMetrics,
       onCreateProperty:
           widget.canCreateProperty && widget.onCreateProperty != null
               ? _openCreateDialog

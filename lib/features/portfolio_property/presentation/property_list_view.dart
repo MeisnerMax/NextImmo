@@ -12,6 +12,7 @@ import '../../../ui/templates/list_filter_template.dart';
 import '../../../ui/theme/app_theme.dart';
 import '../../reference_slice/application/reference_slice_controller.dart';
 import '../application/property_workspace_host_state.dart';
+import '../application/property_card_metrics_controller.dart';
 import '../domain/property_dto.dart';
 import 'property_card.dart';
 import 'property_presentation.dart';
@@ -38,6 +39,7 @@ class PropertyListView extends StatefulWidget {
     required this.onRefreshWorkspaces,
     this.onSearch,
     this.coverUrls = const <String, String>{},
+    this.cardMetrics = const PropertyCardMetricsState(),
     this.onCreateProperty,
     this.scrollController,
     this.restoreFocusPropertyId,
@@ -72,6 +74,11 @@ class PropertyListView extends StatefulWidget {
   /// a property that is absent here shows a neutral placeholder, never a
   /// broken image.
   final Map<String, String> coverUrls;
+
+  /// Operational numbers for the page (`PROPERTY-CARD-METRICS-01`), loaded in
+  /// one batch by the host. A property absent from it shows no figures on its
+  /// card; see [PropertyCard] for why that is never rendered as zero.
+  final PropertyCardMetricsState cardMetrics;
 
   /// Opens the create dialog (PROPERTY-DATA-02). Null while the membership
   /// lacks `property.create` or the session is below AAL2 -- the action is
@@ -566,21 +573,52 @@ class _PropertyListViewState extends State<PropertyListView> {
       key: const Key('property-list-card-grid'),
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: NxResponsiveGrid(
-        maxColumns: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          for (final property in properties)
+          // Said once, here, rather than by forty cards each showing nothing.
+          // Without it a failed metrics read is indistinguishable from a
+          // portfolio with no open work at all.
+          if (widget.cardMetrics.failed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Row(
+                key: const Key('property-card-metrics-failed'),
+                children: <Widget>[
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: context.semanticColors.warning,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Kennzahlen konnten nicht geladen werden. Die Karten '
+                      'zeigen deshalb keine Zahlen.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          NxResponsiveGrid(
+            maxColumns: 4,
+            children: <Widget>[
+              for (final property in properties)
             PropertyCard(
               key: Key('property-card-${property.id}'),
               property: property,
               coverUrl: widget.coverUrls[property.id],
+              metrics: widget.cardMetrics[property.id],
               autofocus: widget.restoreFocusPropertyId == property.id,
               opening: widget.openingPropertyId == property.id,
-              onOpen:
-                  widget.openingPropertyId == null
-                      ? () => _open(property.id)
-                      : null,
-            ),
+                  onOpen:
+                      widget.openingPropertyId == null
+                          ? () => _open(property.id)
+                          : null,
+                ),
+            ],
+          ),
         ],
       ),
     );
