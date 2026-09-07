@@ -206,6 +206,16 @@ CapexProjectSummaryDto _project(
 );
 
 class _FakeTicketSearch implements MaintenanceTicketSearchPort {
+  /// Answers with an empty vocabulary. These tests are about the list, not the
+  /// filter options, and a census that invented values would make the option
+  /// count depend on the fake rather than on the workspace.
+  @override
+  Future<MaintenanceCapexRepositoryResult<List<MaintenanceCategoryUsage>>>
+  categoriesInUse({required String workspaceId}) async =>
+      const MaintenanceCapexRepositorySuccess<List<MaintenanceCategoryUsage>>(
+        <MaintenanceCategoryUsage>[],
+      );
+
   _FakeTicketSearch({required this.tickets, this.failure});
 
   final List<MaintenanceTicketSummaryDto> tickets;
