@@ -679,6 +679,24 @@ void _figureParserTests() {
       expect(problem('1,2,3'), ParsedFigureProblemKind.notANumber);
     });
 
+    test('a negative figure is refused by default and allowed for the ledger', () {
+      expect(problem('-1'), ParsedFigureProblemKind.negative);
+      expect(
+        (parseGermanFigure('-1.234,50', allowNegative: true)
+                as ParsedFigureValue)
+            .value,
+        -1234.5,
+        reason: 'the ledger amount is signed on purpose: a negative booking '
+            'is a counter-booking, which is the only correction the schema '
+            'offers',
+      );
+      expect(
+        parseGermanFigure('-1.000', allowNegative: true),
+        isA<ParsedFigureProblem>(),
+        reason: 'the thousand-separator ambiguity is refused with a sign too',
+      );
+    });
+
     test('zero reads as zero, which is a figure and not an absence', () {
       expect(parsed('0'), 0);
       expect(parsed('0,0'), 0);

@@ -210,6 +210,15 @@ declare
   v_periode_1 uuid;
   v_periode_2 uuid;
   v_periode_3 uuid;
+  -- Der erste Tag des Monats, aus dem die jeweilige Periode gebildet wird.
+  -- Buchungsdatum und Periode muessen aus derselben Rechnung stammen: ein
+  -- Tagesabstand (v_heute - 60) folgt keinem Kalendermonat, und seit
+  -- FINANCE-BOOKINGS-01 weist der Server eine Buchung zurueck, deren Datum
+  -- nicht in ihre Periode faellt. An 101 Tagen im Jahr brach das Fixture
+  -- deshalb komplett ab, ohne dass eine CI davon etwas gemerkt haette.
+  v_monat_1 date;
+  v_monat_2 date;
+  v_monat_3 date;
   v_kpi uuid;
 
   v_heute date := (now() at time zone 'utc')::date;
@@ -670,22 +679,26 @@ begin
 
   -- Drei Perioden: die beiden aelteren abgeschlossen, die laufende offen —
   -- damit die Kennzahlen sich ehrlich als vorlaeufig ausweisen.
+  v_monat_1 := date_trunc('month', v_heute - interval '2 months')::date;
+  v_monat_2 := date_trunc('month', v_heute - interval '1 month')::date;
+  v_monat_3 := date_trunc('month', v_heute)::date;
+
   v_periode_1 := pg_temp.period(
     v_ws,
-    extract(year from (v_heute - interval '2 months'))::integer,
-    extract(month from (v_heute - interval '2 months'))::integer,
+    extract(year from v_monat_1)::integer,
+    extract(month from v_monat_1)::integer,
     'Periode -2'
   );
   v_periode_2 := pg_temp.period(
     v_ws,
-    extract(year from (v_heute - interval '1 month'))::integer,
-    extract(month from (v_heute - interval '1 month'))::integer,
+    extract(year from v_monat_2)::integer,
+    extract(month from v_monat_2)::integer,
     'Periode -1'
   );
   v_periode_3 := pg_temp.period(
     v_ws,
-    extract(year from v_heute)::integer,
-    extract(month from v_heute)::integer,
+    extract(year from v_monat_3)::integer,
+    extract(month from v_monat_3)::integer,
     'Periode laufend'
   );
 
@@ -708,74 +721,74 @@ begin
   -- Buchungen Lindenhof: Wohnmieten und Kosten je Periode.
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_wohnen, v_periode_1,
-    v_heute - 60, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_1 + 5, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Ertrag -2');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_betrieb, v_periode_1,
-    v_heute - 58, 742, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_1 + 7, 742, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Betriebskosten', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Betrieb -2');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_wohnen, v_periode_2,
-    v_heute - 30, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 5, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Ertrag -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_betrieb, v_periode_2,
-    v_heute - 28, 768, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 7, 768, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Betriebskosten', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Betrieb -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_instand, v_periode_2,
-    v_heute - 26, 1310, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 9, 1310, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Rohrbruch Steigleitung', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Instand -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_wohnhaus, v_konto_wohnen, v_periode_3,
-    v_heute - 3, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_3 + 2, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Ertrag laufend');
 
   -- Buchungen Kontorhaus: Wohnen und Gewerbe getrennt.
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_wohnen, v_periode_1,
-    v_heute - 60, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_1 + 5, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Wohnen -2');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_gewerbe, v_periode_1,
-    v_heute - 60, 3200, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_1 + 5, 3200, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Gewerbe', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Gewerbe -2');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_betrieb, v_periode_1,
-    v_heute - 57, 2140, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_1 + 8, 2140, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Betriebskosten', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Betrieb -2');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_wohnen, v_periode_2,
-    v_heute - 30, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 5, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Wohnen -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_gewerbe, v_periode_2,
-    v_heute - 30, 3200, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 5, 3200, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Gewerbe', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Gewerbe -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_betrieb, v_periode_2,
-    v_heute - 27, 2205, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_2 + 8, 2205, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Betriebskosten', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Betrieb -1');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_instand, v_periode_3,
-    v_heute - 4, 6800, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_3 + 1, 6800, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Trocknung nach Wasserschaden', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Instand laufend');
   perform pg_temp.ok(public.record_finance_ledger_entry(
     v_ws, v_kontor, v_konto_wohnen, v_periode_3,
-    v_heute - 3, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    v_monat_3 + 2, 6780, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Kontor Wohnen laufend');
 

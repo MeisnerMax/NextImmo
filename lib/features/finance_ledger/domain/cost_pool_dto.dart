@@ -279,7 +279,11 @@ enum ParsedFigureProblemKind {
 
 /// Reads a figure the way a German form is typed, refusing what it cannot read
 /// unambiguously.
-ParsedFigure parseGermanFigure(String raw) {
+/// [allowNegative] exists for the ledger, whose amount is signed on purpose:
+/// a negative booking is a counter-booking, the only correction the schema
+/// offers. Everywhere else a negative figure is a wrong figure rather than a
+/// smaller one, so the default refuses it.
+ParsedFigure parseGermanFigure(String raw, {bool allowNegative = false}) {
   final String text = raw.replaceAll(RegExp(r'[\s\u00a0]'), '');
   if (text.isEmpty) {
     return const ParsedFigureProblem(ParsedFigureProblemKind.empty);
@@ -319,7 +323,7 @@ ParsedFigure parseGermanFigure(String raw) {
   if (!parsed.isFinite) {
     return const ParsedFigureProblem(ParsedFigureProblemKind.notFinite);
   }
-  if (parsed < 0) {
+  if (parsed < 0 && !allowNegative) {
     return const ParsedFigureProblem(ParsedFigureProblemKind.negative);
   }
   return ParsedFigureValue(parsed);
