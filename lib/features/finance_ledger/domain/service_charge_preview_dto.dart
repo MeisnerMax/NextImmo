@@ -358,6 +358,8 @@ class ServiceChargePreviewDto {
     required this.isPreview,
     required this.isProvisional,
     required this.openPeriodCount,
+    required this.monthCount,
+    required this.periodCount,
     required this.totals,
     required this.periods,
     required this.accounts,
@@ -387,6 +389,8 @@ class ServiceChargePreviewDto {
       isPreview: json['is_preview'] != false,
       isProvisional: json['is_provisional'] == true,
       openPeriodCount: _optionalInt(json['open_period_count']) ?? 0,
+      monthCount: _optionalInt(json['month_count']) ?? 0,
+      periodCount: _optionalInt(json['period_count']) ?? 0,
       totals: ServiceChargeTotals.fromJson(
         (json['totals'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
       ),
@@ -411,6 +415,14 @@ class ServiceChargePreviewDto {
   final bool isProvisional;
 
   final int openPeriodCount;
+
+  /// Months in the chosen period, against booking periods that exist for them.
+  /// A month with no period could hold no booking at all, which looks exactly
+  /// like a month in which nothing was spent — so the two numbers are carried
+  /// separately and the surface says when they differ.
+  final int monthCount;
+  final int periodCount;
+
   final ServiceChargeTotals totals;
   final List<ServiceChargePeriodDto> periods;
   final List<ServiceChargeAccountDto> accounts;
@@ -422,6 +434,13 @@ class ServiceChargePreviewDto {
   final String? currencyCode;
 
   bool get isEmpty => accounts.isEmpty;
+
+  /// Months of the settlement period that have no booking period at all.
+  /// Never negative: a server that reported more periods than months would be
+  /// describing something this getter has no name for, and a negative count
+  /// on screen is worse than none.
+  int get monthsWithoutPeriod =>
+      monthCount > periodCount ? monthCount - periodCount : 0;
 
   /// Everything apportionable that reached no unit, in the order the server
   /// returned it.

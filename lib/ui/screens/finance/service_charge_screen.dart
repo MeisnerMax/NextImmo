@@ -295,6 +295,19 @@ class _ServiceChargeScreenState extends ConsumerState<ServiceChargeScreen> {
         ),
       );
     }
+    if (preview.monthsWithoutPeriod > 0) {
+      notices.add(
+        NxNotice(
+          key: const Key('service-charge-missing-periods'),
+          message:
+              'Für ${preview.monthsWithoutPeriod} von ${preview.monthCount} '
+              'Monaten dieses Zeitraums ist keine Buchungsperiode angelegt. '
+              'Dort konnte nichts gebucht werden — das sieht aus wie "es fiel '
+              'nichts an", ist aber etwas anderes.',
+          kind: NxNoticeKind.warning,
+        ),
+      );
+    }
     if (preview.totals.unclassifiedAccountCount > 0) {
       notices.add(
         NxNotice(

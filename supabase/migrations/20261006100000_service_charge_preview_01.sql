@@ -123,6 +123,13 @@
 -- Ist eine der abgedeckten Perioden noch offen, ist die Vorschau vorlaeufig
 -- und sagt es (`is_provisional`).
 --
+-- **Abgerechnet wird ueber Perioden, nicht ueber Buchungsdaten.** Beides waere
+-- heute dasselbe -- FINANCE-BOOKINGS-01 verlangt, dass das Datum in seine
+-- Periode faellt -- aber zwei Definitionen von "im Zeitraum" nebeneinander
+-- sind eine zu viel. Fuer einen Monat ohne Periode konnte nichts gebucht
+-- werden; damit das nicht aussieht wie "es fiel nichts an", nennt die Antwort
+-- `month_count` neben `period_count`.
+--
 -- Nur Aufwandskonten. Ertraege stehen im selben Hauptbuch, gehoeren aber
 -- nicht in eine Betriebskostenabrechnung -- ein Ertragskonto ohne
 -- Umlage-Einordnung wuerde sonst als offene Aufgabe erscheinen und die Summe
@@ -185,6 +192,10 @@ declare
   v_fallback_full integer;
   v_fallback_any integer;
   v_null_lines integer;
+  -- Die Perioden, ueber die abgerechnet wird. Genau eine Definition von "im
+  -- Zeitraum": die Buchung gehoert zu einer dieser Perioden.
+  v_period_ids uuid[];
+  v_month_count integer;
 begin
   if p_workspace_id is null or p_property_id is null then
     return jsonb_build_object(
@@ -312,6 +323,40 @@ begin
   v_window := daterange(p_from, p_to + 1, '[)');
 
   -- ---------------------------------------------------------------------
+  -- Die abgedeckten Perioden
+  -- ---------------------------------------------------------------------
+
+  select
+    coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'id', period.id,
+          'fiscal_year', period.fiscal_year,
+          'period_month', period.period_month,
+          'status', period.status
+        )
+        order by period.fiscal_year, period.period_month
+      ),
+      '[]'::jsonb
+    ),
+    count(*) filter (where period.status = 'open')::integer,
+    coalesce(array_agg(period.id), '{}'::uuid[])
+  into v_periods, v_open_periods, v_period_ids
+  from public.finance_periods as period
+  where period.workspace_id = p_workspace_id
+    and make_date(period.fiscal_year, period.period_month, 1)
+        between p_from and p_to;
+
+  -- Wie viele Monate der Zeitraum hat, gegen wie viele Perioden es gibt. Fehlt
+  -- fuer einen Monat die Periode, konnte darin nichts gebucht werden -- was
+  -- sich von "es fiel nichts an" nicht unterscheiden laesst, wenn es niemand
+  -- sagt. Die Zahl steht deshalb in der Antwort, nicht die Schlussfolgerung.
+  v_month_count :=
+    (extract(year from p_to)::integer - extract(year from p_from)::integer) * 12
+    + (extract(month from p_to)::integer - extract(month from p_from)::integer)
+    + 1;
+
+  -- ---------------------------------------------------------------------
   -- Waehrung: eine, oder keine Abrechnung
   -- ---------------------------------------------------------------------
 
@@ -324,7 +369,7 @@ begin
     and account.id = entry.account_id
   where entry.workspace_id = p_workspace_id
     and entry.property_id = p_property_id
-    and entry.booked_on between p_from and p_to
+    and entry.period_id = any(v_period_ids)
     -- Ueber genau die Zeilen, die unten auch verteilt werden. Ueber alle zu
     -- zaehlen hiesse, eine Abrechnung an einer in Fremdwaehrung gebuchten
     -- Miete scheitern zu lassen, die gar nicht Teil von ihr ist.
@@ -343,30 +388,6 @@ begin
       )
     );
   end if;
-
-  -- ---------------------------------------------------------------------
-  -- Die abgedeckten Perioden
-  -- ---------------------------------------------------------------------
-
-  select
-    coalesce(
-      jsonb_agg(
-        jsonb_build_object(
-          'id', period.id,
-          'fiscal_year', period.fiscal_year,
-          'period_month', period.period_month,
-          'status', period.status
-        )
-        order by period.fiscal_year, period.period_month
-      ),
-      '[]'::jsonb
-    ),
-    count(*) filter (where period.status = 'open')::integer
-  into v_periods, v_open_periods
-  from public.finance_periods as period
-  where period.workspace_id = p_workspace_id
-    and make_date(period.fiscal_year, period.period_month, 1)
-        between p_from and p_to;
 
   -- ---------------------------------------------------------------------
   -- Die Einheiten, ueber die verteilt wird
@@ -393,7 +414,15 @@ begin
       and rule.finance_account_id = entry.account_id
     where entry.workspace_id = p_workspace_id
       and entry.property_id = p_property_id
-      and entry.booked_on between p_from and p_to
+      -- Nach Periode, nicht nach Buchungsdatum. Beides waere heute dasselbe --
+      -- FINANCE-BOOKINGS-01 verlangt, dass das Datum in seine Periode faellt --
+      -- aber zwei Definitionen von "im Zeitraum" nebeneinander sind eine zu
+      -- viel, und nur eine davon ist die, ueber die abgerechnet wird. Die
+      -- Periode ist der Abrechnungstopf; das Buchungsdatum ist, wann etwas
+      -- passiert ist. Die Datumspruefung sitzt ausserdem im Kommando und nicht
+      -- als Constraint auf der Tabelle, ein Direkt-Insert kann sie also
+      -- umgehen -- und dann entscheidet, welche der beiden Definitionen gilt.
+      and entry.period_id = any(v_period_ids)
       -- Nur Aufwand. Die Mieteintraege eines Objekts stehen im selben
       -- Hauptbuch und haben in einer Betriebskostenabrechnung nichts zu
       -- suchen: ohne diese Zeile erschiene ein Ertragskonto ohne
@@ -865,6 +894,11 @@ begin
       -- Vorlaeufig, solange eine abgedeckte Periode noch Buchungen annimmt.
       'is_provisional', v_open_periods > 0,
       'open_period_count', v_open_periods,
+      -- Monate im Zeitraum gegen Perioden, die es dafuer gibt. Sind es
+      -- weniger Perioden als Monate, konnte in den fehlenden Monaten nichts
+      -- gebucht werden -- was aussieht wie "es fiel nichts an".
+      'month_count', v_month_count,
+      'period_count', coalesce(array_length(v_period_ids, 1), 0),
       'periods', v_periods,
       'totals', jsonb_build_object(
         'distributed', v_distributed,

@@ -33,7 +33,7 @@ create extension if not exists pgtap with schema extensions;
 -- reports `days_let` beside `days_in_window` and is not split between tenant
 -- and owner.
 
-select plan(57);
+select plan(62);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -509,6 +509,21 @@ insert into public.finance_ledger_entries (
    '76200000-0000-0000-0000-000000000001',
    '76200000-0000-0000-0000-000000000001');
 
+-- Booked on 20 January and filed under the March period. The command refuses
+-- this since FINANCE-BOOKINGS-01, so it is written directly: the check is in
+-- the command and not on the table, and the point of the assertion below is
+-- which of the two definitions of "in this period" the settlement uses.
+insert into public.finance_ledger_entries (
+  workspace_id, property_id, account_id, period_id, booked_on, amount,
+  currency_code, created_by, updated_by
+) values
+  ('76100000-0000-0000-0000-000000000001',
+   '76500000-0000-0000-0000-000000000003',
+   '76300000-0000-0000-0000-000000000001',
+   '76900000-0000-0000-0000-000000000003', date '2026-01-20', 9999, 'EUR',
+   '76200000-0000-0000-0000-000000000001',
+   '76200000-0000-0000-0000-000000000001');
+
 update public.finance_periods
 set status = 'closed',
     closed_at = now(),
@@ -969,6 +984,42 @@ select is(
   'Winterdienst im Januar: zu gleichen Teilen.',
   'while over January the same data uses that very key -- so the refusal is '
   'a property of the window, not of the key');
+
+-- ---------------------------------------------------------------------------
+-- What "in this period" means
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.account_c('4300') ->> 'amount',
+  '200.00',
+  'a booking filed under the March period is not settled in January-February, '
+  'even though its own booking date falls inside it: the period is the '
+  'accounting bucket and the date is only when something happened');
+
+select is(
+  pg_temp.account_c('4300', date '2026-03-01', date '2026-03-31')
+    ->> 'amount',
+  '9999.00',
+  'and it is settled in March, where its period is -- paired so the line '
+  'above is not simply the row being invisible everywhere');
+
+select is(
+  pg_temp.preview() -> 'entity' ->> 'month_count',
+  '2',
+  'the answer says how many months the period covers');
+
+select is(
+  pg_temp.preview() -> 'entity' ->> 'period_count',
+  '2',
+  'and how many booking periods exist for them');
+
+select is(
+  pg_temp.preview(date '2026-01-01', date '2026-04-30')
+    -> 'entity' ->> 'period_count',
+  '3',
+  'a fourth month with no period of its own is counted as a month and not as '
+  'a period: nothing could have been booked there, which is not the same as '
+  'nothing having been spent');
 
 -- ---------------------------------------------------------------------------
 -- Two currencies have no total

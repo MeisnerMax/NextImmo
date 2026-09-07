@@ -266,6 +266,42 @@ void main() {
     });
   });
 
+  group('months without a period', () {
+    ServiceChargePreviewDto of({required int months, required int periods}) =>
+        ServiceChargePreviewDto.fromJson(<String, dynamic>{
+          'property_id': 'p',
+          'from_date': '2026-01-01',
+          'to_date': '2026-04-30',
+          'month_count': months,
+          'period_count': periods,
+          'totals': <String, dynamic>{},
+          'accounts': <Object?>[],
+          'units': <Object?>[],
+        });
+
+    test('a month with no booking period is counted', () {
+      expect(of(months: 4, periods: 3).monthsWithoutPeriod, 1);
+    });
+
+    test('and a complete period counts none', () {
+      expect(
+        of(months: 4, periods: 4).monthsWithoutPeriod,
+        0,
+        reason: 'paired with the test above so the getter is not simply the '
+            'month count',
+      );
+    });
+
+    test('more periods than months is not a negative gap', () {
+      expect(
+        of(months: 2, periods: 3).monthsWithoutPeriod,
+        0,
+        reason: 'a negative count on screen is worse than none, and a server '
+            'reporting this would be describing something else entirely',
+      );
+    });
+  });
+
   group('unit occupancy', () {
     test('a unit let throughout, partly and never are three states', () {
       ServiceChargeUnitDto unit(int daysLet) => ServiceChargeUnitDto(

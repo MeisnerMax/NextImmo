@@ -135,6 +135,39 @@ void main() {
       );
     });
 
+    testWidgets('a month with no booking period is called out', (tester) async {
+      await _pump(
+        tester,
+        property: 'property-1',
+        surface: _tall,
+        port: _StubPort(
+          FinanceRepositorySuccess<ServiceChargePreviewDto>(
+            _dto(monthCount: 3, periodCount: 2),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('service-charge-missing-periods')),
+        findsOneWidget,
+        reason: 'a month in which nothing *could* be booked looks exactly like '
+            'one in which nothing was spent, and only one of them is a result',
+      );
+    });
+
+    testWidgets('and is not called out when every month has one', (
+      tester,
+    ) async {
+      await _pump(tester, property: 'property-1', surface: _tall);
+
+      expect(
+        find.byKey(const Key('service-charge-missing-periods')),
+        findsNothing,
+        reason: 'paired with the test above so the notice is not simply '
+            'always shown',
+      );
+    });
+
     testWidgets('a unit that was only partly let says so', (tester) async {
       await _pump(tester, property: 'property-1', surface: _tall);
 
@@ -271,8 +304,10 @@ class _StubPort implements ServiceChargePreviewPort {
   }) async => _result;
 }
 
-ServiceChargePreviewDto _dto() => ServiceChargePreviewDto.fromJson(
-  <String, dynamic>{
+ServiceChargePreviewDto _dto({int monthCount = 2, int periodCount = 2}) =>
+    ServiceChargePreviewDto.fromJson(<String, dynamic>{
+    'month_count': monthCount,
+    'period_count': periodCount,
     'property_id': 'property-1',
     'property_name': 'Haus A',
     'from_date': '2026-01-01',
