@@ -101,6 +101,12 @@ enum GlobalPage {
   criteriaSets,
   reportTemplates,
   adminUsers,
+
+  /// COMPLIANCE-RULES-01 (V-4): the workspace's legal rule set, with validity
+  /// periods. Its own destination rather than a tab on the member screen --
+  /// they answer to different authorities and only overlap in who may change
+  /// them.
+  complianceRules,
   settings,
   help,
 }

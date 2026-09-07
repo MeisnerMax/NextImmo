@@ -28,4 +28,19 @@ regexes = [
   # recurring task generation, not a credential; gitleaks flags it only because
   # the surrounding identifier contains "key".
   '''monthly-\d{4}-\d{2}''',
+
+  # Compliance rule identifiers (COMPLIANCE-RULES-01, V-4). `rule_key` is the
+  # server column and `ruleKey` the Dart field that mirrors it, so gitleaks'
+  # generic-api-key rule fires on the identifier rather than the value -- the
+  # same false positive as `generated_key` above. The values themselves are
+  # statute references: `co2kostaufg_5d_haertefall`,
+  # `bgb_556_belegeinsicht_elektronisch`. Renaming the field to dodge the
+  # heuristic would make the client disagree with the schema, which is the
+  # worse trade.
+  #
+  # Deliberately narrow: lowercase letters, digits and underscores only, at
+  # least two underscore-separated parts. A real API key is not all-lowercase
+  # snake_case, and this pattern cannot match one that carries an uppercase
+  # letter, a hyphen or a dot.
+  '''ruleKey: '[a-z][a-z0-9]*(?:_[a-z0-9]+)+''',
 ]
