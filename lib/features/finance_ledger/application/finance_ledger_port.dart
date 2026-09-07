@@ -184,6 +184,7 @@ class UpsertCostPoolCommand {
     this.poolId,
     this.expectedVersion,
     this.propertyId,
+    this.unitId,
     this.scopeLabel,
     this.note,
     this.isActive = true,
@@ -199,6 +200,12 @@ class UpsertCostPoolCommand {
 
   /// Required for every scope but portfolio, and refused for that one.
   final String? propertyId;
+
+  /// Required for exactly the unit scope, refused for every other. The unit
+  /// must belong to [propertyId]; the server checks that rather than trusting
+  /// the pair, because the foreign key alone would let a pool carry one
+  /// property's name and another's unit.
+  final String? unitId;
 
   /// Required for exactly the three scopes this schema has no entity for, and
   /// refused for the rest.

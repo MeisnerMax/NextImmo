@@ -24,6 +24,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../features/finance_ledger/application/cost_allocation_controller.dart';
 import '../../../features/finance_ledger/application/cost_pool_controller.dart';
 import '../../../features/finance_ledger/domain/cost_pool_dto.dart';
+import '../../../features/finance_ledger/domain/cost_allocation_dto.dart';
+import '../../../features/leasing_operations/application/leasing_providers.dart';
+import '../../../features/leasing_operations/application/leasing_repository.dart';
+import '../../../features/leasing_operations/domain/unit_dto.dart';
 import '../../../features/portfolio_property/application/property_repository.dart';
 import '../../../features/portfolio_property/domain/property_dto.dart';
 import '../../../features/portfolio_property/presentation/property_switcher_dialog.dart';
@@ -41,16 +45,27 @@ import '../../theme/app_theme.dart';
 import 'allocation_key_dialog.dart';
 import 'cost_pool_dialog.dart';
 
-String allocationUnresolvableReasonLabel(
-  AllocationUnresolvableReason? reason,
-) => switch (reason) {
-  AllocationUnresolvableReason.noBasisStore => 'Keine Datenbasis vorhanden',
-  AllocationUnresolvableReason.noMeters => 'Keine Zähler erfasst',
-  AllocationUnresolvableReason.noUnits => 'Keine Einheiten erfasst',
-  AllocationUnresolvableReason.incompleteBasis => 'Werte unvollständig',
-  AllocationUnresolvableReason.unknown => 'Unbekannter Grund',
-  null => 'Auflösbar',
-};
+/// Why this key cannot be used, in the reader's language.
+///
+/// Takes the key rather than the reason, because the reason alone cannot
+/// answer it. A basis this build does not recognise makes the key unusable
+/// even when the server said it resolves — and in that case the server sends
+/// no reason at all, so a label table keyed on the reason would answer
+/// "Auflösbar" inside a warning badge, contradicting itself.
+String allocationKeyUnusableLabel(AllocationKeyDto key) {
+  if (key.basis == AllocationBasis.unknown) {
+    return 'Maßstab unbekannt';
+  }
+  return switch (key.basisResolution.reason) {
+    AllocationUnresolvableReason.noBasisStore => 'Keine Datenbasis vorhanden',
+    AllocationUnresolvableReason.noMeters => 'Keine Zähler erfasst',
+    AllocationUnresolvableReason.noUnits => 'Keine Einheiten erfasst',
+    AllocationUnresolvableReason.incompleteBasis => 'Werte unvollständig',
+    AllocationUnresolvableReason.notEvaluated => 'Noch nicht bewertet',
+    AllocationUnresolvableReason.unknown => 'Unbekannter Grund',
+    null => 'Grund nicht angegeben',
+  };
+}
 
 class CostPoolScreen extends ConsumerStatefulWidget {
   const CostPoolScreen({super.key, this.propertyId});
@@ -69,6 +84,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
   /// its name rather than as a uuid.
   final Map<String, String> _pickedNames = <String, String>{};
 
+
   @override
   Widget build(BuildContext context) {
     final CostPoolState state = ref.watch(
@@ -77,6 +93,16 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
     final CostPoolController controller = ref.read(
       costPoolControllerProvider(widget.propertyId).notifier,
     );
+    // Watched, not read. `costAllocationControllerProvider` is autoDispose and
+    // loads asynchronously from its own body, so a bare `ref.read` returns the
+    // empty initial state and disposes the controller before its load lands --
+    // leaving the Kostenart picker permanently empty and, on a key that names
+    // an account, giving the dropdown a value with no matching item. It is the
+    // same account tree P-2a classifies, so the two surfaces cannot disagree
+    // about what a Kostenart is.
+    final List<CostAccountAllocationDto> accounts = ref
+        .watch(costAllocationControllerProvider)
+        .accounts;
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -90,7 +116,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
                 'Maßstab sie auf die Einheiten verteilt werden.',
           ),
           const SizedBox(height: AppSpacing.sm),
-          Expanded(child: _body(context, state, controller)),
+          Expanded(child: _body(context, state, controller, accounts)),
         ],
       ),
     );
@@ -100,6 +126,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
     BuildContext context,
     CostPoolState state,
     CostPoolController controller,
+    List<CostAccountAllocationDto> accounts,
   ) {
     switch (state.phase) {
       case CostPoolPhase.idle:
@@ -129,7 +156,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
           ),
         );
       case CostPoolPhase.ready:
-        return _ready(context, state, controller);
+        return _ready(context, state, controller, accounts);
     }
   }
 
@@ -137,6 +164,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
     BuildContext context,
     CostPoolState state,
     CostPoolController controller,
+    List<CostAccountAllocationDto> accounts,
   ) {
     final semantic = context.semanticColors;
 
@@ -196,7 +224,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
             if (controller.canMutate)
               FilledButton.icon(
                 key: const Key('allocation-key-create'),
-                onPressed: () => _editKey(controller, state, null),
+                onPressed: () => _editKey(controller, state, accounts, null),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Schlüssel anlegen'),
               ),
@@ -222,7 +250,7 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
               child: _KeyRow(
                 allocationKey: key,
                 canMutate: controller.canMutate,
-                onEdit: () => _editKey(controller, state, key),
+                onEdit: () => _editKey(controller, state, accounts, key),
               ),
             ),
         const SizedBox(height: AppSpacing.md),
@@ -291,61 +319,88 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
     CostPoolController controller,
     CostPoolDto? pool,
   ) async {
-    final CostPoolFormResult? result = await showCostPoolDialog(
+    // The dialog runs the command itself and stays open on a refusal, so the
+    // user keeps what they typed and sees the message on the field the server
+    // named. Nothing is awaited here but the dialog's own outcome.
+    await showCostPoolDialog(
       context,
       pool: pool,
       pickProperty: _pickProperty,
+      loadUnits: _loadUnits,
       propertyLabel: _propertyLabel,
-    );
-    if (result == null) {
-      return;
-    }
-    await controller.savePool(
-      existing: pool,
-      poolKey: result.poolKey,
-      name: result.name,
-      scope: result.scope,
-      propertyId: result.propertyId,
-      scopeLabel: result.scopeLabel,
-      note: result.note,
-      isActive: result.isActive,
+      onSubmit: (CostPoolFormResult result) => controller.savePool(
+        existing: pool,
+        poolKey: result.poolKey,
+        name: result.name,
+        scope: result.scope,
+        propertyId: result.propertyId,
+        unitId: result.unitId,
+        scopeLabel: result.scopeLabel,
+        note: result.note,
+        isActive: result.isActive,
+      ),
     );
   }
 
   Future<void> _editKey(
     CostPoolController controller,
     CostPoolState state,
+    List<CostAccountAllocationDto> accounts,
     AllocationKeyDto? allocationKey,
   ) async {
-    // The cost account list comes from P-2a's read, which is the same account
-    // tree a key points at. Reusing it keeps the two surfaces from disagreeing
-    // about what a Kostenart is.
-    final CostAllocationState allocation = ref.read(
-      costAllocationControllerProvider,
-    );
-    final AllocationKeyFormResult? result = await showAllocationKeyDialog(
+    await showAllocationKeyDialog(
       context,
       allocationKey: allocationKey,
       initialPropertyId: widget.propertyId,
       pools: state.poolList,
-      accounts: allocation.accounts,
+      accounts: accounts,
       pickProperty: _pickProperty,
       propertyLabel: _propertyLabel,
+      onSubmit: (AllocationKeyFormResult result) => controller.saveKey(
+        existing: allocationKey,
+        propertyId: result.propertyId,
+        basis: result.basis,
+        explanation: result.explanation,
+        validFrom: result.validFrom,
+        validTo: result.validTo,
+        financeAccountId: result.financeAccountId,
+        costPoolId: result.costPoolId,
+        note: result.note,
+      ),
     );
-    if (result == null) {
-      return;
+  }
+
+  /// The units of one property, for a unit-scoped pool. Read through the
+  /// leasing contract rather than a second query of its own: `units` belongs
+  /// to that feature and a pool only borrows the identity.
+  Future<List<CostPoolUnitOption>> _loadUnits(String propertyId) async {
+    final String? workspaceId = ref
+        .read(workspaceSessionScopeProvider)
+        .workspaceId;
+    if (workspaceId == null) {
+      return const <CostPoolUnitOption>[];
     }
-    await controller.saveKey(
-      existing: allocationKey,
-      propertyId: result.propertyId,
-      basis: result.basis,
-      explanation: result.explanation,
-      validFrom: result.validFrom,
-      validTo: result.validTo,
-      financeAccountId: result.financeAccountId,
-      costPoolId: result.costPoolId,
-      note: result.note,
-    );
+    final LeasingRepositoryResult<LeasingPageResult<UnitSummaryDto>> result =
+        await ref.read(unitSearchProvider).search(
+          UnitListQuery(workspaceId: workspaceId, propertyId: propertyId),
+        );
+    if (result
+        case LeasingRepositorySuccess<LeasingPageResult<UnitSummaryDto>>(
+          :final value,
+        )) {
+      return value.items
+          .map(
+            (UnitSummaryDto unit) => CostPoolUnitOption(
+              id: unit.id,
+              label: unit.unitCode,
+            ),
+          )
+          .toList(growable: false);
+    }
+    // An empty list rather than a thrown error: the dialog says "no unit
+    // chosen" and refuses to submit, which is the same outcome as a property
+    // with no units and is honest about both.
+    return const <CostPoolUnitOption>[];
   }
 
   /// The workspace-wide property search (`PROPERTY-LOOKUP-01`), not a filter
@@ -530,7 +585,7 @@ class _KeyRow extends StatelessWidget {
               else
                 NxStatusBadge(
                   key: const Key('allocation-key-unresolvable'),
-                  label: allocationUnresolvableReasonLabel(resolution.reason),
+                  label: allocationKeyUnusableLabel(allocationKey),
                   kind: NxBadgeKind.warning,
                 ),
             ],

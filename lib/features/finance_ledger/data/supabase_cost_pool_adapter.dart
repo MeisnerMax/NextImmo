@@ -113,6 +113,13 @@ class SupabaseCostPoolAdapter implements CostPoolsPort {
     // The label is the entire identity of a building, an entrance or a
     // Zählergruppe here, because this schema has no entity for any of the
     // three. Without it the pool would have no place at all.
+    if (costPoolScopeNeedsUnit(command.scope) && command.unitId == null) {
+      return const FinanceRepositoryFailure<CostPoolDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message: 'Ein Einheiten-Pool benennt die Einheit, die er abdeckt.',
+        field: 'unitId',
+      );
+    }
     if (costPoolScopeNeedsLabel(command.scope) &&
         (command.scopeLabel == null || command.scopeLabel!.trim().isEmpty)) {
       return const FinanceRepositoryFailure<CostPoolDto>(
@@ -137,6 +144,7 @@ class SupabaseCostPoolAdapter implements CostPoolsPort {
           'p_pool_id': command.poolId,
           'p_expected_version': command.expectedVersion,
           'p_property_id': command.propertyId,
+          'p_unit_id': command.unitId,
           'p_scope_label': command.scopeLabel,
           'p_note': command.note,
           'p_is_active': command.isActive,
@@ -300,16 +308,18 @@ CostPoolDto _parsePool(Map<String, dynamic> row) {
     scope: scope,
     propertyId: _optionalString(row['property_id']),
     propertyName: _optionalString(row['property_name']),
+    unitId: _optionalString(row['unit_id']),
+    unitCode: _optionalString(row['unit_code']),
     scopeLabel: _optionalString(row['scope_label']),
     note: _optionalString(row['note']),
     isActive: row['is_active'] == true,
     version: _requiredInt(row, 'version'),
-    // Taken from the server, not derived from the scope here. A build that
+    // Taken from the server, never derived from the scope here: a build that
     // gains a building entity should not need this rule rewritten in two
-    // places, and the snapshot the command returns carries the same field.
-    scopeResolvable: row.containsKey('scope_resolvable')
-        ? row['scope_resolvable'] == true
-        : !costPoolScopeNeedsLabel(scope),
+    // places. Absent means the payload did not answer -- and an unanswered
+    // question must not read as "yes", or an unrecognised scope from a newer
+    // server would come back as automatically distributable.
+    scopeResolvable: row['scope_resolvable'] == true,
     scopeUnresolvableReason: _optionalString(row['scope_unresolvable_reason']),
     rawScopeKey: scope == CostPoolScope.unknown ? rawScope : null,
   );
@@ -358,7 +368,10 @@ AllocationKeyDto _parseKey(Map<String, dynamic> row) {
     // and unknown must not read as resolvable.
     basisResolution: rawResolution is Map
         ? _parseResolution(_asMap(rawResolution))
-        : const AllocationBasisResolutionDto(resolvable: false),
+        : const AllocationBasisResolutionDto(
+            resolvable: false,
+            reason: AllocationUnresolvableReason.notEvaluated,
+          ),
     rawBasisKey: basis == AllocationBasis.unknown ? rawBasis : null,
   );
 }

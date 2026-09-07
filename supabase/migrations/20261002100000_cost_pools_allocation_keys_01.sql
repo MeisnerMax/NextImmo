@@ -39,6 +39,15 @@
 -- force then", exactly as `lease_components_as_of` is. The period table, when
 -- P-5 builds it, becomes a consumer of these keys rather than their parent.
 --
+-- **The unit scope points at a unit, and the other five say what they point
+-- at too.** An earlier draft of this migration gave `unit` no column naming a
+-- unit and forbade it a label, so two unit pools under one property were
+-- indistinguishable as to which unit each meant -- while the read still called
+-- them automatically distributable. `unit_id` is required for exactly that
+-- scope and refused for every other, and the command verifies the unit sits in
+-- the property the pool names, because the foreign key alone would let a pool
+-- carry one property's name and another's unit.
+--
 -- **Three of the six scopes have no entity to point at.** Building, Entrance
 -- and Meter group exist nowhere in this schema, and meters are P-4. They are
 -- kept in the vocabulary because the programme enumerates them and dropping
@@ -138,6 +147,13 @@ create table public.cost_pools (
   -- including the three that then narrow further by label.
   property_id uuid,
 
+  -- Required for exactly the unit scope, forbidden otherwise. Without it a
+  -- unit-scoped pool had no identity at all: this table has no other column
+  -- naming a unit, and `scope_label` is refused for that scope -- so two such
+  -- pools under one property were indistinguishable as to which unit each
+  -- meant, while the read still called them automatically distributable.
+  unit_id uuid,
+
   -- Stable within its scope, chosen by the workspace. The name is what a human
   -- reads; this is what a later run line cites.
   pool_key text not null,
@@ -167,6 +183,8 @@ create table public.cost_pools (
   -- an existing table. The commands verify the workspace explicitly.
   constraint cost_pools_property_fkey foreign key (property_id)
     references public.properties (id) on delete restrict,
+  constraint cost_pools_unit_fkey foreign key (workspace_id, unit_id)
+    references public.units (workspace_id, id) on delete restrict,
 
   constraint cost_pools_key_check check (
     pool_key = btrim(pool_key)
@@ -199,6 +217,14 @@ create table public.cost_pools (
       and scope_label is null)
   ),
 
+  -- Spelled out on both sides, like the label check: a comparison against a
+  -- null unit evaluates to NULL, and a CHECK that evaluates to NULL is
+  -- satisfied.
+  constraint cost_pools_unit_scope_check check (
+    (scope = 'unit' and unit_id is not null)
+    or (scope <> 'unit' and unit_id is null)
+  ),
+
   constraint cost_pools_version_check check (version >= 1)
 );
 
@@ -214,9 +240,22 @@ create unique index cost_pools_portfolio_key_idx
 
 -- The foreign key is on `property_id` alone, so the supporting index has to
 -- lead with it (004's leading-column invariant).
+-- If a label really is the only identity a building, an entrance or a meter
+-- group has here, then two pools sharing one under the same property are two
+-- pools claiming one physical thing -- and the costs a human assigns to
+-- "Aufgang West" would split across both with no signal anywhere. Scoped by
+-- scope as well, so an entrance and a meter group may share a name.
+create unique index cost_pools_scope_label_idx
+  on public.cost_pools (workspace_id, property_id, scope, scope_label)
+  where scope_label is not null;
+
 create index cost_pools_property_fk_idx
   on public.cost_pools (property_id)
   where property_id is not null;
+-- Leading-column support for the composite unit foreign key.
+create index cost_pools_unit_idx
+  on public.cost_pools (workspace_id, unit_id)
+  where unit_id is not null;
 create index cost_pools_workspace_idx
   on public.cost_pools (workspace_id, is_active);
 
@@ -308,6 +347,13 @@ create table public.allocation_keys (
   constraint allocation_keys_note_check check (
     note is null or char_length(btrim(note)) between 1 and 2000
   ),
+  -- Documentation more than enforcement, and deliberately kept as both. The
+  -- generated range above is evaluated before any CHECK, so an inverted term
+  -- raises `22000 range lower bound must be less than or equal to range upper
+  -- bound` and this constraint is never reached. It stays because it states
+  -- the rule where a reader looks for it, and because it would take over if
+  -- the generated column ever changed. The command handles `data_exception`
+  -- for the same reason.
   constraint allocation_keys_term_check check (
     valid_to is null or valid_to >= valid_from
   ),
@@ -387,6 +433,16 @@ as $function$
     'name', pool.name,
     'scope', pool.scope,
     'scope_label', pool.scope_label,
+    'unit_id', pool.unit_id,
+    -- Carried on the snapshot rather than added by the read alone, so the
+    -- command's own answer states it too. A caller that only ever sees write
+    -- results would otherwise have to infer it from the scope, which is the
+    -- inference this field exists to replace.
+    'scope_resolvable', pool.scope not in ('building', 'entrance', 'meter_group'),
+    'scope_unresolvable_reason', case
+      when pool.scope in ('building', 'entrance', 'meter_group') then 'no_entity'
+      else null
+    end,
     'note', pool.note,
     'is_active', pool.is_active,
     'created_at', pool.created_at,
@@ -511,7 +567,7 @@ begin
     );
   end if;
 
-  -- area_sqm.
+  if p_basis = 'area_sqm' then
   return jsonb_build_object(
     -- A single unit without an area makes the denominator wrong for every
     -- other unit, because its share is silently redistributed over them. So
@@ -530,6 +586,22 @@ begin
       'The sum of units.area_sqm. This schema holds four other area figures '
       'and reconciles none of them; this key means this one.'
   );
+  end if;
+
+  -- Every enum value above is handled by name, and this is what is left. It
+  -- exists because the first version of this function let `area_sqm` be the
+  -- unguarded fall-through: plpgsql has no exhaustiveness check, so a value
+  -- added to the enum by a later migration would have been answered with the
+  -- area sum and an area `detail` -- the legacy "Personen wird zu Flaeche"
+  -- failure, rebuilt by the code written to prevent it. An unrecognised basis
+  -- now refuses, and the refusal names itself.
+  return jsonb_build_object(
+    'resolvable', false,
+    'reason', 'unknown_basis',
+    'detail',
+      'This basis was added to the vocabulary without deciding what it '
+      'resolves to. It distributes nothing until that decision is made.'
+  );
 end;
 $function$;
 
@@ -543,9 +615,10 @@ revoke all on function private.allocation_basis_resolution(
 comment on function private.allocation_basis_resolution(
   uuid, uuid, public.allocation_basis
 ) is
-  'What a basis resolves to for one property, or why it does not. The four '
-  'bases with no store are named individually so adding an enum value without '
-  'deciding this is visible rather than a silent fall-through.';
+  'What a basis resolves to for one property, or why it does not. Every enum '
+  'value is handled by name and the remaining branch refuses, so a value '
+  'added later distributes nothing until somebody decides what it means -- '
+  'rather than inheriting whichever branch happened to be last.';
 
 -- ---------------------------------------------------------------------------
 -- Reads
@@ -589,18 +662,7 @@ begin
       private.cost_pool_snapshot(pool)
       || jsonb_build_object(
            'property_name', property.name,
-           -- Said on every pool rather than left for the caller to infer from
-           -- the scope. A pool at a scope this schema has no entity for can
-           -- hold costs a human assigns; it cannot be distributed
-           -- automatically, and the difference has to be visible where the
-           -- pool is read.
-           'scope_resolvable',
-             pool.scope not in ('building', 'entrance', 'meter_group'),
-           'scope_unresolvable_reason', case
-             when pool.scope in ('building', 'entrance', 'meter_group')
-               then 'no_entity'
-             else null
-           end
+           'unit_code', unit.unit_code
          )
       order by property.name nulls first, pool.pool_key
     ),
@@ -611,8 +673,19 @@ begin
   left join public.properties as property
     on property.workspace_id = pool.workspace_id
     and property.id = pool.property_id
+  left join public.units as unit
+    on unit.workspace_id = pool.workspace_id
+    and unit.id = pool.unit_id
   where pool.workspace_id = p_workspace_id
-    and (p_property_id is null or pool.property_id = p_property_id)
+    and (
+      p_property_id is null
+      or pool.property_id = p_property_id
+      -- A portfolio pool has a null property and, by its own definition,
+      -- covers every one of them. Without this it was filtered out of exactly
+      -- the per-property read it applies to, because `null = p` is not true --
+      -- the same comparison this migration coalesces around twice elsewhere.
+      or pool.scope = 'portfolio'
+    )
     and (p_include_inactive or pool.is_active);
 
   return jsonb_build_object(
@@ -767,6 +840,7 @@ create function public.upsert_cost_pool(
   p_pool_id uuid default null,
   p_expected_version bigint default null,
   p_property_id uuid default null,
+  p_unit_id uuid default null,
   p_scope_label text default null,
   p_note text default null,
   p_is_active boolean default true,
@@ -867,6 +941,27 @@ begin
     );
   end if;
 
+  if v_scope = 'unit' and p_unit_id is null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message', 'A unit pool names the unit it covers',
+        'field', 'unitId'
+      )
+    );
+  end if;
+  if v_scope <> 'unit' and p_unit_id is not null then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'validation_failed',
+        'message', 'Only a unit pool names a unit',
+        'field', 'unitId'
+      )
+    );
+  end if;
+
   if v_scope in ('building', 'entrance', 'meter_group')
      and (p_scope_label is null
           or char_length(btrim(p_scope_label)) not between 1 and 200) then
@@ -919,6 +1014,24 @@ begin
     );
   end if;
 
+  -- The unit must sit in the property the pool names, or the pool would point
+  -- at a unit of a different building while displaying this one's name.
+  if p_unit_id is not null and not exists (
+    select 1 from public.units as unit
+    where unit.workspace_id = p_workspace_id
+      and unit.id = p_unit_id
+      and unit.property_id = p_property_id
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'not_found',
+        'message', 'Unit not found in that property',
+        'field', 'unitId'
+      )
+    );
+  end if;
+
   v_request_hash := extensions.digest(
     convert_to(
       jsonb_build_object(
@@ -930,6 +1043,7 @@ begin
         'name', p_name,
         'scope', p_scope,
         'property_id', p_property_id,
+        'unit_id', p_unit_id,
         'scope_label', p_scope_label,
         'note', p_note,
         'is_active', p_is_active,
@@ -1004,6 +1118,7 @@ begin
         name = btrim(p_name),
         scope = v_scope,
         property_id = p_property_id,
+        unit_id = p_unit_id,
         scope_label = nullif(btrim(coalesce(p_scope_label, '')), ''),
         note = nullif(btrim(coalesce(p_note, '')), ''),
         is_active = coalesce(p_is_active, true),
@@ -1014,10 +1129,11 @@ begin
       returning * into v_new;
     else
       insert into public.cost_pools (
-        workspace_id, property_id, pool_key, name, scope, scope_label, note,
-        is_active, created_by, updated_by
+        workspace_id, property_id, unit_id, pool_key, name, scope, scope_label,
+        note, is_active, created_by, updated_by
       ) values (
-        p_workspace_id, p_property_id, btrim(p_pool_key), btrim(p_name),
+        p_workspace_id, p_property_id, p_unit_id, btrim(p_pool_key),
+        btrim(p_name),
         v_scope, nullif(btrim(coalesce(p_scope_label, '')), ''),
         nullif(btrim(coalesce(p_note, '')), ''), coalesce(p_is_active, true),
         v_actor_id, v_actor_id
@@ -1031,7 +1147,9 @@ begin
         'ok', false,
         'error', jsonb_build_object(
           'code', 'dependency_conflict',
-          'message', 'A pool with this key already exists in that scope',
+          'message',
+            'That pool key, or that label for this scope, is already taken '
+            'under this property',
           'field', 'poolKey'
         )
       );
@@ -1060,13 +1178,16 @@ end;
 $function$;
 
 alter function public.upsert_cost_pool(
-  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, text, text, boolean, text
+  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, uuid, text, text,
+  boolean, text
 ) owner to postgres;
 revoke all on function public.upsert_cost_pool(
-  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, text, text, boolean, text
+  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, uuid, text, text,
+  boolean, text
 ) from public, anon, authenticated;
 grant execute on function public.upsert_cost_pool(
-  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, text, text, boolean, text
+  uuid, text, text, text, uuid, uuid, uuid, bigint, uuid, uuid, text, text,
+  boolean, text
 ) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -1215,14 +1336,31 @@ begin
     );
   end if;
 
+  -- The composite foreign key holds the workspace boundary and nothing else.
+  -- Without the property clause a key for property A could name a pool scoped
+  -- to property B, and the read would then render B's pool against A's name
+  -- and distribute it over A's units. A portfolio pool is the one case that
+  -- legitimately belongs to no single property.
+  --
+  -- `is_active` is checked here because this is the only place it can mean
+  -- anything: a flag that is written and filtered in one read but enforced
+  -- nowhere is a status without a lifecycle. Deactivating a pool stops new
+  -- keys naming it; the keys that already do keep it until somebody changes
+  -- them, which is why the check is on the incoming value only.
   if p_cost_pool_id is not null and not exists (
     select 1 from public.cost_pools as pool
-    where pool.workspace_id = p_workspace_id and pool.id = p_cost_pool_id
+    where pool.workspace_id = p_workspace_id
+      and pool.id = p_cost_pool_id
+      and pool.is_active
+      and (pool.scope = 'portfolio' or pool.property_id = p_property_id)
   ) then
     return jsonb_build_object(
       'ok', false,
       'error', jsonb_build_object(
-        'code', 'not_found', 'message', 'Cost pool not found'
+        'code', 'not_found',
+        'message',
+          'No active cost pool with that id covers this property',
+        'field', 'costPoolId'
       )
     );
   end if;
@@ -1343,7 +1481,12 @@ begin
             'part of that period'
         )
       );
-    when check_violation then
+    -- `data_exception` alongside `check_violation`: an inverted term is
+    -- rejected by the generated range expression, not by the CHECK, and it
+    -- raises 22000 rather than 23514. Without this the CHECK reads as a
+    -- backstop it is not, and an inverted range reaching the INSERT would
+    -- abort uncaught instead of answering.
+    when check_violation or data_exception then
       perform private.fail_finance_mutation(p_workspace_id, p_mutation_id);
       return jsonb_build_object(
         'ok', false,
@@ -1383,19 +1526,23 @@ grant execute on function public.upsert_allocation_key(
 -- ---------------------------------------------------------------------------
 --
 -- `set_cost_allocation_rule` shipped against `private.party_command_gate` and
--- released its receipt with a DELETE. Both are corrected here, and neither is
--- cosmetic:
+-- released its receipt with a DELETE. One of those is a defect and the other
+-- is not, and saying which is which matters more than moving both:
 --
---   * the finance gate asserts `private.is_aal2()` itself (DEC-025) rather
---     than relying on the permission helper to assert it a few lines later.
---     The outcome was the same -- SR-21 guarantees the helper checks it -- but
---     an aal1 caller was told "the write is not permitted" instead of "AAL2 is
---     required", and the check sat in a different place than in every other
---     finance command.
---   * `fail_finance_mutation` marks a receipt failed; the DELETE removed it.
---     A deleted receipt cannot compare request hashes on the retry, so a
---     different command reusing that mutation id would have been accepted as a
---     fresh attempt instead of refused as a conflict.
+--   * **The receipt handling was wrong.** `fail_finance_mutation` marks a
+--     receipt failed; the DELETE removed it. A deleted receipt cannot compare
+--     request hashes, so a *different* command reusing that mutation id would
+--     have been accepted as a fresh attempt instead of refused as a conflict.
+--     That is the correction this migration makes.
+--   * **The gate was not wrong, only misplaced.** An earlier draft of this
+--     header claimed the party gate left AAL2 to the permission helper and so
+--     told an aal1 caller "not permitted" instead of "AAL2 is required". That
+--     is false: `private.party_command_gate` calls `private.is_aal2()` itself,
+--     in the same position, and answers "AAL2 is required for party
+--     mutations". The only difference was the word *party* in a message about
+--     a finance command. It is moved for that wording and for consistency,
+--     not to close a hole -- and the difference is recorded here because a
+--     false justification in a migration header outlives the migration.
 
 create or replace function public.set_cost_allocation_rule(
   p_workspace_id uuid,

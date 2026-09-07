@@ -32,11 +32,14 @@ create extension if not exists pgtap with schema extensions;
 -- refused, not defaulted.
 --
 -- The P-2a correction is asserted here rather than in 055, because it is this
--- migration that makes it: `set_cost_allocation_rule` now runs on the finance
--- command plumbing, so an aal1 caller is told AAL2 is required, and a refused
--- command leaves its receipt marked `failed` rather than deleted.
+-- migration that makes it. Only half of it was a defect: the DELETE on the
+-- receipt was, because a deleted receipt cannot compare request hashes and a
+-- different command reusing the id would have been accepted as a fresh
+-- attempt. The gate was not -- `private.party_command_gate` checks AAL2 itself
+-- and says so -- and the assertion below pins wording rather than claiming a
+-- hole was closed.
 
-select plan(58);
+select plan(74);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -174,6 +177,7 @@ create or replace function pg_temp.pool(
   p_id uuid default null,
   p_version bigint default null,
   p_active boolean default true,
+  p_unit uuid default null,
   p_user uuid default '72200000-0000-0000-0000-000000000001',
   p_mutation uuid default gen_random_uuid(),
   p_correlation uuid default gen_random_uuid(),
@@ -186,7 +190,7 @@ as $$
     p_user,
     format(
       $q$select public.upsert_cost_pool(
-        %L::uuid, %L, %L, %L, %L::uuid, %L::uuid, %s, %s, %s, %s, null,
+        %L::uuid, %L, %L, %L, %L::uuid, %L::uuid, %s, %s, %s, %s, %s, null,
         %L::boolean, 'Test')$q$,
       '72100000-0000-0000-0000-000000000001', p_key, p_name, p_scope,
       p_mutation, p_correlation,
@@ -195,6 +199,8 @@ as $$
            else p_version::text || '::bigint' end,
       case when p_property is null then 'null'
            else quote_literal(p_property) || '::uuid' end,
+      case when p_unit is null then 'null'
+           else quote_literal(p_unit) || '::uuid' end,
       case when p_label is null then 'null' else quote_literal(p_label) end,
       p_active
     ),
@@ -335,6 +341,56 @@ select is(
   'dependency_conflict',
   'and not twice at portfolio scope, where the property is null');
 
+-- A unit pool with no unit had no identity at all: this table has no other
+-- column naming one, and a label is refused for that scope -- so two such
+-- pools under one property were indistinguishable, while the read still
+-- called them automatically distributable.
+select is(
+  pg_temp.pool('whg', 'Wohnung', 'unit',
+               '72500000-0000-0000-0000-000000000001')
+    -> 'error' ->> 'field',
+  'unitId',
+  'a unit pool without a unit is refused');
+
+select is(
+  pg_temp.pool('whg', 'Wohnung', 'unit',
+               '72500000-0000-0000-0000-000000000001',
+               p_unit => '72600000-0000-0000-0000-000000000001') -> 'ok',
+  'true'::jsonb,
+  'and is accepted once it names one');
+
+select is(
+  pg_temp.pool('whg-fremd', 'Fremde Wohnung', 'unit',
+               '72500000-0000-0000-0000-000000000001',
+               p_unit => '72600000-0000-0000-0000-000000000003')
+    -> 'error' ->> 'code',
+  'not_found',
+  'a unit from another property is refused: the pool would carry this '
+  'property''s name and point at that one''s unit');
+
+select is(
+  pg_temp.pool('betrieb-unit', 'Portfolio mit Einheit', 'portfolio',
+               p_unit => '72600000-0000-0000-0000-000000000001')
+    -> 'error' ->> 'field',
+  'unitId',
+  'and only a unit pool names a unit');
+
+-- The label is called the only identity these three scopes have. Two pools
+-- sharing one under the same property are two pools claiming one physical
+-- entrance, and the costs assigned to it would split across both.
+select is(
+  pg_temp.pool('aufgang-b', 'Aufgang', 'entrance',
+               '72500000-0000-0000-0000-000000000001', 'Aufgang West')
+    -> 'error' ->> 'code',
+  'dependency_conflict',
+  'a second entrance pool with the same label is refused');
+
+select is(
+  pg_temp.pool('aufgang-b', 'Aufgang', 'entrance',
+               '72500000-0000-0000-0000-000000000001', 'Aufgang Ost') -> 'ok',
+  'true'::jsonb,
+  'a different label is accepted');
+
 select is(
   pg_temp.pool('unfug', 'Unfug', 'district',
                '72500000-0000-0000-0000-000000000001')
@@ -381,6 +437,44 @@ select is(
      and entry ->> 'scope' = 'property'),
   'true',
   'and the property pool is resolvable');
+
+-- A portfolio pool covers every property by its own definition, and its
+-- `property_id` is null -- so a plain `property_id = p` predicate dropped it
+-- from exactly the read it applies to, because `null = p` is not true.
+select is(
+  (select count(*)::integer
+   from jsonb_array_elements(
+     pg_temp.as_user('72200000-0000-0000-0000-000000000001',
+       $q$select public.workspace_cost_pools(
+         '72100000-0000-0000-0000-000000000001'::uuid,
+         '72500000-0000-0000-0000-000000000001'::uuid, false)$q$)
+     -> 'entity' -> 'pools') as entry
+   where entry ->> 'pool_key' = 'betrieb'
+     and entry ->> 'scope' = 'portfolio'),
+  1,
+  'the per-property read includes the portfolio pool that covers it');
+
+select is(
+  (select count(*)::integer
+   from jsonb_array_elements(
+     pg_temp.as_user('72200000-0000-0000-0000-000000000001',
+       $q$select public.workspace_cost_pools(
+         '72100000-0000-0000-0000-000000000001'::uuid,
+         '72500000-0000-0000-0000-000000000002'::uuid, false)$q$)
+     -> 'entity' -> 'pools') as entry
+   where entry ->> 'property_id' = '72500000-0000-0000-0000-000000000001'),
+  0,
+  'and no pool belonging to the other property -- paired with the case above '
+  'so neither passes by the filter being absent');
+
+-- The command's own answer carries it too, not only the list read.
+select is(
+  pg_temp.pool('snapshot', 'Snapshot', 'entrance',
+               '72500000-0000-0000-0000-000000000001', 'Aufgang Sued')
+    -> 'entity' ->> 'scope_resolvable',
+  'false',
+  'the write result states resolvability as well, so a caller that only sees '
+  'write results need not infer it from the scope');
 
 -- ---------------------------------------------------------------------------
 -- Allocation keys: the mandatory explanation
@@ -461,6 +555,59 @@ select is(
     -> 'error' ->> 'field',
   'validTo',
   'an end before the start is refused');
+
+-- ---------------------------------------------------------------------------
+-- The pool a key may name
+-- ---------------------------------------------------------------------------
+--
+-- The composite foreign key holds the workspace boundary and nothing else, and
+-- the exclusion constraint keys on the pool rather than checking it. Without
+-- these two rules a key for property A could name property B's pool, and the
+-- read would render B's pool under A's name over A's units.
+
+select is(
+  pg_temp.key('unit_count', date '2030-01-01',
+              p_pool => (select id from public.cost_pools
+                         where pool_key = 'heizung' and scope = 'property'),
+              p_account => '72300000-0000-0000-0000-000000000002') -> 'ok',
+  'true'::jsonb,
+  'a key may name a pool of its own property');
+
+select is(
+  pg_temp.key('unit_count', date '2030-01-01',
+              p_property => '72500000-0000-0000-0000-000000000002',
+              p_pool => (select id from public.cost_pools
+                         where pool_key = 'heizung' and scope = 'property'),
+              p_account => '72300000-0000-0000-0000-000000000002')
+    -> 'error' ->> 'field',
+  'costPoolId',
+  'and not one belonging to a different property');
+
+select is(
+  pg_temp.key('unit_count', date '2031-01-01',
+              p_pool => (select id from public.cost_pools
+                         where pool_key = 'betrieb' and scope = 'portfolio'),
+              p_account => '72300000-0000-0000-0000-000000000002') -> 'ok',
+  'true'::jsonb,
+  'a portfolio pool belongs to no single property and is accepted for any');
+
+-- `is_active` is enforced here or nowhere: a flag that is written and filtered
+-- in one read but checked in no command is a status without a lifecycle.
+select is(
+  pg_temp.pool('stillgelegt', 'Stillgelegt', 'property',
+               '72500000-0000-0000-0000-000000000001',
+               p_active => false) -> 'entity' ->> 'is_active',
+  'false',
+  'a pool can be deactivated');
+
+select is(
+  pg_temp.key('unit_count', date '2032-01-01',
+              p_pool => (select id from public.cost_pools
+                         where pool_key = 'stillgelegt'),
+              p_account => '72300000-0000-0000-0000-000000000002')
+    -> 'error' ->> 'field',
+  'costPoolId',
+  'and no new key may name it afterwards');
 
 -- ---------------------------------------------------------------------------
 -- What the basis actually resolves to
@@ -552,6 +699,34 @@ select is(
   'true',
   'a direct assignment is resolvable and reports no total: there is nothing '
   'to divide by');
+
+-- The first version of this function let `area_sqm` be the unguarded
+-- fall-through, so a value added to the enum later would have been answered
+-- with the area sum -- the legacy "Personen wird zu Flaeche" failure, rebuilt
+-- by the code written to prevent it. A synthetic eighth value cannot be tested
+-- here (`alter type ... add value` may not be used in the transaction that
+-- adds it), so the guard is asserted the other way round: exactly one of the
+-- seven reports the area figure, and every other one names itself.
+select is(
+  (select count(*)::integer
+   from unnest(enum_range(null::public.allocation_basis)) as basis
+   where private.allocation_basis_resolution(
+     '72100000-0000-0000-0000-000000000001',
+     '72500000-0000-0000-0000-000000000001', basis
+   ) ->> 'detail' like 'The sum of units.area_sqm%'),
+  1,
+  'exactly one basis answers with the area figure -- area is a named branch '
+  'now, not whatever is left at the end of the function');
+
+select is(
+  (select count(*)::integer
+   from unnest(enum_range(null::public.allocation_basis)) as basis
+   where private.allocation_basis_resolution(
+     '72100000-0000-0000-0000-000000000001',
+     '72500000-0000-0000-0000-000000000001', basis
+   ) ->> 'detail' is null),
+  0,
+  'and every value in the vocabulary says something about itself');
 
 -- ---------------------------------------------------------------------------
 -- The read counts what a settlement run could not use
@@ -707,9 +882,11 @@ select is(
     'aal1')
     -> 'error' ->> 'message',
   'AAL2 is required for finance mutations',
-  'set_cost_allocation_rule now runs on the finance command plumbing, so an '
-  'aal1 caller is told the assurance level is the problem -- P-2a shipped it '
-  'on the party gate, which only said "not permitted"');
+  'set_cost_allocation_rule now runs on the finance command plumbing, and an '
+  'aal1 caller is refused at the gate. The party gate it shipped on refused '
+  'aal1 too -- it says "AAL2 is required for party mutations" -- so this '
+  'assertion pins the wording, not a hole. The defect that was real is the '
+  'receipt handling, asserted above');
 
 select is(
   pg_temp.as_user('72200000-0000-0000-0000-000000000001',

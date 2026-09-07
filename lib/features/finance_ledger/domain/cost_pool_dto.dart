@@ -60,6 +60,9 @@ String costPoolScopeKey(CostPoolScope value) => switch (value) {
 bool costPoolScopeNeedsProperty(CostPoolScope scope) =>
     scope != CostPoolScope.portfolio && scope != CostPoolScope.unknown;
 
+/// Whether this scope names one unit, and therefore needs one.
+bool costPoolScopeNeedsUnit(CostPoolScope scope) => scope == CostPoolScope.unit;
+
 /// Whether the label is this scope's only identity, and therefore required.
 ///
 /// True for exactly the three scopes this schema has no entity for. For the
@@ -132,6 +135,12 @@ enum AllocationUnresolvableReason {
   /// the missing unit's share would be silently redistributed over the rest.
   incompleteBasis,
 
+  /// The payload carried no resolution at all — a command snapshot, which
+  /// answers "what did I write", not "what would this distribute over". A
+  /// distinct value rather than a null reason, because [reason] is null
+  /// exactly when a basis resolves, and "not asked" is not "resolves".
+  notEvaluated,
+
   unknown,
 }
 
@@ -141,6 +150,9 @@ AllocationUnresolvableReason allocationUnresolvableReasonFromKey(String key) =>
       'no_meters' => AllocationUnresolvableReason.noMeters,
       'no_units' => AllocationUnresolvableReason.noUnits,
       'incomplete_basis' => AllocationUnresolvableReason.incompleteBasis,
+      // `not_evaluated` has no server key: the state exists only where a
+      // payload omitted the resolution entirely, and the adapter names it
+      // there rather than parsing it.
       _ => AllocationUnresolvableReason.unknown,
     };
 
@@ -192,6 +204,8 @@ class CostPoolDto {
     required this.scopeResolvable,
     this.propertyId,
     this.propertyName,
+    this.unitId,
+    this.unitCode,
     this.scopeLabel,
     this.note,
     this.rawScopeKey,
@@ -210,6 +224,12 @@ class CostPoolDto {
   /// Null exactly for the portfolio scope.
   final String? propertyId;
   final String? propertyName;
+
+  /// Set for exactly the unit scope. Without it a unit pool would have no
+  /// identity at all: nothing else on the row names a unit, and a label is
+  /// refused for that scope.
+  final String? unitId;
+  final String? unitCode;
 
   /// The only identity a building, entrance or meter group has here.
   final String? scopeLabel;
@@ -232,6 +252,10 @@ class CostPoolDto {
   /// in for an entity this schema does not have.
   String get scopeDescription => switch (scope) {
     CostPoolScope.portfolio => 'Gesamtes Portfolio',
+    CostPoolScope.unit => <String>[
+      propertyName ?? 'Unbekanntes Objekt',
+      unitCode ?? unitId ?? 'Einheit ohne Kennung',
+    ].join(' · '),
     _ => scopeLabel ?? propertyName ?? 'Ohne Zuordnung',
   };
 }

@@ -105,6 +105,12 @@ void main() {
 
       expect(value.basisResolution.resolvable, isFalse);
       expect(
+        value.basisResolution.reason,
+        AllocationUnresolvableReason.notEvaluated,
+        reason: 'a null reason means "this basis resolves"; a snapshot that '
+            'was never asked has to say so with a value of its own',
+      );
+      expect(
         value.isUsableForSettlement,
         isFalse,
         reason: 'absent must not read as resolvable, or a key just saved on a '
@@ -160,6 +166,80 @@ void main() {
             'measures, and acting on it is how a cost is apportioned wrongly '
             'and plausibly',
       );
+    });
+
+    test('a pool payload without scope_resolvable is not resolvable', () async {
+      // An unrecognised scope from a newer server. Deriving the answer from
+      // the scope here would read `unknown` as distributable, because none of
+      // the three label-scopes match it -- an unanswered question landing on
+      // "yes".
+      gateway.result = <String, Object?>{
+        'ok': true,
+        'entity': <String, Object?>{
+          'pools': <Map<String, Object?>>[
+            <String, Object?>{
+              'id': 'pool-9',
+              'workspace_id': 'ws-1',
+              'pool_key': 'zukunft',
+              'name': 'Zukunft',
+              'scope': 'district',
+              'is_active': true,
+              'version': 1,
+            },
+          ],
+        },
+      };
+
+      final CostPoolOverviewDto value = _poolsOf(
+        await adapter.readPools(workspaceId: 'ws-1'),
+      );
+
+      expect(value.pools.single.scope, CostPoolScope.unknown);
+      expect(value.pools.single.rawScopeKey, 'district');
+      expect(value.pools.single.scopeResolvable, isFalse);
+    });
+
+    test('a unit pool without its unit is refused before the round trip',
+        () async {
+      final FinanceRepositoryResult<CostPoolDto> result = await adapter
+          .upsertPool(
+            UpsertCostPoolCommand(
+              context: _context(),
+              poolKey: 'whg',
+              name: 'Wohnung',
+              scope: CostPoolScope.unit,
+              propertyId: 'property-1',
+            ),
+          );
+
+      expect(gateway.calls, 0);
+      final failure = result as FinanceRepositoryFailure<CostPoolDto>;
+      expect(failure.field, 'unitId');
+    });
+
+    test('a unit pool sends its unit', () async {
+      gateway.result = <String, Object?>{
+        'ok': true,
+        'entity': _poolRow(
+          id: 'pool-4',
+          poolKey: 'whg',
+          scope: 'unit',
+          propertyId: 'property-1',
+        ),
+      };
+
+      await adapter.upsertPool(
+        UpsertCostPoolCommand(
+          context: _context(),
+          poolKey: 'whg',
+          name: 'Wohnung',
+          scope: CostPoolScope.unit,
+          propertyId: 'property-1',
+          unitId: 'unit-1',
+        ),
+      );
+
+      expect(gateway.lastParameters!['p_unit_id'], 'unit-1');
     });
 
     test('an unrecognised basis is never written back', () async {
@@ -299,6 +379,56 @@ void main() {
 
       expect(port.keyCommands, isEmpty);
       expect(subject.state.actionPhase, CostPoolActionPhase.failed);
+    });
+
+    test('a refusal is returned, not only put in state', () async {
+      port.writeFailureField = 'poolKey';
+      final CostPoolController subject = controller();
+      await subject.load();
+
+      final CostPoolActionFailure? failure = await subject.savePool(
+        poolKey: 'heizung',
+        name: 'Heizung',
+        scope: CostPoolScope.property,
+        propertyId: 'property-1',
+      );
+
+      expect(
+        failure?.field,
+        'poolKey',
+        reason: 'a dialog has to stay open and point at the field; it cannot '
+            'do that from a state it stopped watching when it popped',
+      );
+    });
+
+    test('a refused write re-reads too, or a version conflict repeats forever',
+        () async {
+      port.writeFailureField = 'expectedVersion';
+      final CostPoolController subject = controller();
+      await subject.load();
+      expect(port.poolReads, 1);
+
+      await subject.savePool(
+        poolKey: 'heizung',
+        name: 'Heizung',
+        scope: CostPoolScope.property,
+        propertyId: 'property-1',
+      );
+
+      expect(port.poolReads, 2);
+    });
+
+    test('inactive pools are asked for, because this list administers them',
+        () async {
+      final CostPoolController subject = controller();
+      await subject.load();
+
+      expect(
+        port.lastIncludeInactive,
+        isTrue,
+        reason: 'a hidden inactive pool still holds its key under a unique '
+            'index, so recreating it conflicts with a row nobody can see',
+      );
     });
 
     test('a successful write re-reads, because the counts are the server\'s',
@@ -577,6 +707,7 @@ class _FakeGateway implements FinanceSupabaseGateway {
 class _FakePort implements CostPoolsPort {
   int poolReads = 0;
   int keyReads = 0;
+  bool? lastIncludeInactive;
   DateTime? asOf;
   DateTime? lastAsOfAsked;
   final List<UpsertCostPoolCommand> poolCommands = <UpsertCostPoolCommand>[];
@@ -593,6 +724,7 @@ class _FakePort implements CostPoolsPort {
     bool includeInactive = false,
   }) async {
     poolReads++;
+    lastIncludeInactive = includeInactive;
     final FinanceRepositoryFailureKind? kind = poolFailure;
     if (kind != null) {
       return FinanceRepositoryFailure<CostPoolOverviewDto>(

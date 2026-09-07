@@ -30,6 +30,21 @@ enum CostPoolPhase { idle, loading, ready, forbidden, error }
 
 enum CostPoolActionPhase { idle, running, failed, succeeded }
 
+/// Why a write was refused, handed back to whoever asked for it.
+///
+/// The state carries the same thing for the page-level notice, but a dialog
+/// needs it as a *return value*: it has to stay open, keep what the user
+/// typed, and put the message on the field the server named. A dialog that
+/// pops first and reports afterwards has already thrown the input away.
+class CostPoolActionFailure {
+  const CostPoolActionFailure({required this.message, this.field});
+
+  final String message;
+
+  /// The contract field the server rejected, e.g. `poolKey` or `explanation`.
+  final String? field;
+}
+
 class CostPoolState {
   const CostPoolState({
     this.phase = CostPoolPhase.idle,
@@ -168,6 +183,11 @@ class CostPoolController extends StateNotifier<CostPoolState> {
     final poolResult = await _port.readPools(
       workspaceId: workspaceId,
       propertyId: state.propertyId,
+      // Inactive pools are listed here, always. `is_active` means "do not
+      // offer this for new keys", not "hide it" -- and hiding it would strand
+      // it: it still holds its pool key under a unique index, so recreating it
+      // comes back as a conflict pointing at a row nobody can see.
+      includeInactive: true,
     );
     if (generation != _generation || !mounted) {
       return;
@@ -229,18 +249,20 @@ class CostPoolController extends StateNotifier<CostPoolState> {
   /// requests apart, and nothing on screen would say so.
   Future<void> showDate(DateTime asOf) => load(asOf: asOf);
 
-  Future<void> savePool({
+  Future<CostPoolActionFailure?> savePool({
     required String poolKey,
     required String name,
     required CostPoolScope scope,
     CostPoolDto? existing,
     String? propertyId,
+    String? unitId,
     String? scopeLabel,
     String? note,
     bool isActive = true,
   }) async {
-    if (!_guardMutation('Kostenpools')) {
-      return;
+    final CostPoolActionFailure? refusal = _guardMutation('Kostenpools');
+    if (refusal != null) {
+      return refusal;
     }
     state = state.copyWith(
       actionPhase: CostPoolActionPhase.running,
@@ -259,15 +281,16 @@ class CostPoolController extends StateNotifier<CostPoolState> {
         name: name,
         scope: scope,
         propertyId: propertyId,
+        unitId: unitId,
         scopeLabel: scopeLabel,
         note: note,
         isActive: isActive,
       ),
     );
-    await _settle<CostPoolDto>(result, 'Kostenpool gespeichert.');
+    return _settle<CostPoolDto>(result, 'Kostenpool gespeichert.');
   }
 
-  Future<void> saveKey({
+  Future<CostPoolActionFailure?> saveKey({
     required String propertyId,
     required AllocationBasis basis,
     required String explanation,
@@ -278,8 +301,10 @@ class CostPoolController extends StateNotifier<CostPoolState> {
     DateTime? validTo,
     String? note,
   }) async {
-    if (!_guardMutation('Umlageschlüssel')) {
-      return;
+    final CostPoolActionFailure? refusal =
+        _guardMutation('Umlageschlüssel');
+    if (refusal != null) {
+      return refusal;
     }
     state = state.copyWith(
       actionPhase: CostPoolActionPhase.running,
@@ -301,20 +326,33 @@ class CostPoolController extends StateNotifier<CostPoolState> {
         note: note,
       ),
     );
-    await _settle<AllocationKeyDto>(result, 'Umlageschlüssel gespeichert.');
+    return _settle<AllocationKeyDto>(
+      result,
+      'Umlageschlüssel gespeichert.',
+    );
   }
 
-  bool _guardMutation(String subject) {
-    if (canMutate) {
-      return true;
+  CostPoolActionFailure? _guardMutation(String subject) {
+    // Checked before touching state: this controller is autoDispose and its
+    // provider watches the session scope, so a token refresh between opening a
+    // dialog and pressing save disposes it while the dialog still holds it.
+    if (!mounted) {
+      return const CostPoolActionFailure(
+        message: 'Die Sitzung wurde neu geladen. Bitte erneut versuchen.',
+      );
     }
+    if (canMutate) {
+      return null;
+    }
+    final CostPoolActionFailure refusal = CostPoolActionFailure(
+      message: 'Für $subject fehlt die Berechtigung zur Finanzverwaltung.',
+    );
     state = state.copyWith(
       actionPhase: CostPoolActionPhase.failed,
-      actionMessage:
-          'Für $subject fehlt die Berechtigung zur Finanzverwaltung.',
+      actionMessage: refusal.message,
       actionField: null,
     );
-    return false;
+    return refusal;
   }
 
   FinanceCommandContext _context() => FinanceCommandContext(
@@ -324,12 +362,14 @@ class CostPoolController extends StateNotifier<CostPoolState> {
     correlationId: _idFactory(),
   );
 
-  Future<void> _settle<T>(
+  Future<CostPoolActionFailure?> _settle<T>(
     FinanceRepositoryResult<T> result,
     String successMessage,
   ) async {
     if (!mounted) {
-      return;
+      return const CostPoolActionFailure(
+        message: 'Die Sitzung wurde neu geladen. Bitte erneut versuchen.',
+      );
     }
     switch (result) {
       case FinanceRepositorySuccess<T>():
@@ -344,12 +384,20 @@ class CostPoolController extends StateNotifier<CostPoolState> {
         // instance, changes nothing, but ending one key's validity changes
         // which key answers for a day.
         await load();
+        return null;
       case FinanceRepositoryFailure<T>(:final message, :final field):
         state = state.copyWith(
           actionPhase: CostPoolActionPhase.failed,
           actionMessage: message,
           actionField: field,
         );
+        // Re-read after a refusal too. A server-side refusal here means this
+        // side's picture and the server's disagreed -- a stale version, a
+        // period another key has since taken, a pool that is gone -- and the
+        // next attempt is built from what is on screen. Without this, a
+        // version conflict re-sends the same stale version forever.
+        await load();
+        return CostPoolActionFailure(message: message, field: field);
     }
   }
 }

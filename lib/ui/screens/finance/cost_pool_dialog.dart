@@ -1,11 +1,17 @@
 /// Creating or changing a cost pool (`COST-POOLS-ALLOCATION-KEYS-01`, P-2b).
 ///
 /// **The form changes shape with the scope, rather than validating after the
-/// fact.** A portfolio pool has no property field at all; a building, an
-/// entrance or a Zählergruppe has a label field and no other identity, because
-/// this schema holds no entity for any of the three. The server refuses both
-/// mismatches, and a form that let the reader assemble a refusal would be
-/// teaching them a rule by rejecting them.
+/// fact.** A portfolio pool has no property field at all; a unit pool names
+/// its unit; a building, an entrance or a Zählergruppe has a label field and
+/// no other identity, because this schema holds no entity for any of the
+/// three. The server refuses every mismatch, and a form that let the reader
+/// assemble a refusal would be teaching them a rule by rejecting them.
+///
+/// **The dialog owns the submit.** It stays open while the command runs and
+/// while it is refused, keeps everything the user typed, and puts the server's
+/// message on the field the server named. A dialog that pops first and reports
+/// afterwards has already thrown the input away — which is the whole reason a
+/// rejected field is worth carrying at all.
 ///
 /// **The pool key is not the name.** The key is what a later settlement line
 /// cites and is constrained to a machine-safe shape; the name is what a human
@@ -18,7 +24,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../features/finance_ledger/application/cost_pool_controller.dart';
 import '../../../features/finance_ledger/domain/cost_pool_dto.dart';
+import '../../components/nx_notice.dart';
 import '../../theme/app_theme.dart';
 
 class CostPoolFormResult {
@@ -28,6 +36,7 @@ class CostPoolFormResult {
     required this.scope,
     required this.isActive,
     this.propertyId,
+    this.unitId,
     this.scopeLabel,
     this.note,
   });
@@ -36,28 +45,50 @@ class CostPoolFormResult {
   final String name;
   final CostPoolScope scope;
   final String? propertyId;
+  final String? unitId;
   final String? scopeLabel;
   final String? note;
   final bool isActive;
 }
 
-/// Resolves a property id to something a reader recognises, and offers a way
-/// to pick another. Supplied by the screen, because choosing a property is the
-/// property feature's job and this dialog only needs the answer.
+/// One unit a pool could name, as little of it as the form needs.
+class CostPoolUnitOption {
+  const CostPoolUnitOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
+/// Chooses a property. Supplied by the screen, because choosing a property is
+/// the property feature's job and this dialog only needs the answer.
 typedef PropertyPicker = Future<String?> Function(BuildContext context);
 
-Future<CostPoolFormResult?> showCostPoolDialog(
+/// The units of one property, in the order the leasing contract returns them.
+typedef UnitLoader = Future<List<CostPoolUnitOption>> Function(String propertyId);
+
+/// Runs the command. Returns null on success, or why it was refused.
+typedef CostPoolSubmit =
+    Future<CostPoolActionFailure?> Function(CostPoolFormResult result);
+
+Future<bool?> showCostPoolDialog(
   BuildContext context, {
   CostPoolDto? pool,
   required PropertyPicker pickProperty,
+  required UnitLoader loadUnits,
   required String Function(String propertyId) propertyLabel,
+  required CostPoolSubmit onSubmit,
 }) {
-  return showDialog<CostPoolFormResult>(
+  return showDialog<bool>(
     context: context,
+    // The command runs from inside, so a stray tap must not abandon a write
+    // that is already in flight.
+    barrierDismissible: false,
     builder: (BuildContext dialogContext) => _CostPoolDialog(
       pool: pool,
       pickProperty: pickProperty,
+      loadUnits: loadUnits,
       propertyLabel: propertyLabel,
+      onSubmit: onSubmit,
     ),
   );
 }
@@ -66,12 +97,16 @@ class _CostPoolDialog extends StatefulWidget {
   const _CostPoolDialog({
     required this.pool,
     required this.pickProperty,
+    required this.loadUnits,
     required this.propertyLabel,
+    required this.onSubmit,
   });
 
   final CostPoolDto? pool;
   final PropertyPicker pickProperty;
+  final UnitLoader loadUnits;
   final String Function(String propertyId) propertyLabel;
+  final CostPoolSubmit onSubmit;
 
   @override
   State<_CostPoolDialog> createState() => _CostPoolDialogState();
@@ -86,6 +121,13 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
   late CostPoolScope _scope;
   late bool _active;
   String? _propertyId;
+  String? _unitId;
+
+  List<CostPoolUnitOption> _units = const <CostPoolUnitOption>[];
+  bool _loadingUnits = false;
+  bool _submitting = false;
+  String? _failureMessage;
+  String? _failureField;
 
   @override
   void initState() {
@@ -103,6 +145,10 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
         : pool.scope;
     _active = pool?.isActive ?? true;
     _propertyId = pool?.propertyId;
+    _unitId = pool?.unitId;
+    if (_propertyId != null && costPoolScopeNeedsUnit(_scope)) {
+      _refreshUnits(_propertyId!);
+    }
   }
 
   @override
@@ -119,10 +165,13 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
     final theme = Theme.of(context);
     final bool needsProperty = costPoolScopeNeedsProperty(_scope);
     final bool needsLabel = costPoolScopeNeedsLabel(_scope);
+    final bool needsUnit = costPoolScopeNeedsUnit(_scope);
 
     return AlertDialog(
       key: const Key('cost-pool-dialog'),
-      title: Text(widget.pool == null ? 'Kostenpool anlegen' : 'Kostenpool ändern'),
+      title: Text(
+        widget.pool == null ? 'Kostenpool anlegen' : 'Kostenpool ändern',
+      ),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -132,21 +181,33 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                if (_failureMessage != null) ...<Widget>[
+                  NxNotice(
+                    key: const Key('cost-pool-dialog-failure'),
+                    message: _failureMessage!,
+                    kind: NxNoticeKind.error,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
                 TextFormField(
                   key: const Key('cost-pool-key'),
                   controller: _key,
-                  decoration: const InputDecoration(
+                  enabled: !_submitting,
+                  decoration: InputDecoration(
                     labelText: 'Schlüssel',
                     helperText:
                         'Kleinbuchstaben, Ziffern, Punkt, Bindestrich oder '
                         'Unterstrich. Wird von Abrechnungszeilen zitiert.',
+                    errorText: _errorFor('poolKey'),
                   ),
                   validator: (String? value) {
                     final String text = (value ?? '').trim();
                     if (text.isEmpty) {
                       return 'Ein Schlüssel ist erforderlich.';
                     }
-                    if (!RegExp(r'^[a-z0-9][a-z0-9._-]{0,49}$').hasMatch(text)) {
+                    if (!RegExp(
+                      r'^[a-z0-9][a-z0-9._-]{0,49}$',
+                    ).hasMatch(text)) {
                       return 'Nur Kleinbuchstaben, Ziffern, . _ - (max. 50).';
                     }
                     return null;
@@ -156,18 +217,23 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
                 TextFormField(
                   key: const Key('cost-pool-name'),
                   controller: _name,
-                  decoration: const InputDecoration(labelText: 'Bezeichnung'),
-                  validator: (String? value) =>
-                      (value ?? '').trim().isEmpty
-                          ? 'Eine Bezeichnung ist erforderlich.'
-                          : null,
+                  enabled: !_submitting,
+                  decoration: InputDecoration(
+                    labelText: 'Bezeichnung',
+                    errorText: _errorFor('name'),
+                  ),
+                  validator: (String? value) => (value ?? '').trim().isEmpty
+                      ? 'Eine Bezeichnung ist erforderlich.'
+                      : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<CostPoolScope>(
                   key: const Key('cost-pool-scope'),
                   value: _scope,
-                  decoration: const InputDecoration(
+                  isExpanded: true,
+                  decoration: InputDecoration(
                     labelText: 'Geltungsbereich',
+                    errorText: _errorFor('scope'),
                   ),
                   items: const <DropdownMenuItem<CostPoolScope>>[
                     DropdownMenuItem<CostPoolScope>(
@@ -195,41 +261,52 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
                       child: Text('Zählergruppe (ohne eigene Entität)'),
                     ),
                   ],
-                  onChanged: (CostPoolScope? value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _scope = value;
-                      // Cleared rather than kept hidden. A portfolio pool with
-                      // a stashed property id would be refused by the server
-                      // for a reason nothing on screen shows.
-                      if (!costPoolScopeNeedsProperty(value)) {
-                        _propertyId = null;
-                      }
-                      if (!costPoolScopeNeedsLabel(value)) {
-                        _label.clear();
-                      }
-                    });
-                  },
+                  onChanged: _submitting
+                      ? null
+                      : (CostPoolScope? value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _scope = value;
+                            // Cleared rather than kept hidden. A portfolio
+                            // pool with a stashed property id would be refused
+                            // by the server for a reason nothing on screen
+                            // shows.
+                            if (!costPoolScopeNeedsProperty(value)) {
+                              _propertyId = null;
+                            }
+                            if (!costPoolScopeNeedsLabel(value)) {
+                              _label.clear();
+                            }
+                            if (!costPoolScopeNeedsUnit(value)) {
+                              _unitId = null;
+                            }
+                          });
+                          if (costPoolScopeNeedsUnit(value) &&
+                              _propertyId != null) {
+                            _refreshUnits(_propertyId!);
+                          }
+                        },
                 ),
                 if (needsLabel) ...<Widget>[
                   const SizedBox(height: AppSpacing.sm),
                   TextFormField(
                     key: const Key('cost-pool-label'),
                     controller: _label,
-                    decoration: const InputDecoration(
+                    enabled: !_submitting,
+                    decoration: InputDecoration(
                       labelText: 'Bezeichnung des Bereichs',
                       helperText:
                           'Für Gebäude, Aufgang und Zählergruppe gibt es in '
                           'diesem Modell keine eigene Entität. Diese Angabe '
-                          'ist die einzige Identität des Bereichs.',
+                          'ist die einzige Identität des Bereichs und muss je '
+                          'Objekt eindeutig sein.',
+                      errorText: _errorFor('scopeLabel'),
                     ),
-                    validator: (String? value) =>
-                        (value ?? '').trim().isEmpty
-                            ? 'Ohne Bezeichnung hat dieser Bereich keine '
-                                  'Identität.'
-                            : null,
+                    validator: (String? value) => (value ?? '').trim().isEmpty
+                        ? 'Ohne Bezeichnung hat dieser Bereich keine Identität.'
+                        : null,
                   ),
                 ],
                 if (needsProperty) ...<Widget>[
@@ -237,9 +314,11 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
                   InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'Objekt',
-                      errorText: _propertyId == null
-                          ? 'Dieser Geltungsbereich braucht ein Objekt.'
-                          : null,
+                      errorText:
+                          _errorFor('propertyId') ??
+                          (_propertyId == null
+                              ? 'Dieser Geltungsbereich braucht ein Objekt.'
+                              : null),
                     ),
                     child: Row(
                       children: <Widget>[
@@ -249,21 +328,62 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
                                 ? 'Kein Objekt gewählt'
                                 : widget.propertyLabel(_propertyId!),
                             style: theme.textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         TextButton(
                           key: const Key('cost-pool-pick-property'),
-                          onPressed: _pickProperty,
+                          onPressed: _submitting ? null : _pickProperty,
                           child: const Text('Wählen'),
                         ),
                       ],
                     ),
                   ),
                 ],
+                if (needsUnit) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  DropdownButtonFormField<String?>(
+                    key: const Key('cost-pool-unit'),
+                    // Guarded: a unit id with no matching item would trip
+                    // DropdownButton's own assertion, which is how a form
+                    // silently loses the value it was opened to show.
+                    value:
+                        _units.any(
+                          (CostPoolUnitOption unit) => unit.id == _unitId,
+                        )
+                        ? _unitId
+                        : null,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Einheit',
+                      helperText: _propertyId == null
+                          ? 'Zuerst ein Objekt wählen.'
+                          : (_loadingUnits
+                                ? 'Einheiten werden geladen …'
+                                : null),
+                      errorText:
+                          _errorFor('unitId') ??
+                          (_unitId == null && !_loadingUnits
+                              ? 'Ein Einheiten-Pool benennt seine Einheit.'
+                              : null),
+                    ),
+                    items: <DropdownMenuItem<String?>>[
+                      for (final CostPoolUnitOption unit in _units)
+                        DropdownMenuItem<String?>(
+                          value: unit.id,
+                          child: Text(unit.label),
+                        ),
+                    ],
+                    onChanged: _submitting || _loadingUnits
+                        ? null
+                        : (String? value) => setState(() => _unitId = value),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   key: const Key('cost-pool-note'),
                   controller: _note,
+                  enabled: !_submitting,
                   maxLines: 2,
                   decoration: const InputDecoration(labelText: 'Notiz'),
                 ),
@@ -272,11 +392,13 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
                   key: const Key('cost-pool-active'),
                   contentPadding: EdgeInsets.zero,
                   value: _active,
-                  onChanged: (bool value) => setState(() => _active = value),
+                  onChanged: _submitting
+                      ? null
+                      : (bool value) => setState(() => _active = value),
                   title: const Text('Aktiv'),
                   subtitle: const Text(
-                    'Ein inaktiver Pool bleibt erhalten und wird nicht mehr '
-                    'angeboten.',
+                    'Ein inaktiver Pool bleibt in der Liste, kann aber von '
+                    'keinem neuen Umlageschlüssel mehr benannt werden.',
                   ),
                 ),
               ],
@@ -286,16 +408,42 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
       ),
       actions: <Widget>[
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Abbrechen'),
         ),
         FilledButton(
           key: const Key('cost-pool-submit'),
-          onPressed: _submit,
-          child: const Text('Speichern'),
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Speichern'),
         ),
       ],
     );
+  }
+
+  String? _errorFor(String field) =>
+      _failureField == field ? _failureMessage : null;
+
+  Future<void> _refreshUnits(String propertyId) async {
+    setState(() => _loadingUnits = true);
+    final List<CostPoolUnitOption> units = await widget.loadUnits(propertyId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _units = units;
+      _loadingUnits = false;
+      // A unit from the property that was just replaced would be refused by
+      // the server. Dropped here rather than carried invisibly.
+      if (!units.any((CostPoolUnitOption unit) => unit.id == _unitId)) {
+        _unitId = null;
+      }
+    });
   }
 
   Future<void> _pickProperty() async {
@@ -303,32 +451,59 @@ class _CostPoolDialogState extends State<_CostPoolDialog> {
     if (chosen == null || !mounted) {
       return;
     }
-    setState(() => _propertyId = chosen);
+    setState(() {
+      _propertyId = chosen;
+      _unitId = null;
+      _units = const <CostPoolUnitOption>[];
+    });
+    if (costPoolScopeNeedsUnit(_scope)) {
+      await _refreshUnits(chosen);
+    }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    setState(() {
+      _failureMessage = null;
+      _failureField = null;
+    });
     if (!(_form.currentState?.validate() ?? false)) {
       return;
     }
     if (costPoolScopeNeedsProperty(_scope) && _propertyId == null) {
-      // The property field lives in an InputDecorator rather than a
-      // FormField, so its error is not part of validate(). Re-rendering is
-      // what surfaces it.
+      // The property and unit fields live outside the Form, so their errors
+      // are surfaced by re-rendering rather than by validate().
       setState(() {});
       return;
     }
-    Navigator.of(context).pop(
+    if (costPoolScopeNeedsUnit(_scope) && _unitId == null) {
+      setState(() {});
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final CostPoolActionFailure? failure = await widget.onSubmit(
       CostPoolFormResult(
         poolKey: _key.text.trim(),
         name: _name.text.trim(),
         scope: _scope,
         propertyId: _propertyId,
-        scopeLabel: costPoolScopeNeedsLabel(_scope)
-            ? _label.text.trim()
-            : null,
+        unitId: costPoolScopeNeedsUnit(_scope) ? _unitId : null,
+        scopeLabel: costPoolScopeNeedsLabel(_scope) ? _label.text.trim() : null,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
         isActive: _active,
       ),
     );
+    if (!mounted) {
+      return;
+    }
+    if (failure == null) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _failureMessage = failure.message;
+      _failureField = failure.field;
+    });
   }
 }
