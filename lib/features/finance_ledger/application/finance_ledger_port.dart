@@ -12,6 +12,7 @@ library;
 
 import '../domain/finance_actuals_dto.dart';
 import '../domain/cost_allocation_dto.dart';
+import '../domain/cost_pool_dto.dart';
 import '../domain/finance_kpi_dto.dart';
 
 enum FinanceRepositoryFailureKind {
@@ -167,4 +168,115 @@ abstract interface class PropertyFinanceKpisPort {
     required String propertyId,
     FinancePeriodRange range = const FinancePeriodRange.unbounded(),
   });
+}
+
+/// Creates or changes a cost pool (`COST-POOLS-ALLOCATION-KEYS-01`, P-2b).
+///
+/// [poolId] and [expectedVersion] are null together for a create and set
+/// together for a change. The server refuses the mixed forms rather than
+/// guessing which was meant.
+class UpsertCostPoolCommand {
+  const UpsertCostPoolCommand({
+    required this.context,
+    required this.poolKey,
+    required this.name,
+    required this.scope,
+    this.poolId,
+    this.expectedVersion,
+    this.propertyId,
+    this.scopeLabel,
+    this.note,
+    this.isActive = true,
+  });
+
+  final FinanceCommandContext context;
+  final String? poolId;
+  final int? expectedVersion;
+
+  final String poolKey;
+  final String name;
+  final CostPoolScope scope;
+
+  /// Required for every scope but portfolio, and refused for that one.
+  final String? propertyId;
+
+  /// Required for exactly the three scopes this schema has no entity for, and
+  /// refused for the rest.
+  final String? scopeLabel;
+
+  final String? note;
+  final bool isActive;
+}
+
+/// Creates or changes an allocation key.
+///
+/// [explanation] is not optional and has no default. `DEC-014` model
+/// consequence 2 makes the Verteilerschlüssel with its explanation one of the
+/// four Mindestangaben an operating-cost statement is formally void without —
+/// so a key that cannot explain itself must not be storable, not merely
+/// discouraged.
+class UpsertAllocationKeyCommand {
+  const UpsertAllocationKeyCommand({
+    required this.context,
+    required this.propertyId,
+    required this.basis,
+    required this.explanation,
+    required this.validFrom,
+    this.keyId,
+    this.expectedVersion,
+    this.financeAccountId,
+    this.costPoolId,
+    this.validTo,
+    this.note,
+  });
+
+  final FinanceCommandContext context;
+  final String? keyId;
+  final int? expectedVersion;
+
+  final String propertyId;
+
+  /// Null means the key covers any cost type not otherwise keyed. Two such
+  /// keys still may not overlap in time.
+  final String? financeAccountId;
+  final String? costPoolId;
+
+  final AllocationBasis basis;
+  final String explanation;
+
+  final DateTime validFrom;
+
+  /// Inclusive, as a contract reads it. The server stores the range half-open
+  /// so an end and the next start on consecutive days are adjacent rather than
+  /// overlapping.
+  final DateTime? validTo;
+
+  final String? note;
+}
+
+abstract interface class CostPoolsPort {
+  /// Every pool in the workspace, each saying whether its scope can be
+  /// resolved to units at all.
+  Future<FinanceRepositoryResult<CostPoolOverviewDto>> readPools({
+    required String workspaceId,
+    String? propertyId,
+    bool includeInactive = false,
+  });
+
+  /// The keys in force on a date, each with what its basis resolves to today
+  /// or why it does not, and how many could not be resolved.
+  Future<FinanceRepositoryResult<AllocationKeyOverviewDto>> readAllocationKeys({
+    required String workspaceId,
+    DateTime? asOf,
+    String? propertyId,
+    String? financeAccountId,
+  });
+
+  Future<FinanceRepositoryResult<CostPoolDto>> upsertPool(
+    UpsertCostPoolCommand command,
+  );
+
+  Future<FinanceRepositoryResult<AllocationKeyDto>> upsertAllocationKey(
+    UpsertAllocationKeyCommand command,
+  );
 }

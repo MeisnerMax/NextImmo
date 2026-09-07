@@ -113,6 +113,12 @@ enum GlobalPage {
   /// set beside it, and gated on the finance permissions rather than the
   /// workspace ones.
   costAllocation,
+
+  /// COST-POOLS-ALLOCATION-KEYS-01 (P-2b): which costs are pooled and by what
+  /// measure they are divided over the units. Sits beside the apportionability
+  /// classification because the two answer consecutive questions -- may this
+  /// cost be passed on, and then how is it split.
+  costPools,
   settings,
   help,
 }

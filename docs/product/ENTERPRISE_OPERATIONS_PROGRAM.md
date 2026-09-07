@@ -326,10 +326,12 @@ Analyse Abhängigkeiten zeigt, die dort nicht sichtbar waren.
 | **V-3** | **Ticket-Kategoriefilter** (§15) — *implementiert 2026-09-07, `MAINTENANCE-CATEGORY-01`, Migration 58* | Kleinstes Paket, klar umrissen, Vorbedingung für §11 | Legacy-Removal |
 | **V-4** | **Compliance-Regelschicht mit Gültigkeitszeitraum** | Rechtsstände sind versioniert (§2 dieses Dokuments); jede Berechnung baut darauf | §3, §8 |
 | P-1 | Property Card View (§1) | UI-only, unabhängig, früher Sichtbarkeitsgewinn — braucht aber Kennzahlen im DTO | — |
-| P-2 | Cost Categories + Pools + Allocation Keys (§3.1–3.3) | auf `finance_accounts` aufsetzend | §8 |
+| **P-2a** | **Umlagefähigkeit und Abrechnungsprinzip** (§3.1) — *implementiert 2026-09-07, `COST-ALLOCATION-RULES-01`, Migration 66* | Satellit an `finance_accounts`; HeizkostenV-Zwang als CHECK, nicht als Validierung (DEC-014 Folge 3) | §8 |
+| **P-2b** | **Kostenpools und Umlageschlüssel** (§3.2–3.3) — *implementiert 2026-09-07, `COST-POOLS-ALLOCATION-KEYS-01`, Migration 67, inkl. Oberfläche* | Vier der sieben Verteilungsmaßstäbe haben keine Datenbasis und rechnen nichts aus, statt auf Fläche durchzufallen; drei der sechs Scopes haben keine Entität und melden das | §8 |
+| P-2c | Basiswerte je Einheit (fester Anteil, Personen, Miteigentumsanteil) | macht drei der vier heute nicht auflösbaren Maßstäbe rechenbar | P-5 |
 | P-3 | Suppliers + Contracts (§6) | `parties` als Basis | §7, §16 |
 | P-4 | Meters + Consumption + Import Center (§5) | eigenständig, grösster Neubau | §8.3, §7 |
-| P-5 | Settlement Engine (§8) | braucht V-1, V-2, V-4, P-2, P-4 | §12 |
+| P-5 | Settlement Engine (§8) | braucht V-1, V-2, V-4, P-2a, P-2b, P-2c, P-4 | §12 |
 | P-6 | Energy + Insurance (§9, §10) | über `required_documents` | §16 |
 | P-7 | Warm Rent (§4) — *implementiert 2026-09-07, `WARM-RENT-01`, Migration 59, inkl. Oberfläche* | braucht V-2 | §12 |
 | P-8 | Budget + Forecast + Varianz (§13) | braucht KPI-Erweiterung | §16 |
