@@ -304,6 +304,9 @@ CloudDestinationReadiness cloudReadinessForPage(GlobalPage page) {
     // COMPLIANCE-RULES-01 (V-4): reads and writes `compliance_rules` through
     // its contract only.
     GlobalPage.complianceRules ||
+    // COST-ALLOCATION-RULES-01 (P-2a): reads and writes the allocation rules
+    // through their contract only.
+    GlobalPage.costAllocation ||
     GlobalPage.properties ||
     GlobalPage.parties ||
     GlobalPage.documents ||
@@ -333,6 +336,10 @@ String? cloudReadPermissionForPage(GlobalPage page) {
     // `security.manage` and lives on the command, not on the destination: a
     // rule nobody can see is a rule nobody can challenge.
     GlobalPage.complianceRules => 'workspace.read',
+    // The write gate is `finance.manage` and lives on the command. Reading
+    // needs the finance read, because which costs are apportionable is a
+    // financial fact about the workspace.
+    GlobalPage.costAllocation => 'finance.read',
     GlobalPage.properties ||
     GlobalPage.portfolios ||
     GlobalPage.esg ||
@@ -650,6 +657,13 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
         title: 'Rechtsregeln',
         routeKey: 'setup_administration.compliance_rules',
         icon: Icons.gavel_outlined,
+      ),
+      GlobalNavigationDestination(
+        page: GlobalPage.costAllocation,
+        label: 'Umlagefähigkeit',
+        title: 'Umlagefähigkeit',
+        routeKey: 'setup_administration.cost_allocation',
+        icon: Icons.rule_folder_outlined,
       ),
       GlobalNavigationDestination(
         page: GlobalPage.settings,

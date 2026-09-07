@@ -11,6 +11,7 @@
 library;
 
 import '../domain/finance_actuals_dto.dart';
+import '../domain/cost_allocation_dto.dart';
 import '../domain/finance_kpi_dto.dart';
 
 enum FinanceRepositoryFailureKind {
@@ -77,6 +78,75 @@ class FinancePeriodRange {
 /// the caller may see *this* building, `finance.read` says they may see money
 /// at all. A membership holding one but not the other is refused rather than
 /// shown a partial statement.
+/// Actor and idempotency metadata for an audited finance command.
+class FinanceCommandContext {
+  const FinanceCommandContext({
+    required this.workspaceId,
+    required this.actorId,
+    required this.mutationId,
+    required this.correlationId,
+    this.reason,
+  });
+
+  final String workspaceId;
+  final String actorId;
+  final String mutationId;
+  final String correlationId;
+  final String? reason;
+}
+
+/// Sets whether a cost account is apportionable and how it settles
+/// (`COST-ALLOCATION-RULES-01`, P-2a).
+///
+/// [expectedVersion] is null exactly when the account has no rule yet. The
+/// server refuses the other two combinations rather than guessing: a first
+/// write carrying a version would let a caller invent one, and a change
+/// without a version would take the last write.
+class SetCostAllocationRuleCommand {
+  const SetCostAllocationRuleCommand({
+    required this.context,
+    required this.financeAccountId,
+    required this.allocatable,
+    this.expectedVersion,
+    this.settlementPrinciple,
+    this.betrkvPosition,
+    this.underHeatingCostRegulation = false,
+    this.note,
+  });
+
+  final FinanceCommandContext context;
+  final String financeAccountId;
+  final int? expectedVersion;
+
+  final bool allocatable;
+
+  /// Required exactly when [allocatable]. A cost that is not passed on has no
+  /// principle to state.
+  final CostSettlementPrinciple? settlementPrinciple;
+
+  final String? betrkvPosition;
+
+  /// A HeizkostenV position settles on the performance principle. The server
+  /// refuses anything else with a message naming BGH VIII ZR 156/11, and a
+  /// CHECK constraint makes it impossible rather than merely refused.
+  final bool underHeatingCostRegulation;
+
+  final String? note;
+}
+
+abstract interface class CostAllocationRulesPort {
+  /// Every cost account with its rule, or null where none has been set.
+  /// Unclassified accounts are listed rather than filtered out.
+  Future<FinanceRepositoryResult<CostAllocationOverviewDto>> readRules({
+    required String workspaceId,
+    bool allocatableOnly = false,
+  });
+
+  Future<FinanceRepositoryResult<CostAllocationRuleDto>> setRule(
+    SetCostAllocationRuleCommand command,
+  );
+}
+
 abstract interface class PropertyFinanceActualsPort {
   Future<FinanceRepositoryResult<PropertyFinanceActualsDto>> read({
     required String workspaceId,

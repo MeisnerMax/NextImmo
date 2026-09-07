@@ -16,6 +16,7 @@ import '../../features/identity_access/application/identity_access_repository.da
 import '../navigation/app_navigation.dart';
 import '../screens/alerts/workspace_alerts_screen.dart';
 import '../screens/compliance/compliance_rules_screen.dart';
+import '../screens/finance/cost_allocation_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -332,6 +333,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               'verfügbar.',
           icon: Icons.cloud_off_outlined,
         );
+      case GlobalPage.costAllocation:
+        // Cloud-only for the same reason: the rules hang off
+        // `finance_accounts`, which the legacy store does not have.
+        return const _CloudDestinationState(
+          title: 'Umlagefähigkeit nur in der Cloud-Shell',
+          description:
+              'Die Kostenarten liegen ausschließlich in der Cloud-Buchhaltung.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.settings:
         return const SettingsScreen();
       case GlobalPage.help:
@@ -427,6 +437,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // COMPLIANCE-RULES-01 (V-4): the workspace's legal rule set, with the
         // validity period that makes a retrospective correction possible.
         return const ComplianceRulesScreen();
+      case GlobalPage.costAllocation:
+        // COST-ALLOCATION-RULES-01 (P-2a): which costs a tenant pays, and on
+        // which principle.
+        return const CostAllocationScreen();
       case GlobalPage.notifications:
         // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
         return const NotificationInboxScreen();
