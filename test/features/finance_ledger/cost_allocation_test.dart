@@ -18,10 +18,15 @@ import 'package:neximmo_app/features/finance_ledger/application/cost_allocation_
 import 'package:neximmo_app/features/finance_ledger/application/finance_ledger_port.dart';
 import 'package:neximmo_app/features/finance_ledger/data/supabase_cost_allocation_adapter.dart';
 import 'package:neximmo_app/features/finance_ledger/data/supabase_finance_ledger_adapter.dart';
+import 'package:neximmo_app/features/finance_ledger/data/supabase_finance_account_adapter.dart';
+import 'package:neximmo_app/features/finance_ledger/domain/betrkv_catalogue.dart';
 import 'package:neximmo_app/features/finance_ledger/domain/cost_allocation_dto.dart';
+import 'package:neximmo_app/features/finance_ledger/domain/finance_actuals_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 
 void main() {
+  _costTypeTests();
+
   group('adapter', () {
     late _FakeGateway gateway;
     late SupabaseCostAllocationAdapter adapter;
@@ -207,12 +212,14 @@ void main() {
 
   group('controller', () {
     late _FakePort port;
+    late _FakeAccountsPort accountsPort;
 
     CostAllocationController controller({
       Set<String> permissions = const <String>{'finance.read', 'finance.manage'},
     }) {
       final subject = CostAllocationController(
         port: port,
+        accountsPort: accountsPort,
         scope: WorkspaceSessionScope(
           workspaceId: 'ws-1',
           actorId: 'actor-a',
@@ -227,6 +234,7 @@ void main() {
 
     setUp(() {
       port = _FakePort();
+      accountsPort = _FakeAccountsPort();
     });
 
     test('sends the account\'s own version, or none when it has no rule', () async {
@@ -322,13 +330,17 @@ FinanceCommandContext _context() {
   );
 }
 
-CostAccountAllocationDto _account({required bool withRule}) {
+CostAccountAllocationDto _account({
+  required bool withRule,
+  int? version = 7,
+}) {
   return CostAccountAllocationDto(
     financeAccountId: 'account-1',
     code: '4210',
     name: 'Heizkosten',
     accountType: 'expense',
     isActive: true,
+    version: version,
     rule: withRule
         ? const CostAllocationRuleDto(
             financeAccountId: 'account-1',
@@ -423,6 +435,9 @@ class _FakeGateway implements FinanceSupabaseGateway {
 
 class _FakePort implements CostAllocationRulesPort {
   int reads = 0;
+
+  /// Null models a server that predates FINANCE-COST-TYPES-01.
+  int? accountVersion = 7;
   final List<SetCostAllocationRuleCommand> commands =
       <SetCostAllocationRuleCommand>[];
   FinanceRepositoryFailureKind? readFailure;
@@ -443,7 +458,9 @@ class _FakePort implements CostAllocationRulesPort {
     }
     return FinanceRepositorySuccess<CostAllocationOverviewDto>(
       CostAllocationOverviewDto(
-        accounts: <CostAccountAllocationDto>[_account(withRule: false)],
+        accounts: <CostAccountAllocationDto>[
+          _account(withRule: false, version: accountVersion),
+        ],
         classifiedCount: 0,
         unclassifiedCount: 1,
         totalCount: 1,
@@ -474,4 +491,433 @@ class _FakePort implements CostAllocationRulesPort {
       ),
     );
   }
+}
+
+
+class _FakeAccountsPort implements FinanceAccountsPort {
+  final List<CreateFinanceAccountCommand> creates =
+      <CreateFinanceAccountCommand>[];
+  final List<UpdateFinanceAccountCommand> updates =
+      <UpdateFinanceAccountCommand>[];
+  String? failureField;
+  bool failWithVersionConflict = false;
+
+  @override
+  Future<FinanceRepositoryResult<CostAccountAllocationDto>> createAccount(
+    CreateFinanceAccountCommand command,
+  ) async {
+    creates.add(command);
+    return _answer();
+  }
+
+  @override
+  Future<FinanceRepositoryResult<CostAccountAllocationDto>> updateAccount(
+    UpdateFinanceAccountCommand command,
+  ) async {
+    updates.add(command);
+    return _answer();
+  }
+
+  FinanceRepositoryResult<CostAccountAllocationDto> _answer() {
+    if (failWithVersionConflict) {
+      return const FinanceRepositoryFailure<CostAccountAllocationDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message: 'Cost account version is stale',
+      );
+    }
+    final String? field = failureField;
+    if (field != null) {
+      return FinanceRepositoryFailure<CostAccountAllocationDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message: 'refused',
+        field: field,
+      );
+    }
+    return FinanceRepositorySuccess<CostAccountAllocationDto>(
+      _account(withRule: false),
+    );
+  }
+}
+
+/// FINANCE-COST-TYPES-01: the cost types themselves.
+///
+/// The account tree had audited, idempotent, granted commands and no client
+/// that could call them, because `update_finance_account` requires a version
+/// the only account-listing read did not return. These tests are about the
+/// half of that fix that lives here.
+void _costTypeTests() {
+  group('cost type adapter', () {
+    late _FakeGateway gateway;
+    late SupabaseFinanceAccountAdapter adapter;
+
+    setUp(() {
+      gateway = _FakeGateway();
+      adapter = SupabaseFinanceAccountAdapter.withGateway(gateway);
+    });
+
+    test('a code that could not be stored is refused before the round trip',
+        () async {
+      final FinanceRepositoryResult<CostAccountAllocationDto> result =
+          await adapter.createAccount(
+        CreateFinanceAccountCommand(
+          context: _context(),
+          code: 'Heiz kosten',
+          name: 'Heizkosten',
+          accountType: FinanceAccountType.expense,
+        ),
+      );
+
+      expect(gateway.calls, 0);
+      final failure =
+          result as FinanceRepositoryFailure<CostAccountAllocationDto>;
+      expect(failure.field, 'code');
+      expect(
+        failure.message,
+        contains('nicht mehr ändern'),
+        reason: 'the reason a code is fussy is that it is permanent, and the '
+            'message is the only place the reader learns that before they '
+            'commit to one',
+      );
+    });
+
+    test('an account kind this build does not know is never written back',
+        () async {
+      final FinanceRepositoryResult<CostAccountAllocationDto> result =
+          await adapter.createAccount(
+        CreateFinanceAccountCommand(
+          context: _context(),
+          code: '4210',
+          name: 'Heizkosten',
+          accountType: FinanceAccountType.unknown,
+        ),
+      );
+
+      expect(gateway.calls, 0);
+      expect(
+        (result as FinanceRepositoryFailure<CostAccountAllocationDto>).field,
+        'accountType',
+      );
+    });
+
+    test('the create parses the command snapshot, which names the id "id"',
+        () async {
+      // Not `finance_account_id`: that is the list read's shape. Two shapes
+      // for one row is exactly where a parser quietly returns nothing.
+      gateway.result = <String, Object?>{
+        'ok': true,
+        'entity': <String, Object?>{
+          'id': 'account-9',
+          'workspace_id': 'ws-1',
+          'code': '4300',
+          'name': 'Hausmeister',
+          'account_type': 'expense',
+          'parent_account_id': null,
+          'is_active': true,
+          'version': 1,
+        },
+      };
+
+      final CostAccountAllocationDto value =
+          (await adapter.createAccount(
+                    CreateFinanceAccountCommand(
+                      context: _context(),
+                      code: '4300',
+                      name: 'Hausmeister',
+                      accountType: FinanceAccountType.expense,
+                    ),
+                  )
+                  as FinanceRepositorySuccess<CostAccountAllocationDto>)
+              .value;
+
+      expect(value.financeAccountId, 'account-9');
+      expect(value.version, 1);
+      expect(value.isEditable, isTrue);
+      expect(gateway.lastParameters!['p_account_type'], 'expense');
+    });
+
+    test('a taken code lands as a validation failure with the server\'s reason',
+        () async {
+      gateway.result = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'dependency_conflict',
+          'message': 'An account with this code already exists',
+        },
+      };
+
+      final FinanceRepositoryResult<CostAccountAllocationDto> result =
+          await adapter.createAccount(
+        CreateFinanceAccountCommand(
+          context: _context(),
+          code: '4300',
+          name: 'Hausmeister',
+          accountType: FinanceAccountType.expense,
+        ),
+      );
+
+      final failure =
+          result as FinanceRepositoryFailure<CostAccountAllocationDto>;
+      expect(failure.kind, FinanceRepositoryFailureKind.validationFailed);
+      expect(
+        failure.message,
+        'Diesen Schlüssel gibt es in diesem Workspace schon.',
+        reason: 'the commonest refusal on a German form, met in German rather '
+            'than as a seam the reader has to step over',
+      );
+    });
+
+    test('a refusal this build does not know comes through verbatim', () async {
+      gateway.result = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'validation_failed',
+          'message': 'Some future rule was violated',
+        },
+      };
+
+      final FinanceRepositoryResult<CostAccountAllocationDto> result =
+          await adapter.createAccount(
+        CreateFinanceAccountCommand(
+          context: _context(),
+          code: '4300',
+          name: 'Hausmeister',
+          accountType: FinanceAccountType.expense,
+        ),
+      );
+
+      expect(
+        (result as FinanceRepositoryFailure<CostAccountAllocationDto>).message,
+        'Some future rule was violated',
+        reason: 'an untranslated sentence is better than a wrong one, and a '
+            'catch-all German message would hide what the server said',
+      );
+    });
+
+    test('the update sends the version it was given, and no code', () async {
+      gateway.result = <String, Object?>{
+        'ok': true,
+        'entity': <String, Object?>{
+          'id': 'account-1',
+          'workspace_id': 'ws-1',
+          'code': '4210',
+          'name': 'Heizung',
+          'account_type': 'expense',
+          'parent_account_id': null,
+          'is_active': true,
+          'version': 8,
+        },
+      };
+
+      await adapter.updateAccount(
+        UpdateFinanceAccountCommand(
+          context: _context(),
+          accountId: 'account-1',
+          expectedVersion: 7,
+          name: 'Heizung',
+        ),
+      );
+
+      expect(gateway.lastParameters!['p_expected_version'], 7);
+      expect(
+        gateway.lastParameters!.containsKey('p_code'),
+        isFalse,
+        reason: 'the server takes no code on an update, so sending one would '
+            'be sending a parameter that does not exist',
+      );
+    });
+  });
+
+  group('cost type controller', () {
+    late _FakePort port;
+    late _FakeAccountsPort accountsPort;
+
+    CostAllocationController controller({
+      Set<String> permissions = const <String>{'finance.read', 'finance.manage'},
+    }) {
+      final subject = CostAllocationController(
+        port: port,
+        accountsPort: accountsPort,
+        scope: WorkspaceSessionScope(
+          workspaceId: 'ws-1',
+          actorId: 'actor-a',
+          permissions: permissions,
+          mutationsSupported: true,
+        ),
+        idFactory: () => 'id-1',
+      );
+      addTearDown(subject.dispose);
+      return subject;
+    }
+
+    setUp(() {
+      port = _FakePort();
+      accountsPort = _FakeAccountsPort();
+    });
+
+    test('a create re-reads, because the unclassified count is the server\'s',
+        () async {
+      final subject = controller();
+      await subject.load();
+      expect(port.reads, 1);
+
+      final CostAllocationActionFailure? failure = await subject.createAccount(
+        code: '4300',
+        name: 'Hausmeister',
+        accountType: FinanceAccountType.expense,
+      );
+
+      expect(failure, isNull);
+      expect(accountsPort.creates.single.code, '4300');
+      expect(port.reads, 2);
+    });
+
+    test('a refusal is returned, not only put in state', () async {
+      accountsPort.failureField = 'code';
+      final subject = controller();
+      await subject.load();
+
+      final CostAllocationActionFailure? failure = await subject.createAccount(
+        code: '4300',
+        name: 'Hausmeister',
+        accountType: FinanceAccountType.expense,
+      );
+
+      expect(
+        failure?.field,
+        'code',
+        reason: 'a dialog has to stay open and point at the field; it cannot '
+            'do that from a state it stopped watching when it popped',
+      );
+    });
+
+    test('the update sends the version the caller was looking at', () async {
+      final subject = controller();
+      await subject.load();
+
+      // Deliberately not the version in `state.accounts` (7). The caller is a
+      // dialog that was opened when the row was at 5, and that is the version
+      // the server must judge against — re-reading a fresher one here would
+      // let a retry after a refusal carry stale field values over somebody
+      // else's write, which is the loss the token exists to prevent.
+      await subject.updateAccount(
+        accountId: 'account-1',
+        expectedVersion: 5,
+        name: 'Heizung',
+      );
+
+      expect(accountsPort.updates.single.expectedVersion, 5);
+    });
+
+    test('a stale version is refused and the list is re-read, so the next '
+        'attempt is built from what the server now holds', () async {
+      accountsPort.failureField = null;
+      accountsPort.failWithVersionConflict = true;
+      final subject = controller();
+      await subject.load();
+      expect(port.reads, 1);
+
+      final CostAllocationActionFailure? failure = await subject.updateAccount(
+        accountId: 'account-1',
+        expectedVersion: 5,
+        name: 'Heizung',
+      );
+
+      expect(failure, isNotNull);
+      expect(port.reads, 2);
+    });
+
+    test('a member without finance.manage cannot create one', () async {
+      final subject = controller(permissions: const <String>{'finance.read'});
+      await subject.load();
+
+      final CostAllocationActionFailure? failure = await subject.createAccount(
+        code: '4300',
+        name: 'Hausmeister',
+        accountType: FinanceAccountType.expense,
+      );
+
+      expect(accountsPort.creates, isEmpty);
+      expect(failure, isNotNull);
+    });
+  });
+
+  group('BetrKV suggestions', () {
+    test('the catalogue is the seventeen positions of § 2', () {
+      expect(betrkvSuggestions, hasLength(17));
+      expect(
+        betrkvSuggestions.map((BetrkvSuggestion s) => s.position),
+        <String>[
+          '1', '2', '3', '4', '5', '6', '7', '8', '9',
+          '10', '11', '12', '13', '14', '15', '16', '17',
+        ],
+      );
+    });
+
+    test('the heating positions pre-fill the HeizkostenV flag', () {
+      final Iterable<String> heating = betrkvSuggestions
+          .where((BetrkvSuggestion s) => s.underHeatingCostRegulation)
+          .map((BetrkvSuggestion s) => s.position);
+      expect(
+        heating,
+        <String>['4', '5', '6'],
+        reason: 'P-2a already enforces the consequence as a CHECK; this only '
+            'pre-fills the form, and the person creating the cost type '
+            'confirms it',
+      );
+    });
+
+    test('every suggestion has a storable code', () {
+      for (final BetrkvSuggestion suggestion in betrkvSuggestions) {
+        expect(
+          financeAccountCodePattern.hasMatch(suggestion.suggestedCode),
+          isTrue,
+          reason: 'a suggestion the server would refuse is worse than no '
+              'suggestion: ${suggestion.suggestedCode}',
+        );
+      }
+    });
+
+    test('adopted positions drop out, matched on the position text', () {
+      final List<BetrkvSuggestion> outstanding = outstandingBetrkvSuggestions(
+        <String?>[
+          '  kosten der gartenpflege  ',
+          'Kosten für den Hauswart',
+          null,
+          'Etwas ganz anderes',
+        ],
+      );
+
+      expect(outstanding, hasLength(15));
+      expect(
+        outstanding.map((BetrkvSuggestion s) => s.position),
+        isNot(contains('10')),
+        reason: 'matched case- and whitespace-insensitively, because the '
+            'workspace types the position text and nobody should be offered '
+            'an item twice over a stray space',
+      );
+      expect(outstanding.map((BetrkvSuggestion s) => s.position),
+          isNot(contains('14')));
+    });
+
+    test('a workspace that renamed a cost type is not offered it again', () {
+      // The name and the code belong to the workspace; the position text is
+      // what identifies the item.
+      final List<BetrkvSuggestion> outstanding = outstandingBetrkvSuggestions(
+        <String?>['Kosten für den Hauswart'],
+      );
+      expect(
+        outstanding.map((BetrkvSuggestion s) => s.position),
+        isNot(contains('14')),
+      );
+    });
+
+    test('nothing is offered once every position is taken', () {
+      expect(
+        outstandingBetrkvSuggestions(
+          betrkvSuggestions.map((BetrkvSuggestion s) => s.positionText),
+        ),
+        isEmpty,
+      );
+    });
+  });
 }

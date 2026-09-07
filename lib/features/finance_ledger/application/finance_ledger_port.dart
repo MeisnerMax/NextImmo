@@ -348,3 +348,61 @@ abstract interface class UnitBasisValuesPort {
     UpsertUnitBasisValueCommand command,
   );
 }
+
+/// Creates a cost type (`FINANCE-COST-TYPES-01`).
+///
+/// [code] is set once and never again: `update_finance_account` accepts no
+/// code, because a code is what a booking, a report and an export cite.
+class CreateFinanceAccountCommand {
+  const CreateFinanceAccountCommand({
+    required this.context,
+    required this.code,
+    required this.name,
+    required this.accountType,
+    this.parentAccountId,
+  });
+
+  final FinanceCommandContext context;
+  final String code;
+  final String name;
+  final FinanceAccountType accountType;
+  final String? parentAccountId;
+}
+
+/// Renames a cost type, re-parents it, or takes it out of use.
+///
+/// [expectedVersion] is required by the server and has no default here either:
+/// the read that lists accounts now returns it, and a client that could not
+/// obtain it had no business calling this at all.
+class UpdateFinanceAccountCommand {
+  const UpdateFinanceAccountCommand({
+    required this.context,
+    required this.accountId,
+    required this.expectedVersion,
+    this.name,
+    this.parentAccountId,
+    this.clearParent = false,
+    this.isActive,
+  });
+
+  final FinanceCommandContext context;
+  final String accountId;
+  final int expectedVersion;
+
+  /// Null leaves the name as it is. The server treats every field this way,
+  /// so a form that only changes the active flag sends only that.
+  final String? name;
+  final String? parentAccountId;
+  final bool clearParent;
+  final bool? isActive;
+}
+
+abstract interface class FinanceAccountsPort {
+  Future<FinanceRepositoryResult<CostAccountAllocationDto>> createAccount(
+    CreateFinanceAccountCommand command,
+  );
+
+  Future<FinanceRepositoryResult<CostAccountAllocationDto>> updateAccount(
+    UpdateFinanceAccountCommand command,
+  );
+}

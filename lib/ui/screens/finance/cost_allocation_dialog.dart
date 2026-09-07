@@ -37,18 +37,33 @@ class CostAllocationFormResult {
 Future<CostAllocationFormResult?> showCostAllocationDialog(
   BuildContext context, {
   required CostAccountAllocationDto account,
+  String? initialBetrkvPosition,
+  bool? initialUnderHeatingCostRegulation,
 }) {
   return showDialog<CostAllocationFormResult>(
     context: context,
-    builder: (BuildContext dialogContext) =>
-        _CostAllocationDialog(account: account),
+    builder: (BuildContext dialogContext) => _CostAllocationDialog(
+      account: account,
+      initialBetrkvPosition: initialBetrkvPosition,
+      initialUnderHeatingCostRegulation: initialUnderHeatingCostRegulation,
+    ),
   );
 }
 
 class _CostAllocationDialog extends StatefulWidget {
-  const _CostAllocationDialog({required this.account});
+  const _CostAllocationDialog({
+    required this.account,
+    this.initialBetrkvPosition,
+    this.initialUnderHeatingCostRegulation,
+  });
 
   final CostAccountAllocationDto account;
+
+  /// Pre-filled when the account was just adopted from the § 2 BetrKV
+  /// catalogue. This is the step that records *which* position it is — the
+  /// creation before it wrote only the account row.
+  final String? initialBetrkvPosition;
+  final bool? initialUnderHeatingCostRegulation;
 
   @override
   State<_CostAllocationDialog> createState() => _CostAllocationDialogState();
@@ -65,10 +80,19 @@ class _CostAllocationDialogState extends State<_CostAllocationDialog> {
   void initState() {
     super.initState();
     final CostAllocationRuleDto? rule = widget.account.rule;
-    _betrkv = TextEditingController(text: rule?.betrkvPosition ?? '');
+    _betrkv = TextEditingController(
+      text: rule?.betrkvPosition ?? widget.initialBetrkvPosition ?? '',
+    );
     _note = TextEditingController(text: rule?.note ?? '');
-    _allocatable = rule?.allocatable ?? false;
-    _heating = rule?.underHeatingCostRegulation ?? false;
+    // A BetrKV position is by definition a cost the tenant may be charged, so
+    // an adoption starts from "apportionable" — and the reader confirms it
+    // like everything else on this form.
+    _allocatable =
+        rule?.allocatable ?? (widget.initialBetrkvPosition != null);
+    _heating =
+        rule?.underHeatingCostRegulation ??
+        widget.initialUnderHeatingCostRegulation ??
+        false;
     // An unrecognised principle from a newer server is not carried into the
     // form: the command layer refuses to write it back, so offering it here
     // would build a submission that cannot succeed.

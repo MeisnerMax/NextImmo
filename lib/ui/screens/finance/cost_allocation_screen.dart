@@ -1,4 +1,17 @@
-/// Which costs may be passed on to tenants (`COST-ALLOCATION-RULES-01`, P-2a).
+/// The cost types, and which of them may be passed on to tenants
+/// (`FINANCE-COST-TYPES-01` and `COST-ALLOCATION-RULES-01`, P-2a).
+///
+/// **One list, two questions.** Which cost types exist, and which of them a
+/// tenant pays. They were nearly two screens; they are one, because a second
+/// list of the same accounts is a second place for the same fact to be wrong.
+/// Creating a cost type here decides nothing about apportionment — the new row
+/// appears unclassified, which is the state the count below exists to drive to
+/// zero.
+///
+/// **The § 2 BetrKV catalogue is offered, never applied.** `DEC-014` records
+/// it as source-contradictory, so it is a list of suggestions the workspace
+/// adopts one at a time and edits freely. Nothing validates against it, and a
+/// cost type that appears on no list is accepted exactly as readily.
 ///
 /// **The unclassified count is the point of the screen.** It comes from the
 /// server over every account in the workspace, and it is the number this work
@@ -22,6 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/finance_ledger/application/cost_allocation_controller.dart';
+import '../../../features/finance_ledger/domain/betrkv_catalogue.dart';
 import '../../../features/finance_ledger/domain/cost_allocation_dto.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_empty_state.dart';
@@ -32,6 +46,7 @@ import '../../components/nx_responsive_grid.dart';
 import '../../components/nx_status_badge.dart';
 import '../../theme/app_theme.dart';
 import 'cost_allocation_dialog.dart';
+import 'finance_account_dialog.dart';
 
 String costSettlementPrincipleLabel(CostSettlementPrinciple? principle) =>
     switch (principle) {
@@ -61,10 +76,11 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           const NxPageHeader(
-            title: 'Umlagefähigkeit',
+            title: 'Kostenarten',
             subtitle:
-                'Welche Kosten auf Mieter umgelegt werden dürfen und nach '
-                'welchem Prinzip sie abgerechnet werden.',
+                'Welche Kostenarten es gibt, welche davon auf Mieter umgelegt '
+                'werden dürfen und nach welchem Prinzip sie abgerechnet '
+                'werden.',
           ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(child: _body(context, state, controller)),
@@ -137,9 +153,12 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
               caption: 'im gesamten Workspace',
             ),
             NxKpiTile(
-              label: 'Kostenarten',
+              label: 'Konten',
               value: '${state.totalCount}',
-              caption: 'insgesamt',
+              // "Konten", not "Kostenarten": the tree holds revenue and
+              // balance-sheet accounts too, and only an expense account is a
+              // Kostenart in the sense the rest of this screen uses.
+              caption: 'im Kontenbaum insgesamt',
             ),
           ],
         ),
@@ -153,15 +172,40 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
                 : NxNoticeKind.info,
           ),
         ],
+        if (controller.canMutate) ...<Widget>[
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              key: const Key('finance-account-create'),
+              onPressed: () => _editAccount(controller, null, null),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Kostenart anlegen'),
+            ),
+          ),
+          _BetrkvPanel(
+            outstanding: outstandingBetrkvSuggestions(
+              state.accounts.map(
+                (CostAccountAllocationDto account) =>
+                    account.rule?.betrkvPosition,
+              ),
+            ),
+            onAdopt: (BetrkvSuggestion suggestion) =>
+                _editAccount(controller, null, suggestion),
+          ),
+        ],
         const SizedBox(height: AppSpacing.sm),
         if (state.accounts.isEmpty)
-          const NxCard(
+          NxCard(
             child: NxEmptyState(
-              key: Key('cost-allocation-empty'),
-              title: 'Keine Kostenarten angelegt',
-              description:
-                  'Die Umlagefähigkeit hängt an den Finanzkonten. Ohne Konten '
-                  'gibt es nichts einzuordnen.',
+              key: const Key('cost-allocation-empty'),
+              title: 'Noch keine Kostenarten angelegt',
+              description: controller.canMutate
+                  ? 'Legen Sie an, was Sie abrechnen: Versicherung, Heizung, '
+                        'Hausmeister, Allgemeinstrom, Wasser. Der Vorschlag '
+                        'nach § 2 BetrKV oben nimmt Ihnen das Tippen ab.'
+                  : 'Es sind keine Kostenarten erfasst, und zum Anlegen fehlt '
+                        'die Berechtigung zur Finanzverwaltung.',
               icon: Icons.account_tree_outlined,
             ),
           )
@@ -173,17 +217,86 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
                 account: account,
                 canMutate: controller.canMutate,
                 onEdit: () => _edit(controller, account),
+                onRename: controller.canMutate && account.isEditable
+                    ? () => _editAccount(controller, account, null)
+                    : null,
               ),
             ),
       ],
     );
   }
 
+  /// Creates a cost type, or renames one. The dialog runs the command itself
+  /// and stays open on a refusal — a taken code is the usual one — so the
+  /// reader keeps what they typed.
+  ///
+  /// Adopting a § 2 BetrKV position is two steps, and the second is what makes
+  /// the adoption an adoption. Creating the cost type writes only the account
+  /// row, so the classification form opens straight after, pre-filled with the
+  /// position and — for the three central installations — the HeizkostenV
+  /// flag. Until that form is saved nothing records *which* position this is,
+  /// which is why the suggestion stays on offer if it is cancelled.
+  Future<void> _editAccount(
+    CostAllocationController controller,
+    CostAccountAllocationDto? account,
+    BetrkvSuggestion? suggestion,
+  ) async {
+    final bool? saved = await showFinanceAccountDialog(
+      context,
+      account: account,
+      suggestion: suggestion,
+      onSubmit: (FinanceAccountFormResult result) => account == null
+          ? controller.createAccount(
+              code: result.code,
+              name: result.name,
+              accountType: result.accountType,
+            )
+          : controller.updateAccount(
+              accountId: account.financeAccountId,
+              // The version the form was filled against, not whatever the
+              // list holds by now: a refusal reloads the list, and a retry
+              // carrying the fresh version with the old field values would
+              // overwrite the other writer's change.
+              expectedVersion: result.expectedVersion!,
+              name: result.name,
+              isActive: result.isActive,
+            ),
+    );
+    if (saved != true || suggestion == null || !mounted) {
+      return;
+    }
+    final CostAccountAllocationDto? created = ref
+        .read(costAllocationControllerProvider)
+        .accounts
+        .where(
+          (CostAccountAllocationDto candidate) =>
+              candidate.code == suggestion.suggestedCode ||
+              candidate.name == suggestion.name,
+        )
+        .firstOrNull;
+    if (created == null) {
+      return;
+    }
+    await _edit(
+      controller,
+      created,
+      betrkvPosition: suggestion.positionText,
+      underHeatingCostRegulation: suggestion.underHeatingCostRegulation,
+    );
+  }
+
   Future<void> _edit(
     CostAllocationController controller,
-    CostAccountAllocationDto account,
-  ) async {
-    final result = await showCostAllocationDialog(context, account: account);
+    CostAccountAllocationDto account, {
+    String? betrkvPosition,
+    bool? underHeatingCostRegulation,
+  }) async {
+    final result = await showCostAllocationDialog(
+      context,
+      account: account,
+      initialBetrkvPosition: betrkvPosition,
+      initialUnderHeatingCostRegulation: underHeatingCostRegulation,
+    );
     if (result == null) {
       return;
     }
@@ -203,11 +316,16 @@ class _AccountRow extends StatelessWidget {
     required this.account,
     required this.canMutate,
     required this.onEdit,
+    this.onRename,
   });
 
   final CostAccountAllocationDto account;
   final bool canMutate;
   final VoidCallback onEdit;
+
+  /// Null when the account cannot be changed — no permission, or a server that
+  /// sent no version. Offering the action then would offer a refusal.
+  final VoidCallback? onRename;
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +367,15 @@ class _AccountRow extends StatelessWidget {
                 ),
             ],
           ),
+          if (!account.isActive) ...<Widget>[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              'Inaktiv — bleibt in allen Buchungen, die sie zitieren, wird '
+              'aber nicht mehr angeboten.',
+              key: const Key('finance-account-inactive'),
+              style: muted,
+            ),
+          ],
           if (rule != null) ...<Widget>[
             const SizedBox(height: AppSpacing.xxs),
             if (rule.allocatable)
@@ -274,14 +401,95 @@ class _AccountRow extends StatelessWidget {
           ],
           if (canMutate) ...<Widget>[
             const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              key: Key('cost-allocation-edit-${account.financeAccountId}'),
-              onPressed: onEdit,
-              icon: const Icon(Icons.tune_outlined, size: 18),
-              label: Text(rule == null ? 'Einordnen' : 'Ändern'),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  key: Key('cost-allocation-edit-${account.financeAccountId}'),
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.tune_outlined, size: 18),
+                  label: Text(rule == null ? 'Einordnen' : 'Ändern'),
+                ),
+                if (onRename != null)
+                  TextButton.icon(
+                    key: Key('finance-account-edit-${account.financeAccountId}'),
+                    onPressed: onRename,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Bezeichnung'),
+                  ),
+              ],
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+
+/// The § 2 BetrKV starting point, as suggestions the workspace adopts one at a
+/// time.
+///
+/// Collapsed by default and gone entirely once every position has been taken
+/// up: a panel that kept offering seventeen items to somebody who has finished
+/// is a panel that gets ignored. Nothing here validates anything — `DEC-014`
+/// records the catalogue as source-contradictory, so the list is a convenience
+/// with its source named, and a workspace that never touches it is not
+/// missing a step.
+class _BetrkvPanel extends StatelessWidget {
+  const _BetrkvPanel({required this.outstanding, required this.onAdopt});
+
+  final List<BetrkvSuggestion> outstanding;
+  final ValueChanged<BetrkvSuggestion> onAdopt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (outstanding.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: NxCard(
+        child: ExpansionTile(
+          key: const Key('betrkv-panel'),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          title: Text(
+            'Vorschlag nach § 2 BetrKV (${outstanding.length} offen)',
+            style: theme.textTheme.titleSmall,
+          ),
+          subtitle: Text(
+            'Ein Ausgangspunkt, keine Vorgabe: die Positionen sind einzeln '
+            'übernehmbar. Bezeichnung und Einordnung lassen sich danach '
+            'ändern, der Schlüssel nicht — er wird einmal vergeben, weil '
+            'Buchungen ihn zitieren. Der Katalog ist in DEC-014 als '
+            'quellenwidersprüchlich vermerkt, deshalb prüft nichts im System '
+            'dagegen.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          children: <Widget>[
+            for (final BetrkvSuggestion suggestion in outstanding)
+              ListTile(
+                key: Key('betrkv-suggestion-${suggestion.position}'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('§ 2 Nr. ${suggestion.position} — ${suggestion.name}'),
+                subtitle: Text(
+                  suggestion.note == null
+                      ? suggestion.positionText
+                      : '${suggestion.positionText} · ${suggestion.note}',
+                ),
+                isThreeLine: suggestion.note != null,
+                trailing: TextButton(
+                  onPressed: () => onAdopt(suggestion),
+                  child: const Text('Übernehmen'),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -12,6 +12,8 @@
 /// classification.
 library;
 
+import 'finance_actuals_dto.dart';
+
 /// Which period a cost belongs to.
 enum CostSettlementPrinciple {
   /// Leistungsprinzip: the period in which the service was rendered.
@@ -91,6 +93,23 @@ class CostAllocationRuleDto {
           settlementPrinciple == CostSettlementPrinciple.outflow);
 }
 
+/// The wire key for an account kind.
+///
+/// [FinanceAccountType] and its reader already live in `finance_actuals_dto`
+/// — this is the direction that had no home, because until now nothing wrote
+/// an account. One enum, two directions, rather than a second enum that could
+/// drift.
+String financeAccountTypeKey(FinanceAccountType value) => switch (value) {
+  FinanceAccountType.income => 'income',
+  FinanceAccountType.expense => 'expense',
+  FinanceAccountType.asset => 'asset',
+  FinanceAccountType.liability => 'liability',
+  FinanceAccountType.equity => 'equity',
+  // Never sent: the command layer refuses it rather than guessing what an
+  // unfamiliar kind of account meant.
+  FinanceAccountType.unknown => 'unknown',
+};
+
 /// One finance account and its rule, or the absence of one.
 class CostAccountAllocationDto {
   const CostAccountAllocationDto({
@@ -99,14 +118,35 @@ class CostAccountAllocationDto {
     required this.name,
     required this.accountType,
     required this.isActive,
+    this.version,
+    this.parentAccountId,
     this.rule,
   });
 
   final String financeAccountId;
+
+  /// Immutable after creation. `update_finance_account` takes no code, and
+  /// deliberately: a code is what a booking, a report and an export cite, so
+  /// renaming one silently re-points every line that quoted it.
   final String code;
   final String name;
   final String accountType;
   final bool isActive;
+
+  /// The account's own version, not the rule's. Required by
+  /// `update_finance_account`; null only from a server that predates
+  /// `FINANCE-COST-TYPES-01`, in which case this build cannot edit the
+  /// account and says so rather than sending a guess.
+  final int? version;
+
+  final String? parentAccountId;
+
+  FinanceAccountType get kind => financeAccountTypeFromWire(accountType);
+
+  /// Whether this build can change the account at all. False when the server
+  /// did not send a version — an edit without one is refused server-side, so
+  /// offering it would be offering a refusal.
+  bool get isEditable => version != null;
 
   /// Null when nobody has classified this account. Not the same as a rule
   /// saying "not apportionable", and the screen must not render them alike.

@@ -19,6 +19,11 @@ final costAllocationRulesProvider = Provider<CostAllocationRulesPort>(
   (ref) => throw StateError('CostAllocationRulesPort is not configured.'),
 );
 
+/// The cost type tree (`FINANCE-COST-TYPES-01`).
+final financeAccountsProvider = Provider<FinanceAccountsPort>(
+  (ref) => throw StateError('FinanceAccountsPort is not configured.'),
+);
+
 /// Cost pools and allocation keys (`COST-POOLS-ALLOCATION-KEYS-01`, P-2b).
 final costPoolsProvider = Provider<CostPoolsPort>(
   (ref) => throw StateError('CostPoolsPort is not configured.'),

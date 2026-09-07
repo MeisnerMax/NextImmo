@@ -667,8 +667,8 @@ const List<AppNavigationGroup> appNavigationGroups = <AppNavigationGroup>[
       ),
       GlobalNavigationDestination(
         page: GlobalPage.costAllocation,
-        label: 'Umlagefähigkeit',
-        title: 'Umlagefähigkeit',
+        label: 'Kostenarten',
+        title: 'Kostenarten',
         routeKey: 'setup_administration.cost_allocation',
         icon: Icons.rule_folder_outlined,
       ),
