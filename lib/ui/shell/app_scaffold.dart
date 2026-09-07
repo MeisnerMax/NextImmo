@@ -14,6 +14,7 @@ import '../components/nx_content_frame.dart';
 import '../components/nx_empty_state.dart';
 import '../../features/identity_access/application/identity_access_repository.dart';
 import '../navigation/app_navigation.dart';
+import '../screens/alerts/workspace_alerts_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -405,6 +406,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   ? target.taskId
                   : null,
         );
+      case GlobalPage.dashboard:
+        // ALERT-READER-01 (P-10): the dashboard destination used to render a
+        // notice about itself. It is now the workspace worklist -- the one
+        // question a property manager opens the app with.
+        return const WorkspaceAlertsScreen();
       case GlobalPage.notifications:
         // NOTIFICATION-INBOX-01: the addressed inbox (A11-A14).
         return const NotificationInboxScreen();

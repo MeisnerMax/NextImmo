@@ -39,6 +39,26 @@ class LegacySqliteOperationsSignalsAdapter implements OperationsSignalsPort {
   final OperationsRepo _repo;
   final String legacyWorkspaceId;
 
+  /// Refused rather than emulated (`ALERT-READER-01`, P-10).
+  ///
+  /// The workspace-wide read exists because the server can compute every
+  /// property's signals in one statement. Reproducing that here would mean
+  /// looping the legacy engine over every property in the store and inventing
+  /// the ordering, the cap and the counts the server reports -- a second,
+  /// slower implementation of a surface whose whole point is that there is
+  /// only one. DEC-024 removed SQLite from the runtime; this adapter is
+  /// scheduled for deletion in AP-X02-2, and it will not grow a new capability
+  /// on the way out.
+  @override
+  Future<OperationsSignalsResult<WorkspaceOperationsSignalsDto>> listWorkspace(
+    WorkspaceOperationsSignalsQuery query,
+  ) async {
+    return const OperationsSignalsFailure<WorkspaceOperationsSignalsDto>(
+      kind: OperationsSignalsFailureKind.infrastructureFailure,
+      message: 'The legacy store has no workspace-wide signal read.',
+    );
+  }
+
   @override
   Future<OperationsSignalsResult<List<OperationsSignalDto>>> list(
     OperationsSignalsQuery query,

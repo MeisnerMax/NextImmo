@@ -19,6 +19,7 @@ class OperationsSignalDto {
     required this.message,
     required this.recommendedAction,
     required this.propertyId,
+    this.propertyName,
     this.unitId,
     this.leaseId,
     this.tenantPartyId,
@@ -36,6 +37,14 @@ class OperationsSignalDto {
   final String message;
   final String recommendedAction;
   final String propertyId;
+
+  /// The property's name, present only on the workspace-wide read
+  /// (`ALERT-READER-01`). Null on the property-scoped read, where the screen
+  /// already knows which building it is looking at -- and a workspace list
+  /// without it is unusable, because "Lease 4B expires in 12 days" says
+  /// nothing when forty buildings are in scope.
+  final String? propertyName;
+
   final String? unitId;
   final String? leaseId;
   final String? tenantPartyId;
@@ -87,4 +96,43 @@ class OperationsSignalStateDto {
   final DateTime updatedAt;
   final String createdBy;
   final String updatedBy;
+}
+
+/// The whole workspace's signals in one answer (`ALERT-READER-01`, P-10).
+///
+/// Capped rather than paged, and the cap is stated. The signal set is computed
+/// at read time rather than stored, so a cursor would page over a moving
+/// target: a lease renewed between two pages shifts every later signal, and
+/// the reader would skip or repeat entries with no way to tell.
+class WorkspaceOperationsSignalsDto {
+  const WorkspaceOperationsSignalsDto({
+    required this.computedAt,
+    required this.signals,
+    required this.total,
+    required this.truncated,
+    required this.limit,
+    this.totalBySeverity = const <String, int>{},
+  });
+
+  /// When the server judged the deadlines. There is no scheduler, so this is
+  /// the only thing that says how fresh the answer is.
+  final DateTime computedAt;
+
+  /// Severity first, then by property so one building reads together.
+  final List<OperationsSignalDto> signals;
+
+  /// How many matched, which is not how many came back. Counted before the
+  /// cap, so it describes what exists rather than what fitted.
+  final int total;
+
+  final bool truncated;
+  final int limit;
+
+  /// Counts per severity over the matched set, also before the cap. A summary
+  /// of the visible page would be a summary of nothing.
+  final Map<String, int> totalBySeverity;
+
+  int get criticalCount => totalBySeverity['critical'] ?? 0;
+  int get warningCount => totalBySeverity['warning'] ?? 0;
+  int get infoCount => totalBySeverity['info'] ?? 0;
 }
