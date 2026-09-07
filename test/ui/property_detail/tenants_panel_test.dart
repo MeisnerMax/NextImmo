@@ -421,6 +421,14 @@ class _FakePartyRoles implements PartyRoleRepository {
   }) async => const PartyRepositorySuccess<ContractorDetailsDto?>(null);
 
   @override
+  Future<PartyRepositoryResult<ContractorDetailsDto>> updateContractorDetails(
+    UpdateContractorDetailsCommand command,
+  ) async => const PartyRepositoryFailure<ContractorDetailsDto>(
+    kind: PartyRepositoryFailureKind.infrastructureFailure,
+    message: 'not used by this test',
+  );
+
+  @override
   Future<PartyRepositoryResult<PartyRoleDto>> assign(
     AssignPartyRoleCommand command,
   ) async => const PartyRepositoryFailure<PartyRoleDto>(

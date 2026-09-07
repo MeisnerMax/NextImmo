@@ -118,6 +118,76 @@ class AssignPartyRoleCommand {
   final ContractorDetailsInput? contractorDetails;
 }
 
+/// Corrects a contractor's details (`SUPPLIER-DETAILS-01`, P-3).
+///
+/// A patch, not a replacement: only the fields present in [changes] are
+/// written, and a field mapped to null is *cleared*. That distinction is the
+/// reason this is a map rather than a `ContractorDetailsInput` — "no agreed
+/// rate any more" and "leave the rate as it is" are different intents, and a
+/// nullable field on an input object cannot express both.
+///
+/// Separate from [AssignPartyRoleCommand] because correcting a rate is not
+/// granting a role. Sending it through the assignment would put
+/// `party.role.assign` in the audit trail, which is a statement about who this
+/// company is to the workspace rather than about a typo in a number.
+class UpdateContractorDetailsCommand {
+  const UpdateContractorDetailsCommand({
+    required this.context,
+    required this.partyId,
+    required this.expectedVersion,
+    required this.changes,
+  }) : assert(changes.length > 0, 'an empty change set is not a command');
+
+  final PartyCommandContext context;
+  final String partyId;
+
+  /// The satellite's own version, which the role-assignment path never checked.
+  final int expectedVersion;
+
+  /// Server field names to values. Use [contractorDetailChanges] to build one
+  /// rather than spelling the keys at a call site.
+  final Map<String, Object?> changes;
+}
+
+/// Builds a change set without spelling server field names at a call site.
+///
+/// Every parameter takes a sentinel default so "not mentioned" and "set to
+/// null" stay distinguishable — the whole point of a patch. Passing
+/// `hourlyRate: null` clears the rate; omitting it leaves the rate alone.
+const Object unchangedContractorField = Object();
+
+Map<String, Object?> contractorDetailChanges({
+  Object? tradeCategory = unchangedContractorField,
+  Object? hourlyRate = unchangedContractorField,
+  Object? serviceArea = unchangedContractorField,
+  Object? ratingPrice = unchangedContractorField,
+  Object? ratingQuality = unchangedContractorField,
+  Object? ratingSpeed = unchangedContractorField,
+  Object? ratingCommunication = unchangedContractorField,
+  Object? ratingPunctuality = unchangedContractorField,
+  Object? insuranceCertExpiry = unchangedContractorField,
+  Object? isActive = unchangedContractorField,
+}) {
+  final changes = <String, Object?>{};
+  void put(String key, Object? value) {
+    if (!identical(value, unchangedContractorField)) {
+      changes[key] = value;
+    }
+  }
+
+  put('trade_category', tradeCategory);
+  put('hourly_rate', hourlyRate);
+  put('service_area', serviceArea);
+  put('rating_price', ratingPrice);
+  put('rating_quality', ratingQuality);
+  put('rating_speed', ratingSpeed);
+  put('rating_communication', ratingCommunication);
+  put('rating_punctuality', ratingPunctuality);
+  put('insurance_cert_expiry', insuranceCertExpiry);
+  put('is_active', isActive);
+  return Map<String, Object?>.unmodifiable(changes);
+}
+
 class EndPartyRoleCommand {
   const EndPartyRoleCommand({
     required this.context,
@@ -161,20 +231,33 @@ enum PartyRepositoryFailureKind {
 }
 
 /// Structured optimistic-concurrency conflict. Exactly one of
-/// [currentParty]/[currentRole] is set, matching the entity the failed command
-/// targeted.
+/// [currentParty]/[currentRole]/[currentContractorDetails] is set, matching the
+/// entity the failed command targeted.
+///
+/// The third slot exists because `SUPPLIER-DETAILS-01` conflicts on the
+/// contractor satellite, which is neither a party nor a role. Without it the
+/// conflict could only say that the form was stale, not what it would have
+/// overwritten -- and a form that cannot show the other value leaves the
+/// reader to guess whether their edit still applies.
 class PartyVersionConflict {
   const PartyVersionConflict({
     required this.expectedVersion,
     required this.actualVersion,
     this.currentParty,
     this.currentRole,
-  }) : assert((currentParty != null) != (currentRole != null));
+    this.currentContractorDetails,
+  }) : assert(
+         (currentParty != null ? 1 : 0) +
+                 (currentRole != null ? 1 : 0) +
+                 (currentContractorDetails != null ? 1 : 0) ==
+             1,
+       );
 
   final int expectedVersion;
   final int actualVersion;
   final PartyDto? currentParty;
   final PartyRoleDto? currentRole;
+  final ContractorDetailsDto? currentContractorDetails;
 }
 
 sealed class PartyRepositoryResult<T> {
@@ -243,6 +326,15 @@ abstract interface class PartyRoleRepository {
 
   Future<PartyRepositoryResult<PartyRoleDto>> assign(
     AssignPartyRoleCommand command,
+  );
+
+  /// Corrects the contractor satellite (`SUPPLIER-DETAILS-01`).
+  ///
+  /// Optimistic concurrency on the satellite's own version, which [assign]
+  /// cannot check: the caller there is granting a role, and demanding the
+  /// satellite's version for that would be asking about the wrong thing.
+  Future<PartyRepositoryResult<ContractorDetailsDto>> updateContractorDetails(
+    UpdateContractorDetailsCommand command,
   );
 
   Future<PartyRepositoryResult<PartyRoleDto>> end(EndPartyRoleCommand command);

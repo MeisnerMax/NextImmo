@@ -435,6 +435,174 @@ void main() {
       }
     });
   });
+
+  // SUPPLIER-DETAILS-01 (P-3). The register has held a trade, a rate, five
+  // ratings and an insurance date since P2-D02, writable only as a side effect
+  // of granting the contractor role. These pin the dedicated path.
+  group('SupabasePartyRepositoryAdapter contractor details', () {
+    late _FakePartySupabaseGateway gateway;
+    late SupabasePartyRepositoryAdapter repository;
+
+    setUp(() {
+      gateway = _FakePartySupabaseGateway();
+      repository = SupabasePartyRepositoryAdapter.withGateway(gateway);
+    });
+
+    Future<PartyRepositoryResult<ContractorDetailsDto>> update([
+      Map<String, Object?>? changes,
+    ]) {
+      return repository.updateContractorDetails(
+        UpdateContractorDetailsCommand(
+          context: _context(),
+          partyId: 'party-a',
+          expectedVersion: 3,
+          changes: changes ?? const <String, Object?>{'hourly_rate': 95},
+        ),
+      );
+    }
+
+    test('sends the patch to the dedicated command, not to the role assignment',
+        () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': _contractorDetailsJson(),
+      };
+
+      await update();
+
+      expect(
+        gateway.rpcFunction,
+        'update_contractor_details',
+        reason: 'sending this through assign_party_role would record a rate '
+            'correction as `party.role.assign` -- a statement about who this '
+            'company is to the workspace rather than about a typo',
+      );
+      expect(gateway.rpcParameters?['p_expected_version'], 3);
+      expect(
+        gateway.rpcParameters?['p_changes'],
+        <String, Object?>{'hourly_rate': 95},
+      );
+    });
+
+    test('a null in the patch reaches the server as a null', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': _contractorDetailsJson(hourlyRate: null),
+      };
+
+      await update(<String, Object?>{'hourly_rate': null});
+
+      final sent = gateway.rpcParameters?['p_changes'] as Map<String, Object?>;
+      expect(
+        sent.containsKey('hourly_rate'),
+        isTrue,
+        reason: 'a clear is a decision. Dropping the key would leave the old '
+            'rate standing and report success',
+      );
+      expect(sent['hourly_rate'], isNull);
+    });
+
+    test('parses the updated register entry', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': true,
+        'entity': _contractorDetailsJson(hourlyRate: 95, version: 4),
+      };
+
+      final result = await update();
+
+      final details =
+          (result as PartyRepositorySuccess<ContractorDetailsDto>).value;
+      expect(details.hourlyRate, 95);
+      expect(details.version, 4);
+      expect(details.tradeCategory, 'electrical');
+    });
+
+    test('a version conflict carries the row as it stands', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'version_conflict',
+          'message': 'Contractor details version is stale',
+          'expected_version': 3,
+          'actual_version': 5,
+          'current_entity': _contractorDetailsJson(hourlyRate: 120, version: 5),
+        },
+      };
+
+      final result = await update();
+
+      final failure = result as PartyRepositoryFailure<ContractorDetailsDto>;
+      expect(failure.kind, PartyRepositoryFailureKind.versionConflict);
+      expect(failure.versionConflict?.actualVersion, 5);
+      expect(
+        failure.versionConflict?.currentContractorDetails?.hourlyRate,
+        120,
+        reason: 'the satellite is neither a party nor a role, so it needed its '
+            'own slot on the conflict. Without it the form could only say it '
+            'was stale, never what it would have overwritten',
+      );
+      expect(failure.versionConflict?.currentParty, isNull);
+      expect(failure.versionConflict?.currentRole, isNull);
+    });
+
+    test('a party with no register entry is not found', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'not_found',
+          'message': 'Contractor details not found',
+        },
+      };
+
+      final result = await update();
+
+      expect(
+        (result as PartyRepositoryFailure<ContractorDetailsDto>).kind,
+        PartyRepositoryFailureKind.notFound,
+        reason: 'an update must not invent a contractor -- that decision '
+            'belongs to assign_party_role',
+      );
+    });
+
+    test('a rejected field is a validation failure', () async {
+      gateway.rpcResult = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'validation_failed',
+          'message': 'Rating must be between 0 and 5',
+          'field': 'rating_quality',
+        },
+      };
+
+      final result = await update(<String, Object?>{'rating_quality': 7});
+
+      expect(
+        (result as PartyRepositoryFailure<ContractorDetailsDto>).kind,
+        PartyRepositoryFailureKind.validationFailed,
+      );
+    });
+  });
+}
+
+Map<String, dynamic> _contractorDetailsJson({
+  Object? hourlyRate = 85,
+  int version = 3,
+}) {
+  return <String, dynamic>{
+    'party_id': 'party-a',
+    'workspace_id': 'workspace-a',
+    'trade_category': 'electrical',
+    'hourly_rate': hourlyRate,
+    'service_area': 'Berlin Mitte',
+    'rating_price': 4,
+    'rating_quality': 5,
+    'rating_speed': 3,
+    'rating_communication': 4,
+    'rating_punctuality': 5,
+    'insurance_cert_expiry': '2027-06-30',
+    'is_active': true,
+    'version': version,
+  };
 }
 
 PartyCommandContext _context() {

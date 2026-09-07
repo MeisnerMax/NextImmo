@@ -257,7 +257,7 @@ class SupabasePartyRepositoryAdapter
       parseConflictEntity: (entity) {
         final party = _parseParty(entity);
         _requireWorkspace(party.workspaceId, command.context.workspaceId);
-        return (currentParty: party, currentRole: null);
+        return (currentParty: party, currentRole: null, currentContractorDetails: null);
       },
     );
   }
@@ -285,7 +285,7 @@ class SupabasePartyRepositoryAdapter
       parseConflictEntity: (entity) {
         final party = _parseParty(entity);
         _requireWorkspace(party.workspaceId, command.context.workspaceId);
-        return (currentParty: party, currentRole: null);
+        return (currentParty: party, currentRole: null, currentContractorDetails: null);
       },
     );
   }
@@ -366,6 +366,44 @@ class SupabasePartyRepositoryAdapter
   }
 
   @override
+  Future<PartyRepositoryResult<ContractorDetailsDto>> updateContractorDetails(
+    UpdateContractorDetailsCommand command,
+  ) {
+    return _executeCommand<ContractorDetailsDto>(
+      context: command.context,
+      function: 'update_contractor_details',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_party_id': command.partyId,
+        'p_expected_version': command.expectedVersion,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        // Sent as the caller built it. A field the command did not mention is
+        // absent, and one mapped to null is a deliberate clear -- collapsing
+        // the two here would make "no agreed rate any more" unsayable.
+        'p_changes': command.changes,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: (entity) {
+        final details = _parseContractorDetails(entity);
+        _requireWorkspace(details.workspaceId, command.context.workspaceId);
+        return details;
+      },
+      parseConflictEntity: (entity) {
+        // The satellite as it actually stands, so a stale form can show what
+        // it would have overwritten instead of only saying that it would.
+        final details = _parseContractorDetails(entity);
+        _requireWorkspace(details.workspaceId, command.context.workspaceId);
+        return (
+          currentParty: null,
+          currentRole: null,
+          currentContractorDetails: details,
+        );
+      },
+    );
+  }
+
+  @override
   Future<PartyRepositoryResult<PartyRoleDto>> end(EndPartyRoleCommand command) {
     return _executeCommand<PartyRoleDto>(
       context: command.context,
@@ -387,7 +425,7 @@ class SupabasePartyRepositoryAdapter
       parseConflictEntity: (entity) {
         final role = _parseRole(entity);
         _requireWorkspace(role.workspaceId, command.context.workspaceId);
-        return (currentParty: null, currentRole: role);
+        return (currentParty: null, currentRole: role, currentContractorDetails: null);
       },
     );
   }
@@ -521,6 +559,7 @@ class SupabasePartyRepositoryAdapter
             actualVersion: _requiredInt(error, 'actual_version'),
             currentParty: conflictEntity.currentParty,
             currentRole: conflictEntity.currentRole,
+            currentContractorDetails: conflictEntity.currentContractorDetails,
           ),
         );
       case 'infrastructure_failure':
@@ -533,8 +572,11 @@ class SupabasePartyRepositoryAdapter
   }
 }
 
-typedef _ConflictEntity =
-    ({PartyDto? currentParty, PartyRoleDto? currentRole});
+typedef _ConflictEntity = ({
+  PartyDto? currentParty,
+  PartyRoleDto? currentRole,
+  ContractorDetailsDto? currentContractorDetails,
+});
 
 Map<String, Object?>? _contractorDetailsPayload(ContractorDetailsInput? input) {
   if (input == null) {

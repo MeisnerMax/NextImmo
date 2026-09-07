@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/contacts_parties/application/contractors_controller.dart';
 import '../../../features/contacts_parties/domain/party_dto.dart';
+import 'widgets/contractor_details_dialog.dart';
 import '../../components/nx_card.dart';
 import '../../components/nx_data_table_shell.dart';
 import '../../components/nx_empty_state.dart';
@@ -164,6 +165,7 @@ class _ContractorsPanelState extends ConsumerState<ContractorsPanel> {
           state: state,
           controller: controller,
           onEdit: () => _editContractor(controller, state),
+          onEditDetails: () => _editContractorDetails(controller, state),
           onEndRole: () => _endRole(controller, state),
         );
         if (!split) {
@@ -317,6 +319,33 @@ class _ContractorsPanelState extends ConsumerState<ContractorsPanel> {
         hourlyRate: result.hourlyRate,
         serviceArea: result.serviceArea,
       ),
+    );
+  }
+
+  /// Corrects the register entry (`SUPPLIER-DETAILS-01`, P-3).
+  ///
+  /// The dialog hands back only what the reader changed, so a save cannot
+  /// overwrite a colleague's concurrent edit to a field this reader never
+  /// looked at. A null result means cancelled or unchanged, and both are
+  /// nothing to send.
+  Future<void> _editContractorDetails(
+    ContractorsController controller,
+    ContractorsState state,
+  ) async {
+    final details = state.selectedContractorDetails;
+    if (details == null) {
+      return;
+    }
+    final changes = await showContractorDetailsDialog(
+      context,
+      details: details,
+    );
+    if (changes == null) {
+      return;
+    }
+    await controller.updateContractorDetails(
+      details: details,
+      changes: changes,
     );
   }
 
@@ -488,12 +517,17 @@ class _ContractorDetailCard extends StatelessWidget {
     required this.state,
     required this.controller,
     required this.onEdit,
+    required this.onEditDetails,
     required this.onEndRole,
   });
 
   final ContractorsState state;
   final ContractorsController controller;
   final VoidCallback onEdit;
+
+  /// Opens the register editor (`SUPPLIER-DETAILS-01`).
+  final VoidCallback onEditDetails;
+
   final VoidCallback onEndRole;
 
   @override
@@ -539,6 +573,7 @@ class _ContractorDetailCard extends StatelessWidget {
           party: party,
           canMutate: controller.canMutate,
           onEdit: onEdit,
+      onEditDetails: onEditDetails,
           onEndRole: onEndRole,
         );
     }
@@ -551,6 +586,7 @@ class _ContractorDetail extends StatelessWidget {
     required this.party,
     required this.canMutate,
     required this.onEdit,
+    required this.onEditDetails,
     required this.onEndRole,
   });
 
@@ -558,6 +594,10 @@ class _ContractorDetail extends StatelessWidget {
   final PartyDto party;
   final bool canMutate;
   final VoidCallback onEdit;
+
+  /// Opens the register editor (`SUPPLIER-DETAILS-01`).
+  final VoidCallback onEditDetails;
+
   final VoidCallback onEndRole;
 
   @override
@@ -628,6 +668,17 @@ class _ContractorDetail extends StatelessWidget {
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('Kontakt bearbeiten'),
               ),
+              // Two buttons because they are two events. Renaming a company
+              // and correcting its hourly rate are different things to have
+              // happened, and since SUPPLIER-DETAILS-01 the audit trail says
+              // which one did.
+              if (details != null)
+                OutlinedButton.icon(
+                  key: const Key('contractor-edit-details'),
+                  onPressed: canMutate ? onEditDetails : null,
+                  icon: const Icon(Icons.tune_outlined),
+                  label: const Text('Daten bearbeiten'),
+                ),
               if (role != null)
                 OutlinedButton.icon(
                   onPressed: canMutate ? onEndRole : null,

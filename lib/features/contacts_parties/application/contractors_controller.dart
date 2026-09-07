@@ -15,14 +15,17 @@
 /// would need the workspace-wide read filtered by `contractor_party_id`,
 /// which does not exist. Left as a documented gap, not built around.
 ///
-/// **The contract has no update path for the contractor satellite.**
-/// `PartyRoleRepository` offers `assign` (sets `ContractorDetailsInput` once,
-/// when the role is granted) and `end`, but no `updateContractorDetails`. So
-/// [updateContractor] can only change the party's own identity fields
-/// (`PartyUpdateDto` — name/email/phone/notes); rate/rating/trade/insurance
-/// stay whatever they were assigned with until the role ends and a new one is
-/// assigned. The panel says this rather than offering an edit control that
-/// would silently do nothing.
+/// **The satellite has its own update path since `SUPPLIER-DETAILS-01` (P-3).**
+/// [updateContractor] changes the party's identity fields (name, email, phone,
+/// notes); [updateContractorDetails] changes the trade, rate, service area,
+/// ratings, insurance expiry and active flag. Two commands because they are two
+/// events: correcting a rate is not renaming a company, and the audit trail
+/// distinguishes them.
+///
+/// Until P-3 the only way to change the satellite was to re-assign the
+/// contractor role, which recorded a rate correction as `party.role.assign` --
+/// a statement about who this company is to the workspace. The panel said so
+/// rather than offering a control that would have written the wrong history.
 library;
 
 import 'dart:async';
@@ -446,6 +449,49 @@ class ContractorsController extends StateNotifier<ContractorsState> {
         await select(updated.id);
       },
       successMessage: 'Handwerker gespeichert.',
+    );
+  }
+
+  /// Corrects the contractor satellite (`SUPPLIER-DETAILS-01`, P-3).
+  ///
+  /// [changes] is a patch built with `contractorDetailChanges`: a field that is
+  /// not mentioned keeps its value, and one set to null is cleared. The
+  /// distinction is the reason this takes a map — "no agreed rate any more" and
+  /// "leave the rate alone" are different intents, and one nullable field
+  /// cannot carry both.
+  ///
+  /// The expected version is the satellite's own, not the party's. They move
+  /// independently: renaming the company does not touch the rate.
+  Future<void> updateContractorDetails({
+    required ContractorDetailsDto details,
+    required Map<String, Object?> changes,
+  }) async {
+    if (changes.isEmpty) {
+      // Refused here rather than sent: the server would refuse it too, and
+      // spending a round trip on a certain refusal is what the permission
+      // pre-checks in this controller already exist to avoid.
+      state = state.copyWith(
+        message: 'Es wurde nichts geändert.',
+      );
+      return;
+    }
+    await _runMutation(
+      () => _partyRoles.updateContractorDetails(
+        UpdateContractorDetailsCommand(
+          context: _commandContext(),
+          partyId: details.partyId,
+          expectedVersion: details.version,
+          changes: changes,
+        ),
+      ),
+      onSuccess: (ContractorDetailsDto updated) async {
+        // Re-read rather than patching state: the list carries the trade and
+        // the active flag, and reproducing the server's row here is how two
+        // answers to "what does this contractor charge" start to differ.
+        await load();
+        await select(updated.partyId);
+      },
+      successMessage: 'Handwerkerdaten gespeichert.',
     );
   }
 
