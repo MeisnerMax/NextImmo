@@ -107,6 +107,12 @@ enum GlobalPage {
   /// they answer to different authorities and only overlap in who may change
   /// them.
   complianceRules,
+
+  /// COST-ALLOCATION-RULES-01 (P-2a): which costs may be passed on to tenants
+  /// and how they settle. Workspace-level classification work, like the rule
+  /// set beside it, and gated on the finance permissions rather than the
+  /// workspace ones.
+  costAllocation,
   settings,
   help,
 }
