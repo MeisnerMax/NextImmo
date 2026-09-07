@@ -51,6 +51,17 @@ class LeaseComponentsSection extends StatelessWidget {
   /// it. On by default; off where the section stands alone.
   final bool inceptionNote;
 
+  /// The total is summed in this widget, and that is a known deviation rather
+  /// than an oversight.
+  ///
+  /// DEC-026 puts rent-schedule derivation on the server, and P2-D05b is the
+  /// precedent where a client-side live calculation was pulled back a release
+  /// later. A plain sum of rows the server already decided is a much smaller
+  /// claim than a rule engine — but it is still arithmetic on money in a
+  /// screen, so it is labelled as such above and belongs server-side with the
+  /// warm-rent aggregate (P-7), which has to decide the same VAT question this
+  /// widget currently answers alone.
+  ///
   /// The five the server knows, in the order a rent statement reads.
   static const List<LeaseComponentType> _ordered = <LeaseComponentType>[
     LeaseComponentType.baseRent,
@@ -72,8 +83,13 @@ class LeaseComponentsSection extends StatelessWidget {
             title: 'Mietbestandteile',
             description: switch (phase) {
               LeaseComponentsPhase.ready when components != null =>
+                // Precise about which half is which. The components and the
+                // decision of what is in force on this date come from the
+                // server; the total below is summed here, and saying otherwise
+                // would be the kind of claim DEC-026 exists to prevent.
                 'Stand ${formatLeaseDate(components!.asOfDate)}. '
-                    'Serverseitig ermittelt, im Screen nicht nachgerechnet.',
+                    'Bestandteile serverseitig ermittelt; die Summe wird hier '
+                    'gebildet.',
               _ => 'Zeitversionierte Bestandteile dieses Vertrags.',
             },
           ),
