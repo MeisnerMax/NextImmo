@@ -147,6 +147,20 @@ rollback;
 
 \echo '--- MUT-6: add an unclassified policy (the new-policy case)'
 begin;
+-- The baseline is measured, not written down. It used to be the literal 41,
+-- which stopped matching the schema long before anybody noticed: by the time
+-- the real count was 55 the comparison tripped whether or not the probe policy
+-- below existed, so MUT-6b passed while proving nothing about the mutation it
+-- was built around. A count taken inside this transaction, before the
+-- mutation, cannot go stale and cannot trip for any reason except the
+-- mutation.
+create temporary table mutation_probe_policy_baseline as
+select count(*)::bigint as policy_count
+from pg_policy p
+join pg_class c on c.oid = p.polrelid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname in ('public', 'storage', 'realtime');
+
 create policy mutation_probe_unclassified
   on public.tasks
   for select
@@ -172,7 +186,8 @@ select 'MUT-6b ' || case when (
   join pg_class c on c.oid = p.polrelid
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname in ('public', 'storage', 'realtime')
-) = 41 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-22 inventory count)';
+) = (select policy_count from mutation_probe_policy_baseline)
+then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-22 inventory count)';
 rollback;
 
 -- === SECURITY-STORAGE-AAL-03: the document storage surface ==============
@@ -251,6 +266,16 @@ rollback;
 
 \echo '--- MUT-10: a DELETE policy is added to the bucket'
 begin;
+-- Measured for the same reason as MUT-6b: the literal 2 here had drifted to a
+-- real 4, so the comparison tripped on the drift rather than on the added
+-- DELETE policy.
+create temporary table mutation_probe_bucket_baseline as
+select count(*)::bigint as policy_count
+from pg_policy p
+join pg_class c on c.oid = p.polrelid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'storage' and c.relname = 'objects';
+
 create policy documents_bucket_delete_probe
   on storage.objects for delete to authenticated
   using (
@@ -274,7 +299,8 @@ select 'MUT-10b ' || case when (
   join pg_class c on c.oid = p.polrelid
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'storage' and c.relname = 'objects'
-) = 2 then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 inventory count)';
+) = (select policy_count from mutation_probe_bucket_baseline)
+then 'NOT-TRIPPED' else 'TRIPPED' end || '  (SR-23 inventory count)';
 rollback;
 
 \echo '--- MUT-11: the workspace prefix parser becomes permissive'
