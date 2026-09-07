@@ -144,6 +144,11 @@ class UnitBasisValuesScreen extends ConsumerWidget {
   ) {
     final semantic = context.semanticColors;
     final AllocationBasisResolutionDto? resolution = state.resolution;
+    // The server names a shared convention only when there IS one, so a row
+    // marker keyed on it could never fire in the state it was meant to
+    // explain. When the conventions differ, the majority is computed here --
+    // for display only; the verdict above stays the server's.
+    final String? majorityConvention = _majorityConvention(state.units);
     // Missing figures first: they are the work, and the ones already recorded
     // are the part that needs no attention.
     final List<UnitBasisRowDto> ordered = <UnitBasisRowDto>[
@@ -234,7 +239,7 @@ class UnitBasisValuesScreen extends ConsumerWidget {
               child: _UnitRow(
                 row: row,
                 canMutate: controller.canMutate,
-                sharedConvention: resolution?.convention,
+                sharedConvention: resolution?.convention ?? majorityConvention,
                 onEdit: () => _edit(context, controller, state, row),
               ),
             ),
@@ -279,9 +284,11 @@ class UnitBasisValuesScreen extends ConsumerWidget {
               .whereType<String>()
               .firstOrNull,
       defaultValidFrom: state.asOf,
+      // No `existing` is passed: the controller reads the current version
+      // from its own state at submit time, so a retry after a version
+      // conflict from this still-open dialog sends the fresh one.
       onSubmit: (UnitBasisValueFormResult result) => controller.saveValue(
         unitId: row.unitId,
-        existing: row.value,
         value: result.value,
         convention: result.convention,
         validFrom: result.validFrom,
@@ -395,15 +402,47 @@ class _UnitRow extends StatelessWidget {
   }
 }
 
+/// The convention most units state, when they do not all state the same one.
+/// Presentational only — which rows to mark. Whether the basis resolves is the
+/// server's answer and is never derived from this.
+String? _majorityConvention(List<UnitBasisRowDto> units) {
+  final Map<String, int> counts = <String, int>{};
+  for (final UnitBasisRowDto row in units) {
+    final String? convention = row.value?.convention;
+    if (convention != null) {
+      counts[convention] = (counts[convention] ?? 0) + 1;
+    }
+  }
+  if (counts.length < 2) {
+    return null;
+  }
+  String? best;
+  int bestCount = 0;
+  for (final MapEntry<String, int> entry in counts.entries) {
+    if (entry.value > bestCount) {
+      best = entry.key;
+      bestCount = entry.value;
+    }
+  }
+  return best;
+}
+
 String _formatDate(DateTime value) {
   final String day = value.day.toString().padLeft(2, '0');
   final String month = value.month.toString().padLeft(2, '0');
   return '$day.$month.${value.year}';
 }
 
+/// Six decimals are stored, so six are shown — with the trailing zeros
+/// trimmed. Rounding to two collapsed distinct co-ownership shares onto the
+/// same string and made the displayed total disagree with the sum of the
+/// displayed rows.
 String _formatNumber(num value) {
-  if (value == value.roundToDouble()) {
+  if (value == value.roundToDouble() && value.abs() < 1e15) {
     return value.toStringAsFixed(0);
   }
-  return value.toStringAsFixed(2);
+  final String text = value.toStringAsFixed(6);
+  return text.contains('.')
+      ? text.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '')
+      : text;
 }

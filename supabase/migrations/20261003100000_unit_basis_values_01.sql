@@ -8,7 +8,9 @@
 --    Massstaebe rechenbar | P-5 |"
 --
 -- and that row was written by P-2b's own pull request two days ago
--- (`git log -S "P-2c"` returns exactly #120 and its merge). `Software_Goal.txt`
+-- (`git log -S "P-2c" -- docs/product/ENTERPRISE_OPERATIONS_PROGRAM.md`
+-- returns exactly one commit, d2f4cd9 -- this repository squash-merges, so
+-- there is no separate merge commit to find). `Software_Goal.txt`
 -- contains the string "person" zero times. The underlying Auftrag is not in
 -- this repository; the programme quotes its sections second-hand and gives
 -- P-2c no section at all. So this is a follow-up the previous package wrote
@@ -79,6 +81,23 @@
 -- package does *not* decide is how a settlement combines a person count that
 -- changed mid-period. That is P-5's question, it has no answer in `DEC-014`
 -- either, and answering it here would hide the decision inside a helper.
+--
+-- **Four things an adversarial review found before this merged**, each of
+-- them the package failing its own rule:
+--
+--   * `value >= 0` is satisfied by NaN, and a stored NaN made the resolution
+--     answer `resolvable: true` with a total of `"NaN"` -- reachable over HTTP
+--     with ordinary `finance.manage`.
+--   * A property whose units are all recorded as zero resolved with a total of
+--     zero. Every other branch guarantees a divisible total; this one handed
+--     P-5 a denominator it cannot divide by.
+--   * The `area_sqm` branch, in this very function, declared
+--     `incomplete_basis` and then returned the sum of the units that happen to
+--     have an area -- the number DEC-029 forbids, contradicting this header's
+--     own sentence about area.
+--   * A key on a `building`/`entrance`/`meter_group` pool inherited a
+--     whole-property denominator and reported itself resolvable. P-2b calls
+--     those scopes unresolvable; the key read never consulted the pool.
 --
 -- Counters this migration moves, deliberately:
 --   SR-20  105 -> 107  (two new public functions)
@@ -157,7 +176,18 @@ create table public.unit_basis_values (
   -- A negative share or a negative head count is not a smaller number, it is a
   -- wrong one. Zero is allowed: a unit with nobody in it is a real answer and
   -- must not be confused with a unit nobody has recorded.
-  constraint unit_basis_values_value_check check (value >= 0),
+  --
+  -- `value <> 'NaN'` is not defensive noise. In Postgres `'NaN'::numeric >= 0`
+  -- is TRUE, so `value >= 0` alone is satisfied by exactly the value it exists
+  -- to reject -- and numeric(18,6) accepts NaN (it refuses Infinity itself
+  -- with 22003). A stored NaN then propagates through `sum()` while every
+  -- resolvability term still holds, so this package's central promise, that an
+  -- unusable basis refuses to compute, would be broken by the one value that
+  -- poisons every share derived from it. The 28 other numeric CHECKs in this
+  -- schema carry the same term.
+  constraint unit_basis_values_value_check check (
+    value >= 0 and value <> 'NaN'::numeric
+  ),
 
   constraint unit_basis_values_convention_check check (
     char_length(btrim(convention)) between 1 and 2000
@@ -166,12 +196,15 @@ create table public.unit_basis_values (
     note is null or char_length(btrim(note)) between 1 and 2000
   ),
 
-  -- Documentation more than enforcement, and kept as both for the reason
-  -- P-2b's equivalent records: the generated range above is evaluated before
-  -- any CHECK, so an inverted term raises `22000 range lower bound must be
-  -- less than or equal to range upper bound` and this constraint is never
-  -- reached. It states the rule where a reader looks for it, and the command
-  -- handles `data_exception` alongside `check_violation` accordingly.
+  -- Load-bearing, not documentation. An earlier draft of this comment repeated
+  -- P-2b's wording, that the generated range is evaluated first and this CHECK
+  -- is therefore never reached. That is only true for a term inverted by more
+  -- than one day: `valid_to = valid_from - 1` makes
+  -- `daterange(d, d, '[)')`, which is a legal *empty* range rather than an
+  -- error. Without this constraint that row would store an empty validity that
+  -- `&&` never matches and `@>` never answers -- a figure that exists, blocks
+  -- nothing, and is invisible to every read. The command still handles
+  -- `data_exception` because the wider inversions do raise 22000.
   constraint unit_basis_values_term_check check (
     valid_to is null or valid_to >= valid_from
   ),
@@ -283,6 +316,7 @@ declare
   v_valued integer;
   v_conventions integer;
   v_convention text;
+  v_recorded_ever boolean;
 begin
   -- Meters and readings arrive with P-4. Unchanged by this package, and named
   -- separately from the three below so the two gaps do not blur into one.
@@ -322,34 +356,76 @@ begin
     where unit.workspace_id = p_workspace_id
       and unit.property_id = p_property_id;
 
+    -- Asked separately, and only to tell two silences apart: a workspace that
+    -- has recorded nothing for this basis, and one whose figures simply do not
+    -- cover the day being asked about. Both leave `v_valued` at zero and used
+    -- to answer `no_basis_store` alike, which told a reader of a 2024
+    -- settlement that they had never entered anything -- the distinction
+    -- LEASING-COMPONENTS-01c exists to make.
+    select exists (
+      select 1
+      from public.units as unit
+      join public.unit_basis_values as entry
+        on entry.workspace_id = unit.workspace_id
+        and entry.unit_id = unit.id
+        and entry.basis = p_basis
+      where unit.workspace_id = p_workspace_id
+        and unit.property_id = p_property_id
+    )
+    into v_recorded_ever;
+
     return jsonb_build_object(
-      -- Every unit must carry a value, and every value must have been measured
-      -- the same way. A partial set makes the denominator wrong for the units
-      -- that do have one; two conventions make the sum an addition of two
-      -- different measurements.
-      'resolvable', v_units > 0 and v_valued = v_units and v_conventions = 1,
+      -- Every unit must carry a value, every value must have been measured the
+      -- same way, and the sum must be something a share can be taken of. A
+      -- partial set makes the denominator wrong for the units that do have
+      -- one; two conventions make the sum an addition of two different
+      -- measurements; and a total of zero is not a denominator at all.
+      --
+      -- The zero clause restores an invariant the other branches already hold
+      -- and this one broke: `unit_count` reports a total it has just required
+      -- to be positive, and `area_sqm` sums a column whose own CHECK is
+      -- `> 0`. Before this package every `resolvable: true` carried a
+      -- divisible total, and the migration's own contract is "the resolution
+      -- reports the total and the caller divides". A property whose units are
+      -- all recorded as nobody-lives-here is a real state, and the honest
+      -- answer is that persons cannot distribute anything there.
+      'resolvable',
+        v_units > 0 and v_valued = v_units and v_conventions = 1
+        and coalesce(v_total, 0) > 0,
       'reason', case
         when v_units = 0 then 'no_units'
         -- Kept as the answer for a workspace that has recorded nothing, so an
         -- untouched installation reads exactly as it did before this package:
         -- the basis has no data, rather than incomplete data.
-        when v_valued = 0 then 'no_basis_store'
+        when v_valued = 0 and not v_recorded_ever then 'no_basis_store'
+        when v_valued = 0 then 'no_value_on_date'
         when v_valued < v_units then 'incomplete_basis'
         when v_conventions > 1 then 'mixed_conventions'
+        when coalesce(v_total, 0) <= 0 then 'zero_total'
         else null
       end,
       'unit_count', v_units,
       'units_without_value', v_units - v_valued,
-      'total', case when v_valued = v_units and v_conventions = 1
-                 then v_total else null end,
+      'total', case
+        when v_valued = v_units and v_conventions = 1 and coalesce(v_total, 0) > 0
+          then v_total
+        -- Withheld in every other case, including the zero one: a number that
+        -- cannot be divided by is not a smaller denominator, and DEC-029's
+        -- rule is never to sum around a gap.
+        else null
+      end,
       'convention', case when v_conventions = 1 then v_convention else null end,
       'convention_count', v_conventions,
       'detail', case
         when v_units = 0 then
           'This property has no units to divide over.'
+        when v_valued = 0 and not v_recorded_ever then
+          'No value has ever been recorded for this basis. There is no agreed '
+          'rule to fall back on, so nothing is computed.'
         when v_valued = 0 then
-          'No value has been recorded for this basis on that date. There is '
-          'no agreed rule to fall back on, so nothing is computed.'
+          'Values exist for this basis, but none of them covers that date. '
+          'This is not the same as never having recorded any, and a '
+          'settlement for that period needs figures that cover it.'
         when v_valued < v_units then
           'Recorded for ' || v_valued || ' of ' || v_units || ' units. The '
           'missing units'' share would otherwise be redistributed over the '
@@ -358,6 +434,10 @@ begin
           'The units state ' || v_conventions || ' different conventions for '
           'this basis. Adding figures measured different ways does not '
           'produce a denominator.'
+        when coalesce(v_total, 0) <= 0 then
+          'Every unit is recorded and they sum to zero. That is a real state, '
+          'and it means this basis has nothing to divide by -- not that the '
+          'share of each unit is zero.'
         else
           'Sum of the recorded values, all measured as: ' || v_convention
       end
@@ -400,7 +480,17 @@ begin
     end,
     'unit_count', v_units,
     'units_without_value', v_missing,
-    'total', v_total,
+    -- Withheld when the set is incomplete, which it was not before this
+    -- package. The branch declared `incomplete_basis` and then handed out the
+    -- sum of the units that happen to have an area -- precisely the figure
+    -- DEC-029 forbids ("nie darum herum summieren") and precisely what this
+    -- migration's own header says the area basis must not do. Nothing read it
+    -- while the verdict said unresolvable; `allocation_keys_as_of` carried it
+    -- verbatim into every consumer, and a settlement engine that trusted a
+    -- present total over an absent verdict would have divided by it.
+    'total', case
+      when v_units > 0 and v_missing = 0 then v_total else null
+    end,
     'detail',
       'The sum of units.area_sqm. This schema holds four other area figures '
       'and reconciles none of them; this key means this one.'
@@ -521,9 +611,32 @@ begin
     left join public.cost_pools as pool
       on pool.workspace_id = key.workspace_id
       and pool.id = key.cost_pool_id
-    cross join lateral private.allocation_basis_resolution(
-      key.workspace_id, key.property_id, key.basis, v_as_of
-    ) as resolution(payload)
+    cross join lateral (
+      select case
+        -- P-2b reports `building`, `entrance` and `meter_group` pools as
+        -- `scope_resolvable: false, no_entity`: this schema has no entity for
+        -- them, so nothing can say which units they cover. The basis
+        -- resolution is computed over the *property's* units and knows nothing
+        -- about the pool, so a key on such a pool would inherit a
+        -- whole-property denominator and report itself fully resolvable. That
+        -- was harmless only while these three bases always answered
+        -- `no_basis_store`; the moment P-2c gave them values it became a
+        -- number for a scope nobody can delimit.
+        when pool.scope in ('building', 'entrance', 'meter_group') then
+          jsonb_build_object(
+            'resolvable', false,
+            'reason', 'pool_scope_unresolvable',
+            'detail',
+              'This key distributes a pool at a scope this schema has no '
+              'entity for, so which units it covers cannot be determined. The '
+              'basis itself may be complete; the pool is what cannot be '
+              'resolved.'
+          )
+        else private.allocation_basis_resolution(
+          key.workspace_id, key.property_id, key.basis, v_as_of
+        )
+      end as payload
+    ) as resolution
     where key.workspace_id = p_workspace_id
       and (p_property_id is null or key.property_id = p_property_id)
       and (
@@ -595,6 +708,22 @@ begin
     );
   end if;
   v_basis := p_basis::public.allocation_basis;
+
+  -- Two gates, in the order every other property-scoped finance read uses:
+  -- the entity scope first, then the workspace permission. This read returns a
+  -- property's entire unit inventory -- codes and areas, one row per unit --
+  -- and the function is SECURITY DEFINER, so the workspace permission alone
+  -- would hand that inventory to a member scoped to other properties.
+  if not private.has_scoped_entity_permission(
+       p_workspace_id, 'property.read', 'property', p_property_id
+     ) then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'forbidden', 'message', 'This property is not permitted'
+      )
+    );
+  end if;
 
   if not private.has_workspace_permission(p_workspace_id, 'finance.read') then
     return jsonb_build_object(
@@ -743,14 +872,18 @@ begin
   end if;
   v_basis := p_basis::public.allocation_basis;
 
-  if p_value is null or p_value < 0 then
+  -- `= 'NaN'` explicitly: `'NaN' < 0` is FALSE, so a negative-only guard lets
+  -- through the one value that makes every downstream share meaningless while
+  -- the resolution still calls the basis usable.
+  if p_value is null or p_value < 0 or p_value = 'NaN'::numeric then
     return jsonb_build_object(
       'ok', false,
       'error', jsonb_build_object(
         'code', 'validation_failed',
         'message',
-          'A value is required and cannot be negative. Zero is allowed and '
-          'means the figure is nil, which is not the same as unrecorded.',
+          'A value is required, must be a real number, and cannot be '
+          'negative. Zero is allowed and means the figure is nil, which is '
+          'not the same as unrecorded.',
         'field', 'value'
       )
     );

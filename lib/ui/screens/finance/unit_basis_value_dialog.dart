@@ -182,21 +182,29 @@ class _UnitBasisValueDialogState extends State<_UnitBasisValueDialog> {
                     helperMaxLines: 3,
                     errorText: _errorFor('value'),
                   ),
-                  validator: (String? raw) {
-                    final String text = (raw ?? '').trim().replaceAll(',', '.');
-                    if (text.isEmpty) {
-                      return 'Ein Wert ist erforderlich. Leer heißt nicht '
-                          'erfasst, und das blockiert den Maßstab.';
-                    }
-                    final num? parsed = num.tryParse(text);
-                    if (parsed == null) {
-                      return 'Bitte eine Zahl eingeben.';
-                    }
-                    if (parsed < 0) {
-                      return 'Ein negativer Wert ist keine kleinere Zahl, '
-                          'sondern eine falsche. Null ist erlaubt.';
-                    }
-                    return null;
+                  validator: (String? raw) => switch (parseGermanFigure(
+                    raw ?? '',
+                  )) {
+                    ParsedFigureValue() => null,
+                    ParsedFigureProblem(kind: ParsedFigureProblemKind.empty) =>
+                      'Ein Wert ist erforderlich. Leer heißt nicht erfasst, '
+                          'und das blockiert den Maßstab.',
+                    ParsedFigureProblem(
+                      kind: ParsedFigureProblemKind.ambiguousSeparator,
+                    ) =>
+                      'Mehrdeutig: „1.000“ kann tausend oder eins bedeuten. '
+                          'Bitte das Komma als Dezimaltrennzeichen verwenden '
+                          '— „1000“ oder „1,000“.',
+                    ParsedFigureProblem(
+                      kind: ParsedFigureProblemKind.notFinite,
+                    ) =>
+                      'Das ist keine Zahl, mit der gerechnet werden kann.',
+                    ParsedFigureProblem(
+                      kind: ParsedFigureProblemKind.negative,
+                    ) =>
+                      'Ein negativer Wert ist keine kleinere Zahl, sondern '
+                          'eine falsche. Null ist erlaubt.',
+                    ParsedFigureProblem() => 'Bitte eine Zahl eingeben.',
                   },
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -294,10 +302,18 @@ class _UnitBasisValueDialogState extends State<_UnitBasisValueDialog> {
       return;
     }
 
+    // The validator has already established this reads as a finite,
+    // non-negative figure; anything else never reaches here.
+    final ParsedFigure parsed = parseGermanFigure(_value.text);
+    if (parsed is! ParsedFigureValue) {
+      setState(() {});
+      return;
+    }
+
     setState(() => _submitting = true);
     final CostPoolActionFailure? failure = await widget.onSubmit(
       UnitBasisValueFormResult(
-        value: num.parse(_value.text.trim().replaceAll(',', '.')),
+        value: parsed.value,
         convention: _convention.text.trim(),
         validFrom: _validFrom!,
         validTo: _validTo,

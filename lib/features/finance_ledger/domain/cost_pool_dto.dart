@@ -141,6 +141,20 @@ enum AllocationUnresolvableReason {
   /// denominator, so the sum is refused rather than taken.
   mixedConventions,
 
+  /// Figures exist for this basis, but none of them covers the date asked
+  /// about. Distinct from [noBasisStore]: telling somebody re-running a 2024
+  /// settlement that they never recorded anything is false.
+  noValueOnDate,
+
+  /// Every unit is recorded and they sum to zero. A real state, and it means
+  /// there is nothing to divide by — not that each unit's share is zero.
+  zeroTotal,
+
+  /// The key distributes a pool at a scope this schema has no entity for, so
+  /// which units it covers cannot be determined. The basis may be perfectly
+  /// complete; the pool is what cannot be resolved.
+  poolScopeUnresolvable,
+
   /// A basis the server holds in its vocabulary without having decided what
   /// it resolves to. It distributes nothing until somebody decides.
   unknownBasis,
@@ -161,6 +175,10 @@ AllocationUnresolvableReason allocationUnresolvableReasonFromKey(String key) =>
       'no_units' => AllocationUnresolvableReason.noUnits,
       'incomplete_basis' => AllocationUnresolvableReason.incompleteBasis,
       'mixed_conventions' => AllocationUnresolvableReason.mixedConventions,
+      'no_value_on_date' => AllocationUnresolvableReason.noValueOnDate,
+      'zero_total' => AllocationUnresolvableReason.zeroTotal,
+      'pool_scope_unresolvable' =>
+        AllocationUnresolvableReason.poolScopeUnresolvable,
       'unknown_basis' => AllocationUnresolvableReason.unknownBasis,
       // `not_evaluated` has no server key: the state exists only where a
       // payload omitted the resolution entirely, and the adapter names it
@@ -213,6 +231,98 @@ class AllocationBasisResolutionDto {
   /// How many distinct conventions the units state. More than one is what
   /// makes [AllocationUnresolvableReason.mixedConventions].
   final int? conventionCount;
+}
+
+/// What a typed figure was read as, or why it could not be read.
+///
+/// The form is German, and in German a full stop groups thousands while a
+/// comma separates decimals — the opposite of what `num.parse` assumes. A
+/// plain `replaceAll(',', '.')` leaves "1.000" as one, silently dividing the
+/// entered figure by a thousand and handing a settlement run a denominator
+/// nobody typed. That is exactly the "plausible number" this whole package
+/// exists to prevent, arriving through the keyboard instead of through the
+/// legacy code.
+///
+/// So the reading is explicit, and the genuinely ambiguous case is refused
+/// rather than guessed: "1.000" alone can be a thousand or it can be one, and
+/// only the person typing knows which.
+sealed class ParsedFigure {
+  const ParsedFigure();
+}
+
+class ParsedFigureValue extends ParsedFigure {
+  const ParsedFigureValue(this.value);
+
+  final num value;
+}
+
+class ParsedFigureProblem extends ParsedFigure {
+  const ParsedFigureProblem(this.kind);
+
+  final ParsedFigureProblemKind kind;
+}
+
+enum ParsedFigureProblemKind {
+  empty,
+  notANumber,
+
+  /// A single full stop before exactly three digits: German grouping and an
+  /// English decimal point are both plausible readings, and they differ by a
+  /// factor of a thousand.
+  ambiguousSeparator,
+
+  /// NaN, an infinity, or a literal that overflows to one. `num.tryParse`
+  /// accepts all three and `> 0` does not catch them.
+  notFinite,
+  negative,
+}
+
+/// Reads a figure the way a German form is typed, refusing what it cannot read
+/// unambiguously.
+ParsedFigure parseGermanFigure(String raw) {
+  final String text = raw.replaceAll(RegExp(r'[\s\u00a0]'), '');
+  if (text.isEmpty) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.empty);
+  }
+
+  final int dots = '.'.allMatches(text).length;
+  final int commas = ','.allMatches(text).length;
+  String normalised;
+
+  if (commas > 1) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notANumber);
+  } else if (commas == 1) {
+    // A comma is the decimal separator, so any full stop before it groups.
+    normalised = text.replaceAll('.', '').replaceAll(',', '.');
+  } else if (dots > 1) {
+    // Several full stops can only be grouping.
+    normalised = text.replaceAll('.', '');
+  } else if (dots == 1) {
+    if (RegExp(r'^-?\d{1,3}\.\d{3}$').hasMatch(text)) {
+      // "1.000" — a thousand, or one. Both are ordinary things to type here,
+      // and picking one silently is how a denominator ends up off by 1000.
+      return const ParsedFigureProblem(
+        ParsedFigureProblemKind.ambiguousSeparator,
+      );
+    }
+    normalised = text;
+  } else {
+    normalised = text;
+  }
+
+  final num? parsed = num.tryParse(normalised);
+  if (parsed == null) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notANumber);
+  }
+  // `num.tryParse` accepts "NaN", "Infinity" and anything that overflows to
+  // one, and none of them is caught by a sign test.
+  if (!parsed.isFinite) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notFinite);
+  }
+  if (parsed < 0) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.negative);
+  }
+  return ParsedFigureValue(parsed);
 }
 
 /// Whether this basis is one the workspace records per unit

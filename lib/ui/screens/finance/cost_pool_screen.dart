@@ -63,6 +63,10 @@ String allocationKeyUnusableLabel(AllocationKeyDto key) {
     AllocationUnresolvableReason.noUnits => 'Keine Einheiten erfasst',
     AllocationUnresolvableReason.incompleteBasis => 'Werte unvollständig',
     AllocationUnresolvableReason.mixedConventions => 'Konventionen uneinheitlich',
+    AllocationUnresolvableReason.noValueOnDate => 'Keine Werte zum Stichtag',
+    AllocationUnresolvableReason.zeroTotal => 'Basis summiert sich zu null',
+    AllocationUnresolvableReason.poolScopeUnresolvable =>
+      'Pool ohne abgrenzbaren Bereich',
     AllocationUnresolvableReason.unknownBasis => 'Maßstab nicht entschieden',
     AllocationUnresolvableReason.notEvaluated => 'Noch nicht bewertet',
     AllocationUnresolvableReason.unknown => 'Unbekannter Grund',

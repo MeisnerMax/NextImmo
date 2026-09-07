@@ -190,12 +190,17 @@ class UnitBasisController extends StateNotifier<UnitBasisState> {
   /// Returns null on success, or why the write was refused — a dialog needs it
   /// as a return value so it can stay open, keep what was typed and put the
   /// message on the field the server named.
+  ///
+  /// The expected version is looked up here rather than passed in. A dialog
+  /// holds the row it was opened with for its whole lifetime, so a version
+  /// conflict followed by a retry from that same open dialog would re-send the
+  /// stale version forever — the reload that follows a refusal refreshes this
+  /// controller, and the retry has to read from it.
   Future<CostPoolActionFailure?> saveValue({
     required String unitId,
     required num value,
     required String convention,
     required DateTime validFrom,
-    UnitBasisValueDto? existing,
     DateTime? validTo,
     String? note,
   }) async {
@@ -219,6 +224,12 @@ class UnitBasisController extends StateNotifier<UnitBasisState> {
       );
       return refusal;
     }
+
+    // Read at submit time, from the list this controller last loaded.
+    final UnitBasisValueDto? existing = state.units
+        .where((UnitBasisRowDto row) => row.unitId == unitId)
+        .map((UnitBasisRowDto row) => row.value)
+        .firstOrNull;
 
     state = state.copyWith(
       actionPhase: UnitBasisActionPhase.running,

@@ -29,7 +29,7 @@ create extension if not exists pgtap with schema extensions;
 -- asserted through the allocation-key read, not only through the private
 -- helper, because the read is what a settlement run will actually call.
 
-select plan(49);
+select plan(69);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -115,6 +115,14 @@ insert into public.properties (
    'Basishaus A', 'Basisweg 1', '10115', 'Berlin', 'de', 'residential', 2,
    '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001');
 
+insert into public.properties (
+  id, workspace_id, name, address_line1, zip, city, country, property_type,
+  units, created_by, updated_by
+) values
+  ('73500000-0000-0000-0000-000000000002', '73100000-0000-0000-0000-000000000001',
+   'Basishaus B', 'Basisweg 2', '10115', 'Berlin', 'de', 'residential', 2,
+   '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001');
+
 insert into public.units (
   id, workspace_id, property_id, unit_code, status, area_sqm,
   created_by, updated_by
@@ -124,13 +132,36 @@ insert into public.units (
    '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001'),
   ('73600000-0000-0000-0000-000000000002', '73100000-0000-0000-0000-000000000001',
    '73500000-0000-0000-0000-000000000001', 'A-02', 'occupied', 30,
+   '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001'),
+  -- B-02 has no area on purpose: it is the gap the area branch must refuse to
+  -- sum around.
+  ('73600000-0000-0000-0000-000000000003', '73100000-0000-0000-0000-000000000001',
+   '73500000-0000-0000-0000-000000000002', 'B-01', 'occupied', 40,
+   '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001'),
+  ('73600000-0000-0000-0000-000000000004', '73100000-0000-0000-0000-000000000001',
+   '73500000-0000-0000-0000-000000000002', 'B-02', 'occupied', null,
    '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001');
+
+-- The analyst is scoped to Basishaus A. A membership with no scope rows is
+-- unrestricted, so this is what makes the entity gate observable at all.
+insert into public.entity_scopes (
+  workspace_id, membership_id, entity_type, entity_id, created_by
+)
+select '73100000-0000-0000-0000-000000000001', membership.id, 'property',
+       '73500000-0000-0000-0000-000000000001',
+       '73200000-0000-0000-0000-000000000001'
+from public.memberships as membership
+where membership.workspace_id = '73100000-0000-0000-0000-000000000001'
+  and membership.user_id = '73200000-0000-0000-0000-000000000002';
 
 insert into public.finance_accounts (
   id, workspace_id, code, name, account_type, created_by, updated_by
 ) values
   ('73300000-0000-0000-0000-000000000001', '73100000-0000-0000-0000-000000000001',
    '4300', 'Muellabfuhr', 'expense',
+   '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001'),
+  ('73300000-0000-0000-0000-000000000002', '73100000-0000-0000-0000-000000000001',
+   '4310', 'Gartenpflege', 'expense',
    '73200000-0000-0000-0000-000000000001', '73200000-0000-0000-0000-000000000001');
 
 create or replace function pg_temp.as_user(
@@ -182,7 +213,10 @@ as $$
         %L::uuid, %L::uuid, %L, %s, %s, %L::date, %L::uuid, %L::uuid, %s, %s,
         %s, null, 'Test')$q$,
       '73100000-0000-0000-0000-000000000001', p_unit, p_basis,
-      case when p_value is null then 'null' else p_value::text end,
+      -- Quoted and cast: an unquoted NaN would be parsed as a column
+      -- reference, which is how a test for NaN can fail to test NaN.
+      case when p_value is null then 'null'
+           else quote_literal(p_value::text) || '::numeric' end,
       case when p_convention is null then 'null'
            else quote_literal(p_convention) end,
       p_from, p_mutation, p_correlation,
@@ -197,14 +231,15 @@ $$;
 
 create or replace function pg_temp.resolve(
   p_basis text default 'persons',
-  p_as_of date default '2026-06-01'
+  p_as_of date default '2026-06-01',
+  p_property uuid default '73500000-0000-0000-0000-000000000001'
 )
 returns jsonb
 language sql
 as $$
   select private.allocation_basis_resolution(
     '73100000-0000-0000-0000-000000000001',
-    '73500000-0000-0000-0000-000000000001',
+    p_property,
     p_basis::public.allocation_basis,
     p_as_of
   );
@@ -407,11 +442,21 @@ select is(
 -- Time
 -- ---------------------------------------------------------------------------
 
+-- Two silences that used to read alike. A workspace that has never recorded
+-- anything and one whose figures simply do not cover the day asked about are
+-- different statements about the same data, and telling a reader of a 2025
+-- settlement that they never entered anything is false.
 select is(
   pg_temp.resolve('persons', date '2025-06-01') ->> 'reason',
+  'no_value_on_date',
+  'a value that starts in 2026 does not answer for 2025 -- and says so as '
+  '"recorded, but not for that date", not as "never recorded"');
+
+select is(
+  pg_temp.resolve('fixed_share', date '2025-06-01') ->> 'reason',
   'no_basis_store',
-  'a value that starts in 2026 does not answer for 2025: a settlement for a '
-  'past year needs that year''s figures, not today''s');
+  'while a basis with no value at any time still says "never recorded" -- '
+  'paired with the case above so neither passes by both answering the same');
 
 -- ---------------------------------------------------------------------------
 -- The fitness test the programme states
@@ -454,6 +499,204 @@ select is(
   '0',
   'while the same read for 2025 finds no key in force, so the resolution '
   'above is about the date and not about the key existing at all');
+
+-- ---------------------------------------------------------------------------
+-- The values a number can take and still be no number
+-- ---------------------------------------------------------------------------
+
+-- `'NaN'::numeric >= 0` is TRUE in Postgres, so a `value >= 0` CHECK is
+-- satisfied by exactly the value it exists to reject -- and a stored NaN
+-- propagates through sum() while every resolvability term still holds.
+select throws_ok(
+  $$insert into public.unit_basis_values (
+      workspace_id, unit_id, basis, value, convention, valid_from,
+      created_by, updated_by
+    ) values (
+      '73100000-0000-0000-0000-000000000001',
+      '73600000-0000-0000-0000-000000000001', 'fixed_share', 'NaN'::numeric,
+      'x', date '2026-01-01',
+      '73200000-0000-0000-0000-000000000001',
+      '73200000-0000-0000-0000-000000000001'
+    )$$,
+  '23514',
+  null,
+  'the CHECK refuses NaN, which a plain >= 0 would have accepted');
+
+select is(
+  pg_temp.put('73600000-0000-0000-0000-000000000001', 'NaN'::numeric,
+              p_basis => 'fixed_share') -> 'error' ->> 'field',
+  'value',
+  'and so does the command, whose >= 0 guard would also have let it through');
+
+-- ---------------------------------------------------------------------------
+-- A total of zero is not a denominator
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.put('73600000-0000-0000-0000-000000000003', 0) -> 'ok',
+  'true'::jsonb,
+  'a unit may be recorded as nobody-lives-here');
+
+select is(
+  pg_temp.put('73600000-0000-0000-0000-000000000004', 0) -> 'ok',
+  'true'::jsonb,
+  'and so may the other, which completes the set for that property');
+
+select is(
+  pg_temp.resolve('persons', date '2026-06-01',
+                  '73500000-0000-0000-0000-000000000002') ->> 'reason',
+  'zero_total',
+  'a complete set that sums to zero is not resolvable: every other branch '
+  'guarantees a divisible total, and "the resolution reports the total and '
+  'the caller divides" is this package''s own contract');
+
+select is(
+  pg_temp.resolve('persons', date '2026-06-01',
+                  '73500000-0000-0000-0000-000000000002') ->> 'total',
+  null,
+  'and no total is offered, because a number nothing can be divided by is not '
+  'a smaller denominator');
+
+-- ---------------------------------------------------------------------------
+-- The area branch, in the function this package rewrote
+-- ---------------------------------------------------------------------------
+--
+-- Both units of this property carry an area, so the complete case is the
+-- positive counterpart; the incomplete case is proven on a property built for
+-- it below.
+
+select is(
+  pg_temp.resolve('area_sqm') ->> 'total',
+  '80',
+  'a complete area set still reports its total');
+
+select is(
+  private.allocation_basis_resolution(
+    '73100000-0000-0000-0000-000000000001',
+    '73500000-0000-0000-0000-000000000002', 'area_sqm', date '2026-06-01'
+  ) ->> 'reason',
+  'incomplete_basis',
+  'one unit without an area makes the area basis unresolvable');
+
+select is(
+  private.allocation_basis_resolution(
+    '73100000-0000-0000-0000-000000000001',
+    '73500000-0000-0000-0000-000000000002', 'area_sqm', date '2026-06-01'
+  ) ->> 'total',
+  null,
+  'and it withholds the total rather than summing around the gap -- the '
+  'branch used to declare incomplete_basis and hand out 40 anyway, which is '
+  'the figure DEC-029 forbids');
+
+-- ---------------------------------------------------------------------------
+-- A pool at a scope nothing can delimit
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+    format(
+      $q$select public.upsert_cost_pool(
+        %L::uuid, 'aufgang', 'Aufgang', 'entrance', %L::uuid, %L::uuid,
+        null, null, %L::uuid, null, 'Aufgang West', null, true, 'Test')$q$,
+      '73100000-0000-0000-0000-000000000001',
+      gen_random_uuid(), gen_random_uuid(),
+      '73500000-0000-0000-0000-000000000001'))
+    -> 'ok',
+  'true'::jsonb,
+  'an entrance pool can be created, and P-2b reports it as having no entity');
+
+select is(
+  pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+    format(
+      $q$select public.upsert_allocation_key(
+        %L::uuid, %L::uuid, 'persons', 'Nach Personenzahl im Aufgang',
+        %L::date, %L::uuid, %L::uuid, null, null, null, %L::uuid, null, null,
+        'Test')$q$,
+      '73100000-0000-0000-0000-000000000001',
+      '73500000-0000-0000-0000-000000000001', '2026-01-01',
+      gen_random_uuid(), gen_random_uuid(),
+      (select id from public.cost_pools where pool_key = 'aufgang')))
+    -> 'ok',
+  'true'::jsonb,
+  'and a persons key may name it');
+
+select is(
+  (select entry -> 'basis_resolution' ->> 'reason'
+   from jsonb_array_elements(
+     pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+       $q$select public.allocation_keys_as_of(
+         '73100000-0000-0000-0000-000000000001'::uuid, '2026-06-01'::date,
+         '73500000-0000-0000-0000-000000000001'::uuid, null)$q$)
+     -> 'entity' -> 'keys') as entry
+   where entry ->> 'cost_pool_key' = 'aufgang'),
+  'pool_scope_unresolvable',
+  'but the key is not resolvable: the basis over the whole property is not a '
+  'denominator for a scope this schema cannot delimit. Before this the key '
+  'inherited the property''s figures and called itself usable');
+
+-- ---------------------------------------------------------------------------
+-- The as-of date actually reaches the resolver
+-- ---------------------------------------------------------------------------
+--
+-- The migration's stated reason for dropping and recreating a signature is
+-- that the old resolver ignored time. A key in force across both dates, over
+-- a basis whose values end partway through, is the only shape that can tell a
+-- resolver that reads the date from one that does not.
+
+select is(
+  pg_temp.put('73600000-0000-0000-0000-000000000001', 2,
+              p_basis => 'fixed_share',
+              p_from => '2026-01-01', p_to => '2026-06-30') -> 'ok',
+  'true'::jsonb,
+  'a figure that expires mid-year is recorded');
+
+select is(
+  pg_temp.put('73600000-0000-0000-0000-000000000002', 2,
+              p_basis => 'fixed_share',
+              p_from => '2026-01-01', p_to => '2026-06-30') -> 'ok',
+  'true'::jsonb,
+  'for both units, so the set is complete until then');
+
+select is(
+  pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+    format(
+      $q$select public.upsert_allocation_key(
+        %L::uuid, %L::uuid, 'fixed_share', 'Fester Anteil laut Vertrag',
+        %L::date, %L::uuid, %L::uuid, null, null, %L::uuid, null, null, null,
+        'Test')$q$,
+      '73100000-0000-0000-0000-000000000001',
+      '73500000-0000-0000-0000-000000000001', '2026-01-01',
+      gen_random_uuid(), gen_random_uuid(),
+      '73300000-0000-0000-0000-000000000002'))
+    -> 'ok',
+  'true'::jsonb,
+  'and an open-ended key covers the whole year');
+
+select is(
+  (select entry -> 'basis_resolution' ->> 'resolvable'
+   from jsonb_array_elements(
+     pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+       $q$select public.allocation_keys_as_of(
+         '73100000-0000-0000-0000-000000000001'::uuid, '2026-03-01'::date,
+         '73500000-0000-0000-0000-000000000001'::uuid, null)$q$)
+     -> 'entity' -> 'keys') as entry
+   where entry ->> 'basis' = 'fixed_share'),
+  'true',
+  'in March the key resolves');
+
+select is(
+  (select entry -> 'basis_resolution' ->> 'reason'
+   from jsonb_array_elements(
+     pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+       $q$select public.allocation_keys_as_of(
+         '73100000-0000-0000-0000-000000000001'::uuid, '2026-09-01'::date,
+         '73500000-0000-0000-0000-000000000001'::uuid, null)$q$)
+     -> 'entity' -> 'keys') as entry
+   where entry ->> 'basis' = 'fixed_share'),
+  'no_value_on_date',
+  'and in September it does not -- the same key, the same figures, a '
+  'different date. A resolver that ignored the date it was handed would '
+  'answer identically to both');
 
 -- ---------------------------------------------------------------------------
 -- The read
@@ -516,7 +759,34 @@ select is(
       'persons', '2026-06-01'::date)$q$)
     -> 'ok',
   'true'::jsonb,
-  'the analyst holds finance.read and may see the figures');
+  'the analyst holds finance.read and the property scope, and may see the '
+  'figures');
+
+-- This read returns a property's whole unit inventory -- every unit code and
+-- area -- so it is gated on the entity scope first, like every other
+-- property-scoped finance read. The analyst is scoped to Basishaus A.
+select is(
+  pg_temp.as_user('73200000-0000-0000-0000-000000000002',
+    $q$select public.unit_basis_values_as_of(
+      '73100000-0000-0000-0000-000000000001'::uuid,
+      '73500000-0000-0000-0000-000000000002'::uuid,
+      'persons', '2026-06-01'::date)$q$)
+    -> 'error' ->> 'code',
+  'forbidden',
+  'and Basishaus B is refused them before anything about its units is '
+  'returned -- the workspace permission alone would have handed over the '
+  'whole inventory of a property they are not scoped to');
+
+select is(
+  pg_temp.as_user('73200000-0000-0000-0000-000000000001',
+    $q$select public.unit_basis_values_as_of(
+      '73100000-0000-0000-0000-000000000001'::uuid,
+      '73500000-0000-0000-0000-000000000002'::uuid,
+      'persons', '2026-06-01'::date)$q$)
+    -> 'ok',
+  'true'::jsonb,
+  'while the unscoped admin still reads it, so the refusal above is the scope '
+  'and not the property');
 
 select is(
   pg_temp.put('73600000-0000-0000-0000-000000000001', 4,
@@ -558,8 +828,8 @@ select is(
   'deleted receipt cannot compare request hashes on the retry');
 
 select is(
-  pg_temp.put('73600000-0000-0000-0000-000000000001', 4,
-              p_basis => 'fixed_share',
+  pg_temp.put('73600000-0000-0000-0000-000000000003', 4,
+              p_basis => 'co_ownership_share',
               p_mutation => '73700000-0000-0000-0000-000000000001',
               p_correlation => '73800000-0000-0000-0000-000000000001')
     -> 'entity' ->> 'value',
@@ -567,8 +837,8 @@ select is(
   'a create runs');
 
 select is(
-  pg_temp.put('73600000-0000-0000-0000-000000000001', 4,
-              p_basis => 'fixed_share',
+  pg_temp.put('73600000-0000-0000-0000-000000000003', 4,
+              p_basis => 'co_ownership_share',
               p_mutation => '73700000-0000-0000-0000-000000000001',
               p_correlation => '73800000-0000-0000-0000-000000000001')
     -> 'entity' ->> 'value',
@@ -578,8 +848,8 @@ select is(
 
 select is(
   (select count(*)::integer from public.unit_basis_values
-   where unit_id = '73600000-0000-0000-0000-000000000001'
-     and basis = 'fixed_share'),
+   where unit_id = '73600000-0000-0000-0000-000000000003'
+     and basis = 'co_ownership_share'),
   1,
   'leaving exactly one value');
 

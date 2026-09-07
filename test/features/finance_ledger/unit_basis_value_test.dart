@@ -29,6 +29,8 @@ import 'package:neximmo_app/features/finance_ledger/domain/cost_pool_dto.dart';
 import 'package:neximmo_app/features/identity_access/application/workspace_session_scope.dart';
 
 void main() {
+  _figureParserTests();
+
   group('adapter', () {
     late _FakeGateway gateway;
     late SupabaseUnitBasisValueAdapter adapter;
@@ -278,12 +280,12 @@ void main() {
       port = _FakePort();
     });
 
-    test('sends the figure\'s own version, or none when it is new', () async {
+    test('reads the version from its own state, not from the caller', () async {
       final UnitBasisController subject = controller();
       await subject.load();
 
       await subject.saveValue(
-        unitId: 'unit-1',
+        unitId: 'unit-2',
         value: 3,
         convention: 'Stichtag',
         validFrom: DateTime(2026, 1, 1),
@@ -292,7 +294,6 @@ void main() {
 
       await subject.saveValue(
         unitId: 'unit-1',
-        existing: _valueDto(),
         value: 3,
         convention: 'Stichtag',
         validFrom: DateTime(2026, 1, 1),
@@ -592,4 +593,100 @@ class _FakePort implements UnitBasisValuesPort {
     }
     return FinanceRepositorySuccess<UnitBasisValueDto>(_valueDto());
   }
+}
+
+/// The figure parser (`parseGermanFigure`).
+///
+/// The form is German and the store feeds a settlement denominator, so a
+/// misread separator is not a formatting nuisance: "1.000" read as one instead
+/// of a thousand divides every share by a thousand and nothing downstream can
+/// tell. The parser therefore refuses the one genuinely ambiguous shape rather
+/// than picking a reading.
+void _figureParserTests() {
+  group('parseGermanFigure', () {
+    num parsed(String raw) =>
+        (parseGermanFigure(raw) as ParsedFigureValue).value;
+
+    ParsedFigureProblemKind problem(String raw) =>
+        (parseGermanFigure(raw) as ParsedFigureProblem).kind;
+
+    test('a comma is the decimal separator', () {
+      expect(parsed('2,5'), 2.5);
+      expect(parsed('0,000001'), 0.000001);
+    });
+
+    test('full stops before a comma group thousands', () {
+      expect(parsed('1.234,5'), 1234.5);
+      expect(parsed('1.234.567,89'), 1234567.89);
+    });
+
+    test('several full stops can only be grouping', () {
+      expect(parsed('1.234.567'), 1234567);
+    });
+
+    test('a lone full stop that is not a grouping pattern is a decimal point',
+        () {
+      expect(
+        parsed('2.5'),
+        2.5,
+        reason: 'typed by somebody used to an English keyboard, and it has '
+            'only one reading',
+      );
+      expect(parsed('1.0000'), 1.0);
+    });
+
+    test('"1.000" is refused, because it has two readings', () {
+      expect(
+        problem('1.000'),
+        ParsedFigureProblemKind.ambiguousSeparator,
+        reason: 'a thousand or one, and the difference is the whole '
+            'denominator. Guessing is how a plausible wrong number gets in',
+      );
+      expect(problem('235.000'), ParsedFigureProblemKind.ambiguousSeparator);
+    });
+
+    test('the old normalisation would have silently misread it', () {
+      // `text.replaceAll(',', '.')` then `num.parse` — what this form did
+      // before. Kept as an assertion so the regression is named, not just
+      // fixed.
+      expect(num.parse('1.000'.replaceAll(',', '.')), 1.0);
+      expect(
+        parseGermanFigure('1.000'),
+        isA<ParsedFigureProblem>(),
+        reason: 'the entered thousand became one, and both the adapter and '
+            'the server would have accepted it',
+      );
+    });
+
+    test('NaN, infinities and overflow are refused as input, not as transport',
+        () {
+      expect(problem('NaN'), ParsedFigureProblemKind.notFinite);
+      expect(problem('Infinity'), ParsedFigureProblemKind.notFinite);
+      expect(
+        problem('1e999'),
+        ParsedFigureProblemKind.notFinite,
+        reason: 'num.tryParse overflows it to infinity, and a sign test does '
+            'not catch any of the three',
+      );
+    });
+
+    test('empty, negative and unreadable each say which they are', () {
+      expect(problem(''), ParsedFigureProblemKind.empty);
+      expect(problem('   '), ParsedFigureProblemKind.empty);
+      expect(problem('-1'), ParsedFigureProblemKind.negative);
+      expect(problem('-2,5'), ParsedFigureProblemKind.negative);
+      expect(problem('drei'), ParsedFigureProblemKind.notANumber);
+      expect(problem('1,2,3'), ParsedFigureProblemKind.notANumber);
+    });
+
+    test('zero reads as zero, which is a figure and not an absence', () {
+      expect(parsed('0'), 0);
+      expect(parsed('0,0'), 0);
+    });
+
+    test('spaces and non-breaking spaces are ignored', () {
+      expect(parsed('1 234,5'), 1234.5);
+      expect(parsed('\u00a02,5\u00a0'), 2.5);
+    });
+  });
 }

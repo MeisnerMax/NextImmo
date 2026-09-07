@@ -100,6 +100,20 @@ class SupabaseUnitBasisValueAdapter implements UnitBasisValuesPort {
         field: 'convention',
       );
     }
+    // Checked before `< 0`, because NaN fails every comparison: `NaN < 0` is
+    // false, so a sign test alone lets through the one value that makes every
+    // share derived from it meaningless. Without this the figure reaches
+    // `jsonEncode`, which throws, and the blanket catch below reports a pure
+    // input error as a transport failure.
+    if (!command.value.isFinite) {
+      return const FinanceRepositoryFailure<UnitBasisValueDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message:
+            'Das ist keine Zahl, mit der gerechnet werden kann. Bitte einen '
+            'endlichen Wert eingeben.',
+        field: 'value',
+      );
+    }
     if (command.value < 0) {
       return const FinanceRepositoryFailure<UnitBasisValueDto>(
         kind: FinanceRepositoryFailureKind.validationFailed,
