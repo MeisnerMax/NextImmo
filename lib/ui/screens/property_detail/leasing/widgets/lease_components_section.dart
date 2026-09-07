@@ -161,10 +161,7 @@ class LeaseComponentsSection extends StatelessWidget {
       _ComponentTotalRow(total: total),
       const SizedBox(height: 8),
       Text(
-        total == null
-            ? 'Die erfassten Bestandteile lauten auf verschiedene Währungen '
-                  'und werden deshalb nicht summiert.'
-            : _absenceExplanation,
+        total == null ? _noTotalExplanation(resolved) : _absenceExplanation,
         style: theme.textTheme.bodySmall,
       ),
       if (inceptionNote) ...<Widget>[
@@ -179,9 +176,41 @@ class LeaseComponentsSection extends StatelessWidget {
     ];
   }
 
+  /// Why there is no total, in the words of the reason there is none. A single
+  /// catch-all sentence would have named the currency case for a lease whose
+  /// real problem is that net and gross amounts cannot be added.
+  static String _noTotalExplanation(LeaseComponentsAsOfDto resolved) {
+    final currencies = resolved.components
+        .map((c) => c.currencyCode)
+        .toSet();
+    if (currencies.length > 1) {
+      return 'Die erfassten Bestandteile lauten auf verschiedene Währungen '
+          'und werden deshalb nicht summiert.';
+    }
+    if (resolved.components.any(
+      (c) => c.vatMode == LeaseComponentVatMode.unknown,
+    )) {
+      return 'Für mindestens einen Bestandteil ist die Steuerbehandlung '
+          'unbekannt, deshalb wird nicht summiert.';
+    }
+    return 'Netto- und Bruttobeträge stehen nebeneinander. Eine Summe daraus '
+        'wäre weder das eine noch das andere, deshalb wird nicht summiert.';
+  }
+
+  /// Names both readings of an absent component, because they are different
+  /// and this section cannot tell them apart.
+  ///
+  /// The as-of read returns what is in force on one date. A component that was
+  /// ended — the returned parking space in the demo data is exactly this — is
+  /// therefore absent today, and shows the same way as one that was never
+  /// entered. "Nicht erfasst" is true for the date either way, but a reader who
+  /// remembers the parking charge would take it for lost data unless the
+  /// sentence says otherwise. The honest fix is a history read, which the
+  /// server does not offer yet; until it does, this says so.
   static const String _absenceExplanation =
-      'Nicht erfasst heißt nicht null: für einen Zeitraum ohne Bestandteil '
-      'liegt keine Angabe vor.';
+      'Nicht erfasst heißt nicht null: für diesen Stichtag liegt kein '
+      'Bestandteil dieser Art vor. Er kann fehlen oder beendet sein — eine '
+      'Historie zeigt dieser Abschnitt noch nicht.';
 
   static String _typeLabel(LeaseComponentType type) => switch (type) {
     LeaseComponentType.baseRent => 'Grundmiete',
@@ -305,7 +334,7 @@ class _ComponentRow extends StatelessWidget {
 class _ComponentTotalRow extends StatelessWidget {
   const _ComponentTotalRow({required this.total});
 
-  final ({double amount, String currencyCode})? total;
+  final ({double amount, String currencyCode, bool isNet})? total;
 
   @override
   Widget build(BuildContext context) {
@@ -316,7 +345,11 @@ class _ComponentTotalRow extends StatelessWidget {
         Expanded(
           flex: 3,
           child: Text(
-            'Summe der erfassten Bestandteile',
+            // The label carries the qualifier rather than a footnote: a net
+            // total read as a payable one is off by the tax rate.
+            resolved != null && resolved.isNet
+                ? 'Summe der erfassten Bestandteile (netto)'
+                : 'Summe der erfassten Bestandteile',
             style: theme.textTheme.titleSmall,
           ),
         ),

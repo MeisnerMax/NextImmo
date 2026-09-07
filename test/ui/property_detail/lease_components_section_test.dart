@@ -46,6 +46,18 @@ void main() {
       find.textContaining('Nicht erfasst heißt nicht null'),
       findsOneWidget,
     );
+    // A component that was ended is absent on a later date and renders the
+    // same way as one that was never entered. The section cannot tell them
+    // apart — the as-of read returns only what is in force — so it says so
+    // rather than letting the reader assume data was lost.
+    expect(
+      find.textContaining('Er kann fehlen oder beendet sein'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Historie zeigt dieser Abschnitt noch nicht'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('nothing recorded at all is a statement, not an empty box', (
@@ -216,6 +228,94 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('net and gross amounts are not added together', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        // Payable as it stands.
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+        // Payable plus tax. Each number in the column is correct; their sum
+        // would be neither a net nor a gross figure.
+        _component(
+          type: LeaseComponentType.parking,
+          amount: 100,
+          vatMode: LeaseComponentVatMode.net,
+          vatRate: 19,
+        ),
+      ],
+    );
+
+    expect(
+      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
+      'nicht summierbar',
+    );
+    expect(
+      find.textContaining('Netto- und Bruttobeträge stehen nebeneinander'),
+      findsOneWidget,
+    );
+    // And not the currency sentence, which would name the wrong reason.
+    expect(find.textContaining('verschiedene Währungen'), findsNothing);
+  });
+
+  testWidgets('an all-net set totals, and the label says it is net', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(
+          type: LeaseComponentType.baseRent,
+          amount: 2400,
+          vatMode: LeaseComponentVatMode.net,
+          vatRate: 19,
+        ),
+        _component(
+          type: LeaseComponentType.serviceChargeAdvance,
+          amount: 380,
+          vatMode: LeaseComponentVatMode.net,
+          vatRate: 19,
+        ),
+      ],
+    );
+
+    expect(
+      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
+      '2780.00 EUR',
+    );
+    // The qualifier belongs in the label: a net total read as a payable one is
+    // off by the tax rate.
+    expect(
+      find.text('Summe der erfassten Bestandteile (netto)'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an unknown VAT mode blocks the total and says why', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+        _component(
+          type: LeaseComponentType.unknown,
+          amount: 25,
+          vatMode: LeaseComponentVatMode.unknown,
+          rawTypeKey: 'garden_levy',
+        ),
+      ],
+    );
+
+    expect(
+      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
+      'nicht summierbar',
+    );
+    expect(
+      find.textContaining('Steuerbehandlung'),
+      findsWidgets,
+    );
+  });
 }
 
 Future<void> _pump(
