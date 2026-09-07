@@ -2002,6 +2002,41 @@ class SupabaseLeaseComponentAdapter extends _SupabaseLeasingBase
   }
 
   @override
+  Future<LeasingRepositoryResult<LeaseComponentHistoryDto>> readHistory(
+    LeaseComponentHistoryQuery query,
+  ) async {
+    try {
+      final response = await _gateway.callRpc(
+        'lease_component_history',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_lease_id': query.leaseId,
+          'p_as_of': _dateToWire(query.asOfDate),
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        return LeasingRepositorySuccess<LeaseComponentHistoryDto>(
+          _parseComponentHistory(_asMap(payload['entity'])),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<LeaseComponentHistoryDto>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const LeasingRepositoryFailure<LeaseComponentHistoryDto>(
+        kind: LeasingRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase lease component history could not be loaded.',
+      );
+    }
+  }
+
+  @override
   Future<LeasingRepositoryResult<LeaseComponentDto>> create(
     CreateLeaseComponentCommand command,
   ) {
@@ -2132,6 +2167,72 @@ LeaseComponentCoverageType _parseLeaseComponentCoverageType(
     firstGapTo: _optionalDate(row['first_gap_to']),
     openGapFrom: _optionalDate(row['open_gap_from']),
     rawTypeKey: type == LeaseComponentType.unknown ? typeKey : null,
+  );
+}
+
+LeaseComponentHistoryDto _parseComponentHistory(Map<String, dynamic> entity) {
+  final raw = entity['component_types'];
+  if (raw is! List) {
+    throw const FormatException('Expected a component type list.');
+  }
+  return LeaseComponentHistoryDto(
+    leaseId: _requiredString(entity, 'lease_id'),
+    propertyId: _optionalString(entity['property_id']),
+    currencyCode: _optionalString(entity['currency_code']),
+    asOfDate: _requiredDate(entity, 'as_of_date'),
+    timelines: raw
+        .map((entry) => _parseComponentTimeline(_asMap(entry)))
+        .toList(growable: false),
+  );
+}
+
+LeaseComponentTimelineDto _parseComponentTimeline(Map<String, dynamic> row) {
+  final typeKey = _requiredString(row, 'component_type');
+  final type = leaseComponentTypeFromKey(typeKey);
+  final rawPeriods = row['periods'];
+  final rawGaps = row['gaps'];
+  return LeaseComponentTimelineDto(
+    componentType: type,
+    rawTypeKey: type == LeaseComponentType.unknown ? typeKey : null,
+    periods: rawPeriods is List
+        ? rawPeriods
+              .map((entry) => _parseComponentPeriod(_asMap(entry)))
+              .toList(growable: false)
+        : const <LeaseComponentPeriodDto>[],
+    // Absent on a server older than LEASING-COMPONENTS-02 would mean the
+    // periods are still right and only the gap judgement is missing. Parsed as
+    // empty rather than as a failure, for the same reason 01c's coverage is.
+    gaps: rawGaps is List
+        ? rawGaps
+              .map((entry) => _parseComponentGap(_asMap(entry)))
+              .toList(growable: false)
+        : const <LeaseComponentGap>[],
+  );
+}
+
+LeaseComponentPeriodDto _parseComponentPeriod(Map<String, dynamic> row) {
+  return LeaseComponentPeriodDto(
+    id: _requiredString(row, 'id'),
+    validFrom: _requiredDate(row, 'valid_from'),
+    validTo: _optionalDate(row['valid_to']),
+    amount: _requiredDouble(row, 'amount'),
+    currencyCode: _requiredString(row, 'currency_code'),
+    vatMode: leaseComponentVatModeFromKey(_requiredString(row, 'vat_mode')),
+    vatRatePercent: _optionalDouble(row['vat_rate_percent']),
+    note: _optionalString(row['note']),
+    version: _requiredInt(row, 'version'),
+    updatedAt: _optionalDate(row['updated_at']),
+    // Never inferred from the dates here. The server decided it against the
+    // date it was asked for, and re-deriving it client-side would put two
+    // answers to "is this current" in the product.
+    inForce: row['in_force'] == true,
+  );
+}
+
+LeaseComponentGap _parseComponentGap(Map<String, dynamic> row) {
+  return LeaseComponentGap(
+    from: _requiredDate(row, 'from'),
+    to: _requiredDate(row, 'to'),
   );
 }
 

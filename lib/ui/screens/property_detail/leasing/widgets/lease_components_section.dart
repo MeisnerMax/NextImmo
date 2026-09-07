@@ -31,6 +31,7 @@ class LeaseComponentsSection extends StatelessWidget {
     this.onAdd,
     this.onEdit,
     this.onClose,
+    this.onShowHistory,
     this.inceptionNote = true,
   });
 
@@ -57,6 +58,11 @@ class LeaseComponentsSection extends StatelessWidget {
   final void Function(LeaseComponentType? preselectedType)? onAdd;
   final void Function(LeaseComponentDto component)? onEdit;
   final void Function(LeaseComponentDto component)? onClose;
+
+  /// Opens the full history (LEASING-COMPONENTS-02). Null where the host has
+  /// no way to load it -- the action is then absent rather than offered and
+  /// dead.
+  final VoidCallback? onShowHistory;
 
   /// Whether to explain how this section relates to the contract figures above
   /// it. On by default; off where the section stands alone.
@@ -92,6 +98,15 @@ class LeaseComponentsSection extends StatelessWidget {
         children: <Widget>[
           NxSectionHeader(
             title: 'Mietbestandteile',
+            actions: <Widget>[
+              if (onShowHistory != null)
+                TextButton.icon(
+                  key: const Key('lease-components-history'),
+                  onPressed: onShowHistory,
+                  icon: const Icon(Icons.history, size: 18),
+                  label: const Text('Verlauf'),
+                ),
+            ],
             description: switch (phase) {
               LeaseComponentsPhase.ready when components != null =>
                 // Precise about which half is which. The components and the
@@ -335,17 +350,13 @@ class LeaseComponentsSection extends StatelessWidget {
 
   static const String _absenceExplanation =
       'Nicht erfasst heißt nicht null: für diesen Stichtag liegt kein '
-      'Bestandteil dieser Art vor. Er kann fehlen oder beendet sein — eine '
-      'Historie zeigt dieser Abschnitt noch nicht.';
+      'Bestandteil dieser Art vor. Er kann fehlen oder beendet sein — welches '
+      'von beidem, zeigt der Verlauf.';
 
-  static String _typeLabel(LeaseComponentType type) => switch (type) {
-    LeaseComponentType.baseRent => 'Grundmiete',
-    LeaseComponentType.serviceChargeAdvance => 'Betriebskostenvorauszahlung',
-    LeaseComponentType.heatingAdvance => 'Heizkostenvorauszahlung',
-    LeaseComponentType.parking => 'Stellplatz',
-    LeaseComponentType.other => 'Sonstiges',
-    LeaseComponentType.unknown => 'Unbekannter Bestandteil',
-  };
+  // The words themselves live in `lease_lifecycle.dart`, because the history
+  // dialog names the same types and two copies would eventually disagree.
+  static String _typeLabel(LeaseComponentType type) =>
+      leaseComponentTypeLabel(type);
 }
 
 class _ComponentRow extends StatelessWidget {

@@ -48,6 +48,7 @@ class LeaseDetailView extends StatelessWidget {
     this.onAddComponent,
     this.onEditComponent,
     this.onCloseComponent,
+    this.onShowComponentHistory,
     this.rejection,
   });
 
@@ -79,6 +80,9 @@ class LeaseDetailView extends StatelessWidget {
   final void Function(LeaseComponentType? preselectedType)? onAddComponent;
   final void Function(LeaseComponentDto component)? onEditComponent;
   final void Function(LeaseComponentDto component)? onCloseComponent;
+
+  /// Opens the component history (LEASING-COMPONENTS-02, V-2b).
+  final VoidCallback? onShowComponentHistory;
 
   final LeaseTransitionRejection? rejection;
 
@@ -290,6 +294,7 @@ class LeaseDetailView extends StatelessWidget {
           onAdd: onAddComponent,
           onEdit: onEditComponent,
           onClose: onCloseComponent,
+          onShowHistory: onShowComponentHistory,
         ),
         const SizedBox(height: AppSpacing.component),
         NxCard(

@@ -38,6 +38,7 @@ import '../../../state/app_state.dart';
 import '../../../theme/app_theme.dart';
 import 'lease_detail_view.dart';
 import 'widgets/lease_component_dialogs.dart';
+import 'widgets/lease_component_history_dialog.dart';
 import 'widgets/lease_form_dialog.dart';
 import 'widgets/lease_lifecycle.dart';
 import 'widgets/leasing_badges.dart';
@@ -234,7 +235,9 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
                     onEditComponent: (component) =>
                         _editComponent(controller, state, component),
                     onCloseComponent: (component) =>
-                        _closeComponent(controller, component)),
+                        _closeComponent(controller, component),
+                    onShowComponentHistory: () =>
+                        _showComponentHistory(controller)),
               ],
             ],
           );
@@ -259,6 +262,8 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
                       _editComponent(controller, state, component),
                   onCloseComponent: (component) =>
                       _closeComponent(controller, component),
+                  onShowComponentHistory: () =>
+                      _showComponentHistory(controller),
                 ),
               ),
             ),
@@ -499,6 +504,31 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
     }
 
     await controller.updateComponent(component: component, changes: changes);
+  }
+
+  /// Opens the component history (LEASING-COMPONENTS-02, V-2b).
+  ///
+  /// The load is started before the dialog rather than inside its builder: a
+  /// builder runs on every rebuild, and starting a read from one would fire a
+  /// request per frame. The dialog watches the controller and renders whatever
+  /// phase it finds, so it owns the spinner it is responsible for.
+  Future<void> _showComponentHistory(LeasesController controller) async {
+    unawaited(controller.loadComponentHistory());
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Consumer(
+          builder: (BuildContext context, WidgetRef ref, _) {
+            final state = ref.watch(leasesControllerProvider(widget.propertyId));
+            return LeaseComponentHistoryDialog(
+              phase: state.componentHistoryPhase,
+              history: state.componentHistory,
+              onRetry: () => unawaited(controller.loadComponentHistory()),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _closeComponent(
@@ -870,6 +900,7 @@ class _LeaseDetailCard extends StatelessWidget {
     required this.onAddComponent,
     required this.onEditComponent,
     required this.onCloseComponent,
+    required this.onShowComponentHistory,
     required this.onAdvance,
     required this.onCancel,
   });
@@ -880,6 +911,7 @@ class _LeaseDetailCard extends StatelessWidget {
   final void Function(LeaseComponentType? preselectedType) onAddComponent;
   final void Function(LeaseComponentDto component) onEditComponent;
   final void Function(LeaseComponentDto component) onCloseComponent;
+  final VoidCallback onShowComponentHistory;
   final VoidCallback onAdvance;
   final VoidCallback onCancel;
 
@@ -940,6 +972,7 @@ class _LeaseDetailCard extends StatelessWidget {
           onAddComponent: onAddComponent,
           onEditComponent: onEditComponent,
           onCloseComponent: onCloseComponent,
+          onShowComponentHistory: onShowComponentHistory,
         );
     }
   }

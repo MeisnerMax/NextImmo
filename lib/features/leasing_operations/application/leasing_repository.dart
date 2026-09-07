@@ -304,6 +304,26 @@ class LeaseComponentListQuery {
   final String? propertyId;
 }
 
+/// One lease's full component history (LEASING-COMPONENTS-02, V-2b).
+///
+/// A lease, never a property: a property-scoped history would return every
+/// period of every component of every lease in a building, and unlike the
+/// as-of read there is no date to bound it with.
+class LeaseComponentHistoryQuery {
+  const LeaseComponentHistoryQuery({
+    required this.workspaceId,
+    required this.leaseId,
+    this.asOfDate,
+  });
+
+  final String workspaceId;
+  final String leaseId;
+
+  /// Only decides which period comes back marked as current. Null lets the
+  /// server use its own today.
+  final DateTime? asOfDate;
+}
+
 /// Adds a component to a lease.
 ///
 /// No currency: the server reads it from the lease, so a caller cannot
@@ -596,6 +616,13 @@ abstract interface class PropertyLeasingSummaryPort {
 abstract interface class LeaseComponentPort {
   Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
     LeaseComponentListQuery query,
+  );
+
+  /// Every recorded period of every type on one lease, with the interior gaps
+  /// the server found. The as-of read can only ever show one period per type;
+  /// this is what a contract review needs.
+  Future<LeasingRepositoryResult<LeaseComponentHistoryDto>> readHistory(
+    LeaseComponentHistoryQuery query,
   );
 
   Future<LeasingRepositoryResult<LeaseComponentDto>> create(

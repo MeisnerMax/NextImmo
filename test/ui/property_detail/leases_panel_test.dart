@@ -426,6 +426,14 @@ class _FakeLeaseComponents implements LeaseComponentPort {
   const _FakeLeaseComponents();
 
   @override
+  Future<LeasingRepositoryResult<LeaseComponentHistoryDto>> readHistory(
+    LeaseComponentHistoryQuery query,
+  ) async => const LeasingRepositoryFailure<LeaseComponentHistoryDto>(
+    kind: LeasingRepositoryFailureKind.infrastructureFailure,
+    message: 'not used by this test',
+  );
+
+  @override
   Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
     LeaseComponentListQuery query,
   ) async => LeasingRepositorySuccess<LeaseComponentsAsOfDto>(
