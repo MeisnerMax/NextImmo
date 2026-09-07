@@ -447,12 +447,206 @@ void main() {
     expect(find.text('garden_levy'), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz), findsNothing);
   });
+
+  testWidgets('a type recorded before but not today says so, and blocks the '
+      'total', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      coverage: <LeaseComponentCoverage>[
+        _coverage(
+          types: <LeaseComponentCoverageType>[
+            _coverageType(LeaseComponentType.baseRent, inForce: true),
+            _coverageType(
+              LeaseComponentType.parking,
+              inForce: false,
+              gapCount: 1,
+              openGapFrom: DateTime(2026, 6, 1),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    // Until LEASING-COMPONENTS-01c this read exactly like a type nobody had
+    // ever recorded.
+    expect(find.text('seit 01.06.2026 nicht erfasst'), findsOneWidget);
+    expect(find.text('nicht erfasst'), findsNWidgets(3));
+
+    // And the total must not quietly leave it out — DEC-029 in as many words:
+    // never sum around a gap.
+    expect(
+      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
+      'nicht summierbar',
+    );
+    expect(
+      find.textContaining('würde ihn stillschweigend weglassen'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a hole earlier in the term is reported even though today looks '
+      'complete', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      coverage: <LeaseComponentCoverage>[
+        _coverage(
+          complete: false,
+          types: <LeaseComponentCoverageType>[
+            _coverageType(
+              LeaseComponentType.baseRent,
+              inForce: true,
+              gapCount: 1,
+              firstGapFrom: DateTime(2026, 3, 1),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    // The component IS in force, so nothing on the row is wrong; the gap is
+    // in July of some other reading and would never have surfaced.
+    expect(
+      find.byKey(const Key('lease-components-history-gaps')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('erste ab 01.03.2026'), findsOneWidget);
+    expect(
+      find.textContaining('nicht aus den Vertragsbeginn-Zahlen ergänzt'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no gaps means no notice at all', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      coverage: <LeaseComponentCoverage>[
+        _coverage(
+          types: <LeaseComponentCoverageType>[
+            _coverageType(LeaseComponentType.baseRent, inForce: true),
+          ],
+        ),
+      ],
+    );
+
+    // The counterpart assertion: a widget that always warned would pass the
+    // two above and fail here.
+    expect(
+      find.byKey(const Key('lease-components-history-gaps')),
+      findsNothing,
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
+      '1000.00 EUR',
+    );
+  });
+
+  testWidgets('without coverage the rows read as before', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+    );
+
+    // A server that predates 01c sends no coverage. The section must not start
+    // claiming things it was not told.
+    expect(find.text('nicht erfasst'), findsNWidgets(4));
+    // Not `textContaining('seit')` — an open-ended period legitimately reads
+    // "seit 01.01.2026", and an assertion that cannot tell the two apart tests
+    // the wrong thing.
+    expect(find.textContaining('seit'), findsWidgets);
+    expect(find.text('für diesen Stichtag nicht erfasst'), findsNothing);
+    expect(find.textContaining('seit 01.06.2026 nicht erfasst'), findsNothing);
+    expect(
+      find.byKey(const Key('lease-components-history-gaps')),
+      findsNothing,
+    );
+  });
+
+  test('a gap at the date outranks every other reason there is no total', () {
+    final dto = LeaseComponentsAsOfDto(
+      asOfDate: DateTime(2026, 9, 7),
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+        _component(
+          type: LeaseComponentType.parking,
+          amount: 50,
+          currency: 'CHF',
+        ),
+      ],
+      coverage: <LeaseComponentCoverage>[
+        _coverage(
+          complete: false,
+          types: <LeaseComponentCoverageType>[
+            _coverageType(
+              LeaseComponentType.heatingAdvance,
+              inForce: false,
+              gapCount: 1,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    // Both a currency conflict and a gap apply. The gap is named, because it
+    // is the one that would otherwise have produced a plausible number rather
+    // than an obviously impossible one.
+    expect(dto.totalBlocker, LeaseComponentTotalBlocker.gapAtDate);
+    expect(dto.recordedTotal, isNull);
+  });
+
+  test('complete is true when there is nothing to cover', () {
+    final dto = LeaseComponentsAsOfDto(
+      asOfDate: DateTime(2026, 9, 7),
+      components: const <LeaseComponentDto>[],
+    );
+
+    expect(dto.complete, isTrue);
+    expect(dto.totalBlocker, LeaseComponentTotalBlocker.none);
+    expect(dto.recordedTotal, isNull, reason: 'nothing recorded, no total');
+  });
 }
+
+LeaseComponentCoverage _coverage({
+  required List<LeaseComponentCoverageType> types,
+  bool complete = true,
+}) => LeaseComponentCoverage(
+  leaseId: 'l1',
+  windowFrom: DateTime(2026, 1, 1),
+  windowTo: DateTime(2026, 9, 7),
+  complete: complete,
+  types: types,
+);
+
+LeaseComponentCoverageType _coverageType(
+  LeaseComponentType type, {
+  required bool inForce,
+  int gapCount = 0,
+  DateTime? firstGapFrom,
+  DateTime? openGapFrom,
+}) => LeaseComponentCoverageType(
+  componentType: type,
+  inForce: inForce,
+  gapCount: gapCount,
+  firstGapFrom: firstGapFrom,
+  firstGapTo: firstGapFrom?.add(const Duration(days: 30)),
+  openGapFrom: openGapFrom,
+);
 
 Future<void> _pump(
   WidgetTester tester, {
   LeaseComponentsPhase phase = LeaseComponentsPhase.ready,
   List<LeaseComponentDto>? components,
+  List<LeaseComponentCoverage> coverage = const <LeaseComponentCoverage>[],
   DateTime? asOf,
   VoidCallback? onRetry,
   Size size = const Size(1000, 900),
@@ -477,6 +671,7 @@ Future<void> _pump(
                 : LeaseComponentsAsOfDto(
                     asOfDate: asOf ?? DateTime(2026, 3, 15),
                     components: components,
+                    coverage: coverage,
                   ),
             onRetry: onRetry ?? () {},
             canMutate: canMutate,
