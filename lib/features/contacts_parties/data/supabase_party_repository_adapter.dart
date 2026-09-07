@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../application/party_repository.dart';
 import '../domain/party_dto.dart';
+import '../domain/supplier_contract_dto.dart';
 
 abstract interface class PartySupabaseGateway {
   String? get currentUserId;
@@ -131,6 +132,7 @@ class SupabasePartyRepositoryAdapter
         PartyRepository,
         PartySearchPort,
         PartyRoleRepository,
+        SupplierContractsPort,
         DuplicateDetectionPort {
   SupabasePartyRepositoryAdapter({required SupabaseClient client})
     : _gateway = SupabasePartyGateway(client);
@@ -430,6 +432,137 @@ class SupabasePartyRepositoryAdapter
     );
   }
 
+  // --- SupplierContractsPort (SUPPLIER-CONTRACTS-01) ---
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractSetDto>> listContracts(
+    SupplierContractsQuery query,
+  ) async {
+    try {
+      final response = await _gateway.callRpc(
+        'supplier_contracts_as_of',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_as_of': _contractDateToWire(query.asOfDate),
+          'p_party_id': query.partyId,
+          'p_property_id': query.propertyId,
+          'p_include_ended': query.includeEnded,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final entity = _asMap(payload['entity']);
+        final rows = entity['contracts'];
+        if (rows is! List) {
+          throw const FormatException('Expected a contract list.');
+        }
+        return PartyRepositorySuccess<SupplierContractSetDto>(
+          SupplierContractSetDto(
+            asOfDate: _requiredContractDate(entity, 'as_of_date'),
+            contracts: rows
+                .map((row) => _parseSupplierContract(_asMap(row)))
+                .toList(growable: false),
+          ),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<SupplierContractSetDto>(
+        _asMap(payload['error']),
+        null,
+      );
+    } catch (_) {
+      return const PartyRepositoryFailure<SupplierContractSetDto>(
+        kind: PartyRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase supplier contracts could not be loaded.',
+      );
+    }
+  }
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> createContract(
+    CreateSupplierContractCommand command,
+  ) {
+    return _executeCommand<SupplierContractDto>(
+      context: command.context,
+      function: 'create_supplier_contract',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_party_id': command.partyId,
+        'p_title': command.title,
+        'p_contract_type': command.contractType,
+        'p_start_date': _contractDateToWire(command.startDate),
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_property_id': command.propertyId,
+        'p_scope_note': command.scopeNote,
+        'p_end_date': _contractDateToWire(command.endDate),
+        'p_notice_period_days': command.noticePeriodDays,
+        'p_auto_renew': command.autoRenew,
+        'p_renewal_term_months': command.renewalTermMonths,
+        'p_annual_value': command.annualValue,
+        'p_currency_code': command.currencyCode,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: (entity) {
+        final contract = _parseSupplierContract(entity);
+        _requireWorkspace(contract.workspaceId, command.context.workspaceId);
+        return contract;
+      },
+    );
+  }
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> updateContract(
+    UpdateSupplierContractCommand command,
+  ) {
+    return _executeCommand<SupplierContractDto>(
+      context: command.context,
+      function: 'update_supplier_contract',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_contract_id': command.contractId,
+        'p_expected_version': command.expectedVersion,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        // Sent as built: an absent key keeps its value, a null clears it.
+        'p_changes': command.changes,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: (entity) {
+        final contract = _parseSupplierContract(entity);
+        _requireWorkspace(contract.workspaceId, command.context.workspaceId);
+        return contract;
+      },
+    );
+  }
+
+  @override
+  Future<PartyRepositoryResult<SupplierContractDto>> endContract(
+    EndSupplierContractCommand command,
+  ) {
+    return _executeCommand<SupplierContractDto>(
+      context: command.context,
+      function: 'end_supplier_contract',
+      parameters: <String, Object?>{
+        'p_workspace_id': command.context.workspaceId,
+        'p_contract_id': command.contractId,
+        'p_expected_version': command.expectedVersion,
+        'p_mutation_id': command.context.mutationId,
+        'p_correlation_id': command.context.correlationId,
+        'p_ended_reason': command.endedReason,
+        'p_reason': command.context.reason,
+      },
+      parseEntity: (entity) {
+        final contract = _parseSupplierContract(entity);
+        _requireWorkspace(contract.workspaceId, command.context.workspaceId);
+        return contract;
+      },
+    );
+  }
+
   // --- DuplicateDetectionPort ---
 
   @override
@@ -649,6 +782,107 @@ PartyRoleDto _parseRole(Map<String, dynamic> json) {
     version: _requiredInt(json, 'version'),
     validUntil: _nullableDateTime(json, 'valid_until'),
   );
+}
+
+/// Parses one contract, including the deadlines the server derived.
+///
+/// None of the derived fields is recomputed here. They were decided against
+/// the date the read asked about, and re-deriving them client-side would put
+/// two answers to "is it too late to give notice" in the product -- which is
+/// the exact failure the server-side derivation exists to prevent.
+SupplierContractDto _parseSupplierContract(Map<String, dynamic> row) {
+  final statusKey = _requiredString(row, 'status');
+  final status = supplierContractStatusFromKey(statusKey);
+  return SupplierContractDto(
+    id: _requiredString(row, 'id'),
+    workspaceId: _requiredString(row, 'workspace_id'),
+    partyId: _requiredString(row, 'party_id'),
+    partyName: _nullableString(row, 'party_name'),
+    propertyId: _nullableString(row, 'property_id'),
+    title: _requiredString(row, 'title'),
+    contractType: _requiredString(row, 'contract_type'),
+    scopeNote: _nullableString(row, 'scope_note'),
+    status: status,
+    rawStatusKey: status == SupplierContractStatus.unknown ? statusKey : null,
+    startDate: _requiredContractDate(row, 'start_date'),
+    endDate: _optionalContractDate(row['end_date']),
+    noticePeriodDays: _optionalContractInt(row['notice_period_days']),
+    autoRenew: row['auto_renew'] == true,
+    renewalTermMonths: _optionalContractInt(row['renewal_term_months']),
+    annualValue: _optionalContractDouble(row['annual_value']),
+    currencyCode: _nullableString(row, 'currency_code'),
+    endedAt: _optionalContractDate(row['ended_at']),
+    endedReason: _nullableString(row, 'ended_reason'),
+    version: _requiredInt(row, 'version'),
+    isEffective: row['is_effective'] == true,
+    noticeDeadline: _optionalContractDate(row['notice_deadline']),
+    daysToNotice: _optionalContractInt(row['days_to_notice']),
+    noticeDeadlinePassed: row['notice_deadline_passed'] == true,
+    noticeWindowOpen: row['notice_window_open'] == true,
+    endsOn: _optionalContractDate(row['ends_on']),
+    renewsOn: _optionalContractDate(row['renews_on']),
+  );
+}
+
+DateTime _requiredContractDate(Map<String, dynamic> row, String key) {
+  final value = _optionalContractDate(row[key]);
+  if (value == null) {
+    throw FormatException('Missing date field: $key');
+  }
+  return value;
+}
+
+DateTime? _optionalContractDate(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is String) {
+    return DateTime.tryParse(value);
+  }
+  throw const FormatException('Expected a date.');
+}
+
+int? _optionalContractInt(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value);
+  }
+  throw const FormatException('Expected an integer.');
+}
+
+double? _optionalContractDouble(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value);
+  }
+  throw const FormatException('Expected a number.');
+}
+
+/// A calendar day, as the caller supplied it. No UTC conversion: a contract
+/// starting on 1 January means the first of January in the caller's terms.
+String? _contractDateToWire(DateTime? value) {
+  if (value == null) {
+    return null;
+  }
+  return '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
 }
 
 ContractorDetailsDto _parseContractorDetails(Map<String, dynamic> json) {

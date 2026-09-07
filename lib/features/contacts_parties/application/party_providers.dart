@@ -29,6 +29,13 @@ final partyRoleProvider = Provider<PartyRoleRepository>(
   (ref) => throw StateError('PartyRoleRepository is not configured.'),
 );
 
+/// Supplier and utility contracts (`SUPPLIER-CONTRACTS-01`, P-3). Served by
+/// the same Supabase adapter as the rest of the party surface, because a
+/// supplier is a party.
+final supplierContractsProvider = Provider<SupplierContractsPort>(
+  (ref) => throw StateError('SupplierContractsPort is not configured.'),
+);
+
 final duplicateDetectionProvider = Provider<DuplicateDetectionPort>(
   (ref) => throw StateError('DuplicateDetectionPort is not configured.'),
 );
