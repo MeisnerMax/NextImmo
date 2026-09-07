@@ -6,7 +6,9 @@ select plan(9);
 
 -- === Schema surface =====================================================
 
-select has_function('public', 'workspace_maintenance_tickets', array['uuid', 'text', 'text']);
+-- Four parameters since MAINTENANCE-CATEGORY-01 (V-3).
+select has_function('public', 'workspace_maintenance_tickets',
+  array['uuid', 'text', 'text', 'text']);
 select is(
   (select count(*)::integer
    from information_schema.routine_privileges

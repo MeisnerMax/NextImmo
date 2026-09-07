@@ -95,6 +95,7 @@ class MaintenanceTicketSummaryDto {
     this.costActual,
     this.currencyCode,
     this.contractorPartyId,
+    this.category = 'general',
   });
 
   final String id;
@@ -105,6 +106,13 @@ class MaintenanceTicketSummaryDto {
   final MaintenanceTicketPriority priority;
   final DateTime reportedAt;
   final int version;
+
+  /// Free text server-side, with a curated list in the UI
+  /// (`screens/maintenance_tickets.md` 7.2). It was on every list row the
+  /// server sent long before anything read it; the default here matches the
+  /// column's own default so an older payload cannot make a ticket
+  /// category-less.
+  final String category;
 
   final String? unitId;
   final DateTime? dueAt;
@@ -135,7 +143,7 @@ class MaintenanceTicketDto extends MaintenanceTicketSummaryDto {
     super.costActual,
     super.currencyCode,
     super.contractorPartyId,
-    required this.category,
+    required super.category,
     this.description,
     this.resolvedAt,
     this.damageLocation,
@@ -148,7 +156,6 @@ class MaintenanceTicketDto extends MaintenanceTicketSummaryDto {
     required this.updatedBy,
   });
 
-  final String category;
   final String? description;
 
   /// Set exactly while [status] is `resolved`, `invoiced` or `archived` — the
