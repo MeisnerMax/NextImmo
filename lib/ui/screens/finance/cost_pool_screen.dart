@@ -44,6 +44,7 @@ import '../../components/nx_status_badge.dart';
 import '../../theme/app_theme.dart';
 import 'allocation_key_dialog.dart';
 import 'cost_pool_dialog.dart';
+import 'unit_basis_values_screen.dart';
 
 /// Why this key cannot be used, in the reader's language.
 ///
@@ -57,10 +58,16 @@ String allocationKeyUnusableLabel(AllocationKeyDto key) {
     return 'Maßstab unbekannt';
   }
   return switch (key.basisResolution.reason) {
-    AllocationUnresolvableReason.noBasisStore => 'Keine Datenbasis vorhanden',
+    AllocationUnresolvableReason.noBasisStore => 'Noch keine Werte erfasst',
     AllocationUnresolvableReason.noMeters => 'Keine Zähler erfasst',
     AllocationUnresolvableReason.noUnits => 'Keine Einheiten erfasst',
     AllocationUnresolvableReason.incompleteBasis => 'Werte unvollständig',
+    AllocationUnresolvableReason.mixedConventions => 'Konventionen uneinheitlich',
+    AllocationUnresolvableReason.noValueOnDate => 'Keine Werte zum Stichtag',
+    AllocationUnresolvableReason.zeroTotal => 'Basis summiert sich zu null',
+    AllocationUnresolvableReason.poolScopeUnresolvable =>
+      'Pool ohne abgrenzbaren Bereich',
+    AllocationUnresolvableReason.unknownBasis => 'Maßstab nicht entschieden',
     AllocationUnresolvableReason.notEvaluated => 'Noch nicht bewertet',
     AllocationUnresolvableReason.unknown => 'Unbekannter Grund',
     null => 'Grund nicht angegeben',
@@ -251,6 +258,15 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
                 allocationKey: key,
                 canMutate: controller.canMutate,
                 onEdit: () => _editKey(controller, state, accounts, key),
+                // Offered only where it would actually help: a basis whose
+                // figures live per unit, on a key that cannot currently be
+                // resolved. A button that opened an empty editor for a basis
+                // with no store would be a dead end dressed as a fix.
+                onEnterValues:
+                    allocationBasisIsStoredPerUnit(key.basis) &&
+                        !key.isUsableForSettlement
+                    ? () => _enterBasisValues(controller, key)
+                    : null,
               ),
             ),
         const SizedBox(height: AppSpacing.md),
@@ -294,6 +310,22 @@ class _CostPoolScreenState extends ConsumerState<CostPoolScreen> {
             ),
       ],
     );
+  }
+
+  /// Opens the per-unit figures for the key's property and basis, then
+  /// re-reads: entering one figure can complete the set, or introduce a second
+  /// convention that stops it adding up, and either changes this key's verdict.
+  Future<void> _enterBasisValues(
+    CostPoolController controller,
+    AllocationKeyDto key,
+  ) async {
+    await showUnitBasisValues(
+      context,
+      propertyId: key.propertyId,
+      basis: key.basis,
+      propertyName: key.propertyName,
+    );
+    await controller.load();
   }
 
   Future<void> _pickDate(
@@ -545,11 +577,15 @@ class _KeyRow extends StatelessWidget {
     required this.allocationKey,
     required this.canMutate,
     required this.onEdit,
+    this.onEnterValues,
   });
 
   final AllocationKeyDto allocationKey;
   final bool canMutate;
   final VoidCallback onEdit;
+
+  /// Null unless entering per-unit figures would change this key's verdict.
+  final VoidCallback? onEnterValues;
 
   @override
   Widget build(BuildContext context) {
@@ -633,15 +669,31 @@ class _KeyRow extends StatelessWidget {
           Text(allocationKey.explanation, style: theme.textTheme.bodySmall),
           if (allocationKey.note != null)
             Text(allocationKey.note!, style: muted),
-          if (canMutate) ...<Widget>[
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              key: Key('allocation-key-edit-${allocationKey.id}'),
-              onPressed: onEdit,
-              icon: const Icon(Icons.tune_outlined, size: 18),
-              label: const Text('Ändern'),
-            ),
-          ],
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: <Widget>[
+              if (canMutate)
+                OutlinedButton.icon(
+                  key: Key('allocation-key-edit-${allocationKey.id}'),
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.tune_outlined, size: 18),
+                  label: const Text('Ändern'),
+                ),
+              // The route from the diagnosis to the fix. Shown to readers as
+              // well as writers: seeing which units are missing a figure is a
+              // finance.read question, and entering one is refused server-side
+              // for anybody without finance.manage.
+              if (onEnterValues != null)
+                FilledButton.tonalIcon(
+                  key: Key('allocation-key-values-${allocationKey.id}'),
+                  onPressed: onEnterValues,
+                  icon: const Icon(Icons.checklist_outlined, size: 18),
+                  label: const Text('Basiswerte je Einheit'),
+                ),
+            ],
+          ),
         ],
       ),
     );

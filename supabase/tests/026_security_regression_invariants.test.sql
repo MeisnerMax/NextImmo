@@ -111,8 +111,8 @@ select is(
    where namespace.nspname = 'public'
      and function.prokind = 'f'
      and function.prosecdef),
-  105,
-  'SR-20: the public SECURITY DEFINER inventory is still 105 -- update this expectation deliberately when it changes'
+  107,
+  'SR-20: the public SECURITY DEFINER inventory is still 107 -- update this expectation deliberately when it changes'
 );
 
 select is(
@@ -441,8 +441,8 @@ select is(
    join pg_class as class on class.oid = policy.polrelid
    join pg_namespace as namespace on namespace.oid = class.relnamespace
    where namespace.nspname in ('public', 'storage', 'realtime')),
-  55,
-  'SR-22: the client-reachable policy inventory is still 55 -- update this expectation deliberately'
+  56,
+  'SR-22: the client-reachable policy inventory is still 56 -- update this expectation deliberately'
 );
 
 -- === SR-23: the document storage surface ================================

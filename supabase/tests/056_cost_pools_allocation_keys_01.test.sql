@@ -666,36 +666,40 @@ select is(
 select is(
   (private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', 'persons') ->> 'reason'),
+     '72500000-0000-0000-0000-000000000001', 'persons',
+     date '2026-03-01') ->> 'reason'),
   'no_basis_store',
   'persons resolves to nothing: no occupancy figure is recorded anywhere');
 
 select is(
   (private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', 'co_ownership_share')
-     ->> 'reason'),
+     '72500000-0000-0000-0000-000000000001', 'co_ownership_share',
+     date '2026-03-01') ->> 'reason'),
   'no_basis_store',
   'nor does a co-ownership share');
 
 select is(
   (private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', 'fixed_share') ->> 'reason'),
+     '72500000-0000-0000-0000-000000000001', 'fixed_share',
+     date '2026-03-01') ->> 'reason'),
   'no_basis_store',
   'nor a fixed share');
 
 select is(
   (private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', 'consumption') ->> 'reason'),
+     '72500000-0000-0000-0000-000000000001', 'consumption',
+     date '2026-03-01') ->> 'reason'),
   'no_meters',
   'and consumption says meters, because P-4 is where they arrive');
 
 select is(
   (private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', 'direct') ->> 'resolvable'),
+     '72500000-0000-0000-0000-000000000001', 'direct',
+     date '2026-03-01') ->> 'resolvable'),
   'true',
   'a direct assignment is resolvable and reports no total: there is nothing '
   'to divide by');
@@ -712,7 +716,7 @@ select is(
    from unnest(enum_range(null::public.allocation_basis)) as basis
    where private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', basis
+     '72500000-0000-0000-0000-000000000001', basis, date '2026-03-01'
    ) ->> 'detail' like 'The sum of units.area_sqm%'),
   1,
   'exactly one basis answers with the area figure -- area is a named branch '
@@ -723,7 +727,7 @@ select is(
    from unnest(enum_range(null::public.allocation_basis)) as basis
    where private.allocation_basis_resolution(
      '72100000-0000-0000-0000-000000000001',
-     '72500000-0000-0000-0000-000000000001', basis
+     '72500000-0000-0000-0000-000000000001', basis, date '2026-03-01'
    ) ->> 'detail' is null),
   0,
   'and every value in the vocabulary says something about itself');

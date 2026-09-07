@@ -121,8 +121,9 @@ String allocationBasisKey(AllocationBasis value) => switch (value) {
 /// keeps the reasons it knows and passes the rest through as
 /// [AllocationUnresolvableReason.unknown] with the raw key.
 enum AllocationUnresolvableReason {
-  /// The basis has no store in this schema at all. P-2c adds one for shares
-  /// and persons.
+  /// Nothing has been recorded for this basis on the date asked about. For
+  /// the three stored bases this means the values exist as a concept and
+  /// nobody has entered any; for consumption it means P-4 has not arrived.
   noBasisStore,
 
   /// Meters and readings arrive with P-4.
@@ -134,6 +135,29 @@ enum AllocationUnresolvableReason {
   /// Some units are missing the value. Unresolvable rather than approximate:
   /// the missing unit's share would be silently redistributed over the rest.
   incompleteBasis,
+
+  /// The units state more than one convention for the same basis. Adding a
+  /// Stichtag head count to a Personenmonate figure does not produce a
+  /// denominator, so the sum is refused rather than taken.
+  mixedConventions,
+
+  /// Figures exist for this basis, but none of them covers the date asked
+  /// about. Distinct from [noBasisStore]: telling somebody re-running a 2024
+  /// settlement that they never recorded anything is false.
+  noValueOnDate,
+
+  /// Every unit is recorded and they sum to zero. A real state, and it means
+  /// there is nothing to divide by — not that each unit's share is zero.
+  zeroTotal,
+
+  /// The key distributes a pool at a scope this schema has no entity for, so
+  /// which units it covers cannot be determined. The basis may be perfectly
+  /// complete; the pool is what cannot be resolved.
+  poolScopeUnresolvable,
+
+  /// A basis the server holds in its vocabulary without having decided what
+  /// it resolves to. It distributes nothing until somebody decides.
+  unknownBasis,
 
   /// The payload carried no resolution at all — a command snapshot, which
   /// answers "what did I write", not "what would this distribute over". A
@@ -150,6 +174,12 @@ AllocationUnresolvableReason allocationUnresolvableReasonFromKey(String key) =>
       'no_meters' => AllocationUnresolvableReason.noMeters,
       'no_units' => AllocationUnresolvableReason.noUnits,
       'incomplete_basis' => AllocationUnresolvableReason.incompleteBasis,
+      'mixed_conventions' => AllocationUnresolvableReason.mixedConventions,
+      'no_value_on_date' => AllocationUnresolvableReason.noValueOnDate,
+      'zero_total' => AllocationUnresolvableReason.zeroTotal,
+      'pool_scope_unresolvable' =>
+        AllocationUnresolvableReason.poolScopeUnresolvable,
+      'unknown_basis' => AllocationUnresolvableReason.unknownBasis,
       // `not_evaluated` has no server key: the state exists only where a
       // payload omitted the resolution entirely, and the adapter names it
       // there rather than parsing it.
@@ -166,6 +196,8 @@ class AllocationBasisResolutionDto {
     this.unitCount,
     this.unitsWithoutValue,
     this.detail,
+    this.convention,
+    this.conventionCount,
   });
 
   final bool resolvable;
@@ -190,6 +222,213 @@ class AllocationBasisResolutionDto {
   /// why there is none. Shown rather than paraphrased: it names which of the
   /// schema's several area figures this one means.
   final String? detail;
+
+  /// The single convention every unit's value was measured under, when there
+  /// is one. Null when the units disagree — in which case the figures cannot
+  /// be summed at all.
+  final String? convention;
+
+  /// How many distinct conventions the units state. More than one is what
+  /// makes [AllocationUnresolvableReason.mixedConventions].
+  final int? conventionCount;
+}
+
+/// What a typed figure was read as, or why it could not be read.
+///
+/// The form is German, and in German a full stop groups thousands while a
+/// comma separates decimals — the opposite of what `num.parse` assumes. A
+/// plain `replaceAll(',', '.')` leaves "1.000" as one, silently dividing the
+/// entered figure by a thousand and handing a settlement run a denominator
+/// nobody typed. That is exactly the "plausible number" this whole package
+/// exists to prevent, arriving through the keyboard instead of through the
+/// legacy code.
+///
+/// So the reading is explicit, and the genuinely ambiguous case is refused
+/// rather than guessed: "1.000" alone can be a thousand or it can be one, and
+/// only the person typing knows which.
+sealed class ParsedFigure {
+  const ParsedFigure();
+}
+
+class ParsedFigureValue extends ParsedFigure {
+  const ParsedFigureValue(this.value);
+
+  final num value;
+}
+
+class ParsedFigureProblem extends ParsedFigure {
+  const ParsedFigureProblem(this.kind);
+
+  final ParsedFigureProblemKind kind;
+}
+
+enum ParsedFigureProblemKind {
+  empty,
+  notANumber,
+
+  /// A single full stop before exactly three digits: German grouping and an
+  /// English decimal point are both plausible readings, and they differ by a
+  /// factor of a thousand.
+  ambiguousSeparator,
+
+  /// NaN, an infinity, or a literal that overflows to one. `num.tryParse`
+  /// accepts all three and `> 0` does not catch them.
+  notFinite,
+  negative,
+}
+
+/// Reads a figure the way a German form is typed, refusing what it cannot read
+/// unambiguously.
+ParsedFigure parseGermanFigure(String raw) {
+  final String text = raw.replaceAll(RegExp(r'[\s\u00a0]'), '');
+  if (text.isEmpty) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.empty);
+  }
+
+  final int dots = '.'.allMatches(text).length;
+  final int commas = ','.allMatches(text).length;
+  String normalised;
+
+  if (commas > 1) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notANumber);
+  } else if (commas == 1) {
+    // A comma is the decimal separator, so any full stop before it groups.
+    normalised = text.replaceAll('.', '').replaceAll(',', '.');
+  } else if (dots > 1) {
+    // Several full stops can only be grouping.
+    normalised = text.replaceAll('.', '');
+  } else if (dots == 1) {
+    if (RegExp(r'^-?\d{1,3}\.\d{3}$').hasMatch(text)) {
+      // "1.000" — a thousand, or one. Both are ordinary things to type here,
+      // and picking one silently is how a denominator ends up off by 1000.
+      return const ParsedFigureProblem(
+        ParsedFigureProblemKind.ambiguousSeparator,
+      );
+    }
+    normalised = text;
+  } else {
+    normalised = text;
+  }
+
+  final num? parsed = num.tryParse(normalised);
+  if (parsed == null) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notANumber);
+  }
+  // `num.tryParse` accepts "NaN", "Infinity" and anything that overflows to
+  // one, and none of them is caught by a sign test.
+  if (!parsed.isFinite) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.notFinite);
+  }
+  if (parsed < 0) {
+    return const ParsedFigureProblem(ParsedFigureProblemKind.negative);
+  }
+  return ParsedFigureValue(parsed);
+}
+
+/// Whether this basis is one the workspace records per unit
+/// (`UNIT-BASIS-VALUES-01`, P-2c).
+///
+/// Exactly three. Area lives on the unit itself, a unit count is counted, a
+/// direct assignment distributes nothing, and consumption needs meters — a
+/// value stored here for any of those could only disagree with the fact that
+/// already has an owner, and the server refuses it.
+bool allocationBasisIsStoredPerUnit(AllocationBasis basis) =>
+    basis == AllocationBasis.fixedShare ||
+    basis == AllocationBasis.persons ||
+    basis == AllocationBasis.coOwnershipShare;
+
+/// One unit's figure for one basis, in force on the date asked about.
+class UnitBasisValueDto {
+  const UnitBasisValueDto({
+    required this.id,
+    required this.workspaceId,
+    required this.unitId,
+    required this.basis,
+    required this.value,
+    required this.convention,
+    required this.validFrom,
+    required this.version,
+    this.validTo,
+    this.note,
+  });
+
+  final String id;
+  final String workspaceId;
+  final String unitId;
+  final AllocationBasis basis;
+
+  /// The measured quantity — a head count, a share, a weight. Not normalised:
+  /// the resolution reports the total and the caller divides, so a workspace
+  /// enters three persons rather than a quarter of a house.
+  final num value;
+
+  /// How the figure was arrived at, in the workspace's words. Mandatory,
+  /// because no counting rule is agreed for any of these three bases: a
+  /// figure without its convention is one nobody can check, and two figures
+  /// measured differently cannot be added.
+  final String convention;
+
+  final DateTime validFrom;
+
+  /// Inclusive. Null is open-ended, the normal state of a current figure.
+  final DateTime? validTo;
+
+  final String? note;
+  final int version;
+}
+
+/// One unit of a property, with its figure for a basis or without one.
+class UnitBasisRowDto {
+  const UnitBasisRowDto({
+    required this.unitId,
+    required this.unitCode,
+    this.areaSqm,
+    this.value,
+  });
+
+  final String unitId;
+  final String unitCode;
+
+  /// Shown beside the figure being entered, because it is the one distribution
+  /// basis this schema already holds and a reader comparing the two is the
+  /// cheapest sanity check available.
+  final num? areaSqm;
+
+  /// Null when nobody has recorded a figure for this unit on this date. Listed
+  /// rather than filtered away: the missing ones are exactly what makes the
+  /// basis unresolvable.
+  final UnitBasisValueDto? value;
+
+  bool get hasValue => value != null;
+}
+
+class UnitBasisOverviewDto {
+  const UnitBasisOverviewDto({
+    required this.asOfDate,
+    required this.basis,
+    required this.units,
+    required this.resolution,
+    this.rawBasisKey,
+  });
+
+  /// Echoed by the server, so the surface states which day it is showing
+  /// rather than assuming today.
+  final DateTime asOfDate;
+
+  final AllocationBasis basis;
+  final String? rawBasisKey;
+
+  final List<UnitBasisRowDto> units;
+
+  /// The same verdict the allocation keys get, so the two surfaces cannot
+  /// disagree about whether this basis is usable.
+  final AllocationBasisResolutionDto resolution;
+
+  int get recordedCount =>
+      units.where((UnitBasisRowDto row) => row.hasValue).length;
+
+  List<UnitBasisRowDto> get missing =>
+      units.where((UnitBasisRowDto row) => !row.hasValue).toList(growable: false);
 }
 
 class CostPoolDto {
