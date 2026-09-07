@@ -302,6 +302,7 @@ class SupabaseMaintenanceTicketRepositoryAdapter
             ? null
             : _ticketPriorityToWire[query.priority!],
         'p_category': query.category,
+        'p_contractor_party_id': query.contractorPartyId,
       },
       parseRow: _parseMaintenanceTicketSummary,
       workspaceId: query.workspaceId,

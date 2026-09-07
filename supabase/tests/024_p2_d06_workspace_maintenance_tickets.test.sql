@@ -6,9 +6,12 @@ select plan(9);
 
 -- === Schema surface =====================================================
 
--- Four parameters since MAINTENANCE-CATEGORY-01 (V-3).
+-- Four parameters since MAINTENANCE-CATEGORY-01 (V-3), five since
+-- SUPPLIER-DETAILS-01 (P-3) added the contractor filter. Pinned by signature
+-- rather than by name so a parameter added without updating the callers is a
+-- failure here rather than a runtime "function does not exist".
 select has_function('public', 'workspace_maintenance_tickets',
-  array['uuid', 'text', 'text', 'text']);
+  array['uuid', 'text', 'text', 'text', 'uuid']);
 select is(
   (select count(*)::integer
    from information_schema.routine_privileges

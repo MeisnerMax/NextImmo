@@ -80,12 +80,22 @@ class WorkspaceMaintenanceTicketListQuery {
     this.status,
     this.priority,
     this.category,
+    this.contractorPartyId,
   });
 
   final String workspaceId;
   final MaintenanceTicketStatus? status;
   final MaintenanceTicketPriority? priority;
   final String? category;
+
+  /// Only tickets assigned to this contractor (`SUPPLIER-DETAILS-01`, P-3).
+  ///
+  /// `maintenance_tickets.contractor_party_id` has existed and been indexed
+  /// since P2-D06; nothing could filter on it, which is why the contractor
+  /// screen documented "tickets for this contractor" as a gap it declined to
+  /// build around. Server-side like every other filter here, because a
+  /// client-side one cannot see the tickets its page does not hold.
+  final String? contractorPartyId;
 }
 
 /// One category a workspace actually uses, and how many tickets carry it.
