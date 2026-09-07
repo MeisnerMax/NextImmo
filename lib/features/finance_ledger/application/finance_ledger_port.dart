@@ -287,3 +287,64 @@ abstract interface class CostPoolsPort {
     UpsertAllocationKeyCommand command,
   );
 }
+
+/// Records or changes one unit's figure for a basis
+/// (`UNIT-BASIS-VALUES-01`, P-2c).
+///
+/// [convention] has no default and cannot be blank. No counting rule is agreed
+/// for any of the three stored bases — `DEC-014` decides none of them and
+/// lists none as contested — so the convention is part of the figure rather
+/// than metadata about it, and two figures measured differently cannot be
+/// summed at all.
+class UpsertUnitBasisValueCommand {
+  const UpsertUnitBasisValueCommand({
+    required this.context,
+    required this.unitId,
+    required this.basis,
+    required this.value,
+    required this.convention,
+    required this.validFrom,
+    this.valueId,
+    this.expectedVersion,
+    this.validTo,
+    this.note,
+  });
+
+  final FinanceCommandContext context;
+  final String? valueId;
+  final int? expectedVersion;
+
+  final String unitId;
+
+  /// Only the three the schema stores per unit. Area lives on the unit and a
+  /// unit count is counted; the server refuses the others rather than keeping
+  /// a second copy that could disagree.
+  final AllocationBasis basis;
+
+  final num value;
+  final String convention;
+
+  final DateTime validFrom;
+
+  /// Inclusive, as a contract reads it. The server stores the range half-open
+  /// so an end and the next start on consecutive days are adjacent rather than
+  /// overlapping.
+  final DateTime? validTo;
+
+  final String? note;
+}
+
+abstract interface class UnitBasisValuesPort {
+  /// Every unit of a property with its figure on a date, or without one, plus
+  /// the resolution verdict for the basis as a whole.
+  Future<FinanceRepositoryResult<UnitBasisOverviewDto>> readBasisValues({
+    required String workspaceId,
+    required String propertyId,
+    required AllocationBasis basis,
+    DateTime? asOf,
+  });
+
+  Future<FinanceRepositoryResult<UnitBasisValueDto>> upsertBasisValue(
+    UpsertUnitBasisValueCommand command,
+  );
+}

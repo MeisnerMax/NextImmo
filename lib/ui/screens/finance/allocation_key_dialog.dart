@@ -63,21 +63,28 @@ String allocationBasisLabel(AllocationBasis basis) => switch (basis) {
   AllocationBasis.areaSqm => 'Wohnfläche (Summe der Einheitsflächen)',
   AllocationBasis.unitCount => 'Anzahl Einheiten',
   AllocationBasis.direct => 'Direktzuordnung (keine Verteilung)',
-  AllocationBasis.fixedShare => 'Fester Anteil (noch keine Datenbasis)',
-  AllocationBasis.persons => 'Personenzahl (noch keine Datenbasis)',
-  AllocationBasis.coOwnershipShare =>
-    'Miteigentumsanteil (noch keine Datenbasis)',
+  AllocationBasis.fixedShare => 'Fester Anteil (Werte je Einheit)',
+  AllocationBasis.persons => 'Personenzahl (Werte je Einheit)',
+  AllocationBasis.coOwnershipShare => 'Miteigentumsanteil (Werte je Einheit)',
   AllocationBasis.consumption => 'Verbrauch (Zähler folgen mit P-4)',
   AllocationBasis.unknown => 'Unbekannter Maßstab',
 };
 
-/// Whether this build knows of any store behind the basis. Stated here as well
-/// as on the server so the form can warn before the round trip; the server's
-/// answer, carried on the saved key, is the one that counts.
+/// Whether this build knows of any store behind the basis.
+///
+/// `UNIT-BASIS-VALUES-01` (P-2c) gave the three per-unit bases one, so the
+/// only basis left without any data behind it is consumption, whose meters
+/// arrive with P-4. The three now warn about something different and weaker —
+/// values exist as a concept and may not have been entered yet — which is
+/// what [allocationBasisNeedsUnitValues] says. The server's answer, carried on
+/// the saved key, remains the one that counts.
 bool allocationBasisHasStore(AllocationBasis basis) =>
-    basis == AllocationBasis.areaSqm ||
-    basis == AllocationBasis.unitCount ||
-    basis == AllocationBasis.direct;
+    basis != AllocationBasis.consumption &&
+    basis != AllocationBasis.unknown;
+
+/// Whether this basis is divided by figures somebody must enter per unit.
+bool allocationBasisNeedsUnitValues(AllocationBasis basis) =>
+    allocationBasisIsStoredPerUnit(basis);
 
 Future<bool?> showAllocationKeyDialog(
   BuildContext context, {
@@ -346,6 +353,17 @@ class _AllocationKeyDialogState extends State<_AllocationKeyDialog> {
                         'nicht auflösbar ausgewiesen — er rechnet nichts aus, '
                         'statt eine Zahl zu erfinden.',
                     kind: NxNoticeKind.warning,
+                  ),
+                ] else if (allocationBasisNeedsUnitValues(_basis)) ...<Widget>[
+                  const SizedBox(height: AppSpacing.xs),
+                  NxNotice(
+                    key: const Key('allocation-key-needs-unit-values'),
+                    message:
+                        'Dieser Maßstab wird aus Werten je Einheit gebildet. '
+                        'Solange nicht jede Einheit einen Wert hat — und alle '
+                        'nach derselben Konvention ermittelt sind — weist der '
+                        'Schlüssel sich als nicht auflösbar aus.',
+                    kind: NxNoticeKind.info,
                   ),
                 ],
                 const SizedBox(height: AppSpacing.sm),

@@ -86,6 +86,8 @@ select functions_are(
     'allocation_basis_resolution',
     'allocation_key_snapshot',
     'cost_pool_snapshot',
+    -- UNIT-BASIS-VALUES-01 (P-2c).
+    'unit_basis_value_snapshot',
     'compliance_rule_snapshot',
     'notification_snapshot',
     -- ALERT-READER-01 (P-10): the one time source, and the eight signal

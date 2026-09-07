@@ -24,6 +24,11 @@ final costPoolsProvider = Provider<CostPoolsPort>(
   (ref) => throw StateError('CostPoolsPort is not configured.'),
 );
 
+/// Per-unit distribution basis values (`UNIT-BASIS-VALUES-01`, P-2c).
+final unitBasisValuesProvider = Provider<UnitBasisValuesPort>(
+  (ref) => throw StateError('UnitBasisValuesPort is not configured.'),
+);
+
 final propertyFinanceKpisProvider = Provider<PropertyFinanceKpisPort>(
   (ref) => throw StateError('PropertyFinanceKpisPort is not configured.'),
 );
