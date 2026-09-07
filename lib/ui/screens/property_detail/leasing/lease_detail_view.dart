@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import '../../../../features/leasing_operations/application/leases_controller.dart';
 import '../../../../features/leasing_operations/domain/lease_component_dto.dart';
 import '../../../../features/leasing_operations/domain/lease_dto.dart';
+import '../../../../features/leasing_operations/domain/warm_rent_dto.dart';
 import '../../../components/nx_card.dart';
 import '../../../components/nx_section_header.dart';
 import '../../../theme/app_theme.dart';
@@ -42,6 +43,7 @@ class LeaseDetailView extends StatelessWidget {
     required this.componentsPhase,
     required this.onRetryComponents,
     this.components,
+    this.warmRent,
     this.canMutateComponents = false,
     this.onAddComponent,
     this.onEditComponent,
@@ -65,6 +67,10 @@ class LeaseDetailView extends StatelessWidget {
   /// the contract view with it.
   final LeaseComponentsPhase componentsPhase;
   final LeaseComponentsAsOfDto? components;
+
+  /// The server's warm rent for this lease. Null on an older deployment or a
+  /// failed read; the section then shows no total rather than computing one.
+  final WarmRentDto? warmRent;
   final VoidCallback onRetryComponents;
 
   /// `lease.manage`. Checked here as well as server-side so a member who may
@@ -278,6 +284,7 @@ class LeaseDetailView extends StatelessWidget {
         LeaseComponentsSection(
           phase: componentsPhase,
           components: components,
+          warmRent: warmRent,
           onRetry: onRetryComponents,
           canMutate: canMutateComponents,
           onAdd: onAddComponent,

@@ -9,6 +9,7 @@ import '../domain/leasing_summary_dto.dart';
 import '../domain/operations_signal_dto.dart';
 import '../domain/rent_roll_dto.dart';
 import '../domain/unit_dto.dart';
+import '../domain/warm_rent_dto.dart';
 
 /// The narrow surface this adapter needs from Supabase, so the adapter itself
 /// is testable without a live client (mirrors `PartySupabaseGateway`).
@@ -2157,4 +2158,81 @@ LeaseComponentDto _parseLeaseComponentRow(Map<String, dynamic> row) {
     version: _requiredInt(row, 'version'),
     rawTypeKey: type == LeaseComponentType.unknown ? typeKey : null,
   );
+}
+
+/// Warm rent (WARM-RENT-01, P-7).
+///
+/// Parses and nothing else. The composition rule — base rent plus service
+/// charge plus heating, parking and `other` excluded — lives in the server
+/// function and must live in exactly one place, or the two will drift and the
+/// screen will show a number the database does not agree with.
+class SupabaseWarmRentAdapter extends _SupabaseLeasingBase
+    implements WarmRentPort {
+  SupabaseWarmRentAdapter({required SupabaseClient client})
+    : super(SupabaseLeasingGateway(client));
+
+  SupabaseWarmRentAdapter.withGateway(super.gateway);
+
+  @override
+  Future<LeasingRepositoryResult<List<WarmRentDto>>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async {
+    try {
+      final response = await _gateway.callRpc(
+        'warm_rent_as_of',
+        <String, Object?>{
+          'p_workspace_id': query.workspaceId,
+          'p_as_of': _dateToWire(query.asOfDate),
+          'p_lease_id': query.leaseId,
+          'p_property_id': query.propertyId,
+        },
+      );
+      final payload = _asMap(response);
+      final ok = payload['ok'];
+      if (ok == true) {
+        final entity = _asMap(payload['entity']);
+        final rows = entity['leases'];
+        if (rows is! List) {
+          throw const FormatException('Expected a warm rent list.');
+        }
+        return LeasingRepositorySuccess<List<WarmRentDto>>(
+          rows.map((row) => _parseWarmRent(_asMap(row))).toList(growable: false),
+        );
+      }
+      if (ok != false) {
+        throw const FormatException('Missing RPC result status.');
+      }
+      return _mapRpcFailure<List<WarmRentDto>>(_asMap(payload['error']), null);
+    } catch (_) {
+      return const LeasingRepositoryFailure<List<WarmRentDto>>(
+        kind: LeasingRepositoryFailureKind.infrastructureFailure,
+        message: 'Supabase warm rent could not be loaded.',
+      );
+    }
+  }
+}
+
+WarmRentDto _parseWarmRent(Map<String, dynamic> row) => WarmRentDto(
+  leaseId: _requiredString(row, 'lease_id'),
+  propertyId: _requiredString(row, 'property_id'),
+  currencyCode: _requiredString(row, 'currency_code'),
+  isWarm: row['is_warm'] == true,
+  includedTypes: _parseComponentTypeList(row['included_types']),
+  gapTypes: _parseComponentTypeList(row['gap_types']),
+  absentTypes: _parseComponentTypeList(row['absent_types']),
+  netMonthly: _optionalDouble(row['net_monthly']),
+  grossMonthly: _optionalDouble(row['gross_monthly']),
+);
+
+/// An unfamiliar member is kept as [LeaseComponentType.unknown] rather than
+/// dropped: a newer server naming a fourth constituent should make the list
+/// visibly odd, not quietly shorter.
+List<LeaseComponentType> _parseComponentTypeList(Object? raw) {
+  if (raw is! List) {
+    return const <LeaseComponentType>[];
+  }
+  return raw
+      .whereType<String>()
+      .map(leaseComponentTypeFromKey)
+      .toList(growable: false);
 }

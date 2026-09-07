@@ -1151,10 +1151,10 @@ void main() {
       final value = (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
           .value;
       expect(value.components, isEmpty);
-      // DEC-029: nothing recorded is not nothing owed, so there is no total to
-      // report and no zero to invent.
-      expect(value.recordedTotal, isNull);
+      // DEC-029: nothing recorded is not nothing owed. There is no zero here
+      // and no total either — since WARM-RENT-01 the sum is the server's.
       expect(value.ofType(LeaseComponentType.baseRent), isNull);
+      expect(value.complete, isTrue, reason: 'nothing to be incomplete about');
     });
 
     test('create sends the wire keys and reads the entity back', () async {
@@ -1274,8 +1274,14 @@ void main() {
       final value = (result as LeasingRepositorySuccess<LeaseComponentsAsOfDto>)
           .value;
 
-      // A total across currencies looks authoritative and means nothing.
-      expect(value.recordedTotal, isNull);
+      // Both rows survive parsing with their own currency. Refusing to add
+      // them is no longer this layer's job — `warm_rent_as_of` withholds the
+      // figure — but losing one of them here would hide the conflict entirely.
+      expect(value.components, hasLength(2));
+      expect(
+        value.components.map((c) => c.currencyCode).toSet(),
+        <String>{'EUR', 'CHF'},
+      );
     });
   });
 }

@@ -42,6 +42,7 @@ import '../../identity_access/application/workspace_session_scope.dart';
 import '../domain/lease_component_dto.dart';
 import '../domain/lease_dto.dart';
 import '../domain/unit_dto.dart';
+import '../domain/warm_rent_dto.dart';
 import 'leasing_providers.dart';
 import 'leasing_query_invalidation_source.dart';
 import 'leasing_repository.dart';
@@ -113,6 +114,7 @@ class LeasesState {
     this.selectedLease,
     this.componentsPhase = LeaseComponentsPhase.idle,
     this.components,
+    this.warmRent,
     this.versionConflict,
     this.rejection,
     this.message,
@@ -152,6 +154,12 @@ class LeasesState {
   /// lands, and empty-but-present when nothing is recorded — which is a real
   /// answer, not a missing one (DEC-029).
   final LeaseComponentsAsOfDto? components;
+
+  /// The server's warm rent for the selected lease. Null until the read lands,
+  /// and null on a server that predates WARM-RENT-01 — the section then shows
+  /// the components without a total rather than computing one, which is the
+  /// whole point of moving it here.
+  final WarmRentDto? warmRent;
 
   final LeasingVersionConflict? versionConflict;
   final LeaseTransitionRejection? rejection;
@@ -201,6 +209,7 @@ class LeasesState {
     Object? selectedLease = _unchanged,
     LeaseComponentsPhase? componentsPhase,
     Object? components = _unchanged,
+    Object? warmRent = _unchanged,
     Object? versionConflict = _unchanged,
     Object? rejection = _unchanged,
     Object? message = _unchanged,
@@ -237,6 +246,9 @@ class LeasesState {
       components: identical(components, _unchanged)
           ? this.components
           : components as LeaseComponentsAsOfDto?,
+      warmRent: identical(warmRent, _unchanged)
+          ? this.warmRent
+          : warmRent as WarmRentDto?,
       versionConflict: identical(versionConflict, _unchanged)
           ? this.versionConflict
           : versionConflict as LeasingVersionConflict?,
@@ -258,6 +270,7 @@ class LeasesController extends StateNotifier<LeasesState> {
     required LeaseRepository repository,
     required LeaseSearchPort search,
     required LeaseComponentPort componentPort,
+    required WarmRentPort warmRentPort,
     required UnitSearchPort unitSearch,
     required PartySearchPort partySearch,
     required WorkspaceSessionScope scope,
@@ -268,6 +281,7 @@ class LeasesController extends StateNotifier<LeasesState> {
   }) : _repository = repository,
        _search = search,
        _componentPort = componentPort,
+       _warmRentPort = warmRentPort,
        _unitSearch = unitSearch,
        _partySearch = partySearch,
        _scope = scope,
@@ -288,6 +302,7 @@ class LeasesController extends StateNotifier<LeasesState> {
   final LeaseRepository _repository;
   final LeaseSearchPort _search;
   final LeaseComponentPort _componentPort;
+  final WarmRentPort _warmRentPort;
   final UnitSearchPort _unitSearch;
   final PartySearchPort _partySearch;
   final WorkspaceSessionScope _scope;
@@ -498,6 +513,7 @@ class LeasesController extends StateNotifier<LeasesState> {
         selectedLease: null,
         componentsPhase: LeaseComponentsPhase.idle,
         components: null,
+        warmRent: null,
         rejection: null,
       );
       return;
@@ -513,6 +529,7 @@ class LeasesController extends StateNotifier<LeasesState> {
       selectedLease: null,
       componentsPhase: LeaseComponentsPhase.loading,
       components: null,
+      warmRent: null,
       rejection: null,
     );
     final result = await _repository.getById(
@@ -575,6 +592,26 @@ class LeasesController extends StateNotifier<LeasesState> {
           componentsPhase: LeaseComponentsPhase.ready,
           components: value,
         );
+        // Beside the components, never derived from them. A warm rent this
+        // client computed would be a second implementation of a composition
+        // rule the server owns, and the two would drift.
+        final warm = await _warmRentPort.readAsOf(
+          LeaseComponentListQuery(
+            workspaceId: workspaceId,
+            asOfDate: value.asOfDate,
+            leaseId: leaseId,
+          ),
+        );
+        if (generation != _detailGeneration) {
+          return;
+        }
+        if (warm case LeasingRepositorySuccess<List<WarmRentDto>>(
+          value: final rows,
+        )) {
+          state = state.copyWith(
+            warmRent: rows.isEmpty ? null : rows.first,
+          );
+        }
       case LeasingRepositoryFailure<LeaseComponentsAsOfDto>(:final kind):
         state = state.copyWith(
           componentsPhase: kind == LeasingRepositoryFailureKind.forbidden
@@ -999,6 +1036,7 @@ final leasesControllerProvider = StateNotifierProvider.autoDispose
         repository: ref.watch(leaseRepositoryProvider),
         search: ref.watch(leaseSearchProvider),
         componentPort: ref.watch(leaseComponentProvider),
+        warmRentPort: ref.watch(warmRentProvider),
         unitSearch: ref.watch(unitSearchProvider),
         partySearch: ref.watch(partySearchProvider),
         scope: ref.watch(workspaceSessionScopeProvider),

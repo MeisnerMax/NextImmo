@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neximmo_app/features/leasing_operations/application/leases_controller.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/warm_rent_dto.dart';
 import 'package:neximmo_app/ui/screens/property_detail/leasing/widgets/lease_components_section.dart';
 
 void main() {
@@ -73,29 +74,6 @@ void main() {
       find.textContaining('Nicht erfasst heißt nicht null'),
       findsOneWidget,
     );
-  });
-
-  testWidgets('mixed currencies produce no total at all', (tester) async {
-    await _pump(
-      tester,
-      components: <LeaseComponentDto>[
-        _component(type: LeaseComponentType.baseRent, amount: 1000),
-        _component(
-          type: LeaseComponentType.parking,
-          amount: 50,
-          currency: 'CHF',
-        ),
-      ],
-    );
-
-    // A number here would look authoritative and mean nothing.
-    expect(
-      tester
-          .widget<Text>(find.byKey(const Key('lease-components-total')))
-          .data,
-      'nicht summierbar',
-    );
-    expect(find.textContaining('verschiedene Währungen'), findsOneWidget);
   });
 
   testWidgets('a net amount without a rate does not invent a gross one', (
@@ -228,94 +206,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-
-  testWidgets('net and gross amounts are not added together', (tester) async {
-    await _pump(
-      tester,
-      components: <LeaseComponentDto>[
-        // Payable as it stands.
-        _component(type: LeaseComponentType.baseRent, amount: 1000),
-        // Payable plus tax. Each number in the column is correct; their sum
-        // would be neither a net nor a gross figure.
-        _component(
-          type: LeaseComponentType.parking,
-          amount: 100,
-          vatMode: LeaseComponentVatMode.net,
-          vatRate: 19,
-        ),
-      ],
-    );
-
-    expect(
-      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
-      'nicht summierbar',
-    );
-    expect(
-      find.textContaining('Netto- und Bruttobeträge stehen nebeneinander'),
-      findsOneWidget,
-    );
-    // And not the currency sentence, which would name the wrong reason.
-    expect(find.textContaining('verschiedene Währungen'), findsNothing);
-  });
-
-  testWidgets('an all-net set totals, and the label says it is net', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      components: <LeaseComponentDto>[
-        _component(
-          type: LeaseComponentType.baseRent,
-          amount: 2400,
-          vatMode: LeaseComponentVatMode.net,
-          vatRate: 19,
-        ),
-        _component(
-          type: LeaseComponentType.serviceChargeAdvance,
-          amount: 380,
-          vatMode: LeaseComponentVatMode.net,
-          vatRate: 19,
-        ),
-      ],
-    );
-
-    expect(
-      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
-      '2780.00 EUR',
-    );
-    // The qualifier belongs in the label: a net total read as a payable one is
-    // off by the tax rate.
-    expect(
-      find.text('Summe der erfassten Bestandteile (netto)'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('an unknown VAT mode blocks the total and says why', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      components: <LeaseComponentDto>[
-        _component(type: LeaseComponentType.baseRent, amount: 1000),
-        _component(
-          type: LeaseComponentType.unknown,
-          amount: 25,
-          vatMode: LeaseComponentVatMode.unknown,
-          rawTypeKey: 'garden_levy',
-        ),
-      ],
-    );
-
-    expect(
-      tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
-      'nicht summierbar',
-    );
-    expect(
-      find.textContaining('Steuerbehandlung'),
-      findsWidgets,
-    );
-  });
 
   testWidgets('offers nothing to write without lease.manage', (tester) async {
     await _pump(
@@ -468,6 +358,15 @@ void main() {
           ],
         ),
       ],
+      // The server's answer, not the section's: since WARM-RENT-01 the figure
+      // is withheld server-side and this widget reports the refusal.
+      warmRent: const WarmRentDto(
+        leaseId: 'l1',
+        propertyId: 'p1',
+        currencyCode: 'EUR',
+        isWarm: false,
+        gapTypes: <LeaseComponentType>[LeaseComponentType.parking],
+      ),
     );
 
     // Until LEASING-COMPONENTS-01c this read exactly like a type nobody had
@@ -475,14 +374,14 @@ void main() {
     expect(find.text('seit 01.06.2026 nicht erfasst'), findsOneWidget);
     expect(find.text('nicht erfasst'), findsNWidgets(3));
 
-    // And the total must not quietly leave it out — DEC-029 in as many words:
-    // never sum around a gap.
+    // And the figure must not quietly leave it out — DEC-029 in as many words:
+    // never sum around a gap. The server withholds it and the section says why.
     expect(
       tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
-      'nicht summierbar',
+      'nicht ermittelbar',
     );
     expect(
-      find.textContaining('würde ihn stillschweigend weglassen'),
+      find.textContaining('plausible, falsche Zahl'),
       findsOneWidget,
     );
   });
@@ -535,6 +434,13 @@ void main() {
           ],
         ),
       ],
+      warmRent: const WarmRentDto(
+        leaseId: 'l1',
+        propertyId: 'p1',
+        currencyCode: 'EUR',
+        isWarm: true,
+        netMonthly: 1000,
+      ),
     );
 
     // The counterpart assertion: a widget that always warned would pass the
@@ -547,6 +453,7 @@ void main() {
       tester.widget<Text>(find.byKey(const Key('lease-components-total'))).data,
       '1000.00 EUR',
     );
+    expect(find.text('Warmmiete'), findsOneWidget);
   });
 
   testWidgets('without coverage the rows read as before', (tester) async {
@@ -572,47 +479,16 @@ void main() {
     );
   });
 
-  test('a gap at the date outranks every other reason there is no total', () {
-    final dto = LeaseComponentsAsOfDto(
-      asOfDate: DateTime(2026, 9, 7),
-      components: <LeaseComponentDto>[
-        _component(type: LeaseComponentType.baseRent, amount: 1000),
-        _component(
-          type: LeaseComponentType.parking,
-          amount: 50,
-          currency: 'CHF',
-        ),
-      ],
-      coverage: <LeaseComponentCoverage>[
-        _coverage(
-          complete: false,
-          types: <LeaseComponentCoverageType>[
-            _coverageType(
-              LeaseComponentType.heatingAdvance,
-              inForce: false,
-              gapCount: 1,
-            ),
-          ],
-        ),
-      ],
-    );
-
-    // Both a currency conflict and a gap apply. The gap is named, because it
-    // is the one that would otherwise have produced a plausible number rather
-    // than an obviously impossible one.
-    expect(dto.totalBlocker, LeaseComponentTotalBlocker.gapAtDate);
-    expect(dto.recordedTotal, isNull);
-  });
-
   test('complete is true when there is nothing to cover', () {
     final dto = LeaseComponentsAsOfDto(
       asOfDate: DateTime(2026, 9, 7),
       components: const <LeaseComponentDto>[],
     );
 
+    // Nothing to cover, so nothing incomplete. The total that used to be
+    // asserted here moved to the server with WARM-RENT-01 — this type no
+    // longer adds money up at all, which was the point.
     expect(dto.complete, isTrue);
-    expect(dto.totalBlocker, LeaseComponentTotalBlocker.none);
-    expect(dto.recordedTotal, isNull, reason: 'nothing recorded, no total');
   });
 }
 
@@ -647,6 +523,7 @@ Future<void> _pump(
   LeaseComponentsPhase phase = LeaseComponentsPhase.ready,
   List<LeaseComponentDto>? components,
   List<LeaseComponentCoverage> coverage = const <LeaseComponentCoverage>[],
+  WarmRentDto? warmRent,
   DateTime? asOf,
   VoidCallback? onRetry,
   Size size = const Size(1000, 900),
@@ -674,6 +551,7 @@ Future<void> _pump(
                     coverage: coverage,
                   ),
             onRetry: onRetry ?? () {},
+            warmRent: warmRent,
             canMutate: canMutate,
             onAdd: onAdd,
             onEdit: onEdit,

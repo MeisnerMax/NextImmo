@@ -56,6 +56,11 @@ final leaseComponentProvider = Provider<LeaseComponentPort>(
   (ref) => throw StateError('LeaseComponentPort is not configured.'),
 );
 
+/// WARM-RENT-01 (P-7).
+final warmRentProvider = Provider<WarmRentPort>(
+  (ref) => throw StateError('WarmRentPort is not configured.'),
+);
+
 /// LEASING-SUMMARY-01.
 final propertyLeasingSummaryProvider = Provider<PropertyLeasingSummaryPort>(
   (ref) => throw StateError('PropertyLeasingSummaryPort is not configured.'),

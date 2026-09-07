@@ -139,33 +139,6 @@ class LeaseComponentDto {
   };
 }
 
-/// Why a set of components has no total, decided in one place.
-///
-/// The widget used to re-derive this from the components, which meant the rule
-/// lived twice and the sentence under the total could name the wrong reason.
-enum LeaseComponentTotalBlocker {
-  /// There is a total.
-  none,
-
-  /// The components disagree on currency. A total across currencies looks
-  /// authoritative and means nothing.
-  mixedCurrency,
-
-  /// Some are `net` and some are not. A net amount is payable *plus* tax and an
-  /// exempt or gross amount is payable as it stands, so adding them produces a
-  /// figure that is neither.
-  mixedVat,
-
-  /// A VAT mode this build does not recognise, where it cannot say how the
-  /// amount relates to tax at all.
-  unknownVat,
-
-  /// A component type that has history for this lease has no row covering the
-  /// queried date. Summing what is left would be summing *around* a gap, which
-  /// DEC-029 forbids in as many words.
-  gapAtDate,
-}
-
 /// What one component type looks like across the whole term, as the server
 /// sees it (LEASING-COMPONENTS-01c).
 class LeaseComponentCoverageType {
@@ -287,56 +260,4 @@ class LeaseComponentsAsOfDto {
     return null;
   }
 
-  /// Why there is no total, or [LeaseComponentTotalBlocker.none].
-  ///
-  /// Decided here rather than in the widget, so the sentence under the total
-  /// can name the actual reason instead of a catch-all. Four ways to have no
-  /// total, and only the first is the obvious one.
-  LeaseComponentTotalBlocker get totalBlocker {
-    if (components.isEmpty) {
-      return LeaseComponentTotalBlocker.none;
-    }
-    // DEC-029, checked first because it is the one that would otherwise
-    // produce a plausible number: a type recorded for other periods and not
-    // this one is missing from the sum, and the sum would not say so.
-    if (recordedButMissingToday.isNotEmpty) {
-      return LeaseComponentTotalBlocker.gapAtDate;
-    }
-    if (components.any((c) => c.vatMode == LeaseComponentVatMode.unknown)) {
-      return LeaseComponentTotalBlocker.unknownVat;
-    }
-    final netCount = components
-        .where((c) => c.vatMode == LeaseComponentVatMode.net)
-        .length;
-    if (netCount != 0 && netCount != components.length) {
-      return LeaseComponentTotalBlocker.mixedVat;
-    }
-    final currency = components.first.currencyCode;
-    if (components.any((c) => c.currencyCode != currency)) {
-      return LeaseComponentTotalBlocker.mixedCurrency;
-    }
-    return LeaseComponentTotalBlocker.none;
-  }
-
-  /// Sum of the recorded components, the currency they share, and whether the
-  /// figure is a net one.
-  ///
-  /// Null whenever [totalBlocker] says the sum would not correspond to
-  /// anything. When every component is `net` the sum is still useful — it is
-  /// simply a net total, and [isNet] says so, so the label can too.
-  ({double amount, String currencyCode, bool isNet})? get recordedTotal {
-    if (components.isEmpty ||
-        totalBlocker != LeaseComponentTotalBlocker.none) {
-      return null;
-    }
-    var total = 0.0;
-    for (final component in components) {
-      total += component.amount;
-    }
-    return (
-      amount: total,
-      currencyCode: components.first.currencyCode,
-      isNet: components.every((c) => c.vatMode == LeaseComponentVatMode.net),
-    );
-  }
 }

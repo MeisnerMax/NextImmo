@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../features/leasing_operations/application/leases_controller.dart';
 import '../../../../../features/leasing_operations/domain/lease_component_dto.dart';
+import '../../../../../features/leasing_operations/domain/warm_rent_dto.dart';
 import '../../../../components/nx_card.dart';
 import '../../../../components/nx_section_header.dart';
 import 'lease_lifecycle.dart';
@@ -25,6 +26,7 @@ class LeaseComponentsSection extends StatelessWidget {
     required this.phase,
     required this.components,
     required this.onRetry,
+    this.warmRent,
     this.canMutate = false,
     this.onAdd,
     this.onEdit,
@@ -35,6 +37,15 @@ class LeaseComponentsSection extends StatelessWidget {
   final LeaseComponentsPhase phase;
   final LeaseComponentsAsOfDto? components;
   final VoidCallback onRetry;
+
+  /// The server's warm rent for this lease (WARM-RENT-01).
+  ///
+  /// This section used to sum the components itself, and the header said it
+  /// did not — a claim DEC-026 exists to prevent and P2-D05b is the precedent
+  /// for pulling back. The figure now comes from the one place that owns the
+  /// composition rule, and where it is null this section shows no total rather
+  /// than inventing one.
+  final WarmRentDto? warmRent;
 
   /// Whether this member may write components (`lease.manage`). The server
   /// checks it too; this only decides whether an action is offered, so nobody
@@ -185,7 +196,6 @@ class LeaseComponentsSection extends StatelessWidget {
       ];
     }
 
-    final total = resolved.recordedTotal;
     return <Widget>[
       for (final type in _ordered)
         _ComponentRow(
@@ -209,10 +219,12 @@ class LeaseComponentsSection extends StatelessWidget {
           canMutate: false,
         ),
       const Divider(height: 24),
-      _ComponentTotalRow(total: total),
+      _WarmRentRow(warmRent: warmRent),
       const SizedBox(height: 8),
       Text(
-        total == null ? _noTotalExplanation(resolved) : _absenceExplanation,
+        warmRent == null || warmRent!.hasFigure
+            ? _absenceExplanation
+            : _noWarmRentExplanation(warmRent!),
         style: theme.textTheme.bodySmall,
       ),
       ..._historyNotice(theme, resolved),
@@ -300,27 +312,25 @@ class LeaseComponentsSection extends StatelessWidget {
     return null;
   }
 
-  /// Why there is no total, in the words of the reason there is none.
+  /// Why the server withheld the figure, in the words of the reason it did.
   ///
-  /// Decided by the DTO now, not re-derived here — the widget used to work it
-  /// out a second time, which is how a sentence starts naming the wrong cause.
-  static String _noTotalExplanation(LeaseComponentsAsOfDto resolved) {
-    return switch (resolved.totalBlocker) {
-      LeaseComponentTotalBlocker.gapAtDate =>
-        'Für mindestens einen Bestandteil liegt für diesen Stichtag keine '
-            'Angabe vor, obwohl er für andere Zeiträume erfasst ist. Eine '
-            'Summe würde ihn stillschweigend weglassen.',
-      LeaseComponentTotalBlocker.mixedCurrency =>
-        'Die erfassten Bestandteile lauten auf verschiedene Währungen und '
-            'werden deshalb nicht summiert.',
-      LeaseComponentTotalBlocker.unknownVat =>
-        'Für mindestens einen Bestandteil ist die Steuerbehandlung unbekannt, '
-            'deshalb wird nicht summiert.',
-      LeaseComponentTotalBlocker.mixedVat =>
-        'Netto- und Bruttobeträge stehen nebeneinander. Eine Summe daraus wäre '
-            'weder das eine noch das andere, deshalb wird nicht summiert.',
-      LeaseComponentTotalBlocker.none => _absenceExplanation,
-    };
+  /// Read off the server's own answer rather than re-derived here: this
+  /// section used to work the reason out a second time, which is how a
+  /// sentence starts naming the wrong cause.
+  static String _noWarmRentExplanation(WarmRentDto warm) {
+    if (warm.hasGap) {
+      final names = warm.gapTypes.map(_typeLabel).join(', ');
+      return 'Keine Warmmiete für diesen Stichtag: $names ist für andere '
+          'Zeiträume erfasst, für diesen nicht. Die übrigen Bestandteile zu '
+          'summieren ergäbe eine plausible, falsche Zahl.';
+    }
+    if (warm.includedTypes.isEmpty) {
+      return 'Keine Warmmiete: für diesen Vertrag ist kein Bestandteil '
+          'erfasst, aus dem sie sich ergäbe.';
+    }
+    return 'Keine Warmmiete: die erfassten Bestandteile lassen sich nicht zu '
+        'einer Zahl addieren — verschiedene Währungen, oder Netto neben '
+        'steuerfrei, wovon eines bereits ein Zahlbetrag ist.';
   }
 
   static const String _absenceExplanation =
@@ -533,42 +543,73 @@ class _ComponentRow extends StatelessWidget {
   }
 }
 
-class _ComponentTotalRow extends StatelessWidget {
-  const _ComponentTotalRow({required this.total});
+/// The one figure this section shows, and the server owns it.
+class _WarmRentRow extends StatelessWidget {
+  const _WarmRentRow({required this.warmRent});
 
-  final ({double amount, String currencyCode, bool isNet})? total;
+  final WarmRentDto? warmRent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final resolved = total;
-    return Row(
+    final warm = warmRent;
+    // The label is the honest half. A total without a heating advance is a
+    // cold rent plus service charges, and the legacy figure that called itself
+    // warm rent while excluding heating is exactly the mistake this avoids.
+    final label = warm == null
+        ? 'Warmmiete'
+        : warm.isWarm
+        ? 'Warmmiete'
+        : 'Miete ohne Heizkosten';
+    final figure = _figure(warm);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Expanded(
-          flex: 3,
-          child: Text(
-            // The label carries the qualifier rather than a footnote: a net
-            // total read as a payable one is off by the tax rate.
-            resolved != null && resolved.isNet
-                ? 'Summe der erfassten Bestandteile (netto)'
-                : 'Summe der erfassten Bestandteile',
-            style: theme.textTheme.titleSmall,
-          ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              flex: 3,
+              child: Text(label, style: theme.textTheme.titleSmall),
+            ),
+            Expanded(
+              flex: 4,
+              child: Text(
+                figure,
+                key: const Key('lease-components-total'),
+                style: theme.textTheme.titleSmall,
+                textAlign: TextAlign.end,
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          flex: 4,
-          child: Text(
-            resolved == null
-                // Never a number here: a total across currencies looks
-                // authoritative and means nothing.
-                ? 'nicht summierbar'
-                : formatLeaseMoney(resolved.amount, resolved.currencyCode),
-            key: const Key('lease-components-total'),
-            style: theme.textTheme.titleSmall,
-            textAlign: TextAlign.end,
+        if (warm != null && warm.grossMonthly != null &&
+            warm.netMonthly != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'brutto ${formatLeaseMoney(warm.grossMonthly, warm.currencyCode)}',
+              style: theme.textTheme.bodySmall,
+              textAlign: TextAlign.end,
+            ),
           ),
-        ),
       ],
     );
+  }
+
+  static String _figure(WarmRentDto? warm) {
+    if (warm == null) {
+      // The server did not answer — an older deployment, or a read that
+      // failed. Saying "nicht ermittelt" is the truth; a number computed here
+      // would not be.
+      return 'nicht ermittelt';
+    }
+    if (warm.netMonthly != null) {
+      return formatLeaseMoney(warm.netMonthly, warm.currencyCode);
+    }
+    if (warm.grossMonthly != null) {
+      return formatLeaseMoney(warm.grossMonthly, warm.currencyCode);
+    }
+    return 'nicht ermittelbar';
   }
 }

@@ -9,6 +9,7 @@ import 'package:neximmo_app/features/leasing_operations/application/leasing_quer
 import 'package:neximmo_app/features/leasing_operations/application/leasing_repository.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_component_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/lease_dto.dart';
+import 'package:neximmo_app/features/leasing_operations/domain/warm_rent_dto.dart';
 import 'package:neximmo_app/features/leasing_operations/domain/unit_dto.dart';
 
 const String _workspace = 'workspace-a';
@@ -663,6 +664,61 @@ void main() {
       );
     });
 
+    test('warm rent is loaded beside the components, for the same date', () async {
+      final componentPort = _FakeLeaseComponents();
+      final warmRentPort = _FakeWarmRent(
+        rows: <WarmRentDto>[
+          const WarmRentDto(
+            leaseId: 'l1',
+            propertyId: _property,
+            currencyCode: 'EUR',
+            isWarm: true,
+            netMonthly: 1040,
+          ),
+        ],
+      );
+      final controller = _controller(
+        componentPort: componentPort,
+        warmRentPort: warmRentPort,
+      );
+
+      await controller.select('l1');
+
+      expect(controller.state.warmRent?.netMonthly, 1040);
+      expect(controller.state.warmRent?.isWarm, isTrue);
+      // The same date the components were read for. Two reads answering about
+      // two different days would produce a total that does not match the rows
+      // above it.
+      expect(
+        warmRentPort.queries.single.asOfDate,
+        componentPort.queries.single.asOfDate,
+      );
+      expect(warmRentPort.queries.single.leaseId, 'l1');
+    });
+
+    test('deselecting clears the warm rent too', () async {
+      final controller = _controller(
+        warmRentPort: _FakeWarmRent(
+          rows: <WarmRentDto>[
+            const WarmRentDto(
+              leaseId: 'l1',
+              propertyId: _property,
+              currencyCode: 'EUR',
+              isWarm: true,
+              netMonthly: 1040,
+            ),
+          ],
+        ),
+      );
+      await controller.select('l1');
+      expect(controller.state.warmRent, isNotNull);
+
+      await controller.select(null);
+
+      // Otherwise the next lease opens showing the previous lease's rent.
+      expect(controller.state.warmRent, isNull);
+    });
+
     test('a refused write becomes a typed action phase', () async {
       final componentPort = _FakeLeaseComponents(
         writeFailure: LeasingRepositoryFailureKind.dependencyConflict,
@@ -700,6 +756,7 @@ LeasesController _controller({
   _FakeLeaseRepository? repository,
   _FakeLeaseSearch? search,
   _FakeLeaseComponents? componentPort,
+  _FakeWarmRent? warmRentPort,
   _FakeUnitSearch? unitSearch,
   _FakePartySearch? partySearch,
   WorkspaceSessionScope? scope,
@@ -711,6 +768,7 @@ LeasesController _controller({
     repository: repository ?? _FakeLeaseRepository(),
     search: search ?? _FakeLeaseSearch(),
     componentPort: componentPort ?? _FakeLeaseComponents(),
+    warmRentPort: warmRentPort ?? _FakeWarmRent(),
     unitSearch: unitSearch ?? _FakeUnitSearch(),
     partySearch: partySearch ?? _FakePartySearch(),
     scope: scope ?? _scope(),
@@ -916,6 +974,24 @@ class _FakeLeaseComponents implements LeaseComponentPort {
   ) async {
     closed.add(command);
     return _write();
+  }
+}
+
+/// Answers with nothing. Warm rent is the server's composition rule and has
+/// its own tests; here it only has to exist, so a controller test never
+/// accidentally asserts on a figure this fake invented.
+class _FakeWarmRent implements WarmRentPort {
+  _FakeWarmRent({this.rows = const <WarmRentDto>[]});
+
+  final List<WarmRentDto> rows;
+  final List<LeaseComponentListQuery> queries = <LeaseComponentListQuery>[];
+
+  @override
+  Future<LeasingRepositoryResult<List<WarmRentDto>>> readAsOf(
+    LeaseComponentListQuery query,
+  ) async {
+    queries.add(query);
+    return LeasingRepositorySuccess<List<WarmRentDto>>(rows);
   }
 }
 
