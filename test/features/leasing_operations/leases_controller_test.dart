@@ -580,8 +580,121 @@ void main() {
       expect(controller.state.componentsPhase, LeaseComponentsPhase.idle);
       expect(controller.state.components, isNull);
     });
+
+    test('creating a component reloads the components, not the lease list', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+      final readsBefore = componentPort.queries.length;
+
+      await controller.createComponent(
+        leaseId: 'l1',
+        componentType: LeaseComponentType.baseRent,
+        validFrom: DateTime(2026, 1, 1),
+        amount: 1000,
+      );
+
+      expect(componentPort.created, hasLength(1));
+      expect(componentPort.created.single.componentType,
+          LeaseComponentType.baseRent);
+      // The read is the only thing that knows what is in force today.
+      // Reproducing that decision in the controller is how two answers start
+      // disagreeing.
+      expect(componentPort.queries.length, readsBefore + 1);
+      expect(controller.state.actionPhase, LeasesActionPhase.succeeded);
+    });
+
+    test('an update with nothing changed is refused, not silently reported '
+        'as saved', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.updateComponent(
+        component: _componentDto(),
+        changes: const <String, Object?>{},
+      );
+
+      expect(controller.state.actionPhase, LeasesActionPhase.notAllowed);
+      expect(controller.state.actionMessage, 'Es wurde nichts geändert.');
+      expect(
+        componentPort.updated,
+        isEmpty,
+        reason: 'a form that closes on Speichern while nothing was saved is '
+            'the same lie whether or not a request was sent',
+      );
+    });
+
+    test('an update sends the expected version, so a stale form conflicts',
+        () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.updateComponent(
+        component: _componentDto(version: 4),
+        changes: const <String, Object?>{'amount': '1200'},
+      );
+
+      expect(componentPort.updated.single.expectedVersion, 4);
+      expect(componentPort.updated.single.changes, <String, Object?>{
+        'amount': '1200',
+      });
+    });
+
+    test('closing goes through the close command, not an update', () async {
+      final componentPort = _FakeLeaseComponents();
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.closeComponent(
+        component: _componentDto(),
+        validTo: DateTime(2026, 4, 30),
+      );
+
+      // Ending a component and correcting its end date are different events,
+      // and the audit trail only says so if the client calls the command that
+      // means it.
+      expect(componentPort.closed.single.validTo, DateTime(2026, 4, 30));
+      expect(componentPort.updated, isEmpty);
+      expect(
+        controller.state.actionMessage,
+        'Mietbestandteil beendet — er bleibt in der Historie.',
+      );
+    });
+
+    test('a refused write becomes a typed action phase', () async {
+      final componentPort = _FakeLeaseComponents(
+        writeFailure: LeasingRepositoryFailureKind.dependencyConflict,
+      );
+      final controller = _controller(componentPort: componentPort);
+      await controller.select('l1');
+
+      await controller.createComponent(
+        leaseId: 'l1',
+        componentType: LeaseComponentType.baseRent,
+        validFrom: DateTime(2026, 1, 1),
+        amount: 1000,
+      );
+
+      // An overlapping period is a dependency conflict, which this controller
+      // already maps to readOnly rather than to a generic failure.
+      expect(controller.state.actionPhase, LeasesActionPhase.readOnly);
+    });
   });
 }
+
+LeaseComponentDto _componentDto({int version = 1}) => LeaseComponentDto(
+  id: 'k1',
+  leaseId: 'l1',
+  propertyId: _property,
+  componentType: LeaseComponentType.baseRent,
+  amount: 1000,
+  currencyCode: 'EUR',
+  vatMode: LeaseComponentVatMode.exempt,
+  validFrom: DateTime(2026, 1, 1),
+  version: version,
+);
 
 LeasesController _controller({
   _FakeLeaseRepository? repository,
@@ -721,11 +834,45 @@ class _FakeLeaseSearch implements LeaseSearchPort {
 /// Answers with nothing recorded unless a test says otherwise, which is the
 /// state most leases are in until someone enters a component.
 class _FakeLeaseComponents implements LeaseComponentPort {
-  _FakeLeaseComponents({this.failure, this.components = const <LeaseComponentDto>[]});
+  _FakeLeaseComponents({
+    this.failure,
+    this.writeFailure,
+    this.components = const <LeaseComponentDto>[],
+  });
 
   final LeasingRepositoryFailureKind? failure;
+  final LeasingRepositoryFailureKind? writeFailure;
   final List<LeaseComponentDto> components;
   final List<LeaseComponentListQuery> queries = <LeaseComponentListQuery>[];
+  final List<CreateLeaseComponentCommand> created =
+      <CreateLeaseComponentCommand>[];
+  final List<UpdateLeaseComponentCommand> updated =
+      <UpdateLeaseComponentCommand>[];
+  final List<CloseLeaseComponentCommand> closed =
+      <CloseLeaseComponentCommand>[];
+
+  LeasingRepositoryResult<LeaseComponentDto> _write() {
+    final kind = writeFailure;
+    if (kind != null) {
+      return LeasingRepositoryFailure<LeaseComponentDto>(
+        kind: kind,
+        message: 'write refused',
+      );
+    }
+    return LeasingRepositorySuccess<LeaseComponentDto>(
+      LeaseComponentDto(
+        id: 'k1',
+        leaseId: 'l1',
+        propertyId: _property,
+        componentType: LeaseComponentType.baseRent,
+        amount: 1000,
+        currencyCode: 'EUR',
+        vatMode: LeaseComponentVatMode.exempt,
+        validFrom: DateTime(2026, 1, 1),
+        version: 1,
+      ),
+    );
+  }
 
   @override
   Future<LeasingRepositoryResult<LeaseComponentsAsOfDto>> readAsOf(
@@ -750,26 +897,26 @@ class _FakeLeaseComponents implements LeaseComponentPort {
   @override
   Future<LeasingRepositoryResult<LeaseComponentDto>> create(
     CreateLeaseComponentCommand command,
-  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
-    kind: LeasingRepositoryFailureKind.forbidden,
-    message: 'not used by these tests',
-  );
+  ) async {
+    created.add(command);
+    return _write();
+  }
 
   @override
   Future<LeasingRepositoryResult<LeaseComponentDto>> update(
     UpdateLeaseComponentCommand command,
-  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
-    kind: LeasingRepositoryFailureKind.forbidden,
-    message: 'not used by these tests',
-  );
+  ) async {
+    updated.add(command);
+    return _write();
+  }
 
   @override
   Future<LeasingRepositoryResult<LeaseComponentDto>> close(
     CloseLeaseComponentCommand command,
-  ) async => const LeasingRepositoryFailure<LeaseComponentDto>(
-    kind: LeasingRepositoryFailureKind.forbidden,
-    message: 'not used by these tests',
-  );
+  ) async {
+    closed.add(command);
+    return _write();
+  }
 }
 
 class _FakeUnitSearch implements UnitSearchPort {

@@ -316,6 +316,137 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets('offers nothing to write without lease.manage', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      canMutate: false,
+      onAdd: (_) {},
+      onEdit: (_) {},
+      onClose: (_) {},
+    );
+
+    // The server checks it too; this only decides whether a control is offered,
+    // so nobody spends a round trip on a certain refusal.
+    expect(find.byKey(const Key('lease-component-add')), findsNothing);
+    expect(find.text('erfassen'), findsNothing);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+  });
+
+  testWidgets('an unrecorded row offers to record that very type', (
+    tester,
+  ) async {
+    LeaseComponentType? asked;
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      canMutate: true,
+      onAdd: (type) => asked = type,
+    );
+
+    // Four types are unrecorded, so four offers - and the one tapped carries
+    // its own type into the form rather than making the reader pick it again.
+    expect(find.text('erfassen'), findsNWidgets(4));
+    await tester.tap(find.text('erfassen').first);
+    await tester.pumpAndSettle();
+    expect(asked, LeaseComponentType.serviceChargeAdvance);
+  });
+
+  testWidgets('the add button carries no preselection', (tester) async {
+    var calls = 0;
+    LeaseComponentType? asked = LeaseComponentType.parking;
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+      ],
+      canMutate: true,
+      onAdd: (type) {
+        calls++;
+        asked = type;
+      },
+    );
+
+    await tester.tap(find.byKey(const Key('lease-component-add')));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(asked, isNull);
+  });
+
+  testWidgets('an empty section still offers a way in', (tester) async {
+    await _pump(
+      tester,
+      components: const <LeaseComponentDto>[],
+      canMutate: true,
+      onAdd: (_) {},
+    );
+
+    // Otherwise the only screen where nothing exists is the one screen with no
+    // way to create anything.
+    expect(find.byKey(const Key('lease-component-add')), findsOneWidget);
+  });
+
+  testWidgets('only a running component can be ended', (tester) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(type: LeaseComponentType.baseRent, amount: 1000),
+        _component(
+          type: LeaseComponentType.parking,
+          amount: 50,
+          validTo: DateTime(2026, 12, 31),
+        ),
+      ],
+      canMutate: true,
+      onEdit: (_) {},
+      onClose: (_) {},
+    );
+
+    await tester.tap(
+      find.byKey(const Key('lease-component-actions-k-baseRent')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Beenden'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+
+    // A component that already has an end date is corrected through the form,
+    // where the date is a field rather than the whole action.
+    await tester.tap(
+      find.byKey(const Key('lease-component-actions-k-parking')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Beenden'), findsNothing);
+    expect(find.text('Bearbeiten'), findsOneWidget);
+  });
+
+  testWidgets('an unfamiliar component offers no actions at all', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      components: <LeaseComponentDto>[
+        _component(
+          type: LeaseComponentType.unknown,
+          amount: 25,
+          rawTypeKey: 'garden_levy',
+        ),
+      ],
+      canMutate: true,
+      onEdit: (_) {},
+      onClose: (_) {},
+    );
+
+    // This build does not know what the type means, so it must not offer to
+    // rewrite it.
+    expect(find.text('garden_levy'), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+  });
 }
 
 Future<void> _pump(
@@ -326,6 +457,10 @@ Future<void> _pump(
   VoidCallback? onRetry,
   Size size = const Size(1000, 900),
   bool settle = true,
+  bool canMutate = false,
+  void Function(LeaseComponentType? preselectedType)? onAdd,
+  void Function(LeaseComponentDto component)? onEdit,
+  void Function(LeaseComponentDto component)? onClose,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -344,6 +479,10 @@ Future<void> _pump(
                     components: components,
                   ),
             onRetry: onRetry ?? () {},
+            canMutate: canMutate,
+            onAdd: onAdd,
+            onEdit: onEdit,
+            onClose: onClose,
           ),
         ),
       ),

@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../features/leasing_operations/application/leases_controller.dart';
+import '../../../../features/leasing_operations/domain/lease_component_dto.dart';
 import '../../../../features/leasing_operations/domain/lease_dto.dart';
 import '../../../components/nx_card.dart';
 import '../../../components/nx_data_table_shell.dart';
@@ -36,6 +37,7 @@ import '../../../components/nx_empty_state.dart';
 import '../../../state/app_state.dart';
 import '../../../theme/app_theme.dart';
 import 'lease_detail_view.dart';
+import 'widgets/lease_component_dialogs.dart';
 import 'widgets/lease_form_dialog.dart';
 import 'widgets/lease_lifecycle.dart';
 import 'widgets/leasing_badges.dart';
@@ -226,7 +228,13 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
                 _LeaseDetailCard(state: state, controller: controller,
                     onEdit: () => _editLease(controller, state),
                     onAdvance: () => _advanceLease(controller, state),
-                    onCancel: () => _cancelLease(controller, state)),
+                    onCancel: () => _cancelLease(controller, state),
+                    onAddComponent: (type) =>
+                        _addComponent(controller, state, type),
+                    onEditComponent: (component) =>
+                        _editComponent(controller, state, component),
+                    onCloseComponent: (component) =>
+                        _closeComponent(controller, component)),
               ],
             ],
           );
@@ -245,6 +253,12 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
                   onEdit: () => _editLease(controller, state),
                   onAdvance: () => _advanceLease(controller, state),
                   onCancel: () => _cancelLease(controller, state),
+                  onAddComponent: (type) =>
+                      _addComponent(controller, state, type),
+                  onEditComponent: (component) =>
+                      _editComponent(controller, state, component),
+                  onCloseComponent: (component) =>
+                      _closeComponent(controller, component),
                 ),
               ),
             ),
@@ -410,6 +424,106 @@ class _LeasesPanelState extends ConsumerState<LeasesPanel> {
       ),
     );
   }
+
+  Future<void> _addComponent(
+    LeasesController controller,
+    LeasesState state,
+    LeaseComponentType? preselectedType,
+  ) async {
+    final lease = state.selectedLease;
+    if (lease == null) {
+      return;
+    }
+    final result = await showLeaseComponentFormDialog(
+      context: context,
+      currencyCode: lease.currencyCode,
+      initialType: preselectedType,
+    );
+    if (result == null) {
+      return;
+    }
+    await controller.createComponent(
+      leaseId: lease.id,
+      componentType: result.componentType,
+      validFrom: result.validFrom,
+      validTo: result.validTo,
+      amount: result.amount,
+      vatMode: result.vatMode,
+      vatRatePercent: result.vatRatePercent,
+      note: result.note,
+    );
+  }
+
+  Future<void> _editComponent(
+    LeasesController controller,
+    LeasesState state,
+    LeaseComponentDto component,
+  ) async {
+    final lease = state.selectedLease;
+    if (lease == null) {
+      return;
+    }
+    final result = await showLeaseComponentFormDialog(
+      context: context,
+      currencyCode: lease.currencyCode,
+      existing: component,
+    );
+    if (result == null) {
+      return;
+    }
+
+    // Only what actually changed travels. The server refuses an unknown key
+    // rather than ignoring it, and sending every field would make the audit
+    // record claim edits that never happened.
+    final changes = <String, Object?>{};
+    if (result.validFrom != component.validFrom) {
+      changes['validFrom'] = _componentDateToWire(result.validFrom);
+    }
+    if (result.validTo != component.validTo) {
+      // Null clears the end date server-side, which is how an ended component
+      // is reopened — deliberately reachable, because a wrong end date is a
+      // correction rather than a new component.
+      changes['validTo'] = _componentDateToWire(result.validTo);
+    }
+    if (result.amount != component.amount) {
+      changes['amount'] = result.amount.toString();
+    }
+    if (result.vatMode != component.vatMode) {
+      changes['vatMode'] = leaseComponentVatModeKey(result.vatMode);
+    }
+    if (result.vatRatePercent != component.vatRatePercent) {
+      changes['vatRatePercent'] = result.vatRatePercent?.toString();
+    }
+    if (result.note != null) {
+      changes['note'] = result.note;
+    }
+
+    await controller.updateComponent(component: component, changes: changes);
+  }
+
+  Future<void> _closeComponent(
+    LeasesController controller,
+    LeaseComponentDto component,
+  ) async {
+    final validTo = await showLeaseComponentCloseDialog(
+      context: context,
+      component: component,
+    );
+    if (validTo == null) {
+      return;
+    }
+    await controller.closeComponent(component: component, validTo: validTo);
+  }
+
+  static String? _componentDateToWire(DateTime? value) {
+    if (value == null) {
+      return null;
+    }
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
+  }
+
 
   Future<void> _editLease(
     LeasesController controller,
@@ -753,6 +867,9 @@ class _LeaseDetailCard extends StatelessWidget {
     required this.state,
     required this.controller,
     required this.onEdit,
+    required this.onAddComponent,
+    required this.onEditComponent,
+    required this.onCloseComponent,
     required this.onAdvance,
     required this.onCancel,
   });
@@ -760,6 +877,9 @@ class _LeaseDetailCard extends StatelessWidget {
   final LeasesState state;
   final LeasesController controller;
   final VoidCallback onEdit;
+  final void Function(LeaseComponentType? preselectedType) onAddComponent;
+  final void Function(LeaseComponentDto component) onEditComponent;
+  final void Function(LeaseComponentDto component) onCloseComponent;
   final VoidCallback onAdvance;
   final VoidCallback onCancel;
 
@@ -815,6 +935,10 @@ class _LeaseDetailCard extends StatelessWidget {
           componentsPhase: state.componentsPhase,
           components: state.components,
           onRetryComponents: () => controller.select(lease.id),
+          canMutateComponents: controller.canMutate,
+          onAddComponent: onAddComponent,
+          onEditComponent: onEditComponent,
+          onCloseComponent: onCloseComponent,
         );
     }
   }
