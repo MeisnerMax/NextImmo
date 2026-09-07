@@ -192,41 +192,23 @@ class CostAllocationController extends StateNotifier<CostAllocationState> {
 
   /// Renames a cost type or takes it out of use.
   ///
-  /// The expected version is read from this controller's own current list
-  /// rather than passed in: a dialog holds the row it was opened with, so a
-  /// version conflict followed by a retry from that same open dialog would
-  /// re-send the stale version forever.
+  /// [expectedVersion] comes from the caller — the version of the row it is
+  /// showing — and is deliberately *not* re-read from this controller's state
+  /// at submit time. Re-reading it would look helpful and would lose writes: a
+  /// refusal reloads the list with the other writer's row and its new version,
+  /// while an open dialog still holds the fields the reader typed against the
+  /// old one. Pressing save again would then send fresh version with stale
+  /// values, and the server would accept it. The token exists to stop exactly
+  /// that, so the retry has to carry the version the reader actually saw.
   Future<CostAllocationActionFailure?> updateAccount({
     required String accountId,
+    required int expectedVersion,
     String? name,
     bool? isActive,
   }) async {
     final CostAllocationActionFailure? refusal = _guardMutation();
     if (refusal != null) {
       return refusal;
-    }
-    final CostAccountAllocationDto? current = state.accounts
-        .where(
-          (CostAccountAllocationDto account) =>
-              account.financeAccountId == accountId,
-        )
-        .firstOrNull;
-    final int? version = current?.version;
-    if (version == null) {
-      // The server sent none, so there is nothing to send back. Said rather
-      // than guessed: an edit with an invented version is refused anyway, and
-      // a refusal the reader cannot act on is worse than an honest one here.
-      const CostAllocationActionFailure refused = CostAllocationActionFailure(
-        message:
-            'Diese Kostenart lässt sich mit diesem Stand nicht ändern: der '
-            'Server hat keine Version dazu geliefert.',
-      );
-      state = state.copyWith(
-        actionPhase: CostAllocationActionPhase.failed,
-        actionMessage: refused.message,
-        actionField: null,
-      );
-      return refused;
     }
 
     state = state.copyWith(
@@ -238,7 +220,7 @@ class CostAllocationController extends StateNotifier<CostAllocationState> {
       UpdateFinanceAccountCommand(
         context: _context(),
         accountId: accountId,
-        expectedVersion: version,
+        expectedVersion: expectedVersion,
         name: name,
         isActive: isActive,
       ),

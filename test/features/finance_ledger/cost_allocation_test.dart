@@ -500,6 +500,7 @@ class _FakeAccountsPort implements FinanceAccountsPort {
   final List<UpdateFinanceAccountCommand> updates =
       <UpdateFinanceAccountCommand>[];
   String? failureField;
+  bool failWithVersionConflict = false;
 
   @override
   Future<FinanceRepositoryResult<CostAccountAllocationDto>> createAccount(
@@ -518,6 +519,12 @@ class _FakeAccountsPort implements FinanceAccountsPort {
   }
 
   FinanceRepositoryResult<CostAccountAllocationDto> _answer() {
+    if (failWithVersionConflict) {
+      return const FinanceRepositoryFailure<CostAccountAllocationDto>(
+        kind: FinanceRepositoryFailureKind.validationFailed,
+        message: 'Cost account version is stale',
+      );
+    }
     final String? field = failureField;
     if (field != null) {
       return FinanceRepositoryFailure<CostAccountAllocationDto>(
@@ -651,7 +658,39 @@ void _costTypeTests() {
       final failure =
           result as FinanceRepositoryFailure<CostAccountAllocationDto>;
       expect(failure.kind, FinanceRepositoryFailureKind.validationFailed);
-      expect(failure.message, contains('already exists'));
+      expect(
+        failure.message,
+        'Diesen Schlüssel gibt es in diesem Workspace schon.',
+        reason: 'the commonest refusal on a German form, met in German rather '
+            'than as a seam the reader has to step over',
+      );
+    });
+
+    test('a refusal this build does not know comes through verbatim', () async {
+      gateway.result = <String, Object?>{
+        'ok': false,
+        'error': <String, Object?>{
+          'code': 'validation_failed',
+          'message': 'Some future rule was violated',
+        },
+      };
+
+      final FinanceRepositoryResult<CostAccountAllocationDto> result =
+          await adapter.createAccount(
+        CreateFinanceAccountCommand(
+          context: _context(),
+          code: '4300',
+          name: 'Hausmeister',
+          accountType: FinanceAccountType.expense,
+        ),
+      );
+
+      expect(
+        (result as FinanceRepositoryFailure<CostAccountAllocationDto>).message,
+        'Some future rule was violated',
+        reason: 'an untranslated sentence is better than a wrong one, and a '
+            'catch-all German message would hide what the server said',
+      );
     });
 
     test('the update sends the version it was given, and no code', () async {
@@ -751,38 +790,40 @@ void _costTypeTests() {
       );
     });
 
-    test('the update reads the version from its own state, not from the caller',
-        () async {
+    test('the update sends the version the caller was looking at', () async {
       final subject = controller();
       await subject.load();
 
-      await subject.updateAccount(accountId: 'account-1', name: 'Heizung');
-
-      expect(
-        accountsPort.updates.single.expectedVersion,
-        7,
-        reason: 'the version comes from the list this controller last loaded, '
-            'so a retry after a version conflict sends the fresh one',
+      // Deliberately not the version in `state.accounts` (7). The caller is a
+      // dialog that was opened when the row was at 5, and that is the version
+      // the server must judge against — re-reading a fresher one here would
+      // let a retry after a refusal carry stale field values over somebody
+      // else's write, which is the loss the token exists to prevent.
+      await subject.updateAccount(
+        accountId: 'account-1',
+        expectedVersion: 5,
+        name: 'Heizung',
       );
+
+      expect(accountsPort.updates.single.expectedVersion, 5);
     });
 
-    test('an account the server sent no version for is refused, with the reason',
-        () async {
-      port.accountVersion = null;
+    test('a stale version is refused and the list is re-read, so the next '
+        'attempt is built from what the server now holds', () async {
+      accountsPort.failureField = null;
+      accountsPort.failWithVersionConflict = true;
       final subject = controller();
       await subject.load();
+      expect(port.reads, 1);
 
-      final CostAllocationActionFailure? failure =
-          await subject.updateAccount(accountId: 'account-1', name: 'Heizung');
-
-      expect(accountsPort.updates, isEmpty);
-      expect(failure, isNotNull);
-      expect(
-        failure!.message,
-        contains('keine Version'),
-        reason: 'an edit with an invented version is refused server-side, so '
-            'the honest refusal is here and it says why',
+      final CostAllocationActionFailure? failure = await subject.updateAccount(
+        accountId: 'account-1',
+        expectedVersion: 5,
+        name: 'Heizung',
       );
+
+      expect(failure, isNotNull);
+      expect(port.reads, 2);
     });
 
     test('a member without finance.manage cannot create one', () async {

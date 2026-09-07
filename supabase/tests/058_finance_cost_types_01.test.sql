@@ -10,18 +10,20 @@ create extension if not exists pgtap with schema extensions;
 --
 -- That sequence was impossible until now. `update_finance_account` requires
 -- `p_expected_version` with no default, and `cost_allocation_rules` — the only
--- read that lists a workspace's accounts — did not return the version. The
--- command was granted to `authenticated`, audited and idempotent, and no
--- client could call it, because the number it insists on was not obtainable.
--- A test that only asserted "the payload has a version key" would pass on a
--- key holding null, or a rule's version, or a constant; the round trip is what
--- proves the value is the one the command accepts.
+-- read that lists a workspace's accounts — did not return the version, so an
+-- account a client had not itself just created could not be edited from that
+-- list. (The number was obtainable by other routes: the create response and
+-- the version_conflict payload both carry it. An earlier draft of this
+-- description claimed otherwise and was wrong.) A test that only asserted
+-- "the payload has a version key" would pass on a key holding null, or the
+-- nested rule's version, or a constant; the round trip is what proves the
+-- value is the one the command accepts.
 --
 -- The negative counterpart matters as much: a version that is *not* the one
 -- the read returned must be refused. Without it the round trip would also pass
 -- against a command that ignored the argument.
 
-select plan(12);
+select plan(13);
 
 -- ---------------------------------------------------------------------------
 -- Fixture
@@ -150,8 +152,10 @@ select is(
 select is(
   (pg_temp.account('4300') ->> 'version')::bigint,
   1::bigint,
-  'the read returns the account version -- the field whose absence made '
-  'update_finance_account unreachable from any client');
+  'the read returns the account version -- the field whose absence meant an '
+  'account could not be edited from the list that shows it. Not, as an '
+  'earlier draft claimed, that the number was unobtainable: the create '
+  'response and the version_conflict payload both carry it');
 
 select is(
   pg_temp.as_user('74200000-0000-0000-0000-000000000001',
@@ -191,8 +195,8 @@ select is(
       gen_random_uuid(), gen_random_uuid()))
     -> 'error' ->> 'code',
   'version_conflict',
-  'while the version the read returned a moment ago is refused, so the number '
-  'is load-bearing rather than decorative');
+  'while the version the read returned *before* that change is refused, so the '
+  'number is load-bearing rather than decorative');
 
 -- ---------------------------------------------------------------------------
 -- The parent, and who may write
@@ -204,6 +208,14 @@ select is(
   'the read carries the parent as well, so a client can render the tree it '
   'is told about rather than inventing one');
 
+-- Both halves of the sentence, because only one of them was ever run. The
+-- read has to succeed for the refusal below to mean "may not create" rather
+-- than "may not see".
+select is(
+  pg_temp.accounts('74200000-0000-0000-0000-000000000002') -> 'ok',
+  'true'::jsonb,
+  'the analyst may read the cost types');
+
 select is(
   pg_temp.as_user('74200000-0000-0000-0000-000000000002',
     format(
@@ -214,7 +226,7 @@ select is(
       gen_random_uuid(), gen_random_uuid()))
     -> 'error' ->> 'code',
   'forbidden',
-  'and the analyst, who may read the cost types, may not create one');
+  'and may not create one');
 
 select * from finish();
 rollback;

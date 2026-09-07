@@ -18,8 +18,17 @@
 /// The heating positions carry [underHeatingCostRegulation] because P-2a
 /// already enforces the consequence — a HeizkostenV position settles on the
 /// performance principle (BGH VIII ZR 156/11), as a CHECK constraint. The flag
-/// here only pre-fills the form; the person creating the cost type confirms
-/// it, and can clear it.
+/// pre-fills the classification form that opens after an adoption; the person
+/// classifying the cost type confirms it, and can clear it.
+///
+/// **Adopting an entry is two steps, and the second is where the position is
+/// recorded.** Creating the cost type writes a `finance_accounts` row and
+/// nothing else — no allocation rule, because whether a cost may be passed on
+/// is a decision this catalogue does not make. The classification form that
+/// follows carries [positionText] into `betrkv_position`, and that is the only
+/// thing that retires a suggestion from the panel. Cancelling it leaves the
+/// cost type created and the suggestion still on offer, which is the honest
+/// state: nothing recorded which position it is.
 library;
 
 class BetrkvSuggestion {
@@ -43,13 +52,21 @@ class BetrkvSuggestion {
   /// assigned.
   final String suggestedCode;
 
-  /// What goes into `betrkv_position` — the item as the regulation words it,
-  /// shortened. Free text on the server, and editable here.
+  /// Pre-fills `betrkv_position` on the classification form, and is what the
+  /// panel matches against to retire a suggestion. The item as the regulation
+  /// words it, shortened. Free text on the server, and editable there: a
+  /// workspace that rewords it is simply offered the position again, because
+  /// nothing then records that this is that position.
   final String positionText;
 
-  /// Pre-fills P-2a's HeizkostenV flag, which forces the performance
-  /// principle. Confirmed by the person creating the cost type, never applied
-  /// on their behalf.
+  /// Pre-fills P-2a's HeizkostenV flag on the classification form, which
+  /// forces the performance principle. Confirmed by the person classifying the
+  /// cost type, never applied on their behalf.
+  ///
+  /// Set for the three positions whose subject is a *central* installation —
+  /// § 1 Abs. 1 HeizkostenV applies where a building is supplied centrally.
+  /// A decentralised supply (a Durchlauferhitzer in the dwelling) is outside
+  /// both, which is why the position texts keep the word "zentralen".
   final bool underHeatingCostRegulation;
 
   /// Said where an item is commonly misread.
@@ -69,6 +86,9 @@ const List<BetrkvSuggestion> betrkvSuggestions = <BetrkvSuggestion>[
     name: 'Grundsteuer',
     suggestedCode: 'betrkv.01',
     positionText: 'Laufende öffentliche Lasten des Grundstücks',
+    note:
+        'Die Grundsteuer ist der Regelfall, aber nicht der ganze Wortlaut: '
+        'die Position umfasst die laufenden öffentlichen Lasten insgesamt.',
   ),
   BetrkvSuggestion(
     position: '2',
@@ -96,8 +116,13 @@ const List<BetrkvSuggestion> betrkvSuggestions = <BetrkvSuggestion>[
     position: '5',
     name: 'Warmwasser',
     suggestedCode: 'betrkv.05',
-    positionText: 'Kosten des Betriebs der Warmwasserversorgungsanlage',
+    positionText:
+        'Kosten des Betriebs der zentralen Warmwasserversorgungsanlage',
     underHeatingCostRegulation: true,
+    note:
+        'Das Wort „zentralen" trägt die Abgrenzung: eine dezentrale '
+        'Warmwasserbereitung in der Wohnung fällt weder unter diese Position '
+        'noch unter die HeizkostenV.',
   ),
   BetrkvSuggestion(
     position: '6',
@@ -136,12 +161,14 @@ const List<BetrkvSuggestion> betrkvSuggestions = <BetrkvSuggestion>[
   ),
   BetrkvSuggestion(
     position: '11',
-    name: 'Allgemeinstrom',
+    name: 'Beleuchtung',
     suggestedCode: 'betrkv.11',
     positionText: 'Kosten der Beleuchtung',
     note:
-        'Der Strom der Gemeinschaftsflächen. Der Haushaltsstrom einer Einheit '
-        'gehört nicht hierher — den rechnet der Mieter selbst ab.',
+        'Nur Beleuchtungsstrom: Außenbeleuchtung und die gemeinsam genutzten '
+        'Gebäudeteile. Nicht der gesamte Allgemeinstrom — der Betriebsstrom '
+        'von Aufzug, Antenne, Waschküche und Heizung steht jeweils in der '
+        'eigenen Position (7, 15, 16, 4).',
   ),
   BetrkvSuggestion(
     position: '12',
@@ -163,11 +190,17 @@ const List<BetrkvSuggestion> betrkvSuggestions = <BetrkvSuggestion>[
   ),
   BetrkvSuggestion(
     position: '15',
-    name: 'Gemeinschaftsantenne',
+    name: 'Antenne und Breitband',
     suggestedCode: 'betrkv.15',
     positionText:
         'Kosten des Betriebs der Gemeinschafts-Antennenanlage oder '
         'Verteilanlage',
+    note:
+        'Seit dem TKModG (1.12.2021) hat die Position drei Buchstaben: '
+        'Gemeinschaftsantenne, mit einem Breitbandnetz verbundene private '
+        'Verteilanlage, und der Betrieb einer gebäudeinternen Verteilanlage '
+        '(Glasfaserbereitstellungsentgelt, § 72 Abs. 1 TKG). Für die '
+        'getrennte Abrechnung ggf. mehrere Kostenarten anlegen.',
   ),
   BetrkvSuggestion(
     position: '16',
@@ -182,8 +215,10 @@ const List<BetrkvSuggestion> betrkvSuggestions = <BetrkvSuggestion>[
     suggestedCode: 'betrkv.17',
     positionText: 'Sonstige Betriebskosten',
     note:
-        'Nur umlagefähig, wenn sie im Mietvertrag einzeln benannt sind — eine '
-        'Sammelposition trägt sich nicht selbst.',
+        'Sammelposition. Sie trägt sich nicht selbst: eine sonstige '
+        'Betriebskostenart ist nur umlagefähig, wenn sie im Mietvertrag '
+        'einzeln benannt ist. Deshalb eher je Kostenart eine eigene Position '
+        'anlegen als alles hier zu sammeln.',
   ),
 ];
 

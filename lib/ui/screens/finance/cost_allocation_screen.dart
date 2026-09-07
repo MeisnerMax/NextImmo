@@ -153,9 +153,12 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
               caption: 'im gesamten Workspace',
             ),
             NxKpiTile(
-              label: 'Kostenarten',
+              label: 'Konten',
               value: '${state.totalCount}',
-              caption: 'insgesamt',
+              // "Konten", not "Kostenarten": the tree holds revenue and
+              // balance-sheet accounts too, and only an expense account is a
+              // Kostenart in the sense the rest of this screen uses.
+              caption: 'im Kontenbaum insgesamt',
             ),
           ],
         ),
@@ -226,12 +229,19 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
   /// Creates a cost type, or renames one. The dialog runs the command itself
   /// and stays open on a refusal — a taken code is the usual one — so the
   /// reader keeps what they typed.
+  ///
+  /// Adopting a § 2 BetrKV position is two steps, and the second is what makes
+  /// the adoption an adoption. Creating the cost type writes only the account
+  /// row, so the classification form opens straight after, pre-filled with the
+  /// position and — for the three central installations — the HeizkostenV
+  /// flag. Until that form is saved nothing records *which* position this is,
+  /// which is why the suggestion stays on offer if it is cancelled.
   Future<void> _editAccount(
     CostAllocationController controller,
     CostAccountAllocationDto? account,
     BetrkvSuggestion? suggestion,
   ) async {
-    await showFinanceAccountDialog(
+    final bool? saved = await showFinanceAccountDialog(
       context,
       account: account,
       suggestion: suggestion,
@@ -243,17 +253,50 @@ class _CostAllocationScreenState extends ConsumerState<CostAllocationScreen> {
             )
           : controller.updateAccount(
               accountId: account.financeAccountId,
+              // The version the form was filled against, not whatever the
+              // list holds by now: a refusal reloads the list, and a retry
+              // carrying the fresh version with the old field values would
+              // overwrite the other writer's change.
+              expectedVersion: result.expectedVersion!,
               name: result.name,
               isActive: result.isActive,
             ),
+    );
+    if (saved != true || suggestion == null || !mounted) {
+      return;
+    }
+    final CostAccountAllocationDto? created = ref
+        .read(costAllocationControllerProvider)
+        .accounts
+        .where(
+          (CostAccountAllocationDto candidate) =>
+              candidate.code == suggestion.suggestedCode ||
+              candidate.name == suggestion.name,
+        )
+        .firstOrNull;
+    if (created == null) {
+      return;
+    }
+    await _edit(
+      controller,
+      created,
+      betrkvPosition: suggestion.positionText,
+      underHeatingCostRegulation: suggestion.underHeatingCostRegulation,
     );
   }
 
   Future<void> _edit(
     CostAllocationController controller,
-    CostAccountAllocationDto account,
-  ) async {
-    final result = await showCostAllocationDialog(context, account: account);
+    CostAccountAllocationDto account, {
+    String? betrkvPosition,
+    bool? underHeatingCostRegulation,
+  }) async {
+    final result = await showCostAllocationDialog(
+      context,
+      account: account,
+      initialBetrkvPosition: betrkvPosition,
+      initialUnderHeatingCostRegulation: underHeatingCostRegulation,
+    );
     if (result == null) {
       return;
     }
@@ -419,9 +462,11 @@ class _BetrkvPanel extends StatelessWidget {
           ),
           subtitle: Text(
             'Ein Ausgangspunkt, keine Vorgabe: die Positionen sind einzeln '
-            'übernehmbar und danach frei änderbar. Der Katalog ist in DEC-014 '
-            'als quellenwidersprüchlich vermerkt, deshalb prüft nichts im '
-            'System dagegen.',
+            'übernehmbar. Bezeichnung und Einordnung lassen sich danach '
+            'ändern, der Schlüssel nicht — er wird einmal vergeben, weil '
+            'Buchungen ihn zitieren. Der Katalog ist in DEC-014 als '
+            'quellenwidersprüchlich vermerkt, deshalb prüft nichts im System '
+            'dagegen.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

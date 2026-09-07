@@ -12,8 +12,18 @@ create extension if not exists pgtap with schema extensions;
 --
 -- Asserted through the payload rather than the signature, because a
 -- `create or replace` leaves the signature identical either way.
+--
+-- The payload assertions match source text, which is the weaker kind of
+-- check: they would also pass if the key were spelled differently or moved
+-- into a comment. That is accepted here because the alternative — calling the
+-- reverted function and inspecting its JSON — needs a workspace, a member and
+-- an account, and a rollback test that builds a fixture is a rollback test
+-- that can fail for reasons unrelated to the rollback. The four assertions
+-- around them are properties of the replay rather than of this package, and
+-- are kept as the frame: they say what the revert must not have taken with
+-- it.
 
-select plan(5);
+select plan(6);
 
 select has_function('public', 'cost_allocation_rules',
   'P-2a''s read still stands: this package replaced its body, so the revert is '
@@ -27,14 +37,28 @@ select is(
   1,
   'exactly one of it -- not two, and not none');
 
+-- Both keys, not one. The package adds `version` *and* `parent_account_id`,
+-- and an earlier draft of this test asserted only the first while its message
+-- called that "the whole of what this package added". A half-reverted body —
+-- version gone, parent still there — passed it green, which is precisely the
+-- state this file's own header says it exists to exclude.
 select ok(
   (select pg_get_functiondef(function.oid) not like '%''version'', account.version%'
    from pg_proc as function
    join pg_namespace as namespace on namespace.oid = function.pronamespace
    where namespace.nspname = 'public'
      and function.proname = 'cost_allocation_rules'),
-  'and it is the version without the account version in its payload, which is '
-  'the whole of what this package added');
+  'the account version is gone from the payload');
+
+select ok(
+  (select pg_get_functiondef(function.oid)
+     not like '%''parent_account_id'', account.parent_account_id%'
+   from pg_proc as function
+   join pg_namespace as namespace on namespace.oid = function.pronamespace
+   where namespace.nspname = 'public'
+     and function.proname = 'cost_allocation_rules'),
+  'and so is the parent — the package added two keys, so a revert that '
+  'removed one and left the other is a third shape no test describes');
 
 select has_table('public', 'finance_account_allocation_rules',
   'P-2a''s satellite is untouched: this package added no table and dropped '

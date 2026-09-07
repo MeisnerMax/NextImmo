@@ -151,11 +151,35 @@ class _DirectGateway implements FinanceSupabaseGateway {
   }
 }
 
+/// The server speaks English, the form speaks German.
+///
+/// The refusals this surface actually meets are few and known, so they are
+/// translated rather than passed through: a taken code is the commonest thing
+/// a person creating cost types will hit, and meeting it as "An account with
+/// this code already exists" in an otherwise German dialog is a seam the
+/// reader has to step over. Anything not on this list still comes through
+/// verbatim — an untranslated sentence is better than a wrong one.
+String? _germanFor(String message) => switch (message) {
+  'An account with this code already exists' =>
+    'Diesen Schlüssel gibt es in diesem Workspace schon.',
+  'Cost account version is stale' || 'The account was changed by someone else' =>
+    'Die Kostenart wurde zwischenzeitlich von jemand anderem geändert. '
+        'Bitte schließen, neu öffnen und die Änderung wiederholen.',
+  'Account not found' || 'Finance account not found' =>
+    'Diese Kostenart gibt es nicht (mehr).',
+  'Finance management is not permitted' =>
+    'Für Kostenarten fehlt die Berechtigung zur Finanzverwaltung.',
+  'That parent would create a cycle in the chart of accounts' =>
+    'Diese Zuordnung würde einen Kreis im Kontenbaum erzeugen.',
+  _ => null,
+};
+
 FinanceRepositoryFailure<T> _mapFailure<T>(Map<String, dynamic> error) {
   final code = error['code'] is String ? error['code'] as String : '';
-  final message = error['message'] is String
+  final raw = error['message'] is String
       ? error['message'] as String
       : 'Die Anfrage wurde abgelehnt.';
+  final message = _germanFor(raw) ?? raw;
   final field = error['field'] is String ? error['field'] as String : null;
   return switch (code) {
     'forbidden' => FinanceRepositoryFailure<T>(

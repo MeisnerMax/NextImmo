@@ -31,12 +31,18 @@ class FinanceAccountFormResult {
     required this.name,
     required this.accountType,
     required this.isActive,
+    this.expectedVersion,
   });
 
   final String code;
   final String name;
   final FinanceAccountType accountType;
   final bool isActive;
+
+  /// The version of the row this form was filled against. Null for a create.
+  /// Carried explicitly so a refusal cannot be retried with fresh version and
+  /// stale values — which would overwrite whatever the other writer did.
+  final int? expectedVersion;
 }
 
 typedef FinanceAccountSubmit =
@@ -96,7 +102,22 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
   String? _failureMessage;
   String? _failureField;
 
+  /// The row's version as this form was filled. Not refreshed behind the
+  /// reader's back: if the account changed underneath, the retry must fail
+  /// again rather than silently win.
+  int? _version;
+
   bool get _isNew => widget.account == null;
+
+  /// Nothing typed differs from what is stored. The server would still bump
+  /// the version and append an audit record, so the save is not offered.
+  bool get _unchanged {
+    final CostAccountAllocationDto? account = widget.account;
+    if (account == null) {
+      return false;
+    }
+    return _name.text.trim() == account.name && _active == account.isActive;
+  }
 
   @override
   void initState() {
@@ -116,6 +137,7 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
         ? FinanceAccountType.expense
         : account.kind;
     _active = account?.isActive ?? true;
+    _version = account?.version;
   }
 
   @override
@@ -204,6 +226,7 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
                   key: const Key('finance-account-name'),
                   controller: _name,
                   enabled: !_submitting,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     labelText: 'Bezeichnung',
                     helperText: 'Was auf einer Abrechnungszeile steht.',
@@ -214,6 +237,26 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
+                // An account kind this build does not recognise is stated as
+                // what it is. Rendering the fallback with "Nicht änderbar"
+                // would assert as stored fact that the account is an expense
+                // account, on the only screen that shows its kind at all.
+                if (!_isNew &&
+                    widget.account!.kind == FinanceAccountType.unknown)
+                  TextFormField(
+                    key: const Key('finance-account-type-unknown'),
+                    initialValue: widget.account!.accountType,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Kontoart',
+                      helperText:
+                          'Diesen Kontotyp kennt dieser Stand nicht — er kann '
+                          'nur von einem neueren Server stammen. Nicht '
+                          'änderbar.',
+                      helperMaxLines: 3,
+                    ),
+                  )
+                else
                 DropdownButtonFormField<FinanceAccountType>(
                   key: const Key('finance-account-type'),
                   value: _type,
@@ -266,6 +309,8 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
                   onChanged: _submitting || _isNew
                       ? null
                       : (bool value) => setState(() => _active = value),
+                  // Rebuilt on every change so the save button can go quiet
+                  // once nothing differs from what is stored.
                   title: const Text('Aktiv'),
                   subtitle: Text(
                     _isNew
@@ -287,7 +332,7 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
         ),
         FilledButton(
           key: const Key('finance-account-submit'),
-          onPressed: _submitting ? null : _submit,
+          onPressed: _submitting || _unchanged ? null : _submit,
           child: _submitting
               ? const SizedBox(
                   height: 16,
@@ -319,6 +364,7 @@ class _FinanceAccountDialogState extends State<_FinanceAccountDialog> {
         name: _name.text.trim(),
         accountType: _type,
         isActive: _active,
+        expectedVersion: _version,
       ),
     );
     if (!mounted) {

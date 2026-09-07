@@ -1,32 +1,45 @@
 -- FINANCE-COST-TYPES-01 (the cost type tree gets a reachable write path).
 --
--- **One field, and it is the reason the whole surface was unreachable.**
--- `public.update_finance_account` takes `p_expected_version bigint` as a
--- required argument — no default — and `public.cost_allocation_rules`, the
--- only read that lists a workspace's accounts, returned
+-- **Two keys, and the first of them is what a list-driven editor was
+-- missing.** `public.update_finance_account` takes `p_expected_version bigint`
+-- as a required argument — no default — and `public.cost_allocation_rules`,
+-- the only read that lists a workspace's accounts, returned
 -- `finance_account_id`, `code`, `name`, `account_type`, `is_active` and the
--- allocation rule. It did not return the account's version. So no client
--- could call the update at all: there was no way to learn the number the
--- command insists on.
+-- allocation rule. It did not return the account's version, so an account a
+-- client had not itself just created could not be edited from that list.
 --
--- That is the shape of a gap worth naming. `FINANCE-01a` shipped
--- `create_finance_account`, `update_finance_account`,
+-- **An earlier draft of this header put that far too strongly**, and the
+-- correction belongs here rather than in a commit message. It said no client
+-- could call the update at all, because there was no way to learn the version.
+-- That is false, and an adversarial review demonstrated it live:
+-- `private.finance_account_snapshot` carries `version`, so
+-- `create_finance_account` returns it in its success payload, and
+-- `update_finance_account` returns it inside its own `version_conflict` error.
+-- A client could always learn the number — by having created the account, or
+-- by calling the update with any value and reading the current version out of
+-- the refusal (the version check sits ahead of the mutation claim, so that
+-- probe consumes no mutation id and writes no audit row). The real gap was
+-- narrower and is the one this migration closes: the *list* could show
+-- accounts it could not edit.
+--
+-- `FINANCE-01a` shipped `create_finance_account`, `update_finance_account`,
 -- `record_finance_ledger_entry`, `open_finance_period` and
 -- `transition_finance_period_status` — all audited, all idempotent, all
--- granted to `authenticated` — and its own header said no screen drove them
--- yet. Two packages later the screens exist: `cost_allocation_rules` (P-2a)
--- lists the accounts, and the pools and keys (P-2b, P-2c) hang off them. What
--- nobody noticed is that the list could show accounts and never edit one, and
--- that a workspace with no accounts had no way to make the first — so
--- "Umlagefähigkeit" opened on an empty list whose own empty state says
--- "Ohne Konten gibt es nichts einzuordnen", with no way out of that state
--- from inside the application.
+-- granted to `authenticated`. (An earlier draft also claimed its header said
+-- no screen drove them yet; it says no such thing, and the sentence is
+-- withdrawn.) Two packages later the reads exist: `cost_allocation_rules`
+-- (P-2a) lists the accounts, and the pools and keys (P-2b, P-2c) hang off
+-- them. What nobody noticed is that a workspace with no accounts had no way
+-- to make the first from inside the application — so the cost-allocation
+-- surface opened on an empty list whose own empty state says "Ohne Konten
+-- gibt es nichts einzuordnen", and stayed there.
 --
 -- **Nothing else changes.** No new table, no new function, no new policy, no
 -- new permission. The counters SR-20, SR-22 and SR-23 do not move, and the
 -- private function inventory is untouched: this is a `create or replace` that
--- adds one key to a payload. The package that goes with it is otherwise
--- entirely client-side, which is why it carries a migration this small.
+-- adds two keys to a payload — `version` and `parent_account_id`. The package
+-- that goes with it is otherwise entirely client-side, which is why it
+-- carries a migration this small.
 --
 -- **The code stays absent from the update on purpose.** `update_finance_account`
 -- accepts a name, a parent and an active flag, and not a code. A code is what
@@ -80,9 +93,10 @@ begin
           'name', account.name,
           'account_type', account.account_type,
           'is_active', account.is_active,
-          -- The account's own version, not the rule's. `update_finance_account`
-          -- requires it and this is the only read that lists accounts, so
-          -- without it the command was unreachable from any client.
+          -- The account's own version, not the rule's -- `rule` below nests a
+          -- snapshot with a `version` of its own, and sending that one would
+          -- be refused by a command that never mentions it. Without this key
+          -- an account could not be edited from the list that shows it.
           'version', account.version,
           'parent_account_id', account.parent_account_id,
           'rule', case
@@ -109,9 +123,14 @@ begin
     'entity', jsonb_build_object(
       'accounts', v_accounts,
       'classified_count', v_classified,
-      -- Counted by the server over every account in the workspace. "How much is
-      -- still unclassified" is the question the surface exists to answer, and
-      -- a count over the rows a caller happens to hold answers a different one.
+      -- Counted by the server over the accounts this call selected, not by the
+      -- caller over the rows it happens to hold. With the default
+      -- `p_allocatable_only = false` that is every account in the workspace,
+      -- which is the reading the surface uses; with the flag on, the WHERE
+      -- clause has already excluded everything unclassified, so
+      -- `unclassified_count` is necessarily 0 and says nothing. An earlier
+      -- draft of this comment claimed the counts always span the workspace,
+      -- which is only true of the default.
       'unclassified_count', v_total - v_classified,
       'total_count', v_total
     )
