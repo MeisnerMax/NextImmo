@@ -19,6 +19,7 @@ import '../screens/compliance/compliance_rules_screen.dart';
 import '../screens/finance/cost_allocation_screen.dart';
 import '../screens/finance/cost_pool_screen.dart';
 import '../screens/finance/finance_bookings_screen.dart';
+import '../screens/finance/service_charge_screen.dart';
 import '../screens/compare_screen.dart';
 import '../screens/criteria_sets_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -354,6 +355,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               'Cloud-Buchhaltung.',
           icon: Icons.cloud_off_outlined,
         );
+      case GlobalPage.serviceCharge:
+        // And once more: the settlement divides cloud bookings by cloud keys.
+        // Nothing in the legacy store answers either half.
+        return const _CloudDestinationState(
+          title: 'Betriebskostenabrechnung nur in der Cloud-Shell',
+          description:
+              'Die Abrechnung verteilt gebuchte Kosten über Umlageschlüssel — '
+              'beides liegt ausschließlich in der Cloud-Buchhaltung.',
+          icon: Icons.cloud_off_outlined,
+        );
       case GlobalPage.settings:
         return const SettingsScreen();
       case GlobalPage.help:
@@ -458,6 +469,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         // five configuration packages before it were missing -- the commands
         // existed since FINANCE-01a and nothing called them.
         return const FinanceBookingsScreen();
+      case GlobalPage.serviceCharge:
+        // SERVICE-CHARGE-PREVIEW-01: the statement itself. The last of the
+        // four consecutive questions -- may this cost be passed on, how is it
+        // split, what was booked, and what does each unit owe.
+        return const ServiceChargeScreen();
       case GlobalPage.costPools:
         // COST-POOLS-ALLOCATION-KEYS-01 (P-2b): how those costs are divided,
         // and which keys cannot be resolved from what is stored.

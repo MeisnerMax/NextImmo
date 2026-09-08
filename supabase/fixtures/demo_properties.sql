@@ -143,6 +143,56 @@ begin
 end;
 $$;
 
+-- Die Umlage-Einordnung einer Kostenart. Wie `pg_temp.account`
+-- aufgeloest-oder-gesetzt, damit ein zweiter Lauf nicht an einer Zeile
+-- scheitert, die er selbst geschrieben hat.
+create or replace function pg_temp.rule(
+  p_ws uuid, p_account uuid, p_allocatable boolean, p_label text,
+  p_principle text default 'performance', p_betrkv text default null
+)
+returns void
+language plpgsql
+as $$
+begin
+  if exists (
+    select 1 from public.finance_account_allocation_rules
+    where workspace_id = p_ws and finance_account_id = p_account
+  ) then
+    return;
+  end if;
+  perform pg_temp.ok(public.set_cost_allocation_rule(
+    p_ws, p_account, p_allocatable, gen_random_uuid(), gen_random_uuid(),
+    null, p_principle, p_betrkv, false, null, 'Demo-Fixture'
+  ), 'Umlageregel ' || p_label);
+end;
+$$;
+
+-- Ein Verteilerschluessel je Objekt. `p_account => null` ist der
+-- Auffangschluessel: er gilt fuer jede Kostenart, die keinen eigenen hat.
+create or replace function pg_temp.key(
+  p_ws uuid, p_property uuid, p_basis text, p_explanation text,
+  p_label text, p_account uuid default null
+)
+returns void
+language plpgsql
+as $$
+begin
+  if exists (
+    select 1 from public.allocation_keys
+    where workspace_id = p_ws
+      and property_id = p_property
+      and finance_account_id is not distinct from p_account
+  ) then
+    return;
+  end if;
+  perform pg_temp.ok(public.upsert_allocation_key(
+    p_ws, p_property, p_basis, p_explanation, date '2020-01-01',
+    gen_random_uuid(), gen_random_uuid(), null, null, p_account,
+    null, null, null, 'Demo-Fixture'
+  ), 'Schluessel ' || p_label);
+end;
+$$;
+
 create or replace function pg_temp.period(
   p_ws uuid, p_year integer, p_month integer, p_label text
 )
@@ -207,6 +257,19 @@ declare
   v_konto_gewerbe uuid;
   v_konto_betrieb uuid;
   v_konto_instand uuid;
+  -- Die Kostenarten, aus denen eine Betriebskostenabrechnung tatsaechlich
+  -- besteht. Ein einzelnes Konto "Betriebskosten" ergibt eine Abrechnung mit
+  -- einer Zeile, und an einer Zeile laesst sich nicht erkennen, ob die
+  -- Verteilung stimmt.
+  v_konto_muell uuid;
+  v_konto_wasser uuid;
+  v_konto_hausmeister uuid;
+  v_konto_versicherung uuid;
+  v_konto_strom uuid;
+  v_konto_garten uuid;
+  v_konto_heizung uuid;
+  -- Laufvariable fuer die Schleife ueber beide Objekte.
+  v_objekt uuid;
   v_periode_1 uuid;
   v_periode_2 uuid;
   v_periode_3 uuid;
@@ -677,6 +740,61 @@ begin
   v_konto_betrieb := pg_temp.account(v_ws, '5000', 'Betriebskosten', 'expense');
   v_konto_instand := pg_temp.account(v_ws, '5100', 'Instandhaltung', 'expense');
 
+  v_konto_muell        := pg_temp.account(v_ws, '5010', 'Muellabfuhr', 'expense');
+  v_konto_wasser       := pg_temp.account(v_ws, '5020', 'Wasser und Abwasser', 'expense');
+  v_konto_hausmeister  := pg_temp.account(v_ws, '5030', 'Hausmeister', 'expense');
+  v_konto_versicherung := pg_temp.account(v_ws, '5040', 'Gebaeudeversicherung', 'expense');
+  v_konto_strom        := pg_temp.account(v_ws, '5050', 'Allgemeinstrom', 'expense');
+  v_konto_garten       := pg_temp.account(v_ws, '5060', 'Gartenpflege', 'expense');
+  v_konto_heizung      := pg_temp.account(v_ws, '5070', 'Heizung', 'expense');
+
+  -- Welche Kosten weitergegeben werden duerfen. Instandhaltung ausdruecklich
+  -- nicht -- eine Reparatur ist Erhaltungsaufwand des Eigentuemers und keine
+  -- Betriebskostenposition. Das alte Sammelkonto 5000 bekommt bewusst *keine*
+  -- Regel: "nicht eingeordnet" ist ein eigener Zustand, und die Vorschau soll
+  -- ihn zeigen koennen, statt ihn mit "nicht umlagefaehig" zu verwechseln.
+  perform pg_temp.rule(v_ws, v_konto_muell, true, 'Muellabfuhr',
+                       'performance', 'BetrKV § 2 Nr. 8');
+  perform pg_temp.rule(v_ws, v_konto_wasser, true, 'Wasser',
+                       'performance', 'BetrKV § 2 Nr. 2 und 3');
+  perform pg_temp.rule(v_ws, v_konto_hausmeister, true, 'Hausmeister',
+                       'performance', 'BetrKV § 2 Nr. 14');
+  perform pg_temp.rule(v_ws, v_konto_versicherung, true, 'Versicherung',
+                       'performance', 'BetrKV § 2 Nr. 13');
+  perform pg_temp.rule(v_ws, v_konto_strom, true, 'Allgemeinstrom',
+                       'performance', 'BetrKV § 2 Nr. 11');
+  perform pg_temp.rule(v_ws, v_konto_garten, true, 'Gartenpflege',
+                       'performance', 'BetrKV § 2 Nr. 10');
+  perform pg_temp.rule(v_ws, v_konto_heizung, true, 'Heizung',
+                       'performance', 'BetrKV § 2 Nr. 4');
+  perform pg_temp.rule(v_ws, v_konto_instand, false, 'Instandhaltung', null);
+
+  -- Verteilerschluessel je Objekt. Wohnflaeche als Auffangschluessel, die
+  -- Muellabfuhr nach Einheiten, die Heizung nach Verbrauch -- die letzte
+  -- verweigert bis P-4 mangels Zaehlern, und genau das soll auf der Flaeche
+  -- sichtbar sein statt als fehlende Zeile zu verschwinden.
+  foreach v_objekt in array array[v_wohnhaus, v_kontor]
+  loop
+    perform pg_temp.key(
+      v_ws, v_objekt, 'area_sqm',
+      'Nach Wohn- und Nutzflaeche in Quadratmetern (§ 556a Abs. 1 Satz 1 '
+      'BGB): Anteil der Einheit an der Gesamtflaeche des Objekts.',
+      'Flaeche'
+    );
+    perform pg_temp.key(
+      v_ws, v_objekt, 'unit_count',
+      'Zu gleichen Teilen je Einheit: die Tonnen stehen unabhaengig von der '
+      'Wohnungsgroesse bereit.',
+      'Einheiten', v_konto_muell
+    );
+    perform pg_temp.key(
+      v_ws, v_objekt, 'consumption',
+      'Nach erfasstem Verbrauch (HeizkostenV). Zaehler sind noch nicht '
+      'erfasst, die Position bleibt deshalb offen.',
+      'Verbrauch', v_konto_heizung
+    );
+  end loop;
+
   -- Drei Perioden: die beiden aelteren abgeschlossen, die laufende offen —
   -- damit die Kennzahlen sich ehrlich als vorlaeufig ausweisen.
   v_monat_1 := date_trunc('month', v_heute - interval '2 months')::date;
@@ -749,6 +867,158 @@ begin
     v_monat_3 + 2, 3055, 'EUR', gen_random_uuid(), gen_random_uuid(),
     'Mieteingang Wohnen', null, null, 'Demo-Fixture'
   ), 'Buchung Lindenhof Ertrag laufend');
+
+
+  -- Betriebskosten je Kostenart, zwei abgeschlossene Perioden, beide
+  -- Objekte. Erst hiermit hat die Abrechnungsvorschau etwas zu verteilen:
+  -- vorher gab es genau ein Sammelkonto "Betriebskosten", und eine
+  -- Abrechnung mit einer Zeile beweist nichts.
+  --
+  -- Lindenhof rechnet bewusst *nicht* durch: WE-06 hat keine Flaeche (siehe
+  -- oben), also ist die Bemessung Flaeche dort unaufloesbar und die
+  -- Vorschau verweigert die Verteilung, statt die fehlende Wohnung still
+  -- auf die anderen umzulegen. Kontorhaus hat alle Flaechen und rechnet
+  -- vollstaendig durch. Beide Faelle nebeneinander sind der Punkt.
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_muell, v_periode_1,
+    v_monat_1 + 3, 186.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Muellabfuhr Quartalsrechnung', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Muellabfuhr Quartalsrechnung -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_muell, v_periode_2,
+    v_monat_2 + 3, 186.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Muellabfuhr Quartalsrechnung', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Muellabfuhr Quartalsrechnung -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_muell, v_periode_1,
+    v_monat_1 + 3, 262.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Muellabfuhr Quartalsrechnung', null, null, 'Demo-Fixture'
+  ), 'Kontor Muellabfuhr Quartalsrechnung -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_muell, v_periode_2,
+    v_monat_2 + 3, 262.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Muellabfuhr Quartalsrechnung', null, null, 'Demo-Fixture'
+  ), 'Kontor Muellabfuhr Quartalsrechnung -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_wasser, v_periode_1,
+    v_monat_1 + 4, 412.50, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Wasser und Abwasser', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Wasser und Abwasser -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_wasser, v_periode_2,
+    v_monat_2 + 4, 412.50, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Wasser und Abwasser', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Wasser und Abwasser -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_wasser, v_periode_1,
+    v_monat_1 + 4, 738.20, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Wasser und Abwasser', null, null, 'Demo-Fixture'
+  ), 'Kontor Wasser und Abwasser -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_wasser, v_periode_2,
+    v_monat_2 + 4, 738.20, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Wasser und Abwasser', null, null, 'Demo-Fixture'
+  ), 'Kontor Wasser und Abwasser -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_hausmeister, v_periode_1,
+    v_monat_1 + 5, 340.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Hausmeisterdienst', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Hausmeisterdienst -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_hausmeister, v_periode_2,
+    v_monat_2 + 5, 340.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Hausmeisterdienst', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Hausmeisterdienst -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_hausmeister, v_periode_1,
+    v_monat_1 + 5, 520.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Hausmeisterdienst', null, null, 'Demo-Fixture'
+  ), 'Kontor Hausmeisterdienst -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_hausmeister, v_periode_2,
+    v_monat_2 + 5, 520.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Hausmeisterdienst', null, null, 'Demo-Fixture'
+  ), 'Kontor Hausmeisterdienst -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_versicherung, v_periode_1,
+    v_monat_1 + 6, 258.75, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gebaeudeversicherung Rate', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Gebaeudeversicherung Rate -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_versicherung, v_periode_2,
+    v_monat_2 + 6, 258.75, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gebaeudeversicherung Rate', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Gebaeudeversicherung Rate -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_versicherung, v_periode_1,
+    v_monat_1 + 6, 431.25, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gebaeudeversicherung Rate', null, null, 'Demo-Fixture'
+  ), 'Kontor Gebaeudeversicherung Rate -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_versicherung, v_periode_2,
+    v_monat_2 + 6, 431.25, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gebaeudeversicherung Rate', null, null, 'Demo-Fixture'
+  ), 'Kontor Gebaeudeversicherung Rate -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_strom, v_periode_1,
+    v_monat_1 + 7, 94.30, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Allgemeinstrom Abschlag', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Allgemeinstrom Abschlag -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_strom, v_periode_2,
+    v_monat_2 + 7, 94.30, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Allgemeinstrom Abschlag', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Allgemeinstrom Abschlag -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_strom, v_periode_1,
+    v_monat_1 + 7, 168.40, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Allgemeinstrom Abschlag', null, null, 'Demo-Fixture'
+  ), 'Kontor Allgemeinstrom Abschlag -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_strom, v_periode_2,
+    v_monat_2 + 7, 168.40, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Allgemeinstrom Abschlag', null, null, 'Demo-Fixture'
+  ), 'Kontor Allgemeinstrom Abschlag -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_garten, v_periode_1,
+    v_monat_1 + 8, 145.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gartenpflege', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Gartenpflege -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_garten, v_periode_2,
+    v_monat_2 + 8, 145.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gartenpflege', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Gartenpflege -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_garten, v_periode_1,
+    v_monat_1 + 8, 210.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gartenpflege', null, null, 'Demo-Fixture'
+  ), 'Kontor Gartenpflege -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_garten, v_periode_2,
+    v_monat_2 + 8, 210.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Gartenpflege', null, null, 'Demo-Fixture'
+  ), 'Kontor Gartenpflege -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_heizung, v_periode_1,
+    v_monat_1 + 9, 620.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Heizung Abschlag', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Heizung Abschlag -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_wohnhaus, v_konto_heizung, v_periode_2,
+    v_monat_2 + 9, 620.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Heizung Abschlag', null, null, 'Demo-Fixture'
+  ), 'Lindenhof Heizung Abschlag -1');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_heizung, v_periode_1,
+    v_monat_1 + 9, 980.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Heizung Abschlag', null, null, 'Demo-Fixture'
+  ), 'Kontor Heizung Abschlag -2');
+  perform pg_temp.ok(public.record_finance_ledger_entry(
+    v_ws, v_kontor, v_konto_heizung, v_periode_2,
+    v_monat_2 + 9, 980.00, 'EUR', gen_random_uuid(), gen_random_uuid(),
+    'Heizung Abschlag', null, null, 'Demo-Fixture'
+  ), 'Kontor Heizung Abschlag -1');
 
   -- Buchungen Kontorhaus: Wohnen und Gewerbe getrennt.
   perform pg_temp.ok(public.record_finance_ledger_entry(
