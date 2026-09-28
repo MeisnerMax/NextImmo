@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'NexImmo',
     short_name: 'NexImmo',
-    description: 'Immobilien Asset Management Software von NexGen Consulting',
+    description: 'Cloud-Software für Immobilienbestände von NexGen Consulting',
     start_url: '/',
     display: 'standalone',
     background_color: '#f6f3ed',

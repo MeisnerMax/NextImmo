@@ -42,10 +42,10 @@ export default function OpenGraphImage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ maxWidth: 920, fontSize: 67, fontWeight: 750, lineHeight: 1.03 }}>
-            Immobilien im Griff. Entscheidungen im Blick.
+            Immobilien führen. Jede Zahl nachrechenbar.
           </div>
           <div style={{ marginTop: 28, color: '#b8c6cd', fontSize: 27 }}>
-            Asset Management Software von NexGen Consulting
+            Cloud-Software für Immobilienbestände · NexGen Consulting
           </div>
         </div>
       </div>
