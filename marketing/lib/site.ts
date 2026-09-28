@@ -7,5 +7,5 @@ export const siteConfig = {
   contactUrl: 'https://nexgen-consulting.de/kontakt',
   email: 'meisner@nexgen-consulting.de',
   description:
-    'NexImmo verbindet Portfolio, Objekte, Mieten, Finanzierung, CapEx und Reporting in einer professionellen Immobilien-Asset-Management-Software.',
+    'NexImmo ist die cloudbasierte Software für Immobilienbestände: Objektakte, Vermietung und Rent Roll, Betrieb, Dokumente, Bewertung, Hauptbuch und Betriebskosten – jede Zahl nachrechenbar, im Team mit Rollen und MFA.',
 } as const;
