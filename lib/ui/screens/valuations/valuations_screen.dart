@@ -101,7 +101,7 @@ class ValuationsScreen extends ConsumerWidget {
 
   String _subtitle(ValuationWorkspaceState state) {
     if (state.phase != ValuationWorkspacePhase.ready) {
-      return 'Verkehrswerte nach ImmoWertV und Investmentrechnung';
+      return 'Wertindikationen (Modellrechnung, kein Gutachten)';
     }
     final open = state.inReview.length;
     final total = state.cases.length;
@@ -318,7 +318,7 @@ class _Table extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Text(
-            'Verkehrswert und Konfidenz stehen im geöffneten Fall — die Liste '
+            'Wertindikation und Konfidenz stehen im geöffneten Fall — die Liste '
             'zeigt sie erst, wenn die Server-Projektion dafür steht.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

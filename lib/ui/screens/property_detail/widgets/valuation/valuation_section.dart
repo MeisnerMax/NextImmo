@@ -50,8 +50,8 @@ class ValuationSection extends StatelessWidget {
         NxSectionHeader(
           title: 'Wertermittlung',
           description:
-              'Verfahren nach ImmoWertV und Investmentrechnung, zusammengeführt '
-              'zu einem Verkehrswert.',
+              'Modellrechnung angelehnt an die Verfahren der ImmoWertV und '
+              'Investmentrechnung, zusammengeführt zu einer Wertindikation.',
           trailing: state.valuationCase == null
               ? null
               : ValuationStatusBadge(status: state.valuationCase!.status),

@@ -7,6 +7,11 @@ import '../../../../components/nx_status_badge.dart';
 import 'valuation_badges.dart';
 import 'valuation_formatting.dart';
 
+/// Fester Hinweis unter jeder Wertindikation.
+const String valuationDisclaimer =
+    'Modellrechnung auf Basis der erfassten Daten. Kein Verkehrswertgutachten '
+    'und keine Anlage-, Rechts- oder Steuerberatung.';
+
 /// The reconciled Verkehrswert: amount, confidence, the weighting that produced
 /// it and the reasoning — or the recorded statement that no value could be
 /// concluded, with the same prominence.
@@ -39,7 +44,7 @@ class MarketValueCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Expanded(
-                child: Text('Verkehrswert', style: theme.textTheme.titleMedium),
+                child: Text('Wertindikation', style: theme.textTheme.titleMedium),
               ),
               if (opinion case MarketValue(:final confidence))
                 ConfidenceBadge(confidence: confidence)
@@ -106,6 +111,13 @@ class MarketValueCard extends StatelessWidget {
               MarketValueUnavailable(:final reason) => reason,
             },
             style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            valuationDisclaimer,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

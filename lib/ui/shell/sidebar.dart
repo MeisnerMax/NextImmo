@@ -141,8 +141,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  widget.workspaceName ??
-                                      '613 Investment Group GmbH',
+                                  widget.workspaceName ?? 'Mein Unternehmen',
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.labelLarge?.copyWith(
                                     color: _menuText,

@@ -136,7 +136,7 @@ void main() {
       (tester) async {
     await _pump(tester, ValuationSection(state: _readyState()));
 
-    expect(find.text('Verkehrswert'), findsOneWidget);
+    expect(find.text('Wertindikation'), findsOneWidget);
     expect(find.text('1.091.313 €'), findsWidgets);
     expect(find.textContaining('Ertragswertverfahren 100 %'), findsOneWidget);
     expect(

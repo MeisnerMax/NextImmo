@@ -203,7 +203,7 @@ void main() {
     await _pumpHost(tester, ports: ports);
 
     expect(find.text('Wertermittlung'), findsOneWidget);
-    expect(find.text('Verkehrswert'), findsOneWidget);
+    expect(find.text('Wertindikation'), findsOneWidget);
     // Two factors short of any method: the section says so instead of a number.
     expect(find.text('nicht ermittelbar'), findsWidgets);
   });
