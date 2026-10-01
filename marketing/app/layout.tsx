@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'NexGen Consulting', url: siteConfig.parentUrl }],
   creator: 'NexGen Consulting',
-  publisher: 'NexGen Consulting',
+  publisher: siteConfig.legalEntity,
   alternates: { canonical: '/' },
   openGraph: {
     title: 'NexAsset – der Betrieb Ihres Portfolios in einer App',
