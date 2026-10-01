@@ -1,6 +1,8 @@
 export const siteConfig = {
   name: 'NexAsset',
   company: 'NexGen Consulting',
+  /** Rechtlicher Name laut Gewerbeanmeldung (Einzelunternehmen, Inhaber Max Meisner). */
+  legalEntity: 'Meisner-Ventures',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://neximmo.nexgen-consulting.de',
   parentUrl: 'https://nexgen-consulting.de',
   hotelsUrl: 'https://hotels.nexgen-consulting.de',

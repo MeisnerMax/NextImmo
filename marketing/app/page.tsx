@@ -63,7 +63,7 @@ function CheckIcon() { return <span className="check-icon" aria-hidden="true">�
 
 export default function HomePage() {
   const structuredData = [
-    { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'NexAsset', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', description: 'Aufgaben, Stempeluhr, Dienstplan, Chat, Hotel-Kennzahlen, Objekte und Finanzen in einer App.', url: siteConfig.url, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' }, creator: { '@type': 'Organization', name: siteConfig.company, url: siteConfig.parentUrl } },
+    { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'NexAsset', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', description: 'Aufgaben, Stempeluhr, Dienstplan, Chat, Hotel-Kennzahlen, Objekte und Finanzen in einer App.', url: siteConfig.url, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' }, creator: { '@type': 'Organization', name: siteConfig.company, legalName: siteConfig.legalEntity, url: siteConfig.parentUrl } },
     { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
   ];
   return (
@@ -138,7 +138,7 @@ export default function HomePage() {
             <div className="section-head reveal">
               <p className="eyebrow eyebrow--light">Heute im Produkt</p>
               <h2>Eine Software statt<br />zehn Tabellen und Gruppen-Chats.</h2>
-              <p>NexAsset ist im täglichen Betrieb einer Immobilien- und Hotelgruppe entstanden – von der Geschäftsführung bis zum Housekeeping.</p>
+              <p>Für alle im Unternehmen – von der Geschäftsführung über das Büro bis zum Team vor Ort.</p>
             </div>
             <div className="capability-grid">
               {modules.map((item) => (
@@ -239,7 +239,7 @@ export default function HomePage() {
             <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
             <div><span>Rechtliches</span><a href={`${app}/agb`}>AGB</a><a href={`${app}/avv`}>AVV</a><a href={`${app}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a></div>
           </div>
-          <div className="site-footer__bottom"><span>© {new Date().getFullYear()} NexGen Consulting. Alle Rechte vorbehalten.</span><span>Made in Coburg · Germany</span></div>
+          <div className="site-footer__bottom"><span>© {new Date().getFullYear()} {siteConfig.legalEntity}. Alle Rechte vorbehalten.</span><span>Made in Coburg · Germany</span></div>
         </div>
       </footer>
     </>
