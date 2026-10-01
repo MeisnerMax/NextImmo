@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: 'NexImmo',
+  name: 'NexAsset',
   company: 'NexGen Consulting',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://neximmo.nexgen-consulting.de',
   parentUrl: 'https://nexgen-consulting.de',
@@ -9,5 +9,5 @@ export const siteConfig = {
   /** NexAsset-Anwendung (Registrierung „Kostenlos testen“, AGB, AVV liegen dort, damit die zugestimmte Fassung zur App gehört). */
   nexassetAppUrl: process.env.NEXT_PUBLIC_NEXASSET_APP_URL ?? 'https://nexasset.nexgen-consulting.de',
   description:
-    'NexImmo ist die cloudbasierte Software für Immobilienbestände: Objektakte, Vermietung und Rent Roll, Betrieb, Dokumente, Bewertung, Hauptbuch und Betriebskosten – jede Zahl nachrechenbar, im Team mit Rollen und MFA.',
+    'NexAsset bündelt Aufgaben, Stempeluhr, Dienstplan, Urlaub, Team-Chat, Hotel-Kennzahlen aus Cloudbeds, Hotelbedarf, Objekte, Finanzen und Dokumente in einer App – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
 } as const;
