@@ -1,173 +1,98 @@
-import ProductDemo from '@/components/ProductDemo';
+import type { Metadata } from 'next';
+import Image from 'next/image';
 import { Logo } from '@/components/Logo';
 import { siteConfig } from '@/lib/site';
 
-const capabilities = [
-  {
-    index: '01',
-    title: 'Objektakte & Vermietung',
-    text: 'Objekte, Einheiten, Bilder und Mietverträge in einer Akte. Mietbestandteile werden zeitlich versioniert, die Warmmiete serverseitig berechnet und die Rent Roll zu jedem Stichtag festgehalten.',
-    tags: ['Rent Roll', 'Mietbestandteile', 'Vertragsenden'],
-  },
-  {
-    index: '02',
-    title: 'Betrieb & Aufgaben',
-    text: 'Instandhaltungs-Tickets, CapEx-Maßnahmen, Aufgaben als Liste oder Board und eine Arbeitsliste, die fällige Signale wie auslaufende Mietverträge automatisch nach vorne holt.',
-    tags: ['Tickets', 'Maßnahmen', 'Arbeitsliste'],
-  },
-  {
-    index: '03',
-    title: 'Dokumente & Compliance',
-    text: 'Dokumentenregister je Objekt, Pflichtnachweise und Compliance-Übersicht. Dateien liegen privat und werden nur über zeitlich begrenzte, signierte Links geöffnet.',
-    tags: ['Pflichtnachweise', 'Verträge', 'Signierte Links'],
-  },
-  {
-    index: '04',
-    title: 'Kontakte & Dienstleister',
-    text: 'Mieter, Kontakte und Dienstleister zentral – inklusive Lieferantenverträgen mit automatisch berechneten Kündigungsfristen.',
-    tags: ['Mieter', 'Dienstleister', 'Kündigungsfristen'],
-  },
-  {
-    index: '05',
-    title: 'Bewertung',
-    text: 'Bewertungsfälle mit Varianten: Ertragswert, Sachwert, DCF, Direktkapitalisierung, Vergleichs- und Bodenwert – als nachvollziehbare interne Analyse.',
-    tags: ['Ertragswert', 'Sachwert', 'DCF'],
-  },
-  {
-    index: '06',
-    title: 'Finanzen & Betriebskosten',
-    text: 'Kostenarten, Buchungsperioden mit Abschluss und objektbezogenes Hauptbuch. Umlagefähigkeit, Kostenstellen und Umlageschlüssel nach BetrKV und HeizkostenV bis zur Abrechnungsvorschau.',
-    tags: ['Hauptbuch', 'Umlageschlüssel', 'Abrechnungsvorschau'],
-  },
+const app = siteConfig.nexassetAppUrl;
+const trialUrl = `${app}/registrieren`;
+
+export const metadata: Metadata = {
+  title: { absolute: 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams' },
+  description: 'NexAsset bündelt Aufgaben, Stempeluhr, Dienstplan, Urlaub, Chat, Hotel-Kennzahlen aus Cloudbeds, Hotelbedarf, Objekte, Finanzen und Dokumente in einer App – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
+  alternates: { canonical: '/' },
+  openGraph: { title: 'NexAsset – der Betrieb Ihres Portfolios in einer App', description: 'Aufgaben, Zeiterfassung, Hotels, Objekte und Team in einer Software. 14 Tage kostenlos testen.', url: siteConfig.url, siteName: 'NexAsset', locale: 'de_DE', type: 'website' },
+};
+
+const modules = [
+  { index: '01', title: 'Aufgaben & Projekte', text: 'Listen, Gruppen und Zuständigkeiten wie in einem Projekt-Tool – mit Kommentaren, Fotos, Fälligkeiten, RASIC-Rollen und einer persönlichen Arbeitsliste „Meine Aufgaben“.', tags: ['Listen & Gruppen', 'RASIC', 'Wochenbericht'] },
+  { index: '02', title: 'Stempeluhr & Zeiterfassung', text: 'Ein- und Ausstempeln mit Pause per Klick, laufende Uhr am Bildschirmrand, Erinnerungen zu Dienstbeginn, Dienstende und Pause, Monatsauswertung und Lohnvorbereitung.', tags: ['Stempeluhr', 'Erinnerungen', 'Lohnvorbereitung'] },
+  { index: '03', title: 'Dienstplan, Urlaub & Personal', text: 'Dienste planen, Wunschzeiten und Tausch, Urlaubsanträge mit Freigabe durch die Leitung, Personalakten, Fristen und Abwesenheiten im Kalender.', tags: ['Dienstplan', 'Urlaubsanträge', 'Personalakte'] },
+  { index: '04', title: 'Team-Chat', text: 'Direktnachrichten, Teams und Abteilungsräume, Sprachnachrichten, Fotos und PDFs – auf Wunsch direkt einem Objekt, einer Einheit oder Aufgabe zugeordnet und unter Dokumente abgelegt.', tags: ['Teams', 'Sprachnachrichten', 'Fotos zuordnen'] },
+  { index: '05', title: 'Hotel Performance', text: 'Belegung, ADR, RevPAR und Umsatz live aus Cloudbeds (nur lesend), Zimmer & Belegungs-Timeline, Rückerstattungen und offene Salden, Hotelbedarf mit Bestellungen und Bestand.', tags: ['Cloudbeds', 'Timeline', 'Hotelbedarf'] },
+  { index: '06', title: 'Objekte, Finanzen & Dokumente', text: 'Objekte, Einheiten und Mieter, Nebenkosten und Versicherungen, Kontoauszug-Import, Rechnungen mit P-Nummer, Kassenbuch, Development-Kosten und Dokumente mit Freigaben.', tags: ['Mieter', 'Rechnungen', 'Kassenbuch'] },
 ];
 
-const workflow = [
-  { number: '01', title: 'Bestand erfassen', text: 'Objekte, Einheiten, Mietverträge, Kontakte und Dokumente werden strukturiert in einer Objektakte geführt.' },
-  { number: '02', title: 'Serverseitig rechnen', text: 'Warmmiete, Rent Roll, Fristen und Umlagen entstehen nach festen Regeln – jede Zahl mit ihrem Rechenweg.' },
-  { number: '03', title: 'Signale priorisieren', text: 'Vertragsenden, fehlende Nachweise und offene Tickets landen automatisch in der Arbeitsliste.' },
-  { number: '04', title: 'Im Team erledigen', text: 'Aufgaben, Zuständigkeiten und jede Änderung bleiben am Objekt dokumentiert – mit Audit-Trail.' },
+const desktopShots = [
+  { src: '/screens/desk-tasks.webp', title: 'Aufgaben', text: 'Listen und Gruppen, Zuständige, Fälligkeiten und Status auf einen Blick.', alt: 'NexAsset Aufgabenliste mit Gruppen, Zuständigen und Fälligkeiten' },
+  { src: '/screens/desk-approvals.webp', title: 'Freigaben', text: 'Urlaub, Ausgleichstage, Material- und Hotelbedarf entscheiden – an einer Stelle.', alt: 'NexAsset Freigaben-Seite mit offenen Anträgen' },
+  { src: '/screens/desk-time.webp', title: 'Zeiterfassung', text: 'Stempeluhr, Monatsübersicht und Vorbereitung der Lohnabrechnung.', alt: 'NexAsset Zeiterfassung mit Stempeluhr und Monatsübersicht' },
 ];
 
-const security = [
-  { title: 'Zwei-Faktor-Anmeldung', text: 'Geschäftsdaten nur nach E-Mail, Passwort und TOTP-Code.' },
-  { title: 'Rollen & Rechte', text: 'Admin, Manager, Analyst, Betrieb und Leserechte – bis auf Objektebene.' },
-  { title: 'Standardmäßig gesperrt', text: 'Jede Tabelle ist per Row-Level-Security abgesichert, Zugriff nur mit Freigabe.' },
-  { title: 'Lückenlose Historie', text: 'Jede Änderung wird protokolliert; Perioden lassen sich abschließen.' },
+const phoneShots = [
+  { src: '/screens/phone-time.webp', title: 'Stempeluhr', text: 'Ein- und ausstempeln, Pause, Erinnerungen.', alt: 'NexAsset App: Stempeluhr' },
+  { src: '/screens/phone-chat.webp', title: 'Team-Chat', text: 'Nachrichten, Fotos und Sprachnachrichten.', alt: 'NexAsset App: Team-Chat' },
+  { src: '/screens/phone-hotel.webp', title: 'Hotelbedarf', text: 'Artikel anfragen, Bestand und Bestellungen.', alt: 'NexAsset App: Hotelbedarf anfragen' },
+  { src: '/screens/phone-approvals.webp', title: 'Anträge', text: 'Urlaub beantragen und den Stand verfolgen.', alt: 'NexAsset App: eigene Anträge und Freigaben' },
 ];
 
-const roadmap = [
-  'Vollständige Betriebskostenabrechnung mit Versand an Mieter',
-  'Finanzierung, Darlehen und Covenants (LTV, DSCR)',
-  'Budget, Forecast und Soll-Ist-Vergleich',
-  'Portfolio-Auswertungen, Reports und PDF-Export',
-  'Zähler, Verbräuche und Datenimport',
+const trialSteps = [
+  { number: '01', title: 'Registrieren', text: 'Name, geschäftliche E-Mail und Unternehmen eingeben, AGB und Auftragsverarbeitungsvertrag bestätigen. Keine Zahlungsdaten.' },
+  { number: '02', title: 'Eigener Bereich', text: 'Ihr Unternehmen bekommt sofort einen eigenen, leeren Bereich – vollständig getrennt von allen anderen Kunden. Sie sind Administrator.' },
+  { number: '03', title: 'Team einladen', text: 'Kolleginnen und Kollegen per Link einladen, Rollen und Rechte je Seite festlegen. Eine kurze Einführung erklärt jede Funktion.' },
+  { number: '04', title: 'Entscheiden', text: 'Nach 14 Tagen endet der Test automatisch, ohne Kündigung und ohne Kosten. Ihre Daten bleiben 30 Tage lesbar und exportierbar.' },
+];
+
+const trust = [
+  { title: 'Getrennte Mandanten', text: 'Jedes Unternehmen ist ein eigener Bereich. Der Server liefert ausschließlich Daten des eigenen Unternehmens aus.' },
+  { title: 'Rollen & Rechte', text: 'Rechte je Seite, Bereich und Datenumfang: alle Daten, eigene Abteilung oder nur eigene – inklusive Freigabefunktionen.' },
+  { title: 'DSGVO-konform aufgesetzt', text: 'Auftragsverarbeitungsvertrag nach Art. 28 DSGVO, Hosting im EU-Rechenzentrum, Dateien privat und nur nach Anmeldung abrufbar.' },
+  { title: 'Fünf Sprachen', text: 'Deutsch, Englisch, Polnisch, Griechisch und Persisch – jede Person arbeitet in ihrer Sprache, auch Einladungen und E-Mails.' },
 ];
 
 const faqs = [
-  {
-    question: 'Für wen ist NexImmo gedacht?',
-    answer:
-      'Für Bestandshalter, Asset Manager, Family Offices und Teams in der Objekt- und Vermietungsbetreuung, die ihren Bestand gemeinsam in einem System führen möchten – statt verteilt über Tabellen, Ordner und E-Mails.',
-  },
-  {
-    question: 'Was bedeutet „nachrechenbar“?',
-    answer:
-      'Kennzahlen werden serverseitig nach festen, versionierten Regeln berechnet und zeigen ihren Rechenweg. In der Betriebskosten-Vorschau trägt jede Zeile Schlüssel, Zähler und Nenner – nachrechenbar bis auf den Cent. Fehlen Daten, rechnet NexImmo nicht still weiter, sondern nennt den Grund und den betroffenen Betrag.',
-  },
-  {
-    question: 'Ist die Software bereits verfügbar?',
-    answer:
-      'NexImmo befindet sich in der Pilotphase. Die Kernbereiche – Objekte, Vermietung, Betrieb, Dokumente, Kontakte, Bewertung und Hauptbuch – sind nutzbar. Pilotzugänge werden individuell mit NexGen Consulting abgestimmt.',
-  },
-  {
-    question: 'Läuft NexImmo in der Cloud?',
-    answer:
-      'Ja. NexImmo ist eine Cloud-Anwendung für Web und Windows-Desktop. Mehrere Personen arbeiten gleichzeitig im selben Arbeitsbereich, Änderungen erscheinen bei allen sofort.',
-  },
-  {
-    question: 'Ersetzt NexImmo Excel?',
-    answer:
-      'Für die Führung des Bestands ja: Stammdaten, Verträge, Fristen, Dokumente und Buchungen liegen zentral mit Historie. Die Übernahme Ihrer bestehenden Daten klären wir im Pilot gemeinsam.',
-  },
-  {
-    question: 'Wie läuft eine Einführung ab?',
-    answer:
-      'Zunächst nehmen wir Bestand, Datenquellen und Ihre wichtigsten Abläufe auf. Daraus entsteht ein priorisierter Pilotumfang mit Datenübernahme, Rollen und gemeinsamer Abnahme.',
-  },
+  { question: 'Was kostet der Test?', answer: 'Nichts. Die Testphase dauert 14 Tage, wir fragen keine Zahlungsdaten ab und sie endet automatisch – ohne Kündigung. Ein kostenpflichtiger Vertrag kommt nur zustande, wenn Sie danach ausdrücklich weitermachen möchten.' },
+  { question: 'Sehen andere Kunden meine Daten?', answer: 'Nein. Wie bei bekannten Cloud-Tools (z. B. ClickUp-Workspaces) bekommt jedes Unternehmen einen eigenen Mandanten. Alle Kunden nutzen dieselbe Anwendung, aber jede Information ist fest Ihrem Unternehmen zugeordnet und wird nur Ihren berechtigten Nutzern ausgeliefert.' },
+  { question: 'Was passiert nach den 14 Tagen?', answer: 'NexAsset wird für Ihr Unternehmen schreibgeschützt: Sie sehen weiterhin alles und können Daten exportieren. Nach 30 Tagen ohne Vertrag werden die Daten gelöscht. Möchten Sie weitermachen, schalten wir Ihr Unternehmen ohne Datenverlust frei.' },
+  { question: 'Gibt es eine App fürs Handy?', answer: 'Ja. NexAsset läuft im Browser und als App für iOS und Android – mit Push-Benachrichtigungen, Stempeluhr, Chat und Fotos direkt vom Handy.' },
+  { question: 'Welche Systeme lassen sich anbinden?', answer: 'Cloudbeds (Hotel-Kennzahlen, nur lesend), ClickUp (Übernahme von Aufgaben), Google Drive und Kalender sowie Bank-Kontoauszüge per Datei-Import. Weitere Anbindungen klären wir gern.' },
+  { question: 'Für wen ist NexAsset gedacht?', answer: 'Für Unternehmen mit Immobilien, Hotels oder Bauprojekten und Teams vor Ort – Geschäftsführung, Asset Management, Facility Management, Housekeeping, Buchhaltung. NexAsset richtet sich ausschließlich an Unternehmen.' },
 ];
 
-function ArrowIcon() {
-  return <span aria-hidden="true">↗</span>;
-}
-
-function CheckIcon() {
-  return <span className="check-icon" aria-hidden="true">✓</span>;
-}
+function ArrowIcon() { return <span aria-hidden="true">↗</span>; }
+function CheckIcon() { return <span className="check-icon" aria-hidden="true">✓</span>; }
 
 export default function HomePage() {
   const structuredData = [
-    {
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: siteConfig.name,
-      applicationCategory: 'BusinessApplication',
-      operatingSystem: 'Windows, Web',
-      description: siteConfig.description,
-      url: siteConfig.url,
-      creator: {
-        '@type': 'Organization',
-        name: siteConfig.company,
-        url: siteConfig.parentUrl,
-      },
-    },
-    {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: faqs.map((faq) => ({
-        '@type': 'Question',
-        name: faq.question,
-        acceptedAnswer: { '@type': 'Answer', text: faq.answer },
-      })),
-    },
+    { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'NexAsset', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', description: 'Aufgaben, Stempeluhr, Dienstplan, Chat, Hotel-Kennzahlen, Objekte und Finanzen in einer App.', url: siteConfig.url, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' }, creator: { '@type': 'Organization', name: siteConfig.company, url: siteConfig.parentUrl } },
+    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
   ];
-
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(structuredData).replace(/</g, '\\u003c'),
-        }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
       <header className="site-header">
         <div className="shell site-header__inner">
-          <a href="#top" aria-label="NexImmo Startseite"><Logo inverse /></a>
+          <a href="#top" aria-label="NexAsset"><Logo inverse product="Asset" /></a>
           <nav className="desktop-nav" aria-label="Hauptnavigation">
-            <a href="#produkt">Produkt</a>
             <a href="#funktionen">Funktionen</a>
-            <a href="#system">System</a>
+            <a href="#testen">So funktioniert der Test</a>
             <a href="#sicherheit">Sicherheit</a>
+            <a href="#einblicke">Einblicke</a>
             <a href="#faq">FAQ</a>
-            <a href="/nexasset">NexAsset</a>
           </nav>
           <div className="header-actions">
-            <a className="parent-link" href={siteConfig.parentUrl} target="_blank" rel="noreferrer">
-              NexGen Consulting <ArrowIcon />
-            </a>
-            <a className="button button--compact" href={siteConfig.contactUrl}>
-              Pilotzugang
-            </a>
+            <a className="parent-link" href={`${app}/login`}>Anmelden <ArrowIcon /></a>
+            <a className="button button--compact" href={trialUrl}>Kostenlos testen</a>
           </div>
           <details className="mobile-nav">
             <summary aria-label="Navigation öffnen"><span /><span /></summary>
             <div>
-              <a href="#produkt">Produkt</a>
               <a href="#funktionen">Funktionen</a>
-              <a href="#system">System</a>
+              <a href="#einblicke">Einblicke</a>
+              <a href="#testen">So funktioniert der Test</a>
               <a href="#sicherheit">Sicherheit</a>
               <a href="#faq">FAQ</a>
-              <a href="/nexasset">NexAsset – kostenlos testen</a>
-              <a href={siteConfig.contactUrl}>Pilotzugang anfragen</a>
+              <a href={`${app}/login`}>Anmelden</a>
+              <a href={trialUrl}>14 Tage kostenlos testen</a>
             </div>
           </details>
         </div>
@@ -180,71 +105,31 @@ export default function HomePage() {
           <div className="hero__glow hero__glow--two" aria-hidden="true" />
           <div className="shell hero__inner">
             <div className="hero__copy">
-              <p className="eyebrow eyebrow--light"><i /> Immobilien Asset Management Software</p>
-              <h1>Immobilien führen.<br /><span>Jede Zahl nachrechenbar.</span></h1>
-              <p className="hero__lead">
-                Objektakte, Vermietung, Betrieb, Dokumente, Bewertung und Betriebskosten in einer
-                Cloud-Software – im Team, mit Rollen, Zwei-Faktor-Anmeldung und lückenloser Historie.
-              </p>
+              <p className="eyebrow eyebrow--light"><i /> NexAsset · Betriebssoftware</p>
+              <h1>Ihr ganzer Betrieb.<br /><span>In einer App.</span></h1>
+              <p className="hero__lead">Aufgaben, Stempeluhr, Dienstplan, Urlaub, Team-Chat, Hotel-Kennzahlen, Objekte, Finanzen und Dokumente – für Büro und Team vor Ort, im Browser und als App für iOS und Android.</p>
               <div className="hero__actions">
-                <a className="button" href={siteConfig.contactUrl}>Pilotzugang anfragen <ArrowIcon /></a>
-                <a className="button button--ghost" href="#produkt">Produkt entdecken <span aria-hidden="true">↓</span></a>
+                <a className="button" href={trialUrl}>14 Tage kostenlos testen <ArrowIcon /></a>
+                <a className="button button--ghost" href="#funktionen">Funktionen ansehen <span aria-hidden="true">↓</span></a>
               </div>
               <div className="hero__proof">
-                <div><strong>Nachrechenbar</strong><span>jede Zahl mit Rechenweg</span></div>
-                <div><strong>Im Team</strong><span>Rollen, Rechte & MFA</span></div>
-                <div><strong>BetrKV & HeizkostenV</strong><span>fachlich eingebaut</span></div>
+                <div><strong>Ohne Zahlungsdaten</strong><span>Test endet automatisch</span></div>
+                <div><strong>Eigener Bereich</strong><span>getrennt von anderen Kunden</span></div>
+                <div><strong>Web, iOS & Android</strong><span>in fünf Sprachen</span></div>
               </div>
             </div>
-            <div className="hero__visual">
-              <div className="orbit orbit--one" aria-hidden="true" />
-              <div className="orbit orbit--two" aria-hidden="true" />
-              <div className="building-card building-card--main">
-                <span className="building-card__label">Objektakte</span>
-                <div className="building-mark" aria-hidden="true">
-                  <i /><i /><i /><i /><i /><i /><i /><i /><i />
-                </div>
-                <strong>18 Einheiten</strong>
-                <small>Rent Roll zum Stichtag</small>
-              </div>
-              <div className="float-card float-card--top"><i className="pulse-dot" /><span><b>3 Vertragsenden</b><small>in den nächsten 90 Tagen</small></span></div>
-              <div className="float-card float-card--right"><span className="mini-chart"><i /><i /><i /><i /></span><span><b>2 Tickets</b><small>heute fällig</small></span></div>
-              <div className="float-card float-card--bottom"><CheckIcon /><span><b>Rechenweg je Zeile</b><small>Umlage bis auf den Cent</small></span></div>
+            <div className="hero__visual hero__visual--shots">
+              <figure className="device device--desktop">
+                <div className="device__bar" aria-hidden="true"><i /><i /><i /><span>nexasset.nexgen-consulting.de</span></div>
+                <Image src="/screens/desk-dashboard.webp" alt="NexAsset Dashboard mit Kennzahlen zu Objekten, Mieten und offenen Aufgaben" width={1600} height={1000} priority sizes="(max-width: 820px) 92vw, 46vw" />
+              </figure>
+              <figure className="device device--phone">
+                <Image src="/screens/phone-time.webp" alt="NexAsset App auf dem Handy: Stempeluhr mit laufender Arbeitszeit" width={720} height={1558} priority sizes="(max-width: 620px) 34vw, 180px" />
+              </figure>
             </div>
           </div>
-          <div className="hero__ticker" aria-label="Produktbereiche">
-            <div>
-              <span>Objekte</span><i />
-              <span>Vermietung</span><i />
-              <span>Betrieb</span><i />
-              <span>Dokumente</span><i />
-              <span>Bewertung</span><i />
-              <span>Hauptbuch</span><i />
-              <span>Betriebskosten</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="intro section" id="produkt">
-          <div className="shell">
-            <div className="section-head section-head--split reveal">
-              <div>
-                <p className="eyebrow">Das Steuerungssystem</p>
-                <h2>Vom Bestand bis zum einzelnen Vorgang.</h2>
-              </div>
-              <p>
-                NexImmo verbindet die operative Arbeit am Objekt mit sauberen Zahlen. Jede Kennzahl
-                führt direkt zu Vertrag, Einheit, Dokument oder Buchung – und zeigt, wie sie
-                entstanden ist.
-              </p>
-            </div>
-            <div className="product-frame reveal">
-              <div className="product-frame__caption">
-                <span><i /> Interaktive Produktvorschau</span>
-                <small>Fiktive Beispieldaten</small>
-              </div>
-              <ProductDemo />
-            </div>
+          <div className="hero__ticker" aria-label="Bereiche">
+            <div><span>Aufgaben</span><i /><span>Stempeluhr</span><i /><span>Dienstplan</span><i /><span>Chat</span><i /><span>Hotels</span><i /><span>Objekte</span><i /><span>Finanzen</span></div>
           </div>
         </section>
 
@@ -252,11 +137,11 @@ export default function HomePage() {
           <div className="shell">
             <div className="section-head reveal">
               <p className="eyebrow eyebrow--light">Heute im Produkt</p>
-              <h2>Alles, was die Bestandsführung<br />im Alltag braucht.</h2>
-              <p>Keine lose Modulsammlung: Objekt, Vertrag, Dokument und Buchung greifen in einer gemeinsamen Datenbasis ineinander.</p>
+              <h2>Eine Software statt<br />zehn Tabellen und Gruppen-Chats.</h2>
+              <p>NexAsset ist im täglichen Betrieb einer Immobilien- und Hotelgruppe entstanden – von der Geschäftsführung bis zum Housekeeping.</p>
             </div>
             <div className="capability-grid">
-              {capabilities.map((item) => (
+              {modules.map((item) => (
                 <article className="capability-card reveal" key={item.index}>
                   <div className="capability-card__top"><span>{item.index}</span><i aria-hidden="true">↗</i></div>
                   <h3>{item.title}</h3>
@@ -268,53 +153,46 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="context section">
-          <div className="shell context__grid">
-            <div className="context__copy reveal">
-              <p className="eyebrow">Nachrechenbar statt Blackbox</p>
-              <h2>Eine Zahl, der man nicht glauben muss.</h2>
-              <p>
-                Ein auslaufender Mietvertrag, ein fehlender Nachweis oder eine Umlage, die nicht
-                aufgeht, wird erst dann steuerbar, wenn Herkunft, Objekt und nächste Aktion
-                direkt verbunden sind.
-              </p>
-              <ul>
-                <li><CheckIcon /><span><strong>Kennzahl mit Herkunft</strong><small>Schlüssel, Zähler und Nenner stehen an jeder Zeile.</small></span></li>
-                <li><CheckIcon /><span><strong>Lücken werden benannt</strong><small>Fehlen Daten, nennt NexImmo Grund und Betrag, statt still zu schätzen.</small></span></li>
-                <li><CheckIcon /><span><strong>Regeln mit Quelle</strong><small>Rechtsregeln sind versioniert, mit Gültigkeit und Bestätigung.</small></span></li>
-              </ul>
+        <section className="screens section" id="einblicke">
+          <div className="shell">
+            <div className="section-head section-head--split reveal">
+              <div><p className="eyebrow">Einblicke</p><h2>So sieht NexAsset aus.</h2></div>
+              <p>Echte Ansichten aus der Anwendung – gefüllt mit Beispieldaten eines fiktiven Unternehmens. Am Schreibtisch im Browser, unterwegs als App.</p>
             </div>
-            <div className="decision-map reveal" aria-label="Beispielhafter Entscheidungsfluss">
-              <div className="decision-map__top"><span>Vom Signal zur Aktion</span><i><b /></i></div>
-              <div className="decision-map__canvas">
-                <div className="map-node map-node--signal"><span>01 · Signal</span><strong>Vertragsende in 60 Tagen</strong><small>Whg. 3 · Beispielobjekt</small></div>
-                <i className="map-line map-line--one" aria-hidden="true"><b /></i>
-                <div className="map-node map-node--context"><span>02 · Kontext</span><strong>Kündigungsfrist & Rent Roll</strong><small>Vertrag · Einheit · Dokumente</small></div>
-                <i className="map-line map-line--two" aria-hidden="true"><b /></i>
-                <div className="map-node map-node--action"><span>03 · Aktion</span><strong>Aufgabe zugewiesen</strong><small>Nachvermietung starten</small></div>
-              </div>
-              <div className="decision-map__footer"><span><i /> Echtzeit im Team</span><span>Audit-Trail aktiv</span></div>
+            <div className="screens__desktop">
+              {desktopShots.map((shot) => (
+                <figure className="screen-card reveal" key={shot.src}>
+                  <div className="device device--desktop"><div className="device__bar" aria-hidden="true"><i /><i /><i /></div><Image src={shot.src} alt={shot.alt} width={1600} height={1000} sizes="(max-width: 820px) 92vw, 60vw" /></div>
+                  <figcaption><strong>{shot.title}</strong><span>{shot.text}</span></figcaption>
+                </figure>
+              ))}
+            </div>
+            <div className="screens__phones">
+              {phoneShots.map((shot) => (
+                <figure className="phone-card reveal" key={shot.src}>
+                  <div className="device device--phone"><Image src={shot.src} alt={shot.alt} width={720} height={1558} sizes="(max-width: 620px) 44vw, 240px" /></div>
+                  <figcaption><strong>{shot.title}</strong><span>{shot.text}</span></figcaption>
+                </figure>
+              ))}
             </div>
           </div>
         </section>
 
-        <section className="workflow section" id="system">
+        <section className="workflow section" id="testen">
           <div className="shell">
             <div className="section-head section-head--split reveal">
-              <div><p className="eyebrow">Durchgängiger Arbeitsfluss</p><h2>Ein klarer Weg durch den Bestand.</h2></div>
-              <p>NexImmo übersetzt verstreute Informationen in einen wiederholbaren Arbeitsablauf – ohne die fachliche Tiefe von Immobilien zu vereinfachen.</p>
+              <div><p className="eyebrow">Kostenlos testen</p><h2>In zwei Minuten startklar.</h2></div>
+              <p>Der Test läuft in Ihrem eigenen, leeren Unternehmensbereich – wie bei bekannten Cloud-Tools. Sie behalten jederzeit die Kontrolle über Ihre Daten.</p>
             </div>
             <div className="workflow-rail">
-              {workflow.map((step) => (
-                <article className="workflow-step reveal" key={step.number}>
-                  <span>{step.number}</span><div><h3>{step.title}</h3><p>{step.text}</p></div>
-                </article>
+              {trialSteps.map((step) => (
+                <article className="workflow-step reveal" key={step.number}><span>{step.number}</span><div><h3>{step.title}</h3><p>{step.text}</p></div></article>
               ))}
             </div>
             <div className="system-note reveal">
-              <div className="system-note__mark">NX</div>
-              <div><span>Entwickelt mit Praxisbezug</span><h3>Immobilienlogik statt generischer Projektverwaltung.</h3></div>
-              <p>NexImmo entsteht aus dem täglichen Asset Management eines Bestandshalters: Mietverträge, Instandhaltung, Nachweise, Buchungen und Betriebskosten greifen fachlich ineinander – mit dem Rechtsstand von BetrKV und HeizkostenV im Blick.</p>
+              <div className="system-note__mark">14</div>
+              <div><span>Kostenlos und unverbindlich</span><h3>14 Tage alle Funktionen testen.</h3></div>
+              <p>Bei der Registrierung bestätigen Sie die <a href={`${app}/agb`}>AGB</a>, den <a href={`${app}/avv`}>Auftragsverarbeitungsvertrag (AVV)</a> und dass Sie für ein Unternehmen handeln. Infos zum Datenschutz: <a href={`${app}/datenschutz`}>Datenschutzerklärung</a>. Werbe-E-Mails gibt es nur, wenn Sie es ausdrücklich möchten.</p>
             </div>
           </div>
         </section>
@@ -322,45 +200,21 @@ export default function HomePage() {
         <section className="security section" id="sicherheit">
           <div className="shell">
             <div className="section-head section-head--split reveal">
-              <div><p className="eyebrow">Sicherheit & Team</p><h2>Gebaut für sensible Bestandsdaten.</h2></div>
-              <p>Mietverträge, Kontakte und Buchungen gehören nicht in offene Tabellen. NexImmo ist von Grund auf mehrbenutzerfähig und abgesichert.</p>
+              <div><p className="eyebrow">Sicherheit & Datenschutz</p><h2>Ihre Daten gehören Ihnen.</h2></div>
+              <p>Personaldaten, Verträge und Zahlen gehören nicht in offene Tabellen. NexAsset trennt Unternehmen strikt und gibt Daten nur an berechtigte Personen.</p>
             </div>
             <div className="security-grid">
-              {security.map((item) => (
-                <article className="security-card reveal" key={item.title}>
-                  <CheckIcon />
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </article>
-              ))}
-            </div>
-            <div className="roadmap reveal">
-              <div><span>In Entwicklung</span><h3>Was als Nächstes kommt</h3><p>Wir erweitern NexImmo schrittweise – immer erst, wenn eine Funktion nachrechenbar ist.</p></div>
-              <ul>{roadmap.map((item) => <li key={item}><i aria-hidden="true" />{item}</li>)}</ul>
-            </div>
-          </div>
-        </section>
-
-        <section className="audience section">
-          <div className="shell audience__inner reveal">
-            <div><p className="eyebrow eyebrow--light">Gebaut für Verantwortung</p><h2>Für Teams, die Immobilien aktiv führen.</h2></div>
-            <div className="audience__roles">
-              {['Asset Manager', 'Bestandshalter', 'Family Offices', 'Objekt- & Vermietungsteams'].map((role, index) => (
-                <div key={role}><span>0{index + 1}</span><strong>{role}</strong><i aria-hidden="true">↗</i></div>
-              ))}
+              {trust.map((item) => (<article className="security-card reveal" key={item.title}><CheckIcon /><h3>{item.title}</h3><p>{item.text}</p></article>))}
             </div>
           </div>
         </section>
 
         <section className="faq section" id="faq">
           <div className="shell faq__grid">
-            <div className="faq__intro reveal"><p className="eyebrow">Häufige Fragen</p><h2>Was Sie vor einem Pilot wissen sollten.</h2><p>Noch etwas offen? Wir prüfen gemeinsam, ob NexImmo zu Ihrem Portfolio und Ihren Abläufen passt.</p><a href={siteConfig.contactUrl}>Frage stellen <ArrowIcon /></a></div>
+            <div className="faq__intro reveal"><p className="eyebrow">Häufige Fragen</p><h2>Gut zu wissen vor dem Test.</h2><p>Noch etwas offen? Schreiben Sie uns – wir zeigen NexAsset auch gern persönlich.</p><a href={siteConfig.contactUrl}>Frage stellen <ArrowIcon /></a></div>
             <div className="faq__list">
               {faqs.map((faq, index) => (
-                <details className="reveal" key={faq.question} open={index === 0}>
-                  <summary><span>0{index + 1}</span>{faq.question}<i aria-hidden="true" /></summary>
-                  <p>{faq.answer}</p>
-                </details>
+                <details className="reveal" key={faq.question} open={index === 0}><summary><span>0{index + 1}</span>{faq.question}<i aria-hidden="true" /></summary><p>{faq.answer}</p></details>
               ))}
             </div>
           </div>
@@ -369,10 +223,10 @@ export default function HomePage() {
         <section className="final-cta section">
           <div className="shell final-cta__box reveal">
             <div className="final-cta__glow" aria-hidden="true" />
-            <p className="eyebrow eyebrow--light">NexImmo Pilot</p>
-            <h2>Ihr Bestand verdient<br /><span>Zahlen, die aufgehen.</span></h2>
-            <p>Zeigen Sie uns Ihre heutigen Abläufe. Wir zeigen NexImmo an Ihrem Anwendungsfall und klären, wo es konkret Zeit und Fehler spart.</p>
-            <div><a className="button" href={siteConfig.contactUrl}>Pilotgespräch vereinbaren <ArrowIcon /></a><a className="button button--ghost" href={`mailto:${siteConfig.email}`}>E-Mail schreiben</a></div>
+            <p className="eyebrow eyebrow--light">NexAsset testen</p>
+            <h2>Weniger suchen.<br /><span>Mehr erledigen.</span></h2>
+            <p>Registrieren, Team einladen, loslegen – 14 Tage kostenlos und ohne Zahlungsdaten.</p>
+            <div><a className="button" href={trialUrl}>Jetzt kostenlos testen <ArrowIcon /></a><a className="button button--ghost" href={siteConfig.contactUrl}>Vorführung vereinbaren</a></div>
           </div>
         </section>
       </main>
@@ -380,10 +234,10 @@ export default function HomePage() {
       <footer className="site-footer">
         <div className="shell">
           <div className="site-footer__top">
-            <div><Logo inverse /><p>Cloud-Software für Immobilienbestände<br />von NexGen Consulting.</p></div>
-            <div><span>Produkt</span><a href="#produkt">Überblick</a><a href="#funktionen">Funktionen</a><a href="#system">System</a><a href="/nexasset">NexAsset</a></div>
+            <div><Logo inverse product="Asset" /><p>NexAsset – Betriebssoftware für Immobilien, Hotels und Teams<br />von NexGen Consulting.</p></div>
+            <div><span>Produkt</span><a href="#funktionen">Funktionen</a><a href="#einblicke">Einblicke</a><a href="#testen">Kostenlos testen</a><a href={`${app}/login`}>Anmelden</a></div>
             <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
-            <div><span>Rechtliches</span><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a><a href={`${siteConfig.parentUrl}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/cookies`}>Cookies</a></div>
+            <div><span>Rechtliches</span><a href={`${app}/agb`}>AGB</a><a href={`${app}/avv`}>AVV</a><a href={`${app}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a></div>
           </div>
           <div className="site-footer__bottom"><span>© {new Date().getFullYear()} NexGen Consulting. Alle Rechte vorbehalten.</span><span>Made in Coburg · Germany</span></div>
         </div>
