@@ -148,6 +148,7 @@ export default function HomePage() {
             <a href="#system">System</a>
             <a href="#sicherheit">Sicherheit</a>
             <a href="#faq">FAQ</a>
+            <a href="/nexasset">NexAsset</a>
           </nav>
           <div className="header-actions">
             <a className="parent-link" href={siteConfig.parentUrl} target="_blank" rel="noreferrer">
@@ -165,6 +166,7 @@ export default function HomePage() {
               <a href="#system">System</a>
               <a href="#sicherheit">Sicherheit</a>
               <a href="#faq">FAQ</a>
+              <a href="/nexasset">NexAsset – kostenlos testen</a>
               <a href={siteConfig.contactUrl}>Pilotzugang anfragen</a>
             </div>
           </details>
@@ -379,7 +381,7 @@ export default function HomePage() {
         <div className="shell">
           <div className="site-footer__top">
             <div><Logo inverse /><p>Cloud-Software für Immobilienbestände<br />von NexGen Consulting.</p></div>
-            <div><span>Produkt</span><a href="#produkt">Überblick</a><a href="#funktionen">Funktionen</a><a href="#system">System</a></div>
+            <div><span>Produkt</span><a href="#produkt">Überblick</a><a href="#funktionen">Funktionen</a><a href="#system">System</a><a href="/nexasset">NexAsset</a></div>
             <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
             <div><span>Rechtliches</span><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a><a href={`${siteConfig.parentUrl}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/cookies`}>Cookies</a></div>
           </div>
