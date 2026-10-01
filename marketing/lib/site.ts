@@ -7,7 +7,7 @@ export const siteConfig = {
   contactUrl: 'https://nexgen-consulting.de/kontakt',
   email: 'meisner@nexgen-consulting.de',
   /** NexAsset-Anwendung (Registrierung „Kostenlos testen“, AGB, AVV liegen dort, damit die zugestimmte Fassung zur App gehört). */
-  nexassetAppUrl: process.env.NEXT_PUBLIC_NEXASSET_APP_URL ?? 'https://nex-asset-pi.vercel.app',
+  nexassetAppUrl: process.env.NEXT_PUBLIC_NEXASSET_APP_URL ?? 'https://nexasset.nexgen-consulting.de',
   description:
     'NexImmo ist die cloudbasierte Software für Immobilienbestände: Objektakte, Vermietung und Rent Roll, Betrieb, Dokumente, Bewertung, Hauptbuch und Betriebskosten – jede Zahl nachrechenbar, im Team mit Rollen und MFA.',
 } as const;
