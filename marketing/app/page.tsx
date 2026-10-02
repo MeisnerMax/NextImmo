@@ -9,7 +9,7 @@ const trialUrl = `${app}/registrieren`;
 export const metadata: Metadata = {
   title: { absolute: 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams' },
   description: 'NexAsset bündelt Aufgaben, Stempeluhr, Dienstplan, Urlaub, Chat, Hotel-Kennzahlen aus Cloudbeds, Hotelbedarf, Objekte, Finanzen und Dokumente in einer App – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
-  alternates: { canonical: '/' },
+  alternates: { canonical: '/', languages: { 'de-DE': '/', en: '/en' } },
   openGraph: { title: 'NexAsset – der Betrieb Ihres Portfolios in einer App', description: 'Aufgaben, Zeiterfassung, Hotels, Objekte und Team in einer Software. 14 Tage kostenlos testen.', url: siteConfig.url, siteName: 'NexAsset', locale: 'de_DE', type: 'website' },
 };
 
@@ -80,6 +80,7 @@ export default function HomePage() {
             <a href="#faq">FAQ</a>
           </nav>
           <div className="header-actions">
+            <a className="parent-link" href="/en" lang="en" hrefLang="en">EN</a>
             <a className="parent-link" href={`${app}/login`}>Anmelden <ArrowIcon /></a>
             <a className="button button--compact" href={trialUrl}>Kostenlos testen</a>
           </div>
@@ -91,6 +92,7 @@ export default function HomePage() {
               <a href="#testen">So funktioniert der Test</a>
               <a href="#sicherheit">Sicherheit</a>
               <a href="#faq">FAQ</a>
+              <a href="/en" lang="en" hrefLang="en">English</a>
               <a href={`${app}/login`}>Anmelden</a>
               <a href={trialUrl}>14 Tage kostenlos testen</a>
             </div>
