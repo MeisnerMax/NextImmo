@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NexAsset – Operations software for real estate, hotels and teams',
+    title: 'NexAsset – Operations software for real estate and teams',
     description: 'NexAsset brings tasks, time tracking, staff scheduling, leave, team chat, properties, finance and documents together in one app. Try it free for 14 days.',
     images: ['/opengraph-image'],
   },
