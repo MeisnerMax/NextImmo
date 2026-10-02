@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'NexAsset',
     short_name: 'NexAsset',
-    description: 'Betriebssoftware für Immobilien, Hotels und Teams von NexGen Consulting',
+    description: 'Betriebssoftware für Immobilien und Teams von NexGen Consulting',
     start_url: '/',
     display: 'standalone',
     background_color: '#f6f3ed',
