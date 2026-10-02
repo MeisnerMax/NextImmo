@@ -7,10 +7,10 @@ const app = siteConfig.nexassetAppUrl;
 const trialUrl = `${app}/registrieren`;
 
 export const metadata: Metadata = {
-  title: { absolute: 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams' },
-  description: 'NexAsset bündelt Aufgaben, Stempeluhr, Dienstplan, Urlaub, Chat, Hotel-Kennzahlen aus Cloudbeds, Hotelbedarf, Objekte, Finanzen und Dokumente in einer App – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
+  title: { absolute: 'NexAsset – Betriebssoftware für Immobilien und Teams' },
+  description: 'NexAsset bündelt Aufgaben, Stempeluhr, Dienstplan, Urlaub, Chat, Objekte, Finanzen und Dokumente in einer App – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
   alternates: { canonical: '/', languages: { 'de-DE': '/', en: '/en' } },
-  openGraph: { title: 'NexAsset – der Betrieb Ihres Portfolios in einer App', description: 'Aufgaben, Zeiterfassung, Hotels, Objekte und Team in einer Software. 14 Tage kostenlos testen.', url: siteConfig.url, siteName: 'NexAsset', locale: 'de_DE', type: 'website' },
+  openGraph: { title: 'NexAsset – der Betrieb Ihres Portfolios in einer App', description: 'Aufgaben, Zeiterfassung, Objekte und Team in einer Software. 14 Tage kostenlos testen.', url: siteConfig.url, siteName: 'NexAsset', locale: 'de_DE', type: 'website' },
 };
 
 const modules = [
@@ -18,20 +18,19 @@ const modules = [
   { index: '02', title: 'Stempeluhr & Zeiterfassung', text: 'Ein- und Ausstempeln mit Pause per Klick, laufende Uhr am Bildschirmrand, Erinnerungen zu Dienstbeginn, Dienstende und Pause, Monatsauswertung und Lohnvorbereitung.', tags: ['Stempeluhr', 'Erinnerungen', 'Lohnvorbereitung'] },
   { index: '03', title: 'Dienstplan, Urlaub & Personal', text: 'Dienste planen, Wunschzeiten und Tausch, Urlaubsanträge mit Freigabe durch die Leitung, Personalakten, Fristen und Abwesenheiten im Kalender.', tags: ['Dienstplan', 'Urlaubsanträge', 'Personalakte'] },
   { index: '04', title: 'Team-Chat', text: 'Direktnachrichten, Teams und Abteilungsräume, Sprachnachrichten, Fotos und PDFs – auf Wunsch direkt einem Objekt, einer Einheit oder Aufgabe zugeordnet und unter Dokumente abgelegt.', tags: ['Teams', 'Sprachnachrichten', 'Fotos zuordnen'] },
-  { index: '05', title: 'Hotel Performance', text: 'Belegung, ADR, RevPAR und Umsatz live aus Cloudbeds (nur lesend), Zimmer & Belegungs-Timeline, Rückerstattungen und offene Salden, Hotelbedarf mit Bestellungen und Bestand.', tags: ['Cloudbeds', 'Timeline', 'Hotelbedarf'] },
+  { index: '05', title: 'Freigaben & Workflows', text: 'Urlaub, Ausgleichstage, Materialanfragen und weitere interne Anträge zentral einreichen, prüfen und freigeben – mit klaren Zuständigkeiten und nachvollziehbarem Status.', tags: ['Freigaben', 'Anträge', 'Status'] },
   { index: '06', title: 'Objekte, Finanzen & Dokumente', text: 'Objekte, Einheiten und Mieter, Nebenkosten und Versicherungen, Kontoauszug-Import, Rechnungen mit P-Nummer, Kassenbuch, Development-Kosten und Dokumente mit Freigaben.', tags: ['Mieter', 'Rechnungen', 'Kassenbuch'] },
 ];
 
 const desktopShots = [
   { src: '/screens/desk-tasks.webp', title: 'Aufgaben', text: 'Listen und Gruppen, Zuständige, Fälligkeiten und Status auf einen Blick.', alt: 'NexAsset Aufgabenliste mit Gruppen, Zuständigen und Fälligkeiten' },
-  { src: '/screens/desk-approvals.webp', title: 'Freigaben', text: 'Urlaub, Ausgleichstage, Material- und Hotelbedarf entscheiden – an einer Stelle.', alt: 'NexAsset Freigaben-Seite mit offenen Anträgen' },
+  { src: '/screens/desk-approvals.webp', title: 'Freigaben', text: 'Urlaub, Ausgleichstage und Materialanfragen entscheiden – an einer Stelle.', alt: 'NexAsset Freigaben-Seite mit offenen Anträgen' },
   { src: '/screens/desk-time.webp', title: 'Zeiterfassung', text: 'Stempeluhr, Monatsübersicht und Vorbereitung der Lohnabrechnung.', alt: 'NexAsset Zeiterfassung mit Stempeluhr und Monatsübersicht' },
 ];
 
 const phoneShots = [
   { src: '/screens/phone-time.webp', title: 'Stempeluhr', text: 'Ein- und ausstempeln, Pause, Erinnerungen.', alt: 'NexAsset App: Stempeluhr' },
   { src: '/screens/phone-chat.webp', title: 'Team-Chat', text: 'Nachrichten, Fotos und Sprachnachrichten.', alt: 'NexAsset App: Team-Chat' },
-  { src: '/screens/phone-hotel.webp', title: 'Hotelbedarf', text: 'Artikel anfragen, Bestand und Bestellungen.', alt: 'NexAsset App: Hotelbedarf anfragen' },
   { src: '/screens/phone-approvals.webp', title: 'Anträge', text: 'Urlaub beantragen und den Stand verfolgen.', alt: 'NexAsset App: eigene Anträge und Freigaben' },
 ];
 
@@ -54,8 +53,8 @@ const faqs = [
   { question: 'Sehen andere Kunden meine Daten?', answer: 'Nein. Wie bei bekannten Cloud-Tools (z. B. ClickUp-Workspaces) bekommt jedes Unternehmen einen eigenen Mandanten. Alle Kunden nutzen dieselbe Anwendung, aber jede Information ist fest Ihrem Unternehmen zugeordnet und wird nur Ihren berechtigten Nutzern ausgeliefert.' },
   { question: 'Was passiert nach den 14 Tagen?', answer: 'NexAsset wird für Ihr Unternehmen schreibgeschützt: Sie sehen weiterhin alles und können Daten exportieren. Nach 30 Tagen ohne Vertrag werden die Daten gelöscht. Möchten Sie weitermachen, schalten wir Ihr Unternehmen ohne Datenverlust frei.' },
   { question: 'Gibt es eine App fürs Handy?', answer: 'Ja. NexAsset läuft im Browser und als App für iOS und Android – mit Push-Benachrichtigungen, Stempeluhr, Chat und Fotos direkt vom Handy.' },
-  { question: 'Welche Systeme lassen sich anbinden?', answer: 'Cloudbeds (Hotel-Kennzahlen, nur lesend), ClickUp (Übernahme von Aufgaben), Google Drive und Kalender sowie Bank-Kontoauszüge per Datei-Import. Weitere Anbindungen klären wir gern.' },
-  { question: 'Für wen ist NexAsset gedacht?', answer: 'Für Unternehmen mit Immobilien, Hotels oder Bauprojekten und Teams vor Ort – Geschäftsführung, Asset Management, Facility Management, Housekeeping, Buchhaltung. NexAsset richtet sich ausschließlich an Unternehmen.' },
+  { question: 'Welche Systeme lassen sich anbinden?', answer: 'ClickUp (Übernahme von Aufgaben), Google Drive und Kalender sowie Bank-Kontoauszüge per Datei-Import. Weitere Anbindungen klären wir gern.' },
+  { question: 'Für wen ist NexAsset gedacht?', answer: 'Für Unternehmen mit Immobilien oder Bauprojekten und Teams vor Ort – Geschäftsführung, Asset Management, Facility Management und Buchhaltung. NexAsset richtet sich ausschließlich an Unternehmen.' },
 ];
 
 function ArrowIcon() { return <span aria-hidden="true">↗</span>; }
@@ -63,7 +62,7 @@ function CheckIcon() { return <span className="check-icon" aria-hidden="true">�
 
 export default function HomePage() {
   const structuredData = [
-    { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'NexAsset', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', description: 'Aufgaben, Stempeluhr, Dienstplan, Chat, Hotel-Kennzahlen, Objekte und Finanzen in einer App.', url: siteConfig.url, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' }, creator: { '@type': 'Organization', name: siteConfig.company, legalName: siteConfig.legalEntity, url: siteConfig.parentUrl } },
+    { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'NexAsset', applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', description: 'Aufgaben, Stempeluhr, Dienstplan, Chat, Objekte und Finanzen in einer App.', url: siteConfig.url, offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' }, creator: { '@type': 'Organization', name: siteConfig.company, legalName: siteConfig.legalEntity, url: siteConfig.parentUrl } },
     { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
   ];
   return (
@@ -109,7 +108,7 @@ export default function HomePage() {
             <div className="hero__copy">
               <p className="eyebrow eyebrow--light"><i /> NexAsset · Betriebssoftware</p>
               <h1>Ihr ganzer Betrieb.<br /><span>In einer App.</span></h1>
-              <p className="hero__lead">Aufgaben, Stempeluhr, Dienstplan, Urlaub, Team-Chat, Hotel-Kennzahlen, Objekte, Finanzen und Dokumente – für Büro und Team vor Ort, im Browser und als App für iOS und Android.</p>
+              <p className="hero__lead">Aufgaben, Stempeluhr, Dienstplan, Urlaub, Team-Chat, Objekte, Finanzen und Dokumente – für Büro und Team vor Ort, im Browser und als App für iOS und Android.</p>
               <div className="hero__actions">
                 <a className="button" href={trialUrl}>14 Tage kostenlos testen <ArrowIcon /></a>
                 <a className="button button--ghost" href="#funktionen">Funktionen ansehen <span aria-hidden="true">↓</span></a>
@@ -131,7 +130,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="hero__ticker" aria-label="Bereiche">
-            <div><span>Aufgaben</span><i /><span>Stempeluhr</span><i /><span>Dienstplan</span><i /><span>Chat</span><i /><span>Hotels</span><i /><span>Objekte</span><i /><span>Finanzen</span></div>
+            <div><span>Aufgaben</span><i /><span>Stempeluhr</span><i /><span>Dienstplan</span><i /><span>Chat</span><i /><span>Objekte</span><i /><span>Finanzen</span></div>
           </div>
         </section>
 
@@ -236,9 +235,9 @@ export default function HomePage() {
       <footer className="site-footer">
         <div className="shell">
           <div className="site-footer__top">
-            <div><Logo inverse product="Asset" /><p>NexAsset – Betriebssoftware für Immobilien, Hotels und Teams<br />von NexGen Consulting.</p></div>
+            <div><Logo inverse product="Asset" /><p>NexAsset – Betriebssoftware für Immobilien und Teams<br />von NexGen Consulting.</p></div>
             <div><span>Produkt</span><a href="#funktionen">Funktionen</a><a href="#einblicke">Einblicke</a><a href="#testen">Kostenlos testen</a><a href={`${app}/login`}>Anmelden</a></div>
-            <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
+            <div><span>Netzwerk</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.contactUrl}>Kontakt</a></div>
             <div><span>Rechtliches</span><a href={`${app}/agb`}>AGB</a><a href={`${app}/avv`}>AVV</a><a href={`${app}/datenschutz`}>Datenschutz</a><a href={`${siteConfig.parentUrl}/impressum`}>Impressum</a></div>
           </div>
           <div className="site-footer__bottom"><span>© {new Date().getFullYear()} {siteConfig.legalEntity}. Alle Rechte vorbehalten.</span><span>Made in Coburg · Germany</span></div>
