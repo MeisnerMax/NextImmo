@@ -2483,7 +2483,7 @@ h3,
 .phone-card figcaption strong { display: block; font-family: Sora, "Segoe UI", sans-serif; font-size: 1.35rem; letter-spacing: -0.03em; }
 .screen-card figcaption span,
 .phone-card figcaption span { display: block; margin-top: 0.5rem; color: #5c6b73; line-height: 1.55; }
-.screens__phones { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(1rem, 3vw, 2.2rem); margin-top: clamp(3rem, 7vw, 5.5rem); }
+.screens__phones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 3vw, 2.2rem); margin-top: clamp(3rem, 7vw, 5.5rem); }
 .phone-card { margin: 0; }
 .phone-card figcaption { margin-top: 1rem; }
 .phone-card figcaption strong { font-size: 1.05rem; }

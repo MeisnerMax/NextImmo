@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams';
+export const alt = 'NexAsset – Betriebssoftware für Immobilien und Teams';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -45,7 +45,7 @@ export default function OpenGraphImage() {
             Ihr ganzer Betrieb. In einer App.
           </div>
           <div style={{ marginTop: 28, color: '#b8c6cd', fontSize: 27 }}>
-            Aufgaben · Stempeluhr · Hotels · Objekte · Team · 14 Tage kostenlos testen
+            Aufgaben · Stempeluhr · Objekte · Team · 14 Tage kostenlos testen
           </div>
         </div>
       </div>
