@@ -7,12 +7,12 @@ const app = siteConfig.nexassetAppUrl;
 const trialUrl = `${app}/registrieren`;
 
 export const metadata: Metadata = {
-  title: { absolute: 'NexAsset – Operations software for real estate, hotels and teams' },
-  description: 'NexAsset brings tasks, time tracking, staff scheduling, leave, team chat, Cloudbeds hotel metrics, supplies, properties, finances and documents together in one app – in the browser and on iOS and Android. Try it free for 14 days.',
+  title: { absolute: 'NexAsset – Operations software for real estate and teams' },
+  description: 'NexAsset brings tasks, time tracking, staff scheduling, leave, team chat, properties, finances and documents together in one app – in the browser and on iOS and Android. Try it free for 14 days.',
   alternates: { canonical: '/en', languages: { 'de-DE': '/', en: '/en' } },
   openGraph: {
     title: 'NexAsset – run your portfolio in one app',
-    description: 'Tasks, time tracking, hotels, properties and teams in one software platform. Try it free for 14 days.',
+    description: 'Tasks, time tracking, properties and teams in one software platform. Try it free for 14 days.',
     url: `${siteConfig.url}/en`,
     siteName: 'NexAsset',
     locale: 'en_US',
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'NexAsset – Operations software for real estate, hotels and teams',
-    description: 'NexAsset brings tasks, time tracking, staff scheduling, leave, team chat, hotel metrics, properties, finance and documents together in one app. Try it free for 14 days.',
+    description: 'NexAsset brings tasks, time tracking, staff scheduling, leave, team chat, properties, finance and documents together in one app. Try it free for 14 days.',
     images: ['/opengraph-image'],
   },
 };
@@ -31,20 +31,19 @@ const modules = [
   { index: '02', title: 'Time Clock & Tracking', text: 'Clock in and out, record breaks, keep a running timer on screen, receive shift and break reminders, review monthly hours and prepare payroll.', tags: ['Time clock', 'Reminders', 'Payroll prep'] },
   { index: '03', title: 'Scheduling, Leave & HR', text: 'Plan shifts, manage preferred times and swaps, approve leave requests, maintain personnel records, deadlines and absences in the calendar.', tags: ['Scheduling', 'Leave requests', 'Personnel files'] },
   { index: '04', title: 'Team Chat', text: 'Direct messages, teams and department channels, voice messages, photos and PDFs – optionally linked directly to a property, unit or task and stored with documents.', tags: ['Teams', 'Voice messages', 'Linked photos'] },
-  { index: '05', title: 'Hotel Performance', text: 'Occupancy, ADR, RevPAR and revenue live from Cloudbeds in read-only mode, plus rooms, occupancy timelines, refunds, open balances, supplies, orders and inventory.', tags: ['Cloudbeds', 'Timeline', 'Hotel supplies'] },
+  { index: '05', title: 'Approvals & Workflows', text: 'Submit, review and approve leave, compensatory days, material requests and other internal requests in one place – with clear responsibilities and transparent status.', tags: ['Approvals', 'Requests', 'Status'] },
   { index: '06', title: 'Properties, Finance & Documents', text: 'Properties, units and tenants, service charges and insurance, bank statement imports, invoices with P-numbers, cash book, development costs and approval-based documents.', tags: ['Tenants', 'Invoices', 'Cash book'] },
 ];
 
 const desktopShots = [
   { src: '/screens/desk-tasks.webp', title: 'Tasks', text: 'See lists, groups, assignees, due dates and status at a glance.', alt: 'NexAsset task list with groups, assignees and due dates' },
-  { src: '/screens/desk-approvals.webp', title: 'Approvals', text: 'Handle leave, compensatory days, material requests and hotel supply requests in one place.', alt: 'NexAsset approvals page with open requests' },
+  { src: '/screens/desk-approvals.webp', title: 'Approvals', text: 'Handle leave, compensatory days and material requests in one place.', alt: 'NexAsset approvals page with open requests' },
   { src: '/screens/desk-time.webp', title: 'Time Tracking', text: 'Time clock, monthly overview and payroll preparation.', alt: 'NexAsset time tracking with time clock and monthly overview' },
 ];
 
 const phoneShots = [
   { src: '/screens/phone-time.webp', title: 'Time Clock', text: 'Clock in and out, record breaks and receive reminders.', alt: 'NexAsset mobile app time clock' },
   { src: '/screens/phone-chat.webp', title: 'Team Chat', text: 'Messages, photos and voice messages.', alt: 'NexAsset mobile app team chat' },
-  { src: '/screens/phone-hotel.webp', title: 'Hotel Supplies', text: 'Request items, manage stock and track orders.', alt: 'NexAsset mobile app hotel supplies' },
   { src: '/screens/phone-approvals.webp', title: 'Requests', text: 'Submit leave requests and follow their status.', alt: 'NexAsset mobile app requests and approvals' },
 ];
 
@@ -67,8 +66,8 @@ const faqs = [
   { question: 'Can other customers see my data?', answer: 'No. As with established cloud tools such as ClickUp workspaces, each company receives its own tenant. Customers use the same application, but every piece of information is assigned to your company and is only delivered to authorised users.' },
   { question: 'What happens after the 14 days?', answer: 'NexAsset becomes read-only for your company: you can still view everything and export your data. After 30 days without a contract, the data is deleted. If you continue, we reactivate your company without losing data.' },
   { question: 'Is there a mobile app?', answer: 'Yes. NexAsset runs in the browser and as an app for iOS and Android, including push notifications, time clock, chat and photos directly from your phone.' },
-  { question: 'Which systems can be integrated?', answer: 'Cloudbeds for read-only hotel metrics, ClickUp for task imports, Google Drive and Calendar, and bank statements through file import. We are happy to discuss further integrations.' },
-  { question: 'Who is NexAsset built for?', answer: 'For companies managing real estate, hotels or construction projects with operational teams on site – including management, asset management, facility management, housekeeping and accounting. NexAsset is designed exclusively for businesses.' },
+  { question: 'Which systems can be integrated?', answer: 'ClickUp for task imports, Google Drive and Calendar, and bank statements through file import. We are happy to discuss further integrations.' },
+  { question: 'Who is NexAsset built for?', answer: 'For companies managing real estate or construction projects with operational teams on site – including management, asset management, facility management and accounting. NexAsset is designed exclusively for businesses.' },
 ];
 
 function ArrowIcon() { return <span aria-hidden="true">↗</span>; }
@@ -82,7 +81,7 @@ export default function EnglishHomePage() {
       name: 'NexAsset',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web, iOS, Android',
-      description: 'Tasks, time tracking, staff scheduling, chat, hotel metrics, properties and finance in one app.',
+      description: 'Tasks, time tracking, staff scheduling, chat, properties and finance in one app.',
       url: `${siteConfig.url}/en`,
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: 'Free 14-day trial' },
       creator: { '@type': 'Organization', name: siteConfig.company, legalName: siteConfig.legalEntity, url: siteConfig.parentUrl },
@@ -134,7 +133,7 @@ export default function EnglishHomePage() {
             <div className="hero__copy">
               <p className="eyebrow eyebrow--light"><i /> NexAsset · Operations software</p>
               <h1>Your entire operation.<br /><span>In one app.</span></h1>
-              <p className="hero__lead">Tasks, time tracking, staff scheduling, leave, team chat, hotel metrics, properties, finance and documents – for office teams and people on site, in the browser and on iOS and Android.</p>
+              <p className="hero__lead">Tasks, time tracking, staff scheduling, leave, team chat, properties, finance and documents – for office teams and people on site, in the browser and on iOS and Android.</p>
               <div className="hero__actions">
                 <a className="button" href={trialUrl}>Try free for 14 days <ArrowIcon /></a>
                 <a className="button button--ghost" href="#features">Explore features <span aria-hidden="true">↓</span></a>
@@ -156,7 +155,7 @@ export default function EnglishHomePage() {
             </div>
           </div>
           <div className="hero__ticker" aria-label="Areas">
-            <div><span>Tasks</span><i /><span>Time tracking</span><i /><span>Scheduling</span><i /><span>Chat</span><i /><span>Hotels</span><i /><span>Properties</span><i /><span>Finance</span></div>
+            <div><span>Tasks</span><i /><span>Time tracking</span><i /><span>Scheduling</span><i /><span>Chat</span><i /><span>Properties</span><i /><span>Finance</span></div>
           </div>
         </section>
 
@@ -261,9 +260,9 @@ export default function EnglishHomePage() {
       <footer className="site-footer">
         <div className="shell">
           <div className="site-footer__top">
-            <div><Logo inverse product="Asset" /><p>NexAsset – operations software for real estate, hotels and teams<br />by NexGen Consulting.</p></div>
+            <div><Logo inverse product="Asset" /><p>NexAsset – operations software for real estate and teams<br />by NexGen Consulting.</p></div>
             <div><span>Product</span><a href="#features">Features</a><a href="#insights">Product views</a><a href="#trial">Free trial</a><a href={`${app}/login`}>Sign in</a></div>
-            <div><span>Network</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.hotelsUrl}>NexHotels</a><a href={siteConfig.contactUrl}>Contact</a></div>
+            <div><span>Network</span><a href={siteConfig.parentUrl}>NexGen Consulting</a><a href={siteConfig.contactUrl}>Contact</a></div>
             <div><span>Legal</span><a href={`${app}/agb`}>Terms (AGB)</a><a href={`${app}/avv`}>DPA (AVV)</a><a href={`${app}/datenschutz`}>Privacy</a><a href={`${siteConfig.parentUrl}/impressum`}>Legal notice</a></div>
           </div>
           <div className="site-footer__bottom"><span>© {new Date().getFullYear()} {siteConfig.legalEntity}. All rights reserved.</span><span>Made in Coburg · Germany</span></div>
