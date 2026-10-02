@@ -5,16 +5,15 @@ import { siteConfig } from '@/lib/site';
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams',
+    default: 'NexAsset – Betriebssoftware für Immobilien und Teams',
     template: '%s | NexAsset',
   },
   description: siteConfig.description,
   keywords: [
-    'Software Immobilien und Hotels',
+    'Software Immobilien',
     'Stempeluhr App Zeiterfassung',
     'Dienstplan und Urlaubsanträge',
     'Aufgabenverwaltung Facility Management',
-    'Cloudbeds Kennzahlen',
     'Team-Chat für Mitarbeiter',
   ],
   authors: [{ name: 'NexGen Consulting', url: siteConfig.parentUrl }],
