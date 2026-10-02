@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NexAsset – Betriebssoftware für Immobilien, Hotels und Teams',
+    title: 'NexAsset – Betriebssoftware für Immobilien und Teams',
     description: siteConfig.description,
     images: ['/opengraph-image'],
   },
