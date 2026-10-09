@@ -1827,12 +1827,16 @@ h3,
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Einblenden beim Scrollen: kurz und nur am Anfang – sonst bleiben hohe Karten (v. a. am Handy) halb durchsichtig. */
 @supports (animation-timeline: view()) {
   .reveal {
-    animation: reveal-in linear both;
-    animation-range: entry 8% cover 30%;
+    animation: reveal-in ease-out both;
+    animation-range: entry 0% entry 25%;
     animation-timeline: view();
   }
+}
+@media (max-width: 820px) {
+  .reveal { animation: none; }
 }
 
 /* Responsive */
