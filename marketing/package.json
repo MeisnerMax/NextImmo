@@ -1,5 +1,5 @@
 {
-  "name": "neximmo-marketing",
+  "name": "nexasset-marketing",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
