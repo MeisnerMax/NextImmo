@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     'Hausverwaltungssoftware WEG',
     'Asset Management Software',
     'Projektentwicklung Software',
-    'Hotel Software Cloudbeds',
+    'Hotel Software PMS-Anbindung',
     'KI-Assistent Immobilien',
     'Stempeluhr App Zeiterfassung',
     'E-Rechnung XRechnung ZUGFeRD',
