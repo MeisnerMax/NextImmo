@@ -1,11 +1,11 @@
-export function Logo({ inverse = false, product = 'Asset' }: { inverse?: boolean; product?: 'Immo' | 'Asset' }) {
+export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <span className={`brand ${inverse ? 'brand--inverse' : ''}`} aria-label={`Nex${product}`}>
+    <span className={`brand ${inverse ? 'brand--inverse' : ''}`} aria-label="NexAsset">
       <span className="brand__mark" aria-hidden="true">
         NX
       </span>
       <span className="brand__word">
-        Nex<span>{product}</span>
+        Nex<span>Asset</span>
       </span>
     </span>
   );

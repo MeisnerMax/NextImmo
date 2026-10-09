@@ -1,6 +1,7 @@
-# NexImmo Marketing Website
+# NexAsset Website
 
-Eigenständige Next.js-Marketingseite für `neximmo.nexgen-consulting.de`.
+Eigenständige Next.js-Marketingseite für NexAsset (Software für Immobilien, Hotels und Teams).
+Inhalte (Deutsch und Englisch) stehen in `lib/content.ts`, Bildschirmfotos in `public/screens/`.
 
 ## Lokal starten
 
@@ -11,10 +12,8 @@ npm run dev
 
 ## Vercel
 
-1. Repository `MeisnerMax/NextImmo` als neues Vercel-Projekt importieren.
-2. **Root Directory** auf `marketing` setzen.
-3. Framework Preset `Next.js` verwenden.
-4. Optional `NEXT_PUBLIC_SITE_URL=https://neximmo.nexgen-consulting.de` setzen.
-5. Nach dem ersten Deployment die Domain `neximmo.nexgen-consulting.de` hinzufügen.
+1. Root Directory: `marketing`, Framework Preset `Next.js`.
+2. `NEXT_PUBLIC_SITE_URL` auf die Adresse der Website setzen (für Canonical-Links, Sitemap und Vorschaubilder).
+3. Optional `NEXT_PUBLIC_NEXASSET_APP_URL`, falls die Anwendung nicht unter `nexasset.nexgen-consulting.de` läuft.
 
-Die eigentliche Flutter-Anwendung im Repository bleibt dadurch unabhängig vom Marketing-Deployment.
+„Kostenlos testen“ verlinkt auf `<App>/registrieren?pakete=…`; die Auswahl wird dort vorausgewählt.
