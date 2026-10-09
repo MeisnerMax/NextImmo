@@ -36,8 +36,8 @@ export type HomeContent = {
 const de: HomeContent = {
   lang: 'de',
   meta: {
-    title: 'NexAsset – Software für Immobilien, Hotels und Teams',
-    description: 'NexAsset verbindet Aufgaben, Stempeluhr, Dienstplan, Chat, Objekte, Finanzen und E-Rechnung mit Paketen für Hausverwaltung, Asset Management, Development, Hotel und einem KI-Assistenten. 14 Tage kostenlos testen – Pakete frei wählbar.',
+    title: 'Immobiliensoftware für Verwaltung, Bestand & Hotel | NexAsset',
+    description: 'Immobiliensoftware: Grundpaket für Aufgaben, Zeiterfassung und E-Rechnung plus Pakete für Hausverwaltung, Asset Management, Development, Hotel und KI.',
     ogTitle: 'NexAsset – eine Software für Immobilien, Hotels und Teams',
   },
   nav: { packages: 'Pakete', ai: 'KI-Assistent', screens: 'Einblicke', trial: 'Kostenlos testen', security: 'Sicherheit', faq: 'FAQ', login: 'Anmelden', cta: 'Kostenlos testen', other: 'EN', otherHref: '/en', menu: 'Navigation öffnen' },
@@ -157,8 +157,8 @@ const de: HomeContent = {
 const en: HomeContent = {
   lang: 'en',
   meta: {
-    title: 'NexAsset – Software for real estate, hotels and teams',
-    description: 'NexAsset combines tasks, time clock, scheduling, chat, properties, finance and e-invoicing with packages for property management, asset management, development, hotels and an AI assistant. Try it free for 14 days – choose your packages.',
+    title: 'Real estate software for property, asset & hotel teams | NexAsset',
+    description: 'Real estate software: core package for tasks, time tracking and e-invoicing plus packages for property and asset management, development, hotels and AI.',
     ogTitle: 'NexAsset – one software for real estate, hotels and teams',
   },
   nav: { packages: 'Packages', ai: 'AI assistant', screens: 'Screens', trial: 'Free trial', security: 'Security', faq: 'FAQ', login: 'Log in', cta: 'Try for free', other: 'DE', otherHref: '/', menu: 'Open navigation' },
