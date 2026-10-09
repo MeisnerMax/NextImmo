@@ -1,75 +1,34 @@
 import { Fragment } from 'react';
 import Image from 'next/image';
-import { Logo } from '@/components/Logo';
 import { PackagePicker } from '@/components/PackagePicker';
-import type { HomeContent } from '@/lib/content';
+import { ArrowIcon, CheckIcon, SiteFooter, SiteHeader, signupUrl, tryUrl } from '@/components/SiteChrome';
+import { content, type HomeContent } from '@/lib/content';
+import { JsonLd, organizationId, organizationNode, softwareId, softwareNode, websiteId } from '@/lib/seo';
 import { siteConfig } from '@/lib/site';
 
-const app = siteConfig.nexassetAppUrl;
-const signupUrl = `${app}/registrieren`;
-const tryUrl = (slug?: string) => (slug ? `${signupUrl}?pakete=${slug}` : signupUrl);
+import { solutionForPackage } from '@/lib/solutions';
 
-function ArrowIcon() {
-  return <span aria-hidden="true">↗</span>;
-}
-function CheckIcon() {
-  return <span className="check-icon" aria-hidden="true">✓</span>;
-}
+const app = siteConfig.nexassetAppUrl;
 
 export function Home({ c }: { c: HomeContent }) {
   const en = c.lang === 'en';
   const pageUrl = en ? `${siteConfig.url}/en` : siteConfig.url;
-  const structuredData = [
-    {
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: 'NexAsset',
-      applicationCategory: 'BusinessApplication',
-      operatingSystem: 'Web, iOS, Android',
-      inLanguage: c.lang,
-      description: c.meta.description,
-      url: pageUrl,
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: en ? 'Free 14-day trial' : '14 Tage kostenlos testen' },
-      creator: { '@type': 'Organization', name: siteConfig.company, legalName: siteConfig.legalEntity, url: siteConfig.parentUrl },
-    },
-    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: c.faq.items.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
-  ];
-  const nav = [
-    ['#pakete', c.nav.packages],
-    ['#ki', c.nav.ai],
-    ['#einblicke', c.nav.screens],
-    ['#testen', c.nav.trial],
-    ['#sicherheit', c.nav.security],
-    ['#faq', c.nav.faq],
-  ] as const;
-  const otherLang = en ? 'de' : 'en';
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      organizationNode,
+      { '@type': 'WebSite', '@id': websiteId, url: siteConfig.url, name: 'NexAsset', inLanguage: ['de', 'en'], publisher: { '@id': organizationId } },
+      softwareNode(content.de.meta.description),
+      { '@type': 'WebPage', '@id': `${pageUrl}#webpage`, url: pageUrl, name: c.meta.title, description: c.meta.description, inLanguage: c.lang, isPartOf: { '@id': websiteId }, about: { '@id': softwareId } },
+      { '@type': 'FAQPage', '@id': `${pageUrl}#faq`, inLanguage: c.lang, mainEntity: c.faq.items.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
+    ],
+  };
 
   return (
     <>
       {en ? <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang='en'" }} /> : null}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
-      <header className="site-header">
-        <div className="shell site-header__inner">
-          <a href="#top" aria-label="NexAsset"><Logo inverse /></a>
-          <nav className="desktop-nav" aria-label={en ? 'Main navigation' : 'Hauptnavigation'}>
-            {nav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
-          </nav>
-          <div className="header-actions">
-            <a className="parent-link" href={c.nav.otherHref} lang={otherLang} hrefLang={otherLang}>{c.nav.other}</a>
-            <a className="parent-link" href={`${app}/login`}>{c.nav.login} <ArrowIcon /></a>
-            <a className="button button--compact" href={signupUrl}>{c.nav.cta}</a>
-          </div>
-          <details className="mobile-nav">
-            <summary aria-label={c.nav.menu}><span /><span /></summary>
-            <div>
-              {nav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
-              <a href={c.nav.otherHref} lang={otherLang} hrefLang={otherLang}>{en ? 'Deutsch' : 'English'}</a>
-              <a href={`${app}/login`}>{c.nav.login}</a>
-              <a href={signupUrl}>{c.hero.primary}</a>
-            </div>
-          </details>
-        </div>
-      </header>
+      <JsonLd data={structuredData} />
+      <SiteHeader lang={c.lang} onHome />
 
       <main id="main-content">
         <section className="hero" id="top">
@@ -121,7 +80,7 @@ export function Home({ c }: { c: HomeContent }) {
                   <h3>{pkg.name}</h3>
                   <p>{pkg.tagline}</p>
                   <ul>{pkg.bullets.map((bullet) => <li key={bullet}><CheckIcon />{bullet}</li>)}</ul>
-                  {pkg.slug ? <a className="package-card__try" href={tryUrl(pkg.slug)}>{c.packages.tryWith.replace('{name}', pkg.name)} <ArrowIcon /></a> : null}
+                  {pkg.slug ? <div className="package-card__links"><a className="package-card__try" href={tryUrl(pkg.slug)}>{c.packages.tryWith.replace('{name}', pkg.name)} <ArrowIcon /></a>{solutionForPackage(pkg.slug) ? <a className="package-card__more" href={`/${solutionForPackage(pkg.slug)?.slug}`} lang={en ? 'de' : undefined}>{en ? 'Details (German)' : 'Mehr erfahren'}</a> : null}</div> : null}
                 </article>
               ))}
             </div>
@@ -149,7 +108,7 @@ export function Home({ c }: { c: HomeContent }) {
                     <h3>{feature.title}</h3>
                     <p>{feature.text}</p>
                     <ul>{feature.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul>
-                    {feature.slug ? <a className="feature-row__try" href={tryUrl(feature.slug)}>{c.features.tryThis} <ArrowIcon /></a> : null}
+                    {feature.slug ? <div className="feature-row__links"><a className="feature-row__try" href={tryUrl(feature.slug)}>{c.features.tryThis} <ArrowIcon /></a>{solutionForPackage(feature.slug) ? <a className="feature-row__more" href={`/${solutionForPackage(feature.slug)?.slug}`} lang={en ? 'de' : undefined}>{en ? 'More (German)' : `${solutionForPackage(feature.slug)?.short} – mehr erfahren`}</a> : null}</div> : null}
                   </div>
                 </article>
               ))}
@@ -259,17 +218,7 @@ export function Home({ c }: { c: HomeContent }) {
         </section>
       </main>
 
-      <footer className="site-footer">
-        <div className="shell">
-          <div className="site-footer__top">
-            <div><Logo inverse /><p>{c.footer.tagline}<br />{en ? 'by' : 'von'} {siteConfig.company}.</p></div>
-            <div><span>{c.footer.product}</span><a href="#pakete">{c.nav.packages}</a><a href="#ki">{c.nav.ai}</a><a href="#testen">{c.nav.trial}</a><a href={`${app}/login`}>{c.nav.login}</a></div>
-            <div><span>{c.footer.network}</span><a href={siteConfig.parentUrl}>{siteConfig.company}</a><a href={siteConfig.contactUrl}>{en ? 'Contact' : 'Kontakt'}</a></div>
-            <div><span>{c.footer.legal}</span><a href={`${app}/agb`}>{en ? 'Terms' : 'AGB'}</a><a href={`${app}/avv`}>{en ? 'DPA' : 'AVV'}</a><a href={`${app}/datenschutz`}>{c.footer.privacy}</a><a href={`${siteConfig.parentUrl}/impressum`}>{c.footer.imprint}</a></div>
-          </div>
-          <div className="site-footer__bottom"><span>© {new Date().getFullYear()} {siteConfig.legalEntity}. {c.footer.rights}</span><span>{c.footer.made}</span></div>
-        </div>
-      </footer>
+      <SiteFooter lang={c.lang} onHome />
     </>
   );
 }

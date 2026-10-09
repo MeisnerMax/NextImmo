@@ -2715,3 +2715,80 @@ h3,
   .picker__option small { grid-column: 3; text-align: left; margin-top: -0.4rem; }
 }
 .feature-row li .check-icon { color: #1f8a5a; background: rgba(71, 198, 139, 0.16); }
+
+/* ===== Fußzeile mit Lösungen ===== */
+.site-footer__top.site-footer__top--five { grid-template-columns: 1.4fr repeat(4, minmax(0, 0.8fr)); }
+.site-footer__top > div:first-child p a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 1080px) {
+  .site-footer__top.site-footer__top--five { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .site-footer__top.site-footer__top--five > div:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .site-footer__top.site-footer__top--five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ===== Links „Mehr erfahren“ ===== */
+.package-card__links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; align-items: center; margin-top: auto; padding-top: 1.4rem; }
+.package-card__links .package-card__try { margin-top: 0; padding-top: 0; }
+.package-card__more { color: #b9c7ce; font-size: 0.84rem; font-weight: 650; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(255, 255, 255, 0.3); }
+.package-card__more:hover { color: white; }
+.feature-row__links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; align-items: center; margin-top: 1.2rem; }
+.feature-row__links .feature-row__try { margin-top: 0; }
+.feature-row__more { color: var(--navy); font-size: 0.86rem; font-weight: 650; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line); }
+
+/* ===== Themenseiten ===== */
+.hero--solution { min-height: 0; }
+.hero--solution .hero__inner { min-height: 0; padding-top: 8.5rem; padding-bottom: 5rem; }
+.hero--solution h1 { font-size: clamp(2.4rem, 4.6vw, 4.4rem); line-height: 1.02; letter-spacing: -0.05em; }
+.hero--solution .hero__copy > .eyebrow { margin-top: 1.4rem; }
+.hero__visual--phone-only { display: flex; justify-content: center; padding-bottom: 0; }
+.hero__visual--phone-only .device--phone { position: relative; right: auto; bottom: auto; width: min(280px, 60vw); }
+.breadcrumb ol { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; color: #8da0aa; font-size: 0.8rem; }
+.breadcrumb li + li::before { margin-right: 0.4rem; content: '›'; }
+.breadcrumb a { color: #c8d4da; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.25); }
+.breadcrumb [aria-current] { color: #f6a46f; }
+
+.solution-intro { background: var(--paper); }
+.solution-intro__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(2rem, 5vw, 4.5rem); align-items: start; }
+.solution-intro .section-head h2 { font-size: clamp(1.9rem, 3.4vw, 3rem); }
+.solution-benefits { display: grid; gap: 1rem; }
+.solution-benefits article { display: grid; grid-template-columns: auto 1fr; gap: 1rem; padding: 1.3rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--white); }
+.solution-benefits .check-icon { color: #1f8a5a; background: rgba(71, 198, 139, 0.16); }
+.solution-benefits h3 { color: var(--navy); font-size: 1.08rem; letter-spacing: -0.02em; }
+.solution-benefits p { margin-top: 0.35rem; color: var(--muted); line-height: 1.55; }
+
+.solution-features { color: white; background: radial-gradient(circle at 100% 0, rgba(239, 123, 50, 0.12), transparent 30rem), var(--navy); }
+.solution-features .section-head h2 { color: white; font-size: clamp(1.9rem, 3.4vw, 3rem); }
+.solution-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: clamp(2rem, 5vw, 3rem); }
+.solution-feature-grid article { padding: 1.4rem; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; background: rgba(255, 255, 255, 0.03); }
+.solution-feature-grid h3 { color: white; font-size: 1.05rem; letter-spacing: -0.02em; }
+.solution-feature-grid p { margin-top: 0.45rem; color: #a5b5bd; font-size: 0.9rem; line-height: 1.55; }
+.solution-audience { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; margin-top: 2rem; padding: 1.3rem 1.5rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.05); }
+.solution-audience h3 { color: #f6a46f; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; }
+.solution-audience ul { display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; margin: 0; padding: 0; list-style: none; }
+.solution-audience li { display: flex; gap: 0.55rem; align-items: center; color: #dbe4e8; font-size: 0.92rem; }
+.solution-audience .check-icon { width: 1.3rem; height: 1.3rem; font-size: 0.66rem; }
+
+.faq__q { display: inline; margin: 0; font: inherit; letter-spacing: inherit; }
+
+.solution-related { background: var(--white); border-top: 1px solid var(--line); }
+.related-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 2rem; }
+.related-card { position: relative; display: grid; gap: 0.45rem; padding: 1.4rem 1.4rem 1.6rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper); transition: border-color 200ms ease, transform 240ms var(--ease); }
+.related-card:hover { border-color: var(--orange); transform: translateY(-2px); }
+.related-card span { color: var(--orange-strong); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+.related-card strong { padding-right: 1.5rem; color: var(--navy); font-family: Sora, sans-serif; font-size: 1.12rem; letter-spacing: -0.03em; line-height: 1.25; }
+.related-card p { color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
+.related-card i { position: absolute; top: 1.3rem; right: 1.3rem; color: var(--orange-strong); font-style: normal; }
+
+@media (max-width: 1080px) {
+  .solution-intro__grid { grid-template-columns: 1fr; }
+  .solution-feature-grid, .related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .hero--solution .hero__inner { padding-top: 7rem; padding-bottom: 3rem; }
+  .solution-feature-grid, .related-grid { grid-template-columns: 1fr; }
+}
+/* Lange deutsche Komposita (z. B. „Hausverwaltungssoftware“) umbrechen statt überlaufen. */
+h1, h2, h3 { overflow-wrap: break-word; hyphens: auto; }
+.hero--solution .hero__copy { min-width: 0; }
+.solution-faq .faq__intro h2 { font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.08; }
