@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { ArrowIcon, CheckIcon, SiteFooter, SiteHeader, tryUrl } from '@/components/SiteChrome';
 import { absoluteUrl, JsonLd, organizationId, organizationNode, softwareId, softwareNode, websiteId } from '@/lib/seo';
-import { siteConfig } from '@/lib/site';
+import { path, siteConfig } from '@/lib/site';
 import { solutionBySlug, type Solution } from '@/lib/solutions';
 import { content } from '@/lib/content';
 
@@ -36,14 +36,14 @@ export function SolutionPage({ s }: { s: Solution }) {
           <div className="shell hero__inner">
             <div className="hero__copy">
               <nav className="breadcrumb" aria-label="Brotkrümelnavigation">
-                <ol><li><a href="/">NexAsset</a></li><li aria-current="page">{s.short}</li></ol>
+                <ol><li><a href={path("/")}>NexAsset</a></li><li aria-current="page">{s.short}</li></ol>
               </nav>
               <p className="eyebrow eyebrow--light"><i /> {s.eyebrow}</p>
               <h1>{hy(s.h1)}</h1>
               <p className="hero__lead">{s.lead}</p>
               <div className="hero__actions">
                 <a className="button" href={tryUrl(s.packageSlug)}>{ctaLabel} <ArrowIcon /></a>
-                <a className="button button--ghost" href="/#pakete">Alle Pakete ansehen</a>
+                <a className="button button--ghost" href={`${path("/")}#pakete`}>Alle Pakete ansehen</a>
               </div>
               <div className="hero__proof">
                 <div><strong>Ohne Zahlungsdaten</strong><span>Test endet automatisch</span></div>
@@ -54,11 +54,11 @@ export function SolutionPage({ s }: { s: Solution }) {
             {s.shot ? (
               <div className={`hero__visual hero__visual--shots ${s.shot.phone ? 'hero__visual--phone-only' : ''}`}>
                 {s.shot.phone ? (
-                  <figure className="device device--phone"><Image src={s.shot.src} alt={s.shot.alt} width={780} height={1688} priority sizes="(max-width: 820px) 60vw, 280px" /></figure>
+                  <figure className="device device--phone"><Image src={path(s.shot.src)} alt={s.shot.alt} width={780} height={1688} priority sizes="(max-width: 820px) 60vw, 280px" /></figure>
                 ) : (
                   <figure className="device device--desktop">
                     <div className="device__bar" aria-hidden="true"><i /><i /><i /><span>nexasset.nexgen-consulting.de</span></div>
-                    <Image src={s.shot.src} alt={s.shot.alt} width={1600} height={1000} priority sizes="(max-width: 820px) 92vw, 50vw" />
+                    <Image src={path(s.shot.src)} alt={s.shot.alt} width={1600} height={1000} priority sizes="(max-width: 820px) 92vw, 50vw" />
                   </figure>
                 )}
               </div>
@@ -111,7 +111,7 @@ export function SolutionPage({ s }: { s: Solution }) {
             <div className="section-head"><p className="eyebrow">Passt dazu</p><h2>Weitere Pakete und Funktionen</h2></div>
             <div className="related-grid">
               {related.map((item) => (
-                <a className="related-card" key={item.slug} href={`/${item.slug}`}>
+                <a className="related-card" key={item.slug} href={path(`/${item.slug}`)}>
                   <span>{item.eyebrow}</span>
                   <strong>{hy(item.h1)}</strong>
                   <p>{item.description}</p>

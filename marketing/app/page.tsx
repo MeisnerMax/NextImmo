@@ -8,7 +8,7 @@ const c = content.de;
 export const metadata: Metadata = {
   title: { absolute: c.meta.title },
   description: c.meta.description,
-  alternates: { canonical: '/', languages: { 'de-DE': '/', en: '/en' } },
+  alternates: { canonical: siteConfig.url, languages: { 'de-DE': siteConfig.url, en: `${siteConfig.url}/en` } },
   openGraph: { title: c.meta.ogTitle, description: c.meta.description, url: siteConfig.url, siteName: 'NexAsset', locale: 'de_DE', type: 'website' },
 };
 
