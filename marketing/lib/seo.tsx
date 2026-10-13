@@ -27,7 +27,17 @@ export const softwareNode = (description: string) => ({
   operatingSystem: 'Web, iOS, Android',
   description,
   inLanguage: ['de', 'en', 'pl', 'el', 'fa'],
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' },
+  offers: [
+    { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' },
+    {
+      '@type': 'AggregateOffer',
+      lowPrice: '99',
+      priceCurrency: 'EUR',
+      description: 'Basis mit Grundpaket ab 99 € netto je Monat bei jährlicher Zahlung; Pakete nach Größe zusätzlich.',
+      url: `${siteConfig.url}/#preise`,
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: '99', priceCurrency: 'EUR', unitCode: 'MON', unitText: 'Monat' },
+    },
+  ],
   publisher: { '@id': organizationId },
 });
 
