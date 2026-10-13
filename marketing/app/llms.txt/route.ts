@@ -11,7 +11,7 @@ export function GET() {
     '> Software für Immobilien, Hotels und Teams: Grundpaket (Aufgaben, Zeiterfassung, Dienstplan, Chat, Objekte, Finanzen, E-Rechnung) plus Pakete für Hausverwaltung, Asset Management, Development (Projektentwicklung), Hotel, Property & Corporate (Standorte, Flächen, Arbeitsplätze) und einen KI-Assistenten. Web, iOS und Android; Deutsch, Englisch, Polnisch, Griechisch, Persisch. 14 Tage kostenlos testen. Anbieter: NexGen Consulting (Meisner-Ventures), Coburg.',
     '',
     '## Preise',
-    'Alle Preise netto je Monat bei jährlicher Zahlung im Voraus (Listenpreis). Nur für Unternehmen.',
+    'Alle Preise je Monat bei jährlicher Zahlung im Voraus (Listenpreis); gemäß § 19 UStG wird keine Umsatzsteuer berechnet. Nur für Unternehmen.',
     '- Basis (Pflicht, enthält das Grundpaket): Start 99 € (3 Büro-Nutzer, 100 eigene Einheiten inklusive), Team 249 € (10 Büro-Nutzer, 500 Einheiten), Unternehmen 549 € (25 Büro-Nutzer, 2.000 Einheiten); weiterer Büro-Nutzer 19 €, App-Nutzer 3 €, je weitere 500 eigene Einheiten 25 €.',
     '- Hausverwaltung: ab 1,00 € je verwaltete Einheit (ab Einheit 1.001: 0,80 €, ab 3.001: 0,60 €), Stellplatz/Keller 0,30 €, mindestens 79 €.',
     '- Asset Management: ab 249 € (bis 10 Objekte), 449 € bis 30, 899 € bis 100 Objekte.',

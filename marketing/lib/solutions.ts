@@ -25,7 +25,7 @@ export type Solution = {
 };
 
 /** Hinweis auf die Basis, angehängt an die Preisfragen der Paketseiten. */
-const basisPriceNote = ' Dazu kommt die Basis mit dem Grundpaket ab 99 € im Monat. Alle Preise netto je Monat bei jährlicher Zahlung.';
+const basisPriceNote = ' Dazu kommt die Basis mit dem Grundpaket ab 99 € im Monat. Alle Preise je Monat bei jährlicher Zahlung; gemäß § 19 UStG ohne Umsatzsteuer.';
 const trialAnswer = 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten in einem eigenen, leeren Bereich. Das Paket wählen Sie bei der Registrierung; der Test endet automatisch.';
 
 export const solutions: Solution[] = [
@@ -245,7 +245,7 @@ export const solutions: Solution[] = [
       { question: 'Können Mitarbeitende ohne Handy stempeln?', answer: 'Ja, im Browser oder an einem Stempelterminal am Standort.' },
       { question: 'Wer sieht die Zeiten?', answer: 'Jede Person sieht ihre eigenen Zeiten. Was Vorgesetzte sehen, legen Sie über Rollen und Rechte fest – alle, eigene Abteilung oder nur eigene.' },
       { question: 'Gibt es die App in mehreren Sprachen?', answer: 'Ja, in Deutsch, Englisch, Polnisch, Griechisch und Persisch – jede Person arbeitet in ihrer Sprache.' },
-      { question: 'Was kostet die Zeiterfassung?', answer: 'Die Zeiterfassung gehört zum Grundpaket in der Basis ab 99 € im Monat (3 Büro-Nutzer inklusive). Mitarbeitende, die nur stempeln, Urlaub beantragen, den Dienstplan sehen, chatten und eigene Aufgaben erledigen, zählen als App-Nutzer für 3 € je Person und Monat. Alle Preise netto bei jährlicher Zahlung.' },
+      { question: 'Was kostet die Zeiterfassung?', answer: 'Die Zeiterfassung gehört zum Grundpaket in der Basis ab 99 € im Monat (3 Büro-Nutzer inklusive). Mitarbeitende, die nur stempeln, Urlaub beantragen, den Dienstplan sehen, chatten und eigene Aufgaben erledigen, zählen als App-Nutzer für 3 € je Person und Monat. Alle Preise bei jährlicher Zahlung, ohne Umsatzsteuer nach § 19 UStG.' },
       { question: 'Kann ich die Zeiterfassung kostenlos testen?', answer: 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten; das Grundpaket mit der Zeiterfassung ist immer dabei. Der Test endet automatisch.' },
     ],
     related: ['hausverwaltungssoftware', 'hotelsoftware', 'e-rechnung-software'],
@@ -281,7 +281,7 @@ export const solutions: Solution[] = [
       { question: 'Welche Formate erzeugt NexAsset?', answer: 'XRechnung 3.0 als XML und ZUGFeRD als PDF mit eingebetteten Daten. Beide werden vor dem Festschreiben geprüft.' },
       { question: 'Kann ich eine festgeschriebene Rechnung ändern?', answer: 'Nein. Festgeschriebene Rechnungen bleiben unverändert; Korrekturen erfolgen über Storno und eine neue Rechnung.' },
       { question: 'Bekommt mein Steuerberater die Daten?', answer: 'Ja, über den DATEV-Export der Ausgangsrechnungen.' },
-      { question: 'Ist die E-Rechnung im Grundpaket?', answer: 'Ja. Rechnungen mit E-Rechnung, Mahnwesen und Kassenbuch gehören zum Grundpaket und kosten nichts extra. Die Basis mit dem Grundpaket beginnt bei 99 € im Monat, netto bei jährlicher Zahlung.' },
+      { question: 'Ist die E-Rechnung im Grundpaket?', answer: 'Ja. Rechnungen mit E-Rechnung, Mahnwesen und Kassenbuch gehören zum Grundpaket und kosten nichts extra. Die Basis mit dem Grundpaket beginnt bei 99 € im Monat, bei jährlicher Zahlung, ohne Umsatzsteuer nach § 19 UStG.' },
       { question: 'Kann ich die Rechnungsfunktionen kostenlos testen?', answer: 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten; das Grundpaket ist immer dabei. Der Test endet automatisch.' },
     ],
     related: ['hausverwaltungssoftware', 'zeiterfassung-app', 'asset-management-software'],
