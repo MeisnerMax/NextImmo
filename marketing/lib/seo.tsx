@@ -33,7 +33,7 @@ export const softwareNode = (description: string) => ({
       '@type': 'AggregateOffer',
       lowPrice: '99',
       priceCurrency: 'EUR',
-      description: 'Basis mit Grundpaket ab 99 € netto je Monat bei jährlicher Zahlung; Pakete nach Größe zusätzlich.',
+      description: 'Basis mit Grundpaket ab 99 € je Monat bei jährlicher Zahlung (keine Umsatzsteuer nach § 19 UStG); Pakete nach Größe zusätzlich.',
       url: `${siteConfig.url}/#preise`,
       priceSpecification: { '@type': 'UnitPriceSpecification', price: '99', priceCurrency: 'EUR', unitCode: 'MON', unitText: 'Monat' },
     },

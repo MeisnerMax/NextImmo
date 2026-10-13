@@ -88,7 +88,7 @@ const de: HomeContent = {
     lead: 'Alle arbeiten in derselben Anwendung mit denselben Objekten, Personen und Rechten. Pakete schalten zusätzliche Bereiche frei – Sie zahlen nur, was Sie nutzen.',
     included: 'immer dabei',
     tryWith: 'Mit {name} testen',
-    note: 'Alle Preise netto je Monat bei jährlicher Zahlung – Details und Beispiele unter ',
+    note: 'Alle Preise je Monat bei jährlicher Zahlung, ohne Umsatzsteuer (§ 19 UStG) – Details und Beispiele unter ',
     noteLink: 'Preise',
     list: [
       { id: 'base', slug: '', name: 'Grundpaket', tagline: 'Der Betrieb des ganzen Unternehmens – vom Büro bis zum Team vor Ort.', unit: 'für alle Nutzer', price: { from: 'ab 99 €', detail: 'im Monat · 3 Büro-Nutzer inklusive' }, accent: 'base', bullets: ['Aufgaben, Listen und „Meine Aufgaben“', 'Stempeluhr mit Pausen und Erinnerungen, Lohnvorbereitung', 'Dienstplan, Urlaub, Personalakte', 'Team-Chat mit Fotos und Sprachnachrichten', 'Freigaben für Material, Urlaub und Anträge', 'Objekte, Einheiten, Mieter, Nebenkosten', 'Rechnungen mit E-Rechnung (ZUGFeRD, XRechnung), Mahnwesen, Kasse', 'Dokumente, Verträge, Kontakte, Bewertungen'] },
@@ -103,7 +103,7 @@ const de: HomeContent = {
   pricing: {
     eyebrow: 'Preise',
     title: 'Preise, die mit Ihrem Bestand wachsen.',
-    lead: 'Sie zahlen eine Basis nach Büro-Nutzern und jedes Paket nach seiner Größe – Einheiten, Objekte, Projekte, Zimmer oder Standorte, nie je Nutzer. Alle Preise netto je Monat bei jährlicher Zahlung.',
+    lead: 'Sie zahlen eine Basis nach Büro-Nutzern und jedes Paket nach seiner Größe – Einheiten, Objekte, Projekte, Zimmer oder Standorte, nie je Nutzer. Alle Preise je Monat bei jährlicher Zahlung; gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
     listTitle: 'Preisliste',
     listLead: 'Die Basis braucht jeder Kunde, die Pakete wählen Sie nach Bedarf.',
     basis: {
@@ -143,7 +143,7 @@ const de: HomeContent = {
     examplesNote: 'Zimmerstaffel im Paket Hotel: Ein Hotel mit 100 Zimmern kostet mit Hotel Komplett 752 €, mit Hotel Betrieb 376 € im Monat (ohne Basis).',
     conditionsTitle: 'Konditionen',
     conditions: [
-      { title: 'Jahresvertrag zum Listenpreis', text: 'Standard ist ein Jahresvertrag zu den Preisen oben, jährlich im Voraus bezahlt.' },
+      { title: 'Jahresvertrag zum Listenpreis', text: 'Standard ist ein Jahresvertrag zu den Preisen oben, jährlich im Voraus per SEPA-Lastschrift oder Karte bezahlt. Die Rechnung kommt per E-Mail; Bestellung und Zahlung laufen direkt in NexAsset.' },
       { title: 'Monatliche Zahlung', text: '15 % Aufschlag auf den Listenpreis, dafür monatlich kündbar.' },
       { title: 'Bündelrabatt', text: '2 Pakete −10 %, ab 3 Paketen −15 %. Gilt für die Pakete, nicht für Basis und KI-Assistent.' },
       { title: 'Gründungskunden', text: 'Die ersten 10 Kunden erhalten 24 Monate −30 %. Im Gegenzug: Referenz, ein Feedback-Gespräch pro Quartal und nach Ihrer Freigabe Ihr Logo auf unserer Website.' },
@@ -235,7 +235,7 @@ const de: HomeContent = {
     ask: 'Frage stellen',
     items: [
       { question: 'Was kostet der Test?', answer: 'Nichts. Die Testphase dauert 14 Tage, wir fragen keine Zahlungsdaten ab und sie endet automatisch – ohne Kündigung. Ein Vertrag kommt nur zustande, wenn Sie danach ausdrücklich weitermachen möchten.' },
-      { question: 'Was kostet NexAsset?', answer: 'Die Basis mit dem Grundpaket beginnt bei 99 € im Monat. Dazu kommen die Pakete, die Sie brauchen: Hausverwaltung ab 1,00 € je Einheit (mindestens 79 €), Asset Management ab 249 €, Development ab 149 € je aktives Projekt, Hotel ab 4 € je Zimmer, Property & Corporate ab 349 € und der KI-Assistent für 6 € je Büro-Nutzer. In unseren Beispielrechnungen liegen Unternehmen zwischen rund 500 € und 2.100 € im Monat. Alle Preise netto bei jährlicher Zahlung.' },
+      { question: 'Was kostet NexAsset?', answer: 'Die Basis mit dem Grundpaket beginnt bei 99 € im Monat. Dazu kommen die Pakete, die Sie brauchen: Hausverwaltung ab 1,00 € je Einheit (mindestens 79 €), Asset Management ab 249 €, Development ab 149 € je aktives Projekt, Hotel ab 4 € je Zimmer, Property & Corporate ab 349 € und der KI-Assistent für 6 € je Büro-Nutzer. In unseren Beispielrechnungen liegen Unternehmen zwischen rund 500 € und 2.100 € im Monat. Alle Preise bei jährlicher Zahlung, ohne Umsatzsteuer nach § 19 UStG.' },
       { question: 'Welche Pakete kann ich testen?', answer: 'Alle: Hausverwaltung, Asset Management, Development, Hotel, Property & Corporate und den KI-Assistenten – einzeln oder zusammen. Das Grundpaket ist immer dabei. Pakete lassen sich auch später dazunehmen oder abbestellen.' },
       { question: 'Wie wird abgerechnet?', answer: 'Die Basis richtet sich nach den Büro-Nutzern (Start, Team oder Unternehmen; App-Nutzer 3 € je Person), jedes Paket nach seiner Größe: Hausverwaltung je Einheit, Asset Management nach Objekten, Development je aktives Projekt, Hotel je Zimmer, Property & Corporate nach Standorten, KI je Büro-Nutzer. Standard ist der Jahresvertrag zum Listenpreis, jährlich im Voraus bezahlt. Bei monatlicher Zahlung gelten 15 % Aufschlag, dafür ist der Vertrag monatlich kündbar. Für 2 Pakete gibt es 10 %, ab 3 Paketen 15 % Bündelrabatt auf die Pakete.' },
       { question: 'Welche Daten sieht der KI-Assistent?', answer: 'Nur, was die fragende Person in NexAsset ohnehin sehen darf – ausgewählt von NexAsset, nicht vom Modell. Zugangsdaten sowie Ausweis-, Steuer- und Gesundheitsdaten gehen nie an das Modell. Die Daten werden nicht zum Training verwendet; auf Wunsch läuft die Verarbeitung nur in der EU.' },
@@ -273,7 +273,7 @@ const en: HomeContent = {
     lead: 'Everyone works in the same application with the same properties, people and permissions. Packages unlock additional areas – you only pay for what you use.',
     included: 'always included',
     tryWith: 'Try with {name}',
-    note: 'All prices net per month with annual payment – details and examples under ',
+    note: 'All prices per month with annual payment, no VAT (German small-business rule, § 19 UStG) – details and examples under ',
     noteLink: 'Pricing',
     list: [
       { id: 'base', slug: '', name: 'Core package', tagline: 'Running the whole company – from the office to the team on site.', unit: 'for all users', price: { from: 'from €99', detail: 'per month · 3 office users included' }, accent: 'base', bullets: ['Tasks, lists and “My tasks”', 'Time clock with breaks and reminders, payroll preparation', 'Shift planning, leave, personnel files', 'Team chat with photos and voice messages', 'Approvals for materials, leave and requests', 'Properties, units, tenants, service charges', 'Invoices with German e-invoicing (ZUGFeRD, XRechnung), dunning, cash book', 'Documents, contracts, contacts, valuations'] },
@@ -288,7 +288,7 @@ const en: HomeContent = {
   pricing: {
     eyebrow: 'Pricing',
     title: 'Pricing that grows with your portfolio.',
-    lead: 'You pay a basis by office users and each package by its size – units, properties, projects, rooms or sites, never per user. All prices net per month with annual payment.',
+    lead: 'You pay a basis by office users and each package by its size – units, properties, projects, rooms or sites, never per user. All prices per month with annual payment; no VAT is charged under § 19 of the German VAT Act (small business).',
     listTitle: 'Price list',
     listLead: 'Every customer needs the basis; you choose the packages as needed.',
     basis: {
@@ -328,7 +328,7 @@ const en: HomeContent = {
     examplesNote: 'Room scale in the hotel package: a hotel with 100 rooms costs €752 per month with Hotel Complete and €376 with Hotel Operations (excluding the basis).',
     conditionsTitle: 'Terms',
     conditions: [
-      { title: 'Annual contract at list price', text: 'The standard is an annual contract at the prices above, paid annually in advance.' },
+      { title: 'Annual contract at list price', text: 'The standard is an annual contract at the prices above, paid annually in advance by SEPA direct debit or card. The invoice comes by e-mail; ordering and payment happen right in NexAsset.' },
       { title: 'Monthly payment', text: '15% surcharge on the list price, cancellable monthly.' },
       { title: 'Bundle discount', text: '2 packages −10%, 3 or more packages −15%. Applies to the packages, not to the basis and AI assistant.' },
       { title: 'Founding customers', text: 'The first 10 customers get −30% for 24 months. In return: a reference, one feedback call per quarter and, once you approve, your logo on our website.' },
@@ -420,7 +420,7 @@ const en: HomeContent = {
     ask: 'Ask a question',
     items: [
       { question: 'What does the trial cost?', answer: 'Nothing. The trial lasts 14 days, we don’t ask for payment details and it ends automatically – no cancellation needed. A contract only comes about if you explicitly want to continue.' },
-      { question: 'What does NexAsset cost?', answer: 'The basis with the core package starts at €99 per month. On top come the packages you need: property management from €1.00 per unit (minimum €79), asset management from €249, development from €149 per active project, hotel from €4 per room, Property & Corporate from €349 and the AI assistant at €6 per office user. In our example calculations, companies pay between about €500 and €2,100 per month. All prices net with annual payment.' },
+      { question: 'What does NexAsset cost?', answer: 'The basis with the core package starts at €99 per month. On top come the packages you need: property management from €1.00 per unit (minimum €79), asset management from €249, development from €149 per active project, hotel from €4 per room, Property & Corporate from €349 and the AI assistant at €6 per office user. In our example calculations, companies pay between about €500 and €2,100 per month. All prices with annual payment, no VAT under § 19 of the German VAT Act.' },
       { question: 'Which packages can I try?', answer: 'All of them: property management, asset management, development, hotel, Property & Corporate and the AI assistant – individually or together. The core package is always included. You can also add or remove packages later.' },
       { question: 'How is it billed?', answer: 'The basis depends on the number of office users (Start, Team or Company; app users €3 per person), each package on its size: property management per unit, asset management by properties, development per active project, hotel per room, Property & Corporate by sites, AI per office user. The standard is an annual contract at list price, paid annually in advance. With monthly payment a 15% surcharge applies and the contract can be cancelled monthly. 2 packages get a 10% and 3 or more packages a 15% bundle discount on the packages.' },
       { question: 'Which data does the AI assistant see?', answer: 'Only what the person asking may see in NexAsset anyway – selected by NexAsset, not by the model. Credentials and ID, tax and health data never go to the model. Data is not used for training; optionally, processing happens in the EU only.' },
