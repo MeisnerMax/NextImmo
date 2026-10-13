@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'NexGen Consulting', url: siteConfig.parentUrl }],
   creator: 'NexGen Consulting',
   publisher: siteConfig.legalEntity,
-  alternates: { canonical: '/' },
+  alternates: { canonical: siteConfig.url },
   openGraph: {
     title: 'NexAsset – eine Software für Immobilien, Hotels und Teams',
     description: siteConfig.description,

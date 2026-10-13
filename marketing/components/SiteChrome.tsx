@@ -1,6 +1,6 @@
 import { Logo } from '@/components/Logo';
 import { content, type Lang } from '@/lib/content';
-import { siteConfig } from '@/lib/site';
+import { path, siteConfig } from '@/lib/site';
 import { solutions } from '@/lib/solutions';
 
 const app = siteConfig.nexassetAppUrl;
@@ -18,8 +18,8 @@ export function CheckIcon() {
 export function SiteHeader({ lang, onHome }: { lang: Lang; onHome: boolean }) {
   const c = content[lang];
   const en = lang === 'en';
-  const home = en ? '/en' : '/';
-  const anchor = (id: string) => (onHome ? `#${id}` : `${home === '/' ? '' : home}/#${id}`);
+  const home = path(en ? '/en' : '/');
+  const anchor = (id: string) => (onHome ? `#${id}` : `${home}#${id}`);
   const nav = [
     [anchor('pakete'), c.nav.packages],
     [anchor('preise'), c.nav.pricing],
@@ -38,7 +38,7 @@ export function SiteHeader({ lang, onHome }: { lang: Lang; onHome: boolean }) {
           {nav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
         </nav>
         <div className="header-actions">
-          <a className="parent-link" href={c.nav.otherHref} lang={otherLang} hrefLang={otherLang}>{c.nav.other}</a>
+          <a className="parent-link" href={path(c.nav.otherHref)} lang={otherLang} hrefLang={otherLang}>{c.nav.other}</a>
           <a className="parent-link" href={`${app}/login`}>{c.nav.login} <ArrowIcon /></a>
           <a className="button button--compact" href={signupUrl}>{c.nav.cta}</a>
         </div>
@@ -46,7 +46,7 @@ export function SiteHeader({ lang, onHome }: { lang: Lang; onHome: boolean }) {
           <summary aria-label={c.nav.menu}><span /><span /></summary>
           <div>
             {nav.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
-            <a href={c.nav.otherHref} lang={otherLang} hrefLang={otherLang}>{en ? 'Deutsch' : 'English'}</a>
+            <a href={path(c.nav.otherHref)} lang={otherLang} hrefLang={otherLang}>{en ? 'Deutsch' : 'English'}</a>
             <a href={`${app}/login`}>{c.nav.login}</a>
             <a href={signupUrl}>{c.hero.primary}</a>
           </div>
@@ -60,14 +60,14 @@ export function SiteHeader({ lang, onHome }: { lang: Lang; onHome: boolean }) {
 export function SiteFooter({ lang, onHome }: { lang: Lang; onHome: boolean }) {
   const c = content[lang];
   const en = lang === 'en';
-  const home = en ? '/en' : '';
-  const anchor = (id: string) => (onHome ? `#${id}` : `${home}/#${id}`);
+  const home = path(en ? '/en' : '/');
+  const anchor = (id: string) => (onHome ? `#${id}` : `${home}#${id}`);
   return (
     <footer className="site-footer">
       <div className="shell">
         <div className="site-footer__top site-footer__top--five">
           <div><Logo inverse /><p>{c.footer.tagline}<br />{en ? 'by' : 'von'} <a href={siteConfig.parentUrl}>{siteConfig.company}</a>, Coburg.</p></div>
-          <div><span>{en ? 'Solutions (German)' : 'Lösungen'}</span>{solutions.map((item) => <a key={item.slug} href={`/${item.slug}`} lang={en ? 'de' : undefined}>{item.short}</a>)}</div>
+          <div><span>{en ? 'Solutions (German)' : 'Lösungen'}</span>{solutions.map((item) => <a key={item.slug} href={path(`/${item.slug}`)} lang={en ? 'de' : undefined}>{item.short}</a>)}</div>
           <div><span>{c.footer.product}</span><a href={anchor('pakete')}>{c.nav.packages}</a><a href={anchor('preise')}>{c.nav.pricing}</a><a href={anchor('ki')}>{c.nav.ai}</a><a href={anchor('testen')}>{c.nav.trial}</a><a href={`${app}/login`}>{c.nav.login}</a></div>
           <div><span>{c.footer.network}</span><a href={siteConfig.parentUrl}>{siteConfig.company}</a><a href={`${siteConfig.parentUrl}/leistungen/individualsoftware`}>{en ? 'Custom software' : 'Individualsoftware'}</a><a href={siteConfig.contactUrl}>{en ? 'Contact' : 'Kontakt'}</a></div>
           <div><span>{c.footer.legal}</span><a href={`${app}/agb`}>{en ? 'Terms' : 'AGB'}</a><a href={`${app}/avv`}>{en ? 'DPA' : 'AVV'}</a><a href={`${app}/datenschutz`}>{c.footer.privacy}</a><a href={`${siteConfig.parentUrl}/impressum`}>{c.footer.imprint}</a></div>

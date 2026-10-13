@@ -4,7 +4,7 @@ import { PackagePicker } from '@/components/PackagePicker';
 import { ArrowIcon, CheckIcon, SiteFooter, SiteHeader, signupUrl, tryUrl } from '@/components/SiteChrome';
 import { content, type HomeContent, type PriceRow } from '@/lib/content';
 import { JsonLd, organizationId, organizationNode, softwareId, softwareNode, websiteId } from '@/lib/seo';
-import { siteConfig } from '@/lib/site';
+import { path, siteConfig } from '@/lib/site';
 
 import { solutionForPackage } from '@/lib/solutions';
 
@@ -65,10 +65,10 @@ export function Home({ c }: { c: HomeContent }) {
             <div className="hero__visual hero__visual--shots">
               <figure className="device device--desktop">
                 <div className="device__bar" aria-hidden="true"><i /><i /><i /><span>nexasset.nexgen-consulting.de</span></div>
-                <Image src="/screens/desk-dashboard.webp" alt={c.hero.dashboardAlt} width={1600} height={1000} priority sizes="(max-width: 820px) 92vw, 46vw" />
+                <Image src={path("/screens/desk-dashboard.webp")} alt={c.hero.dashboardAlt} width={1600} height={1000} priority sizes="(max-width: 820px) 92vw, 46vw" />
               </figure>
               <figure className="device device--phone">
-                <Image src="/screens/phone-time.webp" alt={c.hero.phoneAlt} width={780} height={1688} priority sizes="(max-width: 620px) 34vw, 190px" />
+                <Image src={path("/screens/phone-time.webp")} alt={c.hero.phoneAlt} width={780} height={1688} priority sizes="(max-width: 620px) 34vw, 190px" />
               </figure>
             </div>
           </div>
@@ -95,7 +95,7 @@ export function Home({ c }: { c: HomeContent }) {
                   <p>{pkg.tagline}</p>
                   <div className="package-card__price"><strong>{pkg.price.from}</strong><span>{pkg.price.detail}</span></div>
                   <ul>{pkg.bullets.map((bullet) => <li key={bullet}><CheckIcon />{bullet}</li>)}</ul>
-                  {pkg.slug ? <div className="package-card__links"><a className="package-card__try" href={tryUrl(pkg.slug)}>{c.packages.tryWith.replace('{name}', pkg.name)} <ArrowIcon /></a>{solutionForPackage(pkg.slug) ? <a className="package-card__more" href={`/${solutionForPackage(pkg.slug)?.slug}`} lang={en ? 'de' : undefined}>{en ? 'Details (German)' : 'Mehr erfahren'}</a> : null}</div> : null}
+                  {pkg.slug ? <div className="package-card__links"><a className="package-card__try" href={tryUrl(pkg.slug)}>{c.packages.tryWith.replace('{name}', pkg.name)} <ArrowIcon /></a>{solutionForPackage(pkg.slug) ? <a className="package-card__more" href={path(`/${solutionForPackage(pkg.slug)?.slug}`)} lang={en ? 'de' : undefined}>{en ? 'Details (German)' : 'Mehr erfahren'}</a> : null}</div> : null}
                 </article>
               ))}
             </div>
@@ -194,7 +194,7 @@ export function Home({ c }: { c: HomeContent }) {
                   {feature.shot ? (
                     <figure className="device device--desktop">
                       <div className="device__bar" aria-hidden="true"><i /><i /><i /></div>
-                      <Image src={feature.shot.src} alt={feature.shot.alt} width={1600} height={1000} sizes="(max-width: 820px) 92vw, 60vw" />
+                      <Image src={path(feature.shot.src)} alt={feature.shot.alt} width={1600} height={1000} sizes="(max-width: 820px) 92vw, 60vw" />
                     </figure>
                   ) : null}
                   <div className="feature-row__copy">
@@ -202,7 +202,7 @@ export function Home({ c }: { c: HomeContent }) {
                     <h3>{feature.title}</h3>
                     <p>{feature.text}</p>
                     <ul>{feature.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul>
-                    {feature.slug ? <div className="feature-row__links"><a className="feature-row__try" href={tryUrl(feature.slug)}>{c.features.tryThis} <ArrowIcon /></a>{solutionForPackage(feature.slug) ? <a className="feature-row__more" href={`/${solutionForPackage(feature.slug)?.slug}`} lang={en ? 'de' : undefined}>{en ? 'More (German)' : `${solutionForPackage(feature.slug)?.short} – mehr erfahren`}</a> : null}</div> : null}
+                    {feature.slug ? <div className="feature-row__links"><a className="feature-row__try" href={tryUrl(feature.slug)}>{c.features.tryThis} <ArrowIcon /></a>{solutionForPackage(feature.slug) ? <a className="feature-row__more" href={path(`/${solutionForPackage(feature.slug)?.slug}`)} lang={en ? 'de' : undefined}>{en ? 'More (German)' : `${solutionForPackage(feature.slug)?.short} – mehr erfahren`}</a> : null}</div> : null}
                   </div>
                 </article>
               ))}
@@ -220,10 +220,10 @@ export function Home({ c }: { c: HomeContent }) {
             <div className="ai__visual reveal">
               <figure className="device device--desktop">
                 <div className="device__bar" aria-hidden="true"><i /><i /><i /><span>nexasset.nexgen-consulting.de</span></div>
-                <Image src="/screens/desk-ai.webp" alt={c.ai.shotAlt} width={1600} height={1000} sizes="(max-width: 820px) 92vw, 70vw" />
+                <Image src={path("/screens/desk-ai.webp")} alt={c.ai.shotAlt} width={1600} height={1000} sizes="(max-width: 820px) 92vw, 70vw" />
               </figure>
               <figure className="device device--phone">
-                <Image src="/screens/phone-ai-action.webp" alt={c.ai.phoneAlt} width={780} height={1688} sizes="(max-width: 620px) 34vw, 200px" />
+                <Image src={path("/screens/phone-ai-action.webp")} alt={c.ai.phoneAlt} width={780} height={1688} sizes="(max-width: 620px) 34vw, 200px" />
               </figure>
             </div>
             <div className="ai__points">
@@ -245,7 +245,7 @@ export function Home({ c }: { c: HomeContent }) {
             <div className="screens__phones">
               {c.screens.phones.map((shot) => (
                 <figure className="phone-card reveal" key={shot.src}>
-                  <div className="device device--phone"><Image src={shot.src} alt={shot.alt} width={780} height={1688} sizes="(max-width: 620px) 44vw, 240px" /></div>
+                  <div className="device device--phone"><Image src={path(shot.src)} alt={shot.alt} width={780} height={1688} sizes="(max-width: 620px) 44vw, 240px" /></div>
                   <figcaption><strong>{shot.title}</strong><span>{shot.text}</span></figcaption>
                 </figure>
               ))}
