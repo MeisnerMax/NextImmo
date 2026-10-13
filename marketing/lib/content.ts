@@ -24,6 +24,14 @@ export type PriceRow = { label: string; hint?: string; price: string };
 
 export type Pricing = {
   eyebrow: string;
+  /** Unterseite /preise: Titel und Beschreibung für Suchmaschinen, Kurzpunkte im Kopf, Fragen aus der FAQ. */
+  pageTitle: string;
+  pageDescription: string;
+  proof: Array<[string, string]>;
+  faqTitle: string;
+  faqQuestions: string[];
+  /** Kurzfassung auf der Startseite mit Link zur Unterseite. */
+  teaser: { title: string; text: string; points: Array<[string, string]>; link: string };
   title: string;
   lead: string;
   listTitle: string;
@@ -102,6 +110,12 @@ const de: HomeContent = {
   },
   pricing: {
     eyebrow: 'Preise',
+    pageTitle: 'Preise: Immobiliensoftware ab 99 € im Monat | NexAsset',
+    pageDescription: 'Preise von NexAsset: Basis ab 99 € im Monat, Pakete für Hausverwaltung, Asset Management, Development, Hotel, Property & Corporate und KI nach Größe. Beispielrechnungen, Konditionen und direkt online kaufen.',
+    proof: [['Direkt kaufen', 'Lastschrift oder Karte'], ['Ohne Umsatzsteuer', 'nach § 19 UStG'], ['Jährlich oder monatlich', 'monatlich kündbar']],
+    faqTitle: 'Fragen zu Preisen und Kauf',
+    faqQuestions: ['Was kostet NexAsset?', 'Wie wird abgerechnet?', 'Wie kaufe ich NexAsset?', 'Was kostet der Test?'],
+    teaser: { title: 'Klare Preise. Direkt online kaufen.', text: 'Eine Basis nach Büro-Nutzern, dazu jedes Paket nach seiner Größe – je Monat bei jährlicher Zahlung, ohne Umsatzsteuer nach § 19 UStG.', points: [['Basis mit Grundpaket', 'ab 99 €'], ['Hausverwaltung', 'ab 1,00 € je Einheit'], ['Asset Management', 'ab 249 €'], ['Development', 'ab 149 € je Projekt'], ['Hotel', 'ab 4 € je Zimmer'], ['KI-Assistent', '6 € je Nutzer']], link: 'Alle Preise & Beispiele' },
     title: 'Preise, die mit Ihrem Bestand wachsen.',
     lead: 'Sie zahlen eine Basis nach Büro-Nutzern und jedes Paket nach seiner Größe – Einheiten, Objekte, Projekte, Zimmer oder Standorte, nie je Nutzer. Alle Preise je Monat bei jährlicher Zahlung; gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
     listTitle: 'Preisliste',
@@ -288,6 +302,12 @@ const en: HomeContent = {
   },
   pricing: {
     eyebrow: 'Pricing',
+    pageTitle: 'Pricing: real estate software from €99 per month | NexAsset',
+    pageDescription: 'NexAsset pricing: basis from €99 per month, packages for property management, asset management, development, hotels, property & corporate and AI by size. Example calculations, terms and buying online.',
+    proof: [['Buy directly', 'direct debit or card'], ['No VAT', 'German small-business rule'], ['Annual or monthly', 'cancel monthly']],
+    faqTitle: 'Questions about pricing and buying',
+    faqQuestions: ['What does NexAsset cost?', 'How is it billed?', 'How do I buy NexAsset?', 'What does the trial cost?'],
+    teaser: { title: 'Clear prices. Buy online.', text: 'A basis by office users plus each package by its size – per month with annual payment, no VAT (German small-business rule).', points: [['Basis with core package', 'from €99'], ['Property management', 'from €1.00 per unit'], ['Asset management', 'from €249'], ['Development', 'from €149 per project'], ['Hotel', 'from €4 per room'], ['AI assistant', '€6 per user']], link: 'All prices & examples' },
     title: 'Pricing that grows with your portfolio.',
     lead: 'You pay a basis by office users and each package by its size – units, properties, projects, rooms or sites, never per user. All prices per month with annual payment; no VAT is charged under § 19 of the German VAT Act (small business).',
     listTitle: 'Price list',

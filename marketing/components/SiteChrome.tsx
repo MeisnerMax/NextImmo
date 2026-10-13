@@ -22,7 +22,7 @@ export function SiteHeader({ lang, onHome }: { lang: Lang; onHome: boolean }) {
   const anchor = (id: string) => (onHome ? `#${id}` : `${home}#${id}`);
   const nav = [
     [anchor('pakete'), c.nav.packages],
-    [anchor('preise'), c.nav.pricing],
+    [path(en ? '/en/preise' : '/preise'), c.nav.pricing],
     [anchor('ki'), c.nav.ai],
     [anchor('einblicke'), c.nav.screens],
     [anchor('testen'), c.nav.trial],
@@ -68,7 +68,7 @@ export function SiteFooter({ lang, onHome }: { lang: Lang; onHome: boolean }) {
         <div className="site-footer__top site-footer__top--five">
           <div><Logo inverse /><p>{c.footer.tagline}<br />{en ? 'by' : 'von'} <a href={siteConfig.parentUrl}>{siteConfig.company}</a>, Coburg.</p></div>
           <div><span>{en ? 'Solutions (German)' : 'Lösungen'}</span>{solutions.map((item) => <a key={item.slug} href={path(`/${item.slug}`)} lang={en ? 'de' : undefined}>{item.short}</a>)}</div>
-          <div><span>{c.footer.product}</span><a href={anchor('pakete')}>{c.nav.packages}</a><a href={anchor('preise')}>{c.nav.pricing}</a><a href={anchor('ki')}>{c.nav.ai}</a><a href={anchor('testen')}>{c.nav.trial}</a><a href={`${app}/login`}>{c.nav.login}</a></div>
+          <div><span>{c.footer.product}</span><a href={anchor('pakete')}>{c.nav.packages}</a><a href={path(en ? '/en/preise' : '/preise')}>{c.nav.pricing}</a><a href={anchor('ki')}>{c.nav.ai}</a><a href={anchor('testen')}>{c.nav.trial}</a><a href={`${app}/login`}>{c.nav.login}</a></div>
           <div><span>{c.footer.network}</span><a href={siteConfig.parentUrl}>{siteConfig.company}</a><a href={`${siteConfig.parentUrl}/leistungen/individualsoftware`}>{en ? 'Custom software' : 'Individualsoftware'}</a><a href={siteConfig.contactUrl}>{en ? 'Contact' : 'Kontakt'}</a></div>
           <div><span>{c.footer.legal}</span><a href={`${app}/agb`}>{en ? 'Terms' : 'AGB'}</a><a href={`${app}/avv`}>{en ? 'DPA' : 'AVV'}</a><a href={`${app}/datenschutz`}>{c.footer.privacy}</a><a href={`${siteConfig.parentUrl}/impressum`}>{c.footer.imprint}</a></div>
         </div>

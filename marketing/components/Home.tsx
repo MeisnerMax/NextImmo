@@ -2,26 +2,13 @@ import { Fragment } from 'react';
 import Image from 'next/image';
 import { PackagePicker } from '@/components/PackagePicker';
 import { ArrowIcon, CheckIcon, SiteFooter, SiteHeader, signupUrl, tryUrl } from '@/components/SiteChrome';
-import { content, type HomeContent, type PriceRow } from '@/lib/content';
+import { content, type HomeContent } from '@/lib/content';
 import { JsonLd, organizationId, organizationNode, softwareId, softwareNode, websiteId } from '@/lib/seo';
 import { path, siteConfig } from '@/lib/site';
 
 import { solutionForPackage } from '@/lib/solutions';
 
 const app = siteConfig.nexassetAppUrl;
-
-function PriceRows({ rows }: { rows: PriceRow[] }) {
-  return (
-    <ul className="price-rows">
-      {rows.map((row) => (
-        <li key={row.label}>
-          <span>{row.label}{row.hint ? <small>{row.hint}</small> : null}</span>
-          <strong>{row.price}</strong>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 export function Home({ c }: { c: HomeContent }) {
   const en = c.lang === 'en';
@@ -99,85 +86,22 @@ export function Home({ c }: { c: HomeContent }) {
                 </article>
               ))}
             </div>
-            <p className="packages__note reveal">{c.packages.note}<a href="#preise">{c.packages.noteLink}</a>.</p>
+            <p className="packages__note reveal">{c.packages.note}<a href={path(en ? '/en/preise' : '/preise')}>{c.packages.noteLink}</a>.</p>
           </div>
         </section>
 
-        <section className="pricing section" id="preise">
+        <section className="pricing-teaser section" id="preise">
           <div className="shell">
-            <div className="section-head section-head--split reveal">
-              <div><p className="eyebrow">{p.eyebrow}</p><h2>{p.title}</h2></div>
-              <p>{p.lead}</p>
-            </div>
-
-            <div className="pricing__block">
-              <div className="pricing__subhead reveal"><h3>{p.listTitle}</h3><p>{p.listLead}</p></div>
-              <article className="price-basis reveal">
-                <div className="price-basis__head">
-                  <h4><span className="price-card__dot" aria-hidden="true" />{p.basis.name}</h4>
-                  <p>{p.basis.tagline}</p>
-                </div>
-                <ul className="price-basis__tiers">
-                  {p.basis.tiers.map((tier) => (
-                    <li key={tier.name}>
-                      <span className="price-basis__name">{tier.name}</span>
-                      <span className="price-basis__amount"><strong>{tier.price}</strong> {tier.perMonth}</span>
-                      <span className="price-basis__included">{tier.included}</span>
-                      <span className="price-basis__range">{tier.range}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="price-basis__extras">
-                  <h5>{p.basis.extrasTitle}</h5>
-                  <PriceRows rows={p.basis.extras} />
-                </div>
-              </article>
-              <div className="price-grid">
-                {p.packages.map((pkg) => (
-                  <article className={`price-card price-card--${pkg.accent} reveal`} key={pkg.id}>
-                    <h4><span className="price-card__dot" aria-hidden="true" />{pkg.name}</h4>
-                    <p className="price-card__measure">{pkg.measure}</p>
-                    <PriceRows rows={pkg.rows} />
-                    <p className="price-card__note">{pkg.note}</p>
-                  </article>
-                ))}
+            <div className="pricing-teaser__box reveal">
+              <div className="pricing-teaser__copy">
+                <p className="eyebrow">{p.eyebrow}</p>
+                <h2>{p.teaser.title}</h2>
+                <p>{p.teaser.text}</p>
               </div>
-            </div>
-
-            <div className="pricing__block">
-              <div className="pricing__subhead reveal"><h3>{p.examplesTitle}</h3><p>{p.examplesLead}</p></div>
-              <div className="example-grid">
-                {p.examples.map((example) => (
-                  <article className="example-card reveal" key={example.title}>
-                    <h4>{example.title}</h4>
-                    <ul>{example.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
-                    <div className="example-card__price"><strong>{example.price}</strong><span>{p.perMonth}</span></div>
-                    {example.extra ? <p className="example-card__extra">{example.extra}</p> : null}
-                    <p className="example-card__founding"><span>{p.foundingLabel}</span><strong>{example.founding}</strong></p>
-                  </article>
-                ))}
-              </div>
-              <p className="pricing__note reveal">{p.examplesNote}</p>
-            </div>
-
-            <div className="pricing__terms">
-              <div className="pricing__conditions reveal">
-                <h3>{p.conditionsTitle}</h3>
-                <ul>{p.conditions.map((item) => <li key={item.title}><CheckIcon /><div><strong>{item.title}</strong><p>{item.text}</p></div></li>)}</ul>
-              </div>
-              <div className="pricing__oneoff reveal">
-                <h3>{p.oneOffTitle}</h3>
-                <p>{p.oneOffLead}</p>
-                <PriceRows rows={p.oneOff.map((item) => ({ label: item.name, hint: item.text, price: item.price }))} />
-              </div>
-            </div>
-
-            <div className="pricing__cta reveal">
-              <div><h3>{p.cta.title}</h3><p>{p.cta.text}</p></div>
-              <div className="pricing__actions">
-                <a className="button" href={signupUrl}>{p.cta.primary} <ArrowIcon /></a>
+              <ul className="pricing-teaser__list">{p.teaser.points.map(([label, value]) => <li key={label}><span>{label}</span><strong>{value}</strong></li>)}</ul>
+              <div className="pricing-teaser__actions">
+                <a className="button" href={path(en ? '/en/preise' : '/preise')}>{p.teaser.link} <ArrowIcon /></a>
                 <a className="button button--ghost" href={`${signupUrl}?kaufen=1`}>{p.cta.buy} <ArrowIcon /></a>
-                <a className="button button--ghost" href={`mailto:${siteConfig.email}?subject=${encodeURIComponent(p.cta.quoteSubject)}`}>{p.cta.secondary}</a>
               </div>
             </div>
           </div>
