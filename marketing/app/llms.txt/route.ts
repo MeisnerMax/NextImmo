@@ -21,7 +21,7 @@ export function GET() {
     '- KI-Assistent: 6 € je Büro-Nutzer mit KI, faire Nutzung mit Monatsbudget.',
     '- Konditionen: monatliche Zahlung +15 % und monatlich kündbar; Bündelrabatt 2 Pakete −10 %, ab 3 Paketen −15 % (nur Pakete); die ersten 10 Gründungskunden −30 % für 24 Monate; Preiserhöhung höchstens 3 % pro Jahr, frühestens nach 12 Monaten; Größen über den Bändern auf Anfrage.',
     '- Einmalig: Selbststart 0 €, Einrichtung S 490 €, Einrichtung M 1.290 €, Einrichtung L / Datenübernahme Hausverwaltung ab 2.490 €, Stundensatz 95 €.',
-    `- Details und Beispielrechnungen: ${siteConfig.url}/#preise`,
+    `- Details und Beispielrechnungen: ${siteConfig.url}/preise`,
     '',
     '## Themenseiten',
     ...solutions.map((item) => `- [${item.h1}](${siteConfig.url}/${item.slug}): ${item.description}`),

@@ -10,6 +10,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: siteConfig.url, lastModified: contentUpdated, changeFrequency: 'weekly', priority: 1, alternates: { languages } },
     { url: `${siteConfig.url}/en`, lastModified: contentUpdated, changeFrequency: 'weekly', priority: 0.8, alternates: { languages } },
+    { url: `${siteConfig.url}/preise`, lastModified: contentUpdated, changeFrequency: 'monthly', priority: 0.9, alternates: { languages: { de: `${siteConfig.url}/preise`, en: `${siteConfig.url}/en/preise` } } },
+    { url: `${siteConfig.url}/en/preise`, lastModified: contentUpdated, changeFrequency: 'monthly', priority: 0.7, alternates: { languages: { de: `${siteConfig.url}/preise`, en: `${siteConfig.url}/en/preise` } } },
     ...solutions.map((item) => ({ url: `${siteConfig.url}/${item.slug}`, lastModified: contentUpdated, changeFrequency: 'monthly' as const, priority: 0.9 })),
   ];
 }
