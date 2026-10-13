@@ -41,7 +41,7 @@ export type Pricing = {
   oneOffTitle: string;
   oneOffLead: string;
   oneOff: Array<{ name: string; price: string; text: string }>;
-  cta: { title: string; text: string; primary: string; secondary: string; quoteSubject: string };
+  cta: { title: string; text: string; primary: string; buy: string; secondary: string; quoteSubject: string };
 };
 
 export type Feature = { id: string; eyebrow: string; title: string; text: string; points: string[]; shot?: { src: string; alt: string }; slug?: string };
@@ -159,7 +159,7 @@ const de: HomeContent = {
       { name: 'Einrichtung L / Datenübernahme Hausverwaltung', price: 'ab 2.490 €', text: 'Nach Aufwand: Übernahme aus dem Altsystem, Saldenabgleich und Termin vor Ort.' },
       { name: 'Stundensatz', price: '95 €', text: 'Schulungen, Sonderwünsche und Datenarbeiten.' },
     ],
-    cta: { title: 'Passt das zu Ihrem Unternehmen?', text: 'Testen Sie 14 Tage kostenlos und ohne Zahlungsdaten – oder fordern Sie ein Angebot für Ihren Bestand an.', primary: '14 Tage kostenlos testen', secondary: 'Angebot anfragen', quoteSubject: 'Angebot NexAsset' },
+    cta: { title: 'Passt das zu Ihrem Unternehmen?', text: 'Testen Sie 14 Tage kostenlos und ohne Zahlungsdaten, kaufen Sie direkt zum Listenpreis – Pakete wählen, Preis sehen, per Lastschrift oder Karte bezahlen – oder fordern Sie ein Angebot für größere Bestände an.', primary: '14 Tage kostenlos testen', buy: 'Direkt kaufen', secondary: 'Angebot anfragen', quoteSubject: 'Angebot NexAsset' },
   },
   features: {
     eyebrow: 'So arbeiten Sie damit',
@@ -238,6 +238,7 @@ const de: HomeContent = {
       { question: 'Was kostet NexAsset?', answer: 'Die Basis mit dem Grundpaket beginnt bei 99 € im Monat. Dazu kommen die Pakete, die Sie brauchen: Hausverwaltung ab 1,00 € je Einheit (mindestens 79 €), Asset Management ab 249 €, Development ab 149 € je aktives Projekt, Hotel ab 4 € je Zimmer, Property & Corporate ab 349 € und der KI-Assistent für 6 € je Büro-Nutzer. In unseren Beispielrechnungen liegen Unternehmen zwischen rund 500 € und 2.100 € im Monat. Alle Preise bei jährlicher Zahlung, ohne Umsatzsteuer nach § 19 UStG.' },
       { question: 'Welche Pakete kann ich testen?', answer: 'Alle: Hausverwaltung, Asset Management, Development, Hotel, Property & Corporate und den KI-Assistenten – einzeln oder zusammen. Das Grundpaket ist immer dabei. Pakete lassen sich auch später dazunehmen oder abbestellen.' },
       { question: 'Wie wird abgerechnet?', answer: 'Die Basis richtet sich nach den Büro-Nutzern (Start, Team oder Unternehmen; App-Nutzer 3 € je Person), jedes Paket nach seiner Größe: Hausverwaltung je Einheit, Asset Management nach Objekten, Development je aktives Projekt, Hotel je Zimmer, Property & Corporate nach Standorten, KI je Büro-Nutzer. Standard ist der Jahresvertrag zum Listenpreis, jährlich im Voraus bezahlt. Bei monatlicher Zahlung gelten 15 % Aufschlag, dafür ist der Vertrag monatlich kündbar. Für 2 Pakete gibt es 10 %, ab 3 Paketen 15 % Bündelrabatt auf die Pakete.' },
+      { question: 'Wie kaufe ich NexAsset?', answer: 'Direkt in der Anwendung: Unternehmen registrieren, unter Einstellungen → Pakete die Pakete und Mengen wählen, den Preis aus der Preisliste prüfen und mit einer Bestätigung zahlungspflichtig bestellen. Bezahlt wird per SEPA-Lastschrift oder Karte über Stripe, die Rechnung kommt per E-Mail. Das geht während des Tests oder danach; für Größen über den Bändern erstellen wir ein Angebot.' },
       { question: 'Welche Daten sieht der KI-Assistent?', answer: 'Nur, was die fragende Person in NexAsset ohnehin sehen darf – ausgewählt von NexAsset, nicht vom Modell. Zugangsdaten sowie Ausweis-, Steuer- und Gesundheitsdaten gehen nie an das Modell. Die Daten werden nicht zum Training verwendet; auf Wunsch läuft die Verarbeitung nur in der EU.' },
       { question: 'Welche Systeme lassen sich anbinden?', answer: 'Hotelsysteme (PMS) im Hotel-Paket, DATEV-Export, E-Rechnung (ZUGFeRD, XRechnung), Kontoauszüge (CSV/CAMT) und Bankabruf per PSD2 in der Hausverwaltung, GAEB X83/X84 im Development, IFC-Gebäudemodelle, Fristen als iCal und NFC-Stempelterminals.' },
       { question: 'Gibt es eine App fürs Handy?', answer: 'Ja. NexAsset läuft im Browser und als App für iOS und Android – mit Push-Benachrichtigungen, Stempeluhr, Chat, Fotos und dem KI-Assistenten.' },
@@ -344,7 +345,7 @@ const en: HomeContent = {
       { name: 'Setup L / property management data migration', price: 'from €2,490', text: 'By effort: migration from your legacy system, balance reconciliation and an on-site appointment.' },
       { name: 'Hourly rate', price: '€95', text: 'Training, special requests and data work.' },
     ],
-    cta: { title: 'Does this fit your company?', text: 'Try it free for 14 days without payment details – or request a quote for your portfolio.', primary: 'Try free for 14 days', secondary: 'Request a quote', quoteSubject: 'NexAsset quote' },
+    cta: { title: 'Does this fit your company?', text: 'Try it free for 14 days without payment details, buy directly at list price – choose packages, see the price, pay by direct debit or card – or request a quote for larger portfolios.', primary: 'Try free for 14 days', buy: 'Buy now', secondary: 'Request a quote', quoteSubject: 'NexAsset quote' },
   },
   features: {
     eyebrow: 'How you work with it',
@@ -423,6 +424,7 @@ const en: HomeContent = {
       { question: 'What does NexAsset cost?', answer: 'The basis with the core package starts at €99 per month. On top come the packages you need: property management from €1.00 per unit (minimum €79), asset management from €249, development from €149 per active project, hotel from €4 per room, Property & Corporate from €349 and the AI assistant at €6 per office user. In our example calculations, companies pay between about €500 and €2,100 per month. All prices with annual payment, no VAT under § 19 of the German VAT Act.' },
       { question: 'Which packages can I try?', answer: 'All of them: property management, asset management, development, hotel, Property & Corporate and the AI assistant – individually or together. The core package is always included. You can also add or remove packages later.' },
       { question: 'How is it billed?', answer: 'The basis depends on the number of office users (Start, Team or Company; app users €3 per person), each package on its size: property management per unit, asset management by properties, development per active project, hotel per room, Property & Corporate by sites, AI per office user. The standard is an annual contract at list price, paid annually in advance. With monthly payment a 15% surcharge applies and the contract can be cancelled monthly. 2 packages get a 10% and 3 or more packages a 15% bundle discount on the packages.' },
+      { question: 'How do I buy NexAsset?', answer: 'Right in the application: register your company, choose packages and quantities under Settings → Packages, check the price from the price list and place a binding order with one confirmation. Payment is by SEPA direct debit or card via Stripe; the invoice comes by e-mail. This works during or after the trial; for sizes above the bands we prepare an offer.' },
       { question: 'Which data does the AI assistant see?', answer: 'Only what the person asking may see in NexAsset anyway – selected by NexAsset, not by the model. Credentials and ID, tax and health data never go to the model. Data is not used for training; optionally, processing happens in the EU only.' },
       { question: 'Which systems can be connected?', answer: 'Hotel property management systems (PMS) in the hotel package, DATEV export, German e-invoicing (ZUGFeRD, XRechnung), bank statements (CSV/CAMT) and PSD2 bank access in property management, GAEB X83/X84 in development, IFC building models, deadlines as iCal and NFC time clock terminals.' },
       { question: 'Is there a mobile app?', answer: 'Yes. NexAsset runs in the browser and as an app for iOS and Android – with push notifications, time clock, chat, photos and the AI assistant.' },

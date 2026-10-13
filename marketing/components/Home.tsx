@@ -176,6 +176,7 @@ export function Home({ c }: { c: HomeContent }) {
               <div><h3>{p.cta.title}</h3><p>{p.cta.text}</p></div>
               <div className="pricing__actions">
                 <a className="button" href={signupUrl}>{p.cta.primary} <ArrowIcon /></a>
+                <a className="button button--ghost" href={`${signupUrl}?kaufen=1`}>{p.cta.buy} <ArrowIcon /></a>
                 <a className="button button--ghost" href={`mailto:${siteConfig.email}?subject=${encodeURIComponent(p.cta.quoteSubject)}`}>{p.cta.secondary}</a>
               </div>
             </div>
