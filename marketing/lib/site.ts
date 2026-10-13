@@ -11,5 +11,5 @@ export const siteConfig = {
   /** NexAsset-Anwendung (Registrierung „Kostenlos testen“, AGB, AVV liegen dort, damit die zugestimmte Fassung zur App gehört). */
   nexassetAppUrl: process.env.NEXT_PUBLIC_NEXASSET_APP_URL ?? 'https://nexasset.nexgen-consulting.de',
   description:
-    'NexAsset verbindet Aufgaben, Stempeluhr, Dienstplan, Chat, Objekte, Finanzen und E-Rechnung mit Paketen für Hausverwaltung, Asset Management, Development, Hotel und einem KI-Assistenten – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
+    'NexAsset verbindet Aufgaben, Stempeluhr, Dienstplan, Chat, Objekte, Finanzen und E-Rechnung mit Paketen für Hausverwaltung, Asset Management, Development, Hotel, Property & Corporate und einem KI-Assistenten – im Browser und als App für iOS und Android. 14 Tage kostenlos testen.',
 } as const;

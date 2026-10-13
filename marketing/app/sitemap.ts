@@ -3,7 +3,7 @@ import { siteConfig } from '@/lib/site';
 import { solutions } from '@/lib/solutions';
 
 /** Stand der Inhalte – beim Überarbeiten von Texten anpassen (kein „heute“, damit Suchmaschinen echte Änderungen erkennen). */
-const contentUpdated = new Date('2026-10-09');
+const contentUpdated = new Date('2026-10-13');
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const languages = { de: siteConfig.url, en: `${siteConfig.url}/en`, 'x-default': siteConfig.url };

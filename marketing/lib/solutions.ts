@@ -24,6 +24,8 @@ export type Solution = {
   related: string[];
 };
 
+/** Hinweis auf die Basis, angehängt an die Preisfragen der Paketseiten. */
+const basisPriceNote = ' Dazu kommt die Basis mit dem Grundpaket ab 99 € im Monat. Alle Preise netto je Monat bei jährlicher Zahlung.';
 const trialAnswer = 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten in einem eigenen, leeren Bereich. Das Paket wählen Sie bei der Registrierung; der Test endet automatisch.';
 
 export const solutions: Solution[] = [
@@ -59,6 +61,7 @@ export const solutions: Solution[] = [
       { question: 'Erstellt NexAsset die Jahresabrechnung nach WEG?', answer: 'Ja. Wirtschaftsplan und Jahresabrechnung nach § 28 WEG entstehen aus der Objektbuchhaltung, inklusive Erhaltungsrücklage, Vermögensbericht und Ausweis haushaltsnaher Leistungen nach § 35a EStG.' },
       { question: 'Gibt es einen Export für den Steuerberater?', answer: 'Ja, einen DATEV-Export. Kontoauszüge lassen sich importieren oder per Bankabruf holen; SEPA-Lastschriften werden als Datei erzeugt.' },
       { question: 'Können Eigentümer und Mieter Unterlagen selbst abrufen?', answer: 'Ja, über das Eigentümer- und Mieterportal. Sie sehen dort nur ihre eigenen Unterlagen.' },
+      { question: 'Was kostet die Hausverwaltungssoftware?', answer: 'Das Paket Hausverwaltung kostet 1,00 € je verwaltete Einheit, ab Einheit 1.001 0,80 € und ab Einheit 3.001 0,60 €; Stellplätze und Keller 0,30 €, mindestens 79 € im Monat. Für Dritte verwaltete Einheiten zählen nur hier, nicht in der Basis.' + basisPriceNote },
       { question: 'Kann ich die Hausverwaltung kostenlos testen?', answer: trialAnswer },
     ],
     related: ['asset-management-software', 'e-rechnung-software', 'ki-assistent-immobilien'],
@@ -94,7 +97,7 @@ export const solutions: Solution[] = [
       { question: 'Worin unterscheidet sich Asset Management von der Hausverwaltung?', answer: 'Die Hausverwaltung kümmert sich um Abrechnung und Betrieb der Objekte, das Asset Management um Wert, Rendite und Entscheidungen aus Eigentümersicht. In NexAsset arbeiten beide auf denselben Daten.' },
       { question: 'Kann ich einzelne Wohnungen oder ganze Objekte verkaufen?', answer: 'Beides. Der Verkauf läuft über einen Verkaufsprozess mit Datenraum, Angeboten, Beurkundung, Ratenplan nach MaBV und Übergabeprotokoll; Zahlungseingänge werden zugeordnet.' },
       { question: 'Gibt es Berichte für Banken und Investoren?', answer: 'Ja, Quartalsberichte für Investoren sowie Bankreporting mit Kreditauflagen – jeweils aus dem aktuellen Datenstand.' },
-      { question: 'Wird je Objekt abgerechnet?', answer: 'Ja, das Paket Asset Management wird je Objekt und Monat abgerechnet. Die Preise vereinbaren wir mit Ihnen; monatlich kündbar.' },
+      { question: 'Was kostet das Asset Management?', answer: 'Abgerechnet wird nach der Anzahl der Objekte in Bändern: bis 10 Objekte 249 €, bis 30 Objekte 449 €, bis 100 Objekte 899 € im Monat; mehr als 100 Objekte auf Anfrage.' + basisPriceNote },
       { question: 'Kann ich das Asset Management kostenlos testen?', answer: trialAnswer },
     ],
     related: ['hausverwaltungssoftware', 'projektentwicklung-software', 'ki-assistent-immobilien'],
@@ -131,6 +134,7 @@ export const solutions: Solution[] = [
       { question: 'Funktioniert das Bautagebuch ohne Internet?', answer: 'Ja. Bautagebuch, Fotos und Mängel lassen sich am Handy auch offline erfassen und werden später abgeglichen.' },
       { question: 'Wie werden Kosten gegliedert?', answer: 'Nach DIN 276, mit Budget, beauftragten und abgerechneten Beträgen sowie einer Prognose je Kostengruppe.' },
       { question: 'Ist der Verkauf nach MaBV abgebildet?', answer: 'Ja. Der Ratenplan folgt dem Baufortschritt nach MaBV, Ratenanforderungen entstehen als Brief, Zahlungseingänge werden zugeordnet.' },
+      { question: 'Was kostet das Development-Paket?', answer: 'Abgerechnet wird je aktives Projekt nach Baukosten (Kostengruppen 200–700 nach DIN 276): bis 3 Mio. € 149 €, bis 15 Mio. € 299 €, bis 50 Mio. € 549 € im Monat; über 50 Mio. € auf Anfrage. Ruhende und abgeschlossene Projekte sind kostenlos.' + basisPriceNote },
       { question: 'Kann ich das Development-Paket kostenlos testen?', answer: trialAnswer },
     ],
     related: ['asset-management-software', 'ki-assistent-immobilien', 'zeiterfassung-app'],
@@ -166,6 +170,7 @@ export const solutions: Solution[] = [
       { question: 'Funktioniert Housekeeping ohne WLAN auf der Etage?', answer: 'Ja. Die Housekeeping-Ansicht am Handy arbeitet auch offline und gleicht ab, sobald wieder Empfang da ist.' },
       { question: 'Werden beim Online-Check-in Ausweise gespeichert?', answer: 'Nein. Der Online-Check-in fragt keine Ausweisdaten ab und speichert keine.' },
       { question: 'Welche Hotelsysteme werden unterstützt?', answer: 'Das Hotel-Paket arbeitet mit einer Anbindung an Ihr PMS. Welche Systeme aktuell angebunden werden können, klären wir gern vorab mit Ihnen.' },
+      { question: 'Was kostet die Hotelsoftware?', answer: 'Hotel Betrieb (Rezeption, Housekeeping, Technik, Schichtbuch, Hotelbedarf) kostet 4 € je Zimmer und Monat, mindestens 129 € je Hotel. Hotel Komplett mit Prognose, GuV & Budget, Preisen, Gruppen und Tagungen, Gäste-CRM und DATEV kostet 8 € je Zimmer, mindestens 199 € je Hotel. Ab dem 61. Zimmer gelten −15 %, ab dem 121. Zimmer −25 %: Ein Hotel mit 100 Zimmern zahlt 752 € (Komplett) bzw. 376 € (Betrieb). Mitarbeitende, die nur stempeln, chatten und eigene Aufgaben sehen, zählen als App-Nutzer für 3 € je Person.' + basisPriceNote },
       { question: 'Kann ich das Hotel-Paket kostenlos testen?', answer: trialAnswer + ' Für die Hotel-Funktionen brauchen Sie eine Verbindung zu Ihrem PMS.' },
     ],
     related: ['ki-assistent-immobilien', 'zeiterfassung-app', 'e-rechnung-software'],
@@ -203,6 +208,7 @@ export const solutions: Solution[] = [
       { question: 'Kann die KI selbst Änderungen speichern?', answer: 'Nein. Sie bereitet Änderungen als Vorschlag vor; gespeichert wird erst, wenn eine berechtigte Person bestätigt. Die Änderung wird mit dem Kennzeichen „KI“ protokolliert.' },
       { question: 'Läuft die KI in der EU?', answer: 'Auf Wunsch ja: Mit der EU-Variante wird nur in der EU verarbeitet. Standardmäßig verarbeitet Anthropic (USA) auf Grundlage der EU-Standardvertragsklauseln.' },
       { question: 'Trifft die KI Entscheidungen über Personen?', answer: 'Nein. Der Assistent wird nicht für Entscheidungen über Beschäftigte, Bewerber, Kreditwürdigkeit oder Mietinteressenten eingesetzt; das ist auch in der Anlage KI so vereinbart.' },
+      { question: 'Was kostet der KI-Assistent?', answer: '6 € je Büro-Nutzer mit KI und Monat, bei fairer Nutzung mit einem Monatsbudget als Kostendeckel. Der Bündelrabatt für Pakete gilt für den KI-Assistenten nicht.' + basisPriceNote },
       { question: 'Kann ich den KI-Assistenten kostenlos testen?', answer: trialAnswer + ' Im Test gilt ein kleines Monatsbudget.' },
     ],
     related: ['hausverwaltungssoftware', 'asset-management-software', 'hotelsoftware'],
@@ -239,6 +245,7 @@ export const solutions: Solution[] = [
       { question: 'Können Mitarbeitende ohne Handy stempeln?', answer: 'Ja, im Browser oder an einem Stempelterminal am Standort.' },
       { question: 'Wer sieht die Zeiten?', answer: 'Jede Person sieht ihre eigenen Zeiten. Was Vorgesetzte sehen, legen Sie über Rollen und Rechte fest – alle, eigene Abteilung oder nur eigene.' },
       { question: 'Gibt es die App in mehreren Sprachen?', answer: 'Ja, in Deutsch, Englisch, Polnisch, Griechisch und Persisch – jede Person arbeitet in ihrer Sprache.' },
+      { question: 'Was kostet die Zeiterfassung?', answer: 'Die Zeiterfassung gehört zum Grundpaket in der Basis ab 99 € im Monat (3 Büro-Nutzer inklusive). Mitarbeitende, die nur stempeln, Urlaub beantragen, den Dienstplan sehen, chatten und eigene Aufgaben erledigen, zählen als App-Nutzer für 3 € je Person und Monat. Alle Preise netto bei jährlicher Zahlung.' },
       { question: 'Kann ich die Zeiterfassung kostenlos testen?', answer: 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten; das Grundpaket mit der Zeiterfassung ist immer dabei. Der Test endet automatisch.' },
     ],
     related: ['hausverwaltungssoftware', 'hotelsoftware', 'e-rechnung-software'],
@@ -274,7 +281,7 @@ export const solutions: Solution[] = [
       { question: 'Welche Formate erzeugt NexAsset?', answer: 'XRechnung 3.0 als XML und ZUGFeRD als PDF mit eingebetteten Daten. Beide werden vor dem Festschreiben geprüft.' },
       { question: 'Kann ich eine festgeschriebene Rechnung ändern?', answer: 'Nein. Festgeschriebene Rechnungen bleiben unverändert; Korrekturen erfolgen über Storno und eine neue Rechnung.' },
       { question: 'Bekommt mein Steuerberater die Daten?', answer: 'Ja, über den DATEV-Export der Ausgangsrechnungen.' },
-      { question: 'Ist die E-Rechnung im Grundpaket?', answer: 'Ja. Rechnungen mit E-Rechnung, Mahnwesen und Kassenbuch gehören zum Grundpaket.' },
+      { question: 'Ist die E-Rechnung im Grundpaket?', answer: 'Ja. Rechnungen mit E-Rechnung, Mahnwesen und Kassenbuch gehören zum Grundpaket und kosten nichts extra. Die Basis mit dem Grundpaket beginnt bei 99 € im Monat, netto bei jährlicher Zahlung.' },
       { question: 'Kann ich die Rechnungsfunktionen kostenlos testen?', answer: 'Ja. Sie testen 14 Tage kostenlos und ohne Zahlungsdaten; das Grundpaket ist immer dabei. Der Test endet automatisch.' },
     ],
     related: ['hausverwaltungssoftware', 'zeiterfassung-app', 'asset-management-software'],
