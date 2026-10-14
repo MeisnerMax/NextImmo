@@ -17,7 +17,7 @@ export const organizationNode = {
   address: { '@type': 'PostalAddress', streetAddress: 'Webergasse 30', postalCode: '96450', addressLocality: 'Coburg', addressCountry: 'DE' },
 };
 
-export const softwareNode = (description: string) => ({
+export const softwareNode = (description: string, withPrices = true) => ({
   '@type': 'SoftwareApplication',
   '@id': softwareId,
   name: 'NexAsset',
@@ -29,14 +29,14 @@ export const softwareNode = (description: string) => ({
   inLanguage: ['de', 'en', 'pl', 'el', 'fa'],
   offers: [
     { '@type': 'Offer', price: '0', priceCurrency: 'EUR', description: '14 Tage kostenlos testen' },
-    {
+    ...(withPrices ? [{
       '@type': 'AggregateOffer',
       lowPrice: '99',
       priceCurrency: 'EUR',
       description: 'Basis mit Grundpaket ab 99 € je Monat bei jährlicher Zahlung (keine Umsatzsteuer nach § 19 UStG); Pakete nach Größe zusätzlich.',
       url: `${siteConfig.url}/preise`,
       priceSpecification: { '@type': 'UnitPriceSpecification', price: '99', priceCurrency: 'EUR', unitCode: 'MON', unitText: 'Monat' },
-    },
+    }] : []),
   ],
   publisher: { '@id': organizationId },
 });
