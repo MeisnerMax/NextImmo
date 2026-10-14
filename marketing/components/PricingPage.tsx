@@ -21,7 +21,7 @@ export function PricingPage({ c }: { c: HomeContent }) {
   const en = c.lang === 'en';
   const p = c.pricing;
   const url = absoluteUrl(en ? '/en/preise' : '/preise');
-  const faq = c.faq.items.filter((item) => p.faqQuestions.includes(item.question));
+  const faq = [...p.faq, ...c.faq.items.filter((item) => p.faqShared.includes(item.question))];
   const data = {
     '@context': 'https://schema.org',
     '@graph': [

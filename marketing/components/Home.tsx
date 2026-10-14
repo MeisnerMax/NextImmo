@@ -12,14 +12,13 @@ const app = siteConfig.nexassetAppUrl;
 
 export function Home({ c }: { c: HomeContent }) {
   const en = c.lang === 'en';
-  const p = c.pricing;
   const pageUrl = en ? `${siteConfig.url}/en` : siteConfig.url;
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
       organizationNode,
       { '@type': 'WebSite', '@id': websiteId, url: siteConfig.url, name: 'NexAsset', inLanguage: ['de', 'en'], publisher: { '@id': organizationId } },
-      softwareNode(content.de.meta.description),
+      softwareNode(content.de.meta.description, false),
       { '@type': 'WebPage', '@id': `${pageUrl}#webpage`, url: pageUrl, name: c.meta.title, description: c.meta.description, inLanguage: c.lang, isPartOf: { '@id': websiteId }, about: { '@id': softwareId } },
       { '@type': 'FAQPage', '@id': `${pageUrl}#faq`, inLanguage: c.lang, mainEntity: c.faq.items.map((faq) => ({ '@type': 'Question', name: faq.question, acceptedAnswer: { '@type': 'Answer', text: faq.answer } })) },
     ],
@@ -80,30 +79,12 @@ export function Home({ c }: { c: HomeContent }) {
                   </div>
                   <h3>{pkg.name}</h3>
                   <p>{pkg.tagline}</p>
-                  <div className="package-card__price"><strong>{pkg.price.from}</strong><span>{pkg.price.detail}</span></div>
                   <ul>{pkg.bullets.map((bullet) => <li key={bullet}><CheckIcon />{bullet}</li>)}</ul>
                   {pkg.slug ? <div className="package-card__links"><a className="package-card__try" href={tryUrl(pkg.slug)}>{c.packages.tryWith.replace('{name}', pkg.name)} <ArrowIcon /></a>{solutionForPackage(pkg.slug) ? <a className="package-card__more" href={path(`/${solutionForPackage(pkg.slug)?.slug}`)} lang={en ? 'de' : undefined}>{en ? 'Details (German)' : 'Mehr erfahren'}</a> : null}</div> : null}
                 </article>
               ))}
             </div>
             <p className="packages__note reveal">{c.packages.note}<a href={path(en ? '/en/preise' : '/preise')}>{c.packages.noteLink}</a>.</p>
-          </div>
-        </section>
-
-        <section className="pricing-teaser section" id="preise">
-          <div className="shell">
-            <div className="pricing-teaser__box reveal">
-              <div className="pricing-teaser__copy">
-                <p className="eyebrow">{p.eyebrow}</p>
-                <h2>{p.teaser.title}</h2>
-                <p>{p.teaser.text}</p>
-              </div>
-              <ul className="pricing-teaser__list">{p.teaser.points.map(([label, value]) => <li key={label}><span>{label}</span><strong>{value}</strong></li>)}</ul>
-              <div className="pricing-teaser__actions">
-                <a className="button" href={path(en ? '/en/preise' : '/preise')}>{p.teaser.link} <ArrowIcon /></a>
-                <a className="button button--ghost" href={`${signupUrl}?kaufen=1`}>{p.cta.buy} <ArrowIcon /></a>
-              </div>
-            </div>
           </div>
         </section>
 
